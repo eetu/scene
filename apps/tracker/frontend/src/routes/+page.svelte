@@ -1,12 +1,16 @@
 <script lang="ts">
-	import { AudioLines, Monitor, Moon, Pencil, Play, ScanLine, Settings, Star, Sun, X } from '@lucide/svelte';
-	import { createVirtualizer } from '@tanstack/svelte-virtual';
-	import { onMount, untrack } from 'svelte';
-	import { SvelteMap } from 'svelte/reactivity';
-
-	import { replaceState } from '$app/navigation';
-	import { page } from '$app/state';
-
+	import {
+		AudioLines,
+		Monitor,
+		Moon,
+		Pencil,
+		Play,
+		ScanLine,
+		Settings,
+		Star,
+		Sun,
+		X
+	} from '@lucide/svelte';
 	import { setTheme, theme } from '@scene/design';
 	import {
 		BoingBall,
@@ -20,7 +24,12 @@
 		Transport,
 		transportToggle
 	} from '@scene/player';
+	import { createVirtualizer } from '@tanstack/svelte-virtual';
+	import { onMount, untrack } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 
+	import { replaceState } from '$app/navigation';
+	import { page } from '$app/state';
 	import { api, ApiError, fileUrl, type StatusResponse, type Track } from '$lib/api';
 	import PatternViewScroll from '$lib/PatternViewScroll.svelte';
 

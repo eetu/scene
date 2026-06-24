@@ -3,9 +3,8 @@
 	// and Amiga (puae). EmulatorJS shows its own themed "Start Game" button and
 	// only downloads the core on that click, so it's already lazy + provides the
 	// audio gesture — no separate launch button needed. We add Fullscreen + Stop.
-	import { onDestroy, onMount, tick } from 'svelte';
-
 	import { Maximize, Power } from '@lucide/svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 
 	let { core, gameUrl, biosUrl }: { core: 'c64' | 'amiga'; gameUrl: string; biosUrl?: string } =
 		$props();

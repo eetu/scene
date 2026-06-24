@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: "Frontends (Svelte workspace)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version-file: .node-version
+      # Yarn is vendored (.yarn/releases/*.cjs) and invoked via node — no corepack
+      # (node 25+ dropped the bundle), so this stays node-version-agnostic and in
+      # step with the Dockerfile's node 26 stage. Root scripts fan out across the
+      # workspace (foreach), running only workspaces that define each script.
+      - name: Frontend checks (all workspaces)
+        run: |
+          yarn() { node .yarn/releases/yarn-*.cjs "$@"; }
+          yarn install --immutable
+          yarn lint
+          yarn format
+          yarn typecheck
+          yarn build
+
+  backend:
+    name: "Backends (Rust workspace)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: "."
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo build --workspace --release
+
+  e2e:
+    name: "E2E smoke (tracker stack boots + talks)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: "."
+      # tracker-e2e boots the backend (DEV_AUTH + temp data dir + fixtures) and
+      # drives it over real HTTP. #[ignore]d so the backend job skips it; run it
+      # explicitly here.
+      - run: cargo build -p tracker-backend
+      - run: cargo test -p tracker-e2e -- --ignored --nocapture
+
+  transcoder:
+    name: "Transcoder (Python sidecar)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/transcoder
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6
+      - run: uv sync --frozen
+      - run: uv run ruff check src

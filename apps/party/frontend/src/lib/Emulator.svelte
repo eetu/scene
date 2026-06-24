@@ -2,9 +2,8 @@
 	// DOS emulator surface (js-dos v8, self-hosted under /vendor/js-dos/). The
 	// runtime + WASM (~1.4 MB+) load only when the user clicks Launch — never on
 	// page view. Everything is same-origin, so the strict CSP is unchanged.
-	import { onDestroy } from 'svelte';
-
 	import { Maximize, Play, Power } from '@lucide/svelte';
+	import { onDestroy } from 'svelte';
 
 	let { bundleUrl }: { bundleUrl: string } = $props();
 

@@ -159,56 +159,62 @@
 		</div>
 
 		<div class="view" class:fill={fills}>
-		{#if !selected}
-			<p class="muted">No file selected.</p>
-		{:else if selected.kind === 'exe' && platform === 'pc'}
-			<!-- DOS: js-dos mounts the whole production folder and autoruns the
+			{#if !selected}
+				<p class="muted">No file selected.</p>
+			{:else if selected.kind === 'exe' && platform === 'pc'}
+				<!-- DOS: js-dos mounts the whole production folder and autoruns the
 			     primary executable, so it's keyed on the production, not the file. -->
-			{#key prodId}<Emulator bundleUrl={bundleUrl(prodId)} />{/key}
-		{:else if selected.kind === 'diskimage' && platform === 'c64'}
-			{#key selected.hash}
-				<EjsEmulator core="c64" gameUrl={diskUrl(selected.hash, selected.filename)} />
-			{/key}
-		{:else if selected.kind === 'diskimage' && platform === 'amiga'}
-			{#key selected.hash}
-				<!-- No ROM → PUAE uses its built-in AROS Kickstart (lower AGA compat);
+				{#key prodId}<Emulator bundleUrl={bundleUrl(prodId)} />{/key}
+			{:else if selected.kind === 'diskimage' && platform === 'c64'}
+				{#key selected.hash}
+					<EjsEmulator core="c64" gameUrl={diskUrl(selected.hash, selected.filename)} />
+				{/key}
+			{:else if selected.kind === 'diskimage' && platform === 'amiga'}
+				{#key selected.hash}
+					<!-- No ROM → PUAE uses its built-in AROS Kickstart (lower AGA compat);
 				     a configured Kickstart 3.1 overrides it. -->
-				<EjsEmulator
-					core="amiga"
-					gameUrl={diskUrl(selected.hash, selected.filename)}
-					biosUrl={kickstart ?? undefined}
+					<EjsEmulator
+						core="amiga"
+						gameUrl={diskUrl(selected.hash, selected.filename)}
+						biosUrl={kickstart ?? undefined}
+					/>
+				{/key}
+			{:else if selected.kind === 'music'}
+				<MusicPlayer {platform} />
+			{:else if selected.mime.startsWith('text/')}
+				<NfoView hash={selected.hash} />
+			{:else if selected.mime.startsWith('image/')}
+				<!-- Native formats stream raw; others are transcoded to PNG on demand. -->
+				<ImageCanvas
+					src={NATIVE_IMG.has(selected.mime)
+						? fileUrl(selected.hash)
+						: assetUrl(selected.hash, 'png')}
+					alt={selected.filename}
 				/>
-			{/key}
-		{:else if selected.kind === 'music'}
-			<MusicPlayer {platform} />
-		{:else if selected.mime.startsWith('text/')}
-			<NfoView hash={selected.hash} />
-		{:else if selected.mime.startsWith('image/')}
-			<!-- Native formats stream raw; others are transcoded to PNG on demand. -->
-			<ImageCanvas
-				src={NATIVE_IMG.has(selected.mime) ? fileUrl(selected.hash) : assetUrl(selected.hash, 'png')}
-				alt={selected.filename}
-			/>
-			<a class="dl sub" href={fileUrl(selected.hash)} download><Download size={13} /> Original</a>
-		{:else if selected.mime.startsWith('video/')}
-			<!-- svelte-ignore a11y_media_has_caption -->
-			<video
-				class="vid"
-				src={NATIVE_VIDEO.has(selected.mime) ? fileUrl(selected.hash) : assetUrl(selected.hash, 'mp4')}
-				controls
-			></video>
-			<a class="dl sub" href={fileUrl(selected.hash)} download><Download size={13} /> Original</a>
-		{:else}
-			{@const Icon = iconFor(selected)}
-			<div class="ph">
-				<Icon size={26} />
-				<p>{selected.filename} · {fmtBytes(selected.size)} · {selected.mime}</p>
-				{#if selected.kind === 'exe' && platform === 'amiga'}
-					<p class="hint">No Amiga disk image yet — package an *(AGA).hdf into this folder to run it.</p>
-				{/if}
-				<a class="dl" href={fileUrl(selected.hash)} download><Download size={14} /> Download</a>
-			</div>
-		{/if}
+				<a class="dl sub" href={fileUrl(selected.hash)} download><Download size={13} /> Original</a>
+			{:else if selected.mime.startsWith('video/')}
+				<!-- svelte-ignore a11y_media_has_caption -->
+				<video
+					class="vid"
+					src={NATIVE_VIDEO.has(selected.mime)
+						? fileUrl(selected.hash)
+						: assetUrl(selected.hash, 'mp4')}
+					controls
+				></video>
+				<a class="dl sub" href={fileUrl(selected.hash)} download><Download size={13} /> Original</a>
+			{:else}
+				{@const Icon = iconFor(selected)}
+				<div class="ph">
+					<Icon size={26} />
+					<p>{selected.filename} · {fmtBytes(selected.size)} · {selected.mime}</p>
+					{#if selected.kind === 'exe' && platform === 'amiga'}
+						<p class="hint">
+							No Amiga disk image yet — package an *(AGA).hdf into this folder to run it.
+						</p>
+					{/if}
+					<a class="dl" href={fileUrl(selected.hash)} download><Download size={14} /> Download</a>
+				</div>
+			{/if}
 		</div>
 	</div>
 </div>

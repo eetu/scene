@@ -1,9 +1,8 @@
 <script lang="ts">
 	// Landing: the list of scanned parties. Each card links to that party's
 	// catalog. Polls /status while an initial scan is running.
-	import { onMount } from 'svelte';
-
 	import { CalendarDays, MapPin, Music, RefreshCw } from '@lucide/svelte';
+	import { onMount } from 'svelte';
 
 	import { api, fileUrl, type Party, type StatusResponse } from '$lib/api';
 	import { listKeys } from '$lib/listkeys';
@@ -62,9 +61,8 @@
 		<p class="error">{error}</p>
 	{:else if status?.scanning}
 		<p class="muted">
-			scanning… {status.scan_processed} files{status.scan_total
-				? ` / ${status.scan_total}`
-				: ''} ({status.scan_hashed} hashed)
+			scanning… {status.scan_processed} files{status.scan_total ? ` / ${status.scan_total}` : ''} ({status.scan_hashed}
+			hashed)
 		</p>
 	{:else if parties.length === 0}
 		<p class="muted">no parties found under the archive root.</p>

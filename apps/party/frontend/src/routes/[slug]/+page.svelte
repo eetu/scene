@@ -3,9 +3,6 @@
 	// detail panel that dispatches to the right viewer by medium — music → the
 	// libopenmpt Player, images/video native where possible, text → NfoView,
 	// demos/intros → an emulator placeholder (Phase 3). Everything downloadable.
-	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
-
 	import {
 		ArrowLeft,
 		ChevronRight,
@@ -15,9 +12,10 @@
 		Music,
 		PanelLeft
 	} from '@lucide/svelte';
-
 	import { playInOrder, type Track } from '@scene/player';
 
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { api, type Production, type ProductionDetail } from '$lib/api';
 	import FileBrowser from '$lib/FileBrowser.svelte';
 	import { listKeys } from '$lib/listkeys';
@@ -93,6 +91,8 @@
 	// as an overview — then the competitions alphabetically.
 	const FIRST = ['Info', 'Misc'];
 	const groups = $derived.by(() => {
+		// Plain Map: a throwaway grouping recomputed each run, not reactive state.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const m = new Map<string, Production[]>();
 		for (const p of prods) {
 			const arr = m.get(p.compo);
@@ -153,7 +153,12 @@
 
 <header>
 	<a class="back" href="/" aria-label="Back"><ArrowLeft size={18} /></a>
-	<button class="navtoggle" onclick={() => (navOpen = !navOpen)} title="Toggle list" aria-label="Toggle list">
+	<button
+		class="navtoggle"
+		onclick={() => (navOpen = !navOpen)}
+		title="Toggle list"
+		aria-label="Toggle list"
+	>
 		<PanelLeft size={18} />
 	</button>
 	<h1>{slug}</h1>
@@ -169,44 +174,45 @@
 	<div class="cols" class:nav-hidden={!navOpen}>
 		<section class="catalog">
 			<div class="catalog-inner">
-			{#each groups as [compo, entries] (compo)}
-				<div class="cat" class:open={open[compo]}>
-					<button class="cathead" onclick={() => toggle(compo)} aria-expanded={!!open[compo]}>
-						<ChevronRight class="chev" size={14} />
-						<span class="catname">{compo}</span>
-						<span class="catcount">{entries.length}</span>
-					</button>
-					{#if open[compo]}
-						{@const ranked = entries.filter((e) => e.rank != null)}
-						{@const rest = entries.filter((e) => e.rank == null)}
-						{@const list = showRest[compo] || ranked.length === 0 ? entries : ranked}
-						<ul use:listKeys>
-							{#each list as p (p.id)}
-								<li>
-									<button class:sel={selected?.id === p.id} onclick={() => select(p)}>
-										<span class="rank">{p.rank ?? '—'}</span>
-										{#key p.medium}
-											{@const Icon = mediumIcon(p.medium)}
-											<Icon size={14} />
-										{/key}
-										<span class="name">
-											{#if p.group}<b>{p.group}</b> — {/if}{p.title ?? '(untitled)'}
-										</span>
-										{#if p.points != null}
-											<span class="pts">{p.points}p</span>
-										{/if}
-									</button>
-								</li>
-							{/each}
-						</ul>
-						{#if ranked.length > 0 && rest.length > 0}
-							<button class="more" onclick={() => (showRest[compo] = !showRest[compo])}>
-								{showRest[compo] ? 'Show less' : `+${rest.length} more`}
-							</button>
+				{#each groups as [compo, entries] (compo)}
+					<div class="cat" class:open={open[compo]}>
+						<button class="cathead" onclick={() => toggle(compo)} aria-expanded={!!open[compo]}>
+							<ChevronRight class="chev" size={14} />
+							<span class="catname">{compo}</span>
+							<span class="catcount">{entries.length}</span>
+						</button>
+						{#if open[compo]}
+							{@const ranked = entries.filter((e) => e.rank != null)}
+							{@const rest = entries.filter((e) => e.rank == null)}
+							{@const list = showRest[compo] || ranked.length === 0 ? entries : ranked}
+							<ul use:listKeys>
+								{#each list as p (p.id)}
+									<li>
+										<button class:sel={selected?.id === p.id} onclick={() => select(p)}>
+											<span class="rank">{p.rank ?? '—'}</span>
+											{#key p.medium}
+												{@const Icon = mediumIcon(p.medium)}
+												<Icon size={14} />
+											{/key}
+											<span class="name">
+												{#if p.group}<b>{p.group}</b> —
+												{/if}{p.title ?? '(untitled)'}
+											</span>
+											{#if p.points != null}
+												<span class="pts">{p.points}p</span>
+											{/if}
+										</button>
+									</li>
+								{/each}
+							</ul>
+							{#if ranked.length > 0 && rest.length > 0}
+								<button class="more" onclick={() => (showRest[compo] = !showRest[compo])}>
+									{showRest[compo] ? 'Show less' : `+${rest.length} more`}
+								</button>
+							{/if}
 						{/if}
-					{/if}
-				</div>
-			{/each}
+					</div>
+				{/each}
 			</div>
 		</section>
 
@@ -218,7 +224,8 @@
 				<div class="dhead">
 					<h2>{prod.title ?? '(untitled)'}</h2>
 					<p class="credit">
-						{#if prod.group}{prod.group} · {/if}{prod.compo}
+						{#if prod.group}{prod.group} ·
+						{/if}{prod.compo}
 						{#if prod.rank}· #{prod.rank}{/if}
 						{#if prod.points != null}· {prod.points} pts{/if}
 					</p>

@@ -3,7 +3,6 @@
 	// theme selector — mirrors tracker's settings. Self-contained; drop <Settings/>
 	// into any header.
 	import { Monitor, Moon, Settings as Gear, Sun } from '@lucide/svelte';
-
 	import { setTheme, theme } from '@scene/design';
 
 	let open = $state(false);

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Pre-commit gate — runs only the checks relevant to what's staged. Mirror of the
+# sibling-app hook, adapted for the monorepo: one yarn workspace (frontends +
+# shared packages), one cargo workspace (backends + e2e), and the uv sidecar.
+# Installed by ./install-hooks.sh (sets core.hooksPath). Git runs it from the
+# repo root.
+set -euo pipefail
+
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+[ -n "$staged" ] || exit 0
+
+run_front=0
+run_rust=0
+run_py=0
+while IFS= read -r f; do
+	case "$f" in
+		apps/*/frontend/* | packages/* | package.json | yarn.lock | .yarnrc.yml) run_front=1 ;;
+	esac
+	case "$f" in
+		apps/*/backend/* | apps/*/e2e/* | Cargo.toml | Cargo.lock) run_rust=1 ;;
+	esac
+	case "$f" in
+		services/transcoder/*) run_py=1 ;;
+	esac
+done <<<"$staged"
+
+if [ "$run_front" = 1 ]; then
+	echo "pre-commit: frontends (lint + format)"
+	# Vendored yarn (no corepack), invoked via node — root scripts fan out across
+	# the workspace.
+	node .yarn/releases/yarn-*.cjs lint
+	node .yarn/releases/yarn-*.cjs format
+fi
+
+if [ "$run_rust" = 1 ]; then
+	echo "pre-commit: backends (clippy, whole workspace)"
+	cargo clippy --workspace --all-targets -- -D warnings
+fi
+
+if [ "$run_py" = 1 ]; then
+	echo "pre-commit: transcoder (ruff)"
+	(cd services/transcoder && uv run ruff check src)
+fi
