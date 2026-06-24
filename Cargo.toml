@@ -32,5 +32,5 @@ hex = "0.4"
 dotenvy = "0.15"
 # Union of the two apps' feature sets: cookies (tracker) + stream (party).
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "cookies", "stream"] }
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "8", default-features = false, features = ["deflate"] }
 tempfile = "3"
