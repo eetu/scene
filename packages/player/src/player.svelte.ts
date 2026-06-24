@@ -133,6 +133,9 @@ function ensurePlayer(): Promise<void> {
 		playback.instruments = meta?.song?.instruments ?? [];
 		if (playback.current) void saveMeta(playback.current, meta);
 		syncNowPlaying(); // title is known now → refresh OS Now Playing
+		// The new module is parsed and cleanly playing — restore output (playTrack
+		// dropped the gain to 0 across the switch to mask any tail/startup artifact).
+		player.setVol(playback.muted ? 0 : 1);
 	});
 	player.onEnded(() => {
 		// (With repeat on, the module loops and onEnded never fires.) Auto-advance
@@ -242,10 +245,15 @@ function wirePlatformIntegration() {
 
 /** Load a track and play it from the start (audible unless muted). */
 export async function playTrack(track: Track) {
-	// Silence the currently-loaded module *before* the (async) fetch of the next
-	// one — otherwise the old song keeps rendering in the worklet until the new
-	// module is created, so you hear a tail of the previous track.
-	if (player) player.stop();
+	// Mask the switch entirely: drop the output gain to 0 *synchronously* (it's a
+	// main-thread AudioParam, so it takes effect instantly) before stopping the
+	// old module. The worklet processes stop/play asynchronously, so without this
+	// you hear either the previous track's tail or the new module's startup
+	// artifact. Gain is restored in onMetadata once the new module plays cleanly.
+	if (player) {
+		player.setVol(0);
+		player.stop();
+	}
 	playback.error = null;
 	playback.current = track;
 	playback.playing = true;
@@ -263,7 +271,9 @@ export async function playTrack(track: Track) {
 	} catch {
 		/* already running */
 	}
-	player.setVol(playback.muted ? 0 : 1);
+	// Stay silent until onMetadata fires for the new module (covers first play,
+	// where the player was just created above with a default gain of 1).
+	player.setVol(0);
 	player.load(host().fileUrl(track.hash));
 	syncNowPlaying();
 	// Arm play-count gating for this track; the count fires from onProgress once

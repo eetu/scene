@@ -7,7 +7,16 @@
 	// production (its primary file) is selected by default, so a demo opens
 	// straight into the emulator and a graphics entry into the image — one
 	// consistent layout for every production type.
-	import { Download, File, FileText, Film, Image as ImageIcon, Monitor, Music } from '@lucide/svelte';
+	import {
+		Download,
+		File,
+		FileText,
+		Film,
+		Image as ImageIcon,
+		Monitor,
+		Music,
+		PanelLeft
+	} from '@lucide/svelte';
 
 	import { assetUrl, bundleUrl, diskUrl, fileUrl, type ProductionFile } from './api';
 	import EjsEmulator from './EjsEmulator.svelte';
@@ -22,13 +31,19 @@
 		primary = null,
 		platform = 'na',
 		prodId,
-		kickstart = null
+		kickstart = null,
+		initialFile = null,
+		onfile
 	}: {
 		files: ProductionFile[];
 		primary?: string | null;
 		platform?: string;
 		prodId: string;
 		kickstart?: string | null;
+		/** rel_path to pre-select (from the URL ?f param); used on load/restore. */
+		initialFile?: string | null;
+		/** Called when the user picks a file, so the URL can reflect it. */
+		onfile?: (relPath: string) => void;
 	} = $props();
 
 	const NATIVE_IMG = new Set(['image/gif', 'image/jpeg', 'image/png', 'image/bmp']);
@@ -66,16 +81,30 @@
 	// emulator and a graphics entry on its image; else the first showable file,
 	// else the first file.
 	$effect(() => {
-		// Primary first (it may be a hidden .support disk — that's the point); then
-		// the first showable visible file, else the first visible file.
+		// Re-pick a default whenever the file set changes (i.e. a different
+		// production). Honour the URL-provided `initialFile` if it's valid for this
+		// set; else primary first (it may be a hidden .support disk — that's the
+		// point), then the first showable visible file, else the first visible file.
+		// This is the auto-default path — it must NOT call onfile (no URL write);
+		// only an explicit user pick does.
+		const pre = initialFile && files.some((f) => f.rel_path === initialFile) ? initialFile : null;
 		const prim = files.find((f) => f.hash === primary);
 		const show = visible.find(showable);
-		selectedPath = (prim ?? show ?? visible[0] ?? files[0])?.rel_path ?? null;
+		selectedPath = pre ?? (prim ?? show ?? visible[0] ?? files[0])?.rel_path ?? null;
 	});
+
+	function pick(relPath: string) {
+		selectedPath = relPath;
+		onfile?.(relPath);
+	}
 	const selected = $derived(files.find((f) => f.rel_path === selectedPath) ?? null);
-	// An emulator sizes itself (4:3, its own max-height); the scrollable, height-
-	// capped view pane meant for text/images would just clip it and add scrollbars.
-	const isEmu = $derived(selected ? runnable(selected) : false);
+	// Emulator + music player manage their own size and should fill the pane (no
+	// inner scroll); text/images keep the scrollable, padded pane.
+	const fills = $derived(selected ? runnable(selected) || selected.kind === 'music' : false);
+
+	// The file list is a collapsible drawer — hide it to give the content (player /
+	// emulator / image) the full width.
+	let listOpen = $state(true);
 
 	function iconFor(f: ProductionFile) {
 		if (f.mime.startsWith('text/')) return FileText;
@@ -94,26 +123,42 @@
 </script>
 
 <div class="browser">
-	<ul class="list" use:listKeys>
-		{#each visible as f (f.rel_path)}
-			<li>
-				<button
-					class:sel={f.rel_path === selectedPath}
-					onclick={() => (selectedPath = f.rel_path)}
-					onfocus={() => (selectedPath = f.rel_path)}
-				>
-					{#key f.hash}
-						{@const Icon = iconFor(f)}
-						<Icon size={14} />
-					{/key}
-					<span class="fn">{f.filename}</span>
-					<span class="fs">{fmtBytes(f.size)}</span>
-				</button>
-			</li>
-		{/each}
-	</ul>
+	<div class="bhead">
+		<button
+			class="toggle"
+			onclick={() => (listOpen = !listOpen)}
+			title={listOpen ? 'Hide file list' : 'Show file list'}
+			aria-label="Toggle file list"
+			aria-expanded={listOpen}
+		>
+			<PanelLeft size={16} />
+		</button>
+		<span class="bname">{selected?.filename ?? ''}</span>
+	</div>
 
-	<div class="view" class:emu={isEmu}>
+	<div class="panes" class:list-hidden={!listOpen}>
+		<div class="listpane">
+			<ul class="list" use:listKeys>
+				{#each visible as f (f.rel_path)}
+					<li>
+						<button
+							class:sel={f.rel_path === selectedPath}
+							onclick={() => pick(f.rel_path)}
+							onfocus={() => pick(f.rel_path)}
+						>
+							{#key f.hash}
+								{@const Icon = iconFor(f)}
+								<Icon size={14} />
+							{/key}
+							<span class="fn">{f.filename}</span>
+							<span class="fs">{fmtBytes(f.size)}</span>
+						</button>
+					</li>
+				{/each}
+			</ul>
+		</div>
+
+		<div class="view" class:fill={fills}>
 		{#if !selected}
 			<p class="muted">No file selected.</p>
 		{:else if selected.kind === 'exe' && platform === 'pc'}
@@ -164,30 +209,86 @@
 				<a class="dl" href={fileUrl(selected.hash)} download><Download size={14} /> Download</a>
 			</div>
 		{/if}
+		</div>
 	</div>
 </div>
 
 <style>
 	.browser {
-		display: grid;
-		grid-template-columns: minmax(180px, 240px) 1fr;
-		gap: 14px;
+		display: flex;
+		flex-direction: column;
 		border: 1px solid var(--border);
 		border-radius: 8px;
 		overflow: hidden;
 		/* Fill the detail pane's remaining height so the list scrolls internally
-		   and the viewer (emulator/image/video) scales to the available space. */
+		   and the viewer (emulator/image/video/player) scales to the space. */
 		flex: 1;
 		min-height: 200px;
 	}
+	.bhead {
+		flex: 0 0 auto;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 5px 8px;
+		background: var(--panel);
+		border-bottom: 1px solid var(--border);
+	}
+	.toggle {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 4px;
+		border: 1px solid var(--border);
+		border-radius: 5px;
+		background: var(--panel-hi);
+		color: var(--text);
+		cursor: pointer;
+	}
+	.toggle:hover {
+		border-color: var(--accent);
+	}
+	.bname {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--muted);
+		font-size: 12px;
+		font-family: var(--font-mono-retro);
+	}
+	/* Animated drawer — mirrors the catalog nav drawer ([slug] .cols): a FIXED px
+	   track interpolates to 0 (minmax() would not animate), and the list clips its
+	   own overflow-x so nothing peeks through at width 0. */
+	.panes {
+		flex: 1;
+		min-height: 0;
+		display: grid;
+		grid-template-columns: 240px 1fr;
+		transition: grid-template-columns 0.22s ease;
+	}
+	.panes.list-hidden {
+		grid-template-columns: 0px 1fr;
+	}
+	/* The grid item only clips; the fixed-width inner list keeps its layout so the
+	   shrinking track slides it out cleanly (no reflow, no leftover sliver). */
+	.listpane {
+		overflow: hidden;
+		border-right: 1px solid var(--border);
+		background: var(--panel);
+	}
+	.panes.list-hidden .listpane {
+		border-right-color: transparent;
+	}
 	.list {
+		width: 240px;
+		height: 100%;
 		list-style: none;
 		margin: 0;
 		padding: 6px;
-		border-right: 1px solid var(--border);
-		background: var(--panel);
-		overflow: auto;
-		min-height: 0;
+		overflow-x: hidden;
+		overflow-y: auto;
 	}
 	.list button {
 		display: flex;
@@ -226,8 +327,8 @@
 		overflow: auto;
 		min-height: 0;
 	}
-	/* The emulator fills the pane (see .emu/.screen): no inner scroll, no clip. */
-	.view.emu {
+	/* Emulator + music player fill the pane (their own height:100%): no scroll. */
+	.view.fill {
 		overflow: hidden;
 	}
 	.vid {
@@ -267,13 +368,20 @@
 		color: var(--muted);
 	}
 	@media (max-width: 640px) {
-		.browser {
+		.panes {
 			grid-template-columns: 1fr;
 		}
-		.list {
+		.listpane {
 			border-right: 0;
 			border-bottom: 1px solid var(--border);
 			max-height: 30vh;
+		}
+		.list {
+			width: 100%;
+		}
+		/* On a phone the panes stack, so collapse hides the list row entirely. */
+		.panes.list-hidden .listpane {
+			display: none;
 		}
 	}
 </style>

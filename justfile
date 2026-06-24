@@ -13,8 +13,24 @@ install:
 dev app:
     #!/usr/bin/env bash
     set -euo pipefail
-    ( cd apps/{{app}}/backend && cargo run ) &
-    ( cd apps/{{app}}/frontend && yarn dev ) &
+    # Tear down both children (and their grandchildren — the actual backend
+    # binary under cargo, vite under yarn) on Ctrl-C / exit, so nothing orphans
+    # and holds its port. Killing only the children — NOT `kill 0` — leaves
+    # `just` and the shell unsignalled, so no stray SIGTERM noise on exit.
+    back="" front=""
+    cleanup() {
+        trap - INT TERM EXIT
+        for p in "$back" "$front"; do
+            [ -n "$p" ] || continue
+            pkill -P "$p" 2>/dev/null || true
+            kill "$p" 2>/dev/null || true
+        done
+    }
+    trap cleanup INT TERM EXIT
+    ( cd apps/{{app}}/backend && exec cargo run ) &
+    back=$!
+    ( cd apps/{{app}}/frontend && exec yarn dev ) &
+    front=$!
     wait
 
 # Build everything: all frontends, then the whole rust workspace.

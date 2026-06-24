@@ -1,27 +1,15 @@
 <script lang="ts">
-	import {
-		AudioLines,
-		Monitor,
-		Moon,
-		Pause,
-		Pencil,
-		Play,
-		Repeat,
-		ScanLine,
-		Settings,
-		Shuffle,
-		SkipBack,
-		SkipForward,
-		Star,
-		Sun,
-		X
-	} from '@lucide/svelte';
+	import { AudioLines, Monitor, Moon, Pencil, Play, ScanLine, Settings, Star, Sun, X } from '@lucide/svelte';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { onMount, untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 
+	import { replaceState } from '$app/navigation';
+	import { page } from '$app/state';
+
 	import { setTheme, theme } from '@scene/design';
 	import {
+		BoingBall,
 		parseModule,
 		PatternView,
 		playback,
@@ -29,14 +17,11 @@
 		playNext,
 		playPrev,
 		Scope,
-		seekSeconds,
-		toggleRepeat,
-		toggleShuffle,
+		Transport,
 		transportToggle
 	} from '@scene/player';
 
 	import { api, ApiError, fileUrl, type StatusResponse, type Track } from '$lib/api';
-	import BoingBall from '$lib/BoingBall.svelte';
 	import PatternViewScroll from '$lib/PatternViewScroll.svelte';
 
 	type GroupKey = 'group' | 'artist' | 'ext';
@@ -207,6 +192,28 @@
 
 	onMount(init);
 
+	// URL state: reflect the current/selected track as ?t=<hash> so a reload
+	// restores it, and restore the track named in the URL once the library loads.
+	$effect(() => {
+		const h = playback.current?.hash;
+		if (h && h !== page.url.searchParams.get('t')) {
+			const u = new URL(page.url);
+			u.searchParams.set('t', h);
+			replaceState(u, page.state);
+		}
+	});
+	let restored = false;
+	$effect(() => {
+		if (restored || tracks.length === 0) return;
+		restored = true;
+		const h = page.url.searchParams.get('t');
+		if (!h) return;
+		const t = tracks.find((x) => x.hash === h);
+		// Restore into the transport (sets current); playback stays blocked until a
+		// user gesture, and the full-screen view is left closed to avoid surprise.
+		if (t) void playInOrder(flatTracks, t);
+	});
+
 	// Lock body scroll while the full-screen player overlay is open, so the
 	// page's own (now-pointless) scrollbar for the list behind it disappears.
 	$effect(() => {
@@ -355,13 +362,6 @@
 	function openTrack(t: Track) {
 		if (playback.current?.path !== t.path) void playInOrder(flatTracks, t);
 		showPattern = true;
-	}
-
-	function seekClick(e: MouseEvent) {
-		if (!playback.duration) return;
-		const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-		const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-		seekSeconds(frac * playback.duration);
 	}
 
 	// Desktop shortcuts: space = play/pause, ←/→ = prev/next, esc = close view.
@@ -705,7 +705,7 @@
 				<Settings size={16} />
 			</button>
 			<button
-				class="pv-close"
+				class="icon-btn pv-close"
 				onclick={() => (showPattern = false)}
 				aria-label="close pattern view"
 			>
@@ -747,62 +747,8 @@
 {/if}
 
 {#if playback.current}
-	<div class="transport">
-		<button class="seek" onclick={seekClick} aria-label="seek" title="seek">
-			<div
-				class="seek-fill"
-				style:width="{playback.duration ? (playback.position / playback.duration) * 100 : 0}%"
-			></div>
-		</button>
-		<div class="t-controls">
-			<button class="t-btn" onclick={playPrev} disabled={!hasPrev} aria-label="previous">
-				<SkipBack size={16} />
-			</button>
-			<button
-				class="t-btn"
-				onclick={transportToggle}
-				aria-label={playback.playing && !playback.paused ? 'pause' : 'play'}
-			>
-				{#if playback.playing && !playback.paused}<Pause size={16} />{:else}<Play size={16} />{/if}
-			</button>
-			<button class="t-btn" onclick={playNext} disabled={!hasNext} aria-label="next">
-				<SkipForward size={16} />
-			</button>
-			<button
-				class="t-btn"
-				class:on={playback.shuffle}
-				onclick={toggleShuffle}
-				aria-label="shuffle"
-				title="shuffle"
-			>
-				<Shuffle size={16} />
-			</button>
-			<button
-				class="t-btn"
-				class:on={playback.repeat}
-				onclick={toggleRepeat}
-				aria-label="repeat"
-				title="repeat (loop)"
-			>
-				<Repeat size={16} />
-			</button>
-			<button class="t-info" onclick={() => (showPattern = true)} title="open player view">
-				<span class="t-title">{playback.current.title || playback.current.filename}</span>
-				<span class="t-meta">
-					{playback.current.group}{playback.current.artist ? ` · ${playback.current.artist}` : ''}
-					{#if playback.error}· <span class="t-err">{playback.error}</span>{/if}
-				</span>
-			</button>
-			<div class="t-time">
-				{playback.duration
-					? `${fmtTime(playback.position)} / ${fmtTime(playback.duration)}`
-					: fmtTime(playback.position)}
-			</div>
-			<div class="t-pos">
-				ord <span class="num">{playback.order}</span> · pat
-				<span class="num">{playback.pattern}</span> · row <span class="num">{playback.row}</span>
-			</div>
-		</div>
+	<div class="transport-dock">
+		<Transport onOpenView={() => (showPattern = true)} />
 	</div>
 {/if}
 
@@ -1225,15 +1171,6 @@
 		align-items: center;
 		justify-content: center;
 	}
-	/* Reserve a fixed 2-digit slot per number so ord/pat/row don't shift the
-	   layout as they tick between 1 and 2 digits (tabular-nums alone can't —
-	   it only equalises within the same digit count). */
-	.num {
-		display: inline-block;
-		min-width: 2ch;
-		text-align: right;
-		font-variant-numeric: tabular-nums;
-	}
 	.pv-tabs {
 		display: flex;
 		gap: 4px;
@@ -1251,7 +1188,10 @@
 		flex: 1;
 		min-height: 0;
 		overflow: auto;
-		padding: 8px 12px;
+		/* Generous bottom padding so the last sample row always scrolls clear of
+		   the floating transport bar (whose height varies / can exceed the wrap's
+		   reserve). Scroll padding is only felt at the bottom — no wasted space. */
+		padding: 8px 12px 64px;
 		font-family: var(--font-mono-retro);
 		font-size: 16px;
 		-webkit-overflow-scrolling: touch;
@@ -1309,95 +1249,13 @@
 		min-height: 0;
 	}
 
-	.transport {
+	/* The shared <Transport> draws the bar; tracker docks it at the bottom. */
+	.transport-dock {
 		position: fixed;
 		left: 0;
 		right: 0;
 		bottom: 0;
 		z-index: 5;
-		display: flex;
-		flex-direction: column;
-		background: var(--panel);
-		border-top: 1px solid var(--border);
-	}
-	.seek {
-		display: block;
-		width: 100%;
-		height: 8px;
-		padding: 0;
-		border: none;
-		border-radius: 0;
-		background: var(--panel-hi);
-		cursor: pointer;
-	}
-	.seek-fill {
-		height: 100%;
-		background: var(--accent);
-		pointer-events: none;
-	}
-	.t-controls {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 8px 14px;
-	}
-	.t-btn {
-		flex: 0 0 auto;
-		min-width: 40px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		color: var(--accent);
-	}
-	.t-btn.on {
-		color: var(--bg);
-		background: var(--accent);
-		border-color: var(--accent);
-	}
-	.t-info {
-		flex: 1;
-		min-width: 0;
-		background: none;
-		border: none;
-		padding: 0;
-		text-align: left;
-		cursor: pointer;
-		color: inherit;
-	}
-	.t-title {
-		display: block;
-		font-family: var(--font-retro);
-		font-size: 11px;
-		color: var(--accent);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.t-meta {
-		display: block;
-		font-family: var(--font-retro);
-		font-size: 11px;
-		color: var(--muted);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.t-err {
-		color: var(--halo-error);
-	}
-	.t-time {
-		flex: 0 0 auto;
-		color: var(--muted);
-		font-size: 16px;
-		font-family: var(--font-mono-retro);
-		font-variant-numeric: tabular-nums;
-	}
-	.t-pos {
-		flex: 0 0 auto;
-		color: var(--muted);
-		font-size: 16px;
-		font-family: var(--font-mono-retro);
-		font-variant-numeric: tabular-nums;
 	}
 
 	/* Touch has no hover — always show the rename affordance there. */
@@ -1459,35 +1317,7 @@
 		.play {
 			padding: 8px 0;
 		}
-		/* Order/pattern/row teaser doesn't fit next to the title on a phone. */
-		.t-pos {
-			display: none;
-		}
-		/* The single transport row doesn't fit portrait width: give the
-		   title/meta its own full line on top, then let the six controls share
-		   the line below with the time readout. */
-		.t-controls {
-			flex-wrap: wrap;
-			gap: 6px;
-			row-gap: 8px;
-			padding: 8px 8px;
-		}
-		.t-info {
-			order: -1;
-			flex-basis: 100%;
-		}
-		/* Only the transport buttons share the row; the player-bar toggle (same
-		   class) must keep its natural size. */
-		.t-controls .t-btn {
-			flex: 1;
-			min-width: 0;
-			padding: 8px 0;
-		}
-		.t-time {
-			order: 1;
-			align-self: center;
-			padding-left: 4px;
-		}
+		/* (Transport's own responsive rules live in @scene/player.) */
 		/* The player-view top bar repeats the song name the footer already shows
 		   — drop it on a phone so the tabs + close get the width. */
 		.pv-bar {

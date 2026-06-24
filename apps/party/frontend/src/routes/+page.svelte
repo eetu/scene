@@ -5,10 +5,9 @@
 
 	import { CalendarDays, MapPin, Music, RefreshCw } from '@lucide/svelte';
 
-	import { cycleTheme } from '@scene/design';
-
 	import { api, fileUrl, type Party, type StatusResponse } from '$lib/api';
 	import { listKeys } from '$lib/listkeys';
+	import Settings from '$lib/Settings.svelte';
 
 	let parties = $state<Party[]>([]);
 	let status = $state<StatusResponse | null>(null);
@@ -55,7 +54,7 @@
 		<RefreshCw size={15} class={rescanning ? 'spin' : ''} />
 		{rescanning ? 'Rescanning…' : 'Rescan'}
 	</button>
-	<button class="theme" onclick={cycleTheme} aria-label="Theme">◐</button>
+	<Settings />
 </header>
 
 <main>
@@ -143,15 +142,6 @@
 		to {
 			transform: rotate(360deg);
 		}
-	}
-	.theme {
-		border: 1px solid var(--border);
-		background: var(--panel);
-		color: var(--text);
-		border-radius: 6px;
-		width: 32px;
-		height: 32px;
-		cursor: pointer;
 	}
 	main {
 		padding: 20px;

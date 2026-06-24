@@ -69,7 +69,10 @@
 		position: relative;
 		background: var(--surface);
 		color: var(--surface-fg);
-		font-family: var(--tracker-font, var(--font-dos));
+		/* App sets --tracker-font (party: per-platform DOS/Amiga). Fall back to the
+		   retro mono font both apps define, then a universal monospace — never an
+		   undefined var (which would drop to the default serif/sans). */
+		font-family: var(--tracker-font, var(--font-mono-retro, ui-monospace, monospace));
 		font-size: 16px;
 		line-height: 1;
 		white-space: nowrap;

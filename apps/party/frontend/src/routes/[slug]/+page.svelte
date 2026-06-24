@@ -3,6 +3,7 @@
 	// detail panel that dispatches to the right viewer by medium — music → the
 	// libopenmpt Player, images/video native where possible, text → NfoView,
 	// demos/intros → an emulator placeholder (Phase 3). Everything downloadable.
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 
 	import {
@@ -20,6 +21,7 @@
 	import { api, type Production, type ProductionDetail } from '$lib/api';
 	import FileBrowser from '$lib/FileBrowser.svelte';
 	import { listKeys } from '$lib/listkeys';
+	import Settings from '$lib/Settings.svelte';
 
 	const slug = $derived(page.params.slug ?? '');
 	let prods = $state<Production[]>([]);
@@ -28,10 +30,26 @@
 	let selected = $state<Production | null>(null);
 	let detail = $state<ProductionDetail | null>(null);
 
+	// The URL is the single source of truth for the selection (?p=<prodId>&f=<rel
+	// _path>). Reads are reactive off page.url; writes go through goto() (a real
+	// same-route navigation that updates page.url reactively — unlike shallow
+	// replaceState). replaceState:true keeps it out of the history stack;
+	// keepFocus/noScroll avoid disturbing the list. Reload + back/forward + share
+	// all "just work" because the view derives from the URL.
+	const pid = $derived(page.url.searchParams.get('p'));
+	const fileParam = $derived(page.url.searchParams.get('f'));
+	function nav(updates: Record<string, string | null>) {
+		const u = new URL(page.url);
+		for (const [k, v] of Object.entries(updates)) {
+			if (v == null) u.searchParams.delete(k);
+			else u.searchParams.set(k, v);
+		}
+		void goto(u, { replaceState: true, keepFocus: true, noScroll: true });
+	}
+
+	// Fetch the productions for the current party.
 	$effect(() => {
 		const s = slug;
-		selected = null;
-		detail = null;
 		api
 			.productions(s)
 			.then((r) => {
@@ -39,6 +57,36 @@
 				kickstart = r.kickstart_url;
 			})
 			.catch((e) => (error = String(e)));
+	});
+
+	// Selection is derived from the URL: this runs on click (goto changed ?p), on
+	// load/reload (the param is already there), and on back/forward. Ignores a
+	// stale response if ?p moved on while the fetch was in flight.
+	$effect(() => {
+		const id = pid;
+		if (prods.length === 0) return;
+		if (!id) {
+			selected = null;
+			detail = null;
+			return;
+		}
+		if (selected?.id === id) return; // already loaded — don't refetch
+		const prod = prods.find((x) => x.id === id);
+		if (!prod) return;
+		selected = prod;
+		detail = null;
+		// Reveal it in the catalog (cards are collapsed by default; unranked
+		// entries hide behind "+N more").
+		open[prod.compo] = true;
+		if (prod.rank == null) showRest[prod.compo] = true;
+		api
+			.production(id)
+			.then((d) => {
+				if (selected?.id === id) detail = d;
+			})
+			.catch((e) => {
+				if (selected?.id === id) error = String(e);
+			});
 	});
 
 	// Group by compo. The party-info bits (Info, Misc) are surfaced first — handy
@@ -85,14 +133,11 @@
 		prods.filter((p) => p.primary_kind === 'music' && p.primary_hash).map(toTrack)
 	);
 
-	async function select(p: Production) {
-		selected = p;
-		detail = null;
-		try {
-			detail = await api.production(p.id);
-		} catch (e) {
-			error = String(e);
-		}
+	function select(p: Production) {
+		// Write the selection to the URL; the effect above reacts and loads detail.
+		nav({ p: p.id, f: null });
+		// Autoplay only on an explicit click (a user gesture) — never on URL
+		// restore, where the browser would block audio anyway.
 		if (p.primary_kind === 'music' && p.primary_hash) {
 			void playInOrder(musicTracks, toTrack(p));
 		}
@@ -113,6 +158,7 @@
 	</button>
 	<h1>{slug}</h1>
 	<span class="sub">{prods.length} productions</span>
+	<Settings />
 </header>
 
 <main>
@@ -122,6 +168,7 @@
 
 	<div class="cols" class:nav-hidden={!navOpen}>
 		<section class="catalog">
+			<div class="catalog-inner">
 			{#each groups as [compo, entries] (compo)}
 				<div class="cat" class:open={open[compo]}>
 					<button class="cathead" onclick={() => toggle(compo)} aria-expanded={!!open[compo]}>
@@ -160,6 +207,7 @@
 					{/if}
 				</div>
 			{/each}
+			</div>
 		</section>
 
 		<section class="detail">
@@ -195,6 +243,8 @@
 						platform={prod.platform}
 						prodId={prod.id}
 						{kickstart}
+						initialFile={fileParam}
+						onfile={(relPath) => nav({ f: relPath })}
 					/>
 				{/if}
 			{/if}
@@ -232,6 +282,7 @@
 	.sub {
 		color: var(--muted);
 		font-size: 13px;
+		margin-right: auto;
 	}
 	main {
 		flex: 1;
@@ -252,10 +303,18 @@
 	.cols.nav-hidden .catalog {
 		border-right-color: transparent;
 	}
+	/* The grid item only clips; the fixed-width inner keeps its layout so the
+	   shrinking track slides it out cleanly instead of reflowing/wrapping its
+	   text. (Same trick the FileBrowser list drawer uses.) */
 	.catalog {
+		overflow: hidden;
+		border-right: 1px solid var(--border);
+	}
+	.catalog-inner {
+		width: 340px;
+		height: 100%;
 		overflow-x: hidden;
 		overflow-y: auto;
-		border-right: 1px solid var(--border);
 		padding: 12px 14px;
 	}
 	.cat {
@@ -394,6 +453,10 @@
 			border-right: 0;
 			border-bottom: 1px solid var(--border);
 			max-height: 40vh;
+		}
+		/* Stacked single-column layout — the inner goes fluid (no fixed 340px). */
+		.catalog-inner {
+			width: 100%;
 		}
 	}
 </style>
