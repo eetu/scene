@@ -6,6 +6,7 @@ members = [
     "apps/tracker/backend",
     "apps/tracker/e2e",
     "apps/party/backend",
+    "services/transcoder",
 ]
 
 [workspace.package]

@@ -20,9 +20,10 @@ apps/
     frontend/        SvelteKit SPA (yarn member, deps @scene/*)
     parties/         checked-in per-party config JSONs
 services/
-  transcoder/      Python/uv FastAPI sidecar (ffmpeg) — party media. NOT in any
-                   workspace; reached over loopback HTTP with a bearer token.
-Cargo.toml         one Rust workspace (all backends + e2e)
+  transcoder/      scene-transcoder — Rust axum ffmpeg sidecar for party media
+                   (cargo member). Separate runtime; reached over loopback HTTP
+                   with a bearer token.
+Cargo.toml         one Rust workspace (all backends + e2e + transcoder)
 package.json       one yarn workspace (packages/* + apps/*/frontend)
 justfile           task runner — `just dev party`, `just build`, `just lint`
 ```
@@ -35,9 +36,10 @@ justfile           task runner — `just dev party`, `just build`, `just lint`
 - **Shared packages export raw source** (`.svelte`/`.ts`); the consuming app's
   Vite transpiles them. No build step in `packages/*`. Import as `@scene/player`,
   `@scene/design`.
-- **Sidecars stay out of both workspaces** and are reached only over loopback
-  HTTP — the isolation boundary (see `../scribe`). One container image per
-  service; one `../raspi` quadlet each.
+- **The transcoder is a separate runtime, reached only over loopback HTTP** (the
+  party backend stays a clean scratch binary; ffmpeg lives behind the wall). It's
+  a Rust crate in the workspace but ships as its own image (alpine + ffmpeg, like
+  `../scribe`'s `press`) / native binary on `../mini`. One image per service.
 - **The frontend↔backend seam** is per app: SPA builds to `dist/`, the backend
   serves it with an SPA fallback; dev uses Vite's proxy for `/api`+`/status`.
   Manual type sharing (Rust `Serialize` ↔ hand-written TS), no codegen.
@@ -46,7 +48,7 @@ justfile           task runner — `just dev party`, `just build`, `just lint`
 
 - `just dev party` / `just dev tracker` — backend (cargo) + frontend (vite).
 - `just build` — all frontends + the whole rust workspace.
-- `just lint` — yarn lint/format + clippy + ruff.
+- `just lint` — yarn lint/format + cargo clippy (whole workspace).
 - Backend dev needs each app's `backend/.env` (see `backend/.env.example`);
   `PARTY_OPEN=1` / `DEV_AUTH` bypass forward-auth locally.
 

@@ -47,7 +47,6 @@ build-app app:
 lint:
     yarn lint
     cargo clippy --workspace --all-targets -- -D warnings
-    cd services/transcoder && uv run ruff check src
 
 format:
     yarn format
@@ -58,4 +57,4 @@ test:
 
 # Run the party transcoder sidecar (loopback).
 transcoder:
-    cd services/transcoder && uv run transcoder
+    cargo run -p scene-transcoder

@@ -56,17 +56,6 @@ updates:
           - "minor"
           - "patch"
 
-  # Python sidecar (uv).
-  - package-ecosystem: "uv"
-    directory: "/services/transcoder"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7
-      semver-major-days: 14
-      semver-minor-days: 7
-      semver-patch-days: 5
-
   # docker + github-actions only honour `default-days` — the semver-* keys
   # silently break parsing for these ecosystems, so they're omitted.
   - package-ecosystem: "docker"

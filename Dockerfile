@@ -7,7 +7,8 @@
 #
 # Rust backends cross-compile (tonistiigi/xx) to a static musl binary on
 # scratch; each frontend-serving backend ships its app's built SPA. The
-# transcoder is a Python/uv sidecar (needs ffmpeg, so a slim base, not scratch).
+# transcoder is also Rust but runs on alpine (it shells out to ffmpeg, which
+# scratch can't provide).
 
 # --- Cross-compilation helper ---
 FROM --platform=$BUILDPLATFORM tonistiigi/xx AS xx
@@ -52,15 +53,17 @@ COPY Cargo.toml Cargo.lock ./
 COPY apps/tracker/backend/Cargo.toml apps/tracker/backend/Cargo.toml
 COPY apps/tracker/e2e/Cargo.toml apps/tracker/e2e/Cargo.toml
 COPY apps/party/backend/Cargo.toml apps/party/backend/Cargo.toml
+COPY services/transcoder/Cargo.toml services/transcoder/Cargo.toml
 # Stub sources so cargo can parse + warm the dep cache for every shipped crate.
 # e2e is test-only (never built here) but its manifest must parse → stub lib.
-RUN mkdir -p apps/tracker/backend/src apps/tracker/e2e/src apps/party/backend/src \
+RUN mkdir -p apps/tracker/backend/src apps/tracker/e2e/src apps/party/backend/src services/transcoder/src \
     && printf 'fn main() {}\n' > apps/tracker/backend/src/main.rs \
     && : > apps/tracker/backend/src/lib.rs \
     && : > apps/tracker/e2e/src/lib.rs \
     && printf 'fn main() {}\n' > apps/party/backend/src/main.rs \
     && : > apps/party/backend/src/lib.rs \
-    && xx-cargo build --release -p tracker-backend -p party-backend
+    && printf 'fn main() {}\n' > services/transcoder/src/main.rs \
+    && xx-cargo build --release -p tracker-backend -p party-backend -p scene-transcoder
 
 FROM workspace-deps AS tracker-backend-build
 ARG TARGETPLATFORM
@@ -77,6 +80,13 @@ COPY apps/party/backend/src ./apps/party/backend/src
 RUN touch apps/party/backend/src/main.rs apps/party/backend/src/lib.rs \
     && xx-cargo build --release -p party-backend \
     && cp target/*/release/party-backend /party-backend
+
+FROM workspace-deps AS transcoder-build
+ARG TARGETPLATFORM
+COPY services/transcoder/src ./services/transcoder/src
+RUN touch services/transcoder/src/main.rs \
+    && xx-cargo build --release -p scene-transcoder \
+    && cp target/*/release/scene-transcoder /scene-transcoder
 
 # ============================================================================
 # Runtime images (one per service)
@@ -112,24 +122,16 @@ USER 1000
 EXPOSE 3020
 CMD ["./party-backend"]
 
-# Python media sidecar — ffmpeg from the distro, uv for a frozen venv. Not
-# scratch (needs ffmpeg + a libc). Reached only over loopback by party-backend.
-FROM python:3.14-slim AS transcoder
+# Media sidecar — Rust ffmpeg worker. Not scratch (it shells out to the ffmpeg
+# CLI, which comes from the distro): alpine + apk ffmpeg, same as ../scribe's
+# `press` worker. Reached only over loopback by party-backend.
+FROM alpine:3.22 AS transcoder
 WORKDIR /app
-LABEL org.opencontainers.image.description="party transcoder — stateless ffmpeg media sidecar"
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
-# Lock the venv in two steps so deps cache across source-only changes.
-COPY services/transcoder/pyproject.toml services/transcoder/uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
-COPY services/transcoder/src ./src
-RUN uv sync --frozen --no-dev
+LABEL org.opencontainers.image.description="scene transcoder — stateless ffmpeg media sidecar"
+RUN apk add --no-cache ffmpeg ca-certificates
+COPY --from=transcoder-build /scene-transcoder ./scene-transcoder
 ENV PARTY_TRANSCODER_HOST=0.0.0.0
 ENV PARTY_TRANSCODER_PORT=3021
 USER 1000
 EXPOSE 3021
-# Call the venv entry-point directly — `uv run` would try to write a lock/cache
-# as USER 1000; the venv is already frozen at build time.
-CMD ["/app/.venv/bin/party-transcoder"]
+CMD ["./scene-transcoder"]
