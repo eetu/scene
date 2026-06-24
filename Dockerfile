@@ -125,7 +125,7 @@ CMD ["./party-backend"]
 # Media sidecar — Rust ffmpeg worker. Not scratch (it shells out to the ffmpeg
 # CLI, which comes from the distro): alpine + apk ffmpeg, same as ../scribe's
 # `press` worker. Reached only over loopback by party-backend.
-FROM alpine:3.22 AS transcoder
+FROM alpine:3.24 AS transcoder
 WORKDIR /app
 LABEL org.opencontainers.image.description="scene transcoder — stateless ffmpeg media sidecar"
 RUN apk add --no-cache ffmpeg ca-certificates
