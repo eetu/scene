@@ -1,0 +1,14 @@
+{
+	"name": "@scene/design",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"svelte": "./src/index.ts",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"svelte": "./src/index.ts"
+		},
+		"./halo.css": "./src/halo.css"
+	}
+}

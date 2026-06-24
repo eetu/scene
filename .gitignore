@@ -1,0 +1,22 @@
+# Rust
+/target
+
+# Node / yarn (Berry, node-modules linker)
+node_modules
+.yarn/*
+!.yarn/releases
+.pnp.*
+dist
+
+# Python sidecar
+.venv
+__pycache__
+*.pyc
+
+# Local data / caches / secrets
+*.db
+*.db-shm
+*.db-wal
+apps/party/backend/cache
+.env
+.DS_Store

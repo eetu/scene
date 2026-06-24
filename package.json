@@ -1,0 +1,15 @@
+{
+	"name": "scene",
+	"private": true,
+	"packageManager": "yarn@4.16.0",
+	"workspaces": [
+		"packages/*",
+		"apps/*/frontend"
+	],
+	"scripts": {
+		"lint": "yarn workspaces foreach -Apt run lint",
+		"format": "yarn workspaces foreach -Apt run format",
+		"typecheck": "yarn workspaces foreach -Apt run typecheck",
+		"build": "yarn workspaces foreach -Apt run build"
+	}
+}
