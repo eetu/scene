@@ -114,7 +114,7 @@ CMD ["./party-backend"]
 
 # Python media sidecar — ffmpeg from the distro, uv for a frozen venv. Not
 # scratch (needs ffmpeg + a libc). Reached only over loopback by party-backend.
-FROM python:3.13-slim AS transcoder
+FROM python:3.14-slim AS transcoder
 WORKDIR /app
 LABEL org.opencontainers.image.description="party transcoder — stateless ffmpeg media sidecar"
 RUN apt-get update \
