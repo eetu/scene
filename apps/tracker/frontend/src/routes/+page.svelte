@@ -28,8 +28,6 @@
 	import { onMount, untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 
-	import { replaceState } from '$app/navigation';
-	import { page } from '$app/state';
 	import { api, ApiError, fileUrl, type StatusResponse, type Track } from '$lib/api';
 	import PatternViewScroll from '$lib/PatternViewScroll.svelte';
 
@@ -200,28 +198,6 @@
 	}
 
 	onMount(init);
-
-	// URL state: reflect the current/selected track as ?t=<hash> so a reload
-	// restores it, and restore the track named in the URL once the library loads.
-	$effect(() => {
-		const h = playback.current?.hash;
-		if (h && h !== page.url.searchParams.get('t')) {
-			const u = new URL(page.url);
-			u.searchParams.set('t', h);
-			replaceState(u, page.state);
-		}
-	});
-	let restored = false;
-	$effect(() => {
-		if (restored || tracks.length === 0) return;
-		restored = true;
-		const h = page.url.searchParams.get('t');
-		if (!h) return;
-		const t = tracks.find((x) => x.hash === h);
-		// Restore into the transport (sets current); playback stays blocked until a
-		// user gesture, and the full-screen view is left closed to avoid surprise.
-		if (t) void playInOrder(flatTracks, t);
-	});
 
 	// Lock body scroll while the full-screen player overlay is open, so the
 	// page's own (now-pointless) scrollbar for the list behind it disappears.
