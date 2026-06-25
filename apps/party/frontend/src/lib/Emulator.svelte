@@ -2,13 +2,46 @@
 	// DOS emulator surface (js-dos v8, self-hosted under /vendor/js-dos/). The
 	// runtime + WASM (~1.4 MB+) load only when the user clicks Launch — never on
 	// page view. Everything is same-origin, so the strict CSP is unchanged.
-	import { Maximize, Play, Power } from '@lucide/svelte';
+	import { Keyboard, Maximize, Play, Power } from '@lucide/svelte';
 	import { onDestroy } from 'svelte';
 
 	let { bundleUrl }: { bundleUrl: string } = $props();
 
-	// js-dos KBD_ keycode for ESC (from the vendored bundle's keymap).
+	// js-dos KBD_ keycodes (from the vendored bundle's keymap): letters are the
+	// uppercase ASCII code, digits are their ASCII code, plus these specials.
 	const KBD_ESC = 256;
+	const KBD_CTRL: Record<string, number> = {
+		Enter: 257,
+		Backspace: 259,
+		Escape: 256,
+		Tab: 258,
+		' ': 32,
+		ArrowUp: 265,
+		ArrowDown: 264,
+		ArrowLeft: 263,
+		ArrowRight: 262
+	};
+	const KBD_PUNCT: Record<string, number> = {
+		',': 44,
+		'.': 46,
+		'-': 45,
+		'/': 47,
+		';': 59,
+		'=': 61,
+		"'": 39,
+		'`': 96,
+		'[': 91,
+		']': 93,
+		'\\': 92,
+		' ': 32
+	};
+	/** Map a printable character to its js-dos KBD code, or null. */
+	function charToKbd(ch: string): number | null {
+		if (ch >= '0' && ch <= '9') return ch.charCodeAt(0); // 48–57
+		const lower = ch.toLowerCase();
+		if (lower >= 'a' && lower <= 'z') return lower.charCodeAt(0) - 32; // → 65–90
+		return KBD_PUNCT[ch] ?? null;
+	}
 
 	let host = $state<HTMLDivElement | null>(null);
 	let started = $state(false);
@@ -16,6 +49,17 @@
 	let error = $state<string | null>(null);
 	let dosProps: DosProps | null = null;
 	let ci = $state<DosCommandInterface | null>(null);
+
+	// iOS Safari has no Fullscreen API on a <div>, so the real button no-ops; fall
+	// back to a CSS "pseudo fullscreen" (fixed overlay). Touch devices also have no
+	// physical keyboard — DOS intros that prompt for a sound card / [Enter] need
+	// one — so on coarse pointers we focus a hidden input to raise the soft
+	// keyboard and forward its keys into DOSBox.
+	let pseudoFs = $state(false);
+	let kbdInput = $state<HTMLInputElement | null>(null);
+	const coarse = $derived(
+		typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+	);
 
 	let scriptPromise: Promise<void> | null = null;
 	function loadJsDos(): Promise<void> {
@@ -69,7 +113,17 @@
 	}
 
 	function fullscreen() {
-		host?.requestFullscreen?.().catch(() => {});
+		if (document.fullscreenElement) {
+			void document.exitFullscreen?.();
+			return;
+		}
+		// Real Fullscreen API where it exists (desktop); CSS overlay fallback on
+		// iOS Safari, where requestFullscreen is absent on non-video elements.
+		if (host?.requestFullscreen) {
+			host.requestFullscreen().catch(() => (pseudoFs = true));
+		} else {
+			pseudoFs = !pseudoFs;
+		}
 	}
 
 	// Inject ESC straight into DOSBox — works in fullscreen too, where the
@@ -77,6 +131,37 @@
 	// for demos that quit on ESC; many ignore it, hence Exit below.
 	function sendEsc() {
 		ci?.simulateKeyPress(KBD_ESC);
+	}
+
+	// --- Mobile soft keyboard → DOSBox -------------------------------------
+	// Focus the off-screen input (within the tap gesture) to raise the soft
+	// keyboard. Only on coarse pointers — on desktop js-dos handles the physical
+	// keyboard itself, and stealing focus here would break it.
+	function raiseKeyboard() {
+		kbdInput?.focus();
+	}
+	function onScreenTap() {
+		if (coarse) raiseKeyboard();
+	}
+	// Control keys arrive as keydown; route them and keep js-dos's own global
+	// listener from also acting on them.
+	function onKbdKeydown(e: KeyboardEvent) {
+		const code = KBD_CTRL[e.key];
+		if (code != null) {
+			ci?.simulateKeyPress(code);
+			e.preventDefault();
+			e.stopPropagation();
+		}
+	}
+	// Printable characters arrive as input events (the soft keyboard rarely emits
+	// usable keydowns); map each and keep the field empty.
+	function onKbdInput(e: Event) {
+		const t = e.target as HTMLInputElement;
+		for (const ch of (e as InputEvent).data ?? '') {
+			const code = charToKbd(ch);
+			if (code != null) ci?.simulateKeyPress(code);
+		}
+		t.value = '';
 	}
 
 	// Hard stop: tear the emulator down and return to the launch state — the way
@@ -102,7 +187,7 @@
 	});
 </script>
 
-<div class="emu">
+<div class="emu" class:fs={pseudoFs}>
 	{#if !started}
 		<button class="launch" onclick={launch}>
 			<Play size={20} /> Launch
@@ -114,6 +199,11 @@
 	{#if started && !error}
 		<div class="bar">
 			<button onclick={sendEsc} disabled={!ci} title="Send ESC to the demo">ESC</button>
+			{#if coarse}
+				<button onclick={raiseKeyboard} disabled={!ci} title="Show keyboard" aria-label="Keyboard">
+					<Keyboard size={16} /> Keys
+				</button>
+			{/if}
 			<button onclick={fullscreen} title="Fullscreen" aria-label="Fullscreen">
 				<Maximize size={16} /> Fullscreen
 			</button>
@@ -122,7 +212,22 @@
 			</button>
 		</div>
 	{/if}
-	<div class="screen" class:live={started} bind:this={host}></div>
+	<!-- Off-screen capture input: focused on a mobile tap to raise the soft
+	     keyboard; its keys are forwarded into DOSBox. -->
+	<input
+		class="kbd-capture"
+		bind:this={kbdInput}
+		onkeydown={onKbdKeydown}
+		oninput={onKbdInput}
+		autocomplete="off"
+		autocapitalize="off"
+		autocorrect="off"
+		spellcheck="false"
+		aria-hidden="true"
+		tabindex="-1"
+	/>
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="screen" class:live={started} bind:this={host} onpointerup={onScreenTap}></div>
 </div>
 
 <style>
@@ -133,6 +238,26 @@
 		gap: 8px;
 		height: 100%;
 		min-height: 0;
+	}
+	/* iOS fallback fullscreen (no native Fullscreen API on a <div>). */
+	.emu.fs {
+		position: fixed;
+		inset: 0;
+		z-index: 50;
+		background: #000;
+		padding: 8px;
+	}
+	/* Off-screen, invisible — exists only to host the mobile soft keyboard. */
+	.kbd-capture {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 1px;
+		height: 1px;
+		opacity: 0;
+		border: 0;
+		padding: 0;
+		pointer-events: none;
 	}
 	.launch {
 		display: inline-flex;
