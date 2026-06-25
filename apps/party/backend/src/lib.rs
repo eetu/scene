@@ -24,12 +24,15 @@ use scan::ScanResult;
 use state::{AppState, ScanProgress};
 
 /// Content-Security-Policy. Same-origin plus the Google Fonts hosts halo-design
-/// uses. The music player runs libopenmpt as WebAssembly inside an AudioWorklet,
-/// and Phase 3 emulators (js-dos etc.) likewise instantiate wasm, so we allow
-/// `'wasm-unsafe-eval'` and `worker-src 'self' blob:`. HSTS / X-Frame-Options
-/// are the edge's job.
+/// uses. The music player runs libopenmpt as WebAssembly inside an AudioWorklet
+/// (`'wasm-unsafe-eval'`). The emulators go further: js-dos and EmulatorJS's
+/// libretro cores `eval()` JavaScript at runtime (the cores ship as code the
+/// loader evaluates), which only `'unsafe-eval'` permits — `'wasm-unsafe-eval'`
+/// alone blocks it. Acceptable here: a LAN-only archive whose whole point is
+/// running sandboxed WASM demos. Plus `worker-src 'self' blob:`. HSTS /
+/// X-Frame-Options are the edge's job.
 fn build_csp(script_hashes: &[String]) -> String {
-    let mut script_src = String::from("'self' 'wasm-unsafe-eval'");
+    let mut script_src = String::from("'self' 'wasm-unsafe-eval' 'unsafe-eval'");
     for h in script_hashes {
         script_src.push(' ');
         script_src.push_str(h);
@@ -205,7 +208,7 @@ mod tests {
     #[test]
     fn csp_allows_wasm_and_media() {
         let csp = build_csp(&["'sha256-X'".into()]);
-        assert!(csp.contains("script-src 'self' 'wasm-unsafe-eval' 'sha256-X'"));
+        assert!(csp.contains("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' 'sha256-X'"));
         assert!(csp.contains("worker-src 'self' blob:"));
         assert!(csp.contains("media-src 'self' blob:"));
     }
