@@ -42,7 +42,7 @@
 			const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
 			const target = active ? 0.25 + energy * 0.75 : 0.12;
 			amp += (target - amp) * 0.08;
-			t += 0.03 + (active ? energy * 0.05 : 0);
+			t += 0.012 + (active ? energy * 0.022 : 0);
 
 			if (w > 0 && h > 0) {
 				g2.fillStyle = '#0a0a12';

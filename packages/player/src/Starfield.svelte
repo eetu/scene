@@ -63,7 +63,7 @@
 				cachedMode = mode;
 			}
 			const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
-			const targetWarp = active ? 0.004 + energy * 0.05 : 0.0008;
+			const targetWarp = active ? 0.0022 + energy * 0.024 : 0.0006;
 			warp += (targetWarp - warp) * 0.1;
 
 			if (w > 0 && h > 0) {

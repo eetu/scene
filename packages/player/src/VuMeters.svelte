@@ -1,9 +1,9 @@
 <script lang="ts">
-	// Analog VU meters: a pair of swinging-needle dials on a warm backlit panel —
-	// the classic hi-fi look. Driven by the per-channel VU levels (split into two
-	// banks for a left/right feel), with meter ballistics (fast attack, slow
-	// release) and a red zone near full scale. Self-coloured (cream dial face), so
-	// it reads the same in both themes.
+	// Analog VU meters styled after a warm backlit hi-fi meter: a glowing amber
+	// dial face, a curved numbered scale (denser, red near full scale), a slim
+	// black needle and a dark bezel hiding the pivot. Two meters (L/R banks of the
+	// VU channels) with meter ballistics — eased attack + slower release. The dial
+	// is self-coloured, so it reads identically in both themes.
 	import { playback } from './player.svelte';
 
 	let { active = true }: { active?: boolean } = $props();
@@ -32,14 +32,13 @@
 
 		let posL = 0;
 		let posR = 0;
-		const SWEEP = Math.PI * 0.46; // ±~41° from vertical
+		const SWEEP = Math.PI * 0.4; // ±72° total
 
-		// Mean level of one half of the VU channels (0..1), our L/R approximation.
 		function bank(lo: number, hi: number): number {
 			const vu = playback.vu;
 			if (!vu.length) return 0;
-			const a = Math.floor((vu.length * lo) / 1);
-			const b = Math.max(a + 1, Math.floor((vu.length * hi) / 1));
+			const a = Math.floor(vu.length * lo);
+			const b = Math.max(a + 1, Math.floor(vu.length * hi));
 			let s = 0;
 			let n = 0;
 			for (let i = a; i < b && i < vu.length; i++) {
@@ -49,52 +48,86 @@
 			return n ? Math.min(1, s / n) : 0;
 		}
 
-		function meter(cx: number, baseY: number, r: number, level: number, label: string) {
-			// Dial face: a soft cream sector with a warm backlight glow.
+		const MINOR = 20;
+		const MAJOR = 4; // every 4th minor tick is major + labelled
+
+		function meter(x0: number, y0: number, cw: number, ch: number, level: number, label: string) {
+			const pad = Math.min(cw, ch) * 0.06;
+			const fx = x0 + pad;
+			const fy = y0 + pad;
+			const fw = cw - pad * 2;
+			const fh = ch - pad * 2;
+			const pivotX = fx + fw / 2;
+			const pivotY = fy + fh * 0.92;
+			const r = Math.min(fw * 0.46, fh * 0.86);
+
 			g2.save();
-			g2.translate(cx, baseY);
-			g2.fillStyle = 'rgba(255, 178, 60, 0.10)';
+
+			// Backlit amber face.
+			const face = g2.createRadialGradient(pivotX, fy + fh * 0.35, fh * 0.05, pivotX, fy + fh * 0.35, fh * 1.1);
+			face.addColorStop(0, '#ffe0a4');
+			face.addColorStop(0.55, '#f0a338');
+			face.addColorStop(1, '#7c4214');
+			g2.fillStyle = face;
 			g2.beginPath();
-			g2.arc(0, 0, r * 1.08, -Math.PI / 2 - SWEEP, -Math.PI / 2 + SWEEP);
-			g2.lineTo(0, 0);
+			g2.roundRect(fx, fy, fw, fh, Math.min(fw, fh) * 0.07);
 			g2.fill();
 
-			// Scale arc + ticks.
-			const steps = 10;
-			for (let i = 0; i <= steps; i++) {
-				const f = i / steps;
+			// Scale ticks + numbers.
+			g2.textAlign = 'center';
+			g2.textBaseline = 'middle';
+			const numFont = Math.max(7, r * 0.1);
+			for (let i = 0; i <= MINOR; i++) {
+				const f = i / MINOR;
 				const ang = -Math.PI / 2 + (f - 0.5) * 2 * SWEEP;
-				const r0 = r * (i % 5 === 0 ? 0.82 : 0.9);
-				g2.strokeStyle = f > 0.8 ? '#d0392b' : '#cfc6a8';
-				g2.lineWidth = f > 0.8 ? 2 : 1;
+				const major = i % MAJOR === 0;
+				const red = f > 0.8;
+				const r0 = r * (major ? 0.84 : 0.9);
+				g2.strokeStyle = red ? '#bb2d1c' : '#3a2206';
+				g2.lineWidth = major ? 2 : 1;
 				g2.beginPath();
-				g2.moveTo(Math.cos(ang) * r0, Math.sin(ang) * r0);
-				g2.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
+				g2.moveTo(pivotX + Math.cos(ang) * r0, pivotY + Math.sin(ang) * r0);
+				g2.lineTo(pivotX + Math.cos(ang) * r, pivotY + Math.sin(ang) * r);
 				g2.stroke();
+				if (major) {
+					g2.fillStyle = red ? '#bb2d1c' : '#42280a';
+					g2.font = `${numFont}px ui-monospace, monospace`;
+					g2.fillText(
+						String(i * 5),
+						pivotX + Math.cos(ang) * r * 0.72,
+						pivotY + Math.sin(ang) * r * 0.72
+					);
+				}
 			}
 
-			// Needle.
+			// Label (channel) under the arc.
+			g2.fillStyle = 'rgba(60,34,8,0.7)';
+			g2.font = `${Math.max(8, r * 0.13)}px ui-monospace, monospace`;
+			g2.fillText(label, pivotX, fy + fh * 0.52);
+
+			// Needle (black) with a soft shadow.
 			const ang = -Math.PI / 2 + (Math.min(1, level) - 0.5) * 2 * SWEEP;
-			g2.strokeStyle = '#e7ddbf';
-			g2.shadowColor = 'rgba(255,200,90,0.8)';
-			g2.shadowBlur = 6;
-			g2.lineWidth = 2;
+			g2.strokeStyle = '#1a1206';
+			g2.shadowColor = 'rgba(0,0,0,0.35)';
+			g2.shadowBlur = 3;
+			g2.lineWidth = Math.max(1.5, r * 0.022);
 			g2.lineCap = 'round';
 			g2.beginPath();
-			g2.moveTo(0, 0);
-			g2.lineTo(Math.cos(ang) * r * 0.96, Math.sin(ang) * r * 0.96);
+			g2.moveTo(pivotX, pivotY);
+			g2.lineTo(pivotX + Math.cos(ang) * r * 0.92, pivotY + Math.sin(ang) * r * 0.92);
 			g2.stroke();
 			g2.shadowBlur = 0;
 
-			// Hub + label.
-			g2.fillStyle = '#cfc6a8';
+			// Dark bezel over the pivot.
+			g2.fillStyle = '#0e0a05';
 			g2.beginPath();
-			g2.arc(0, 0, Math.max(2, r * 0.04), 0, Math.PI * 2);
+			g2.ellipse(pivotX, pivotY + fh * 0.02, fw * 0.34, fh * 0.13, 0, Math.PI, 0, true);
 			g2.fill();
-			g2.fillStyle = 'rgba(207,198,168,0.7)';
-			g2.font = `${Math.max(8, r * 0.12)}px ui-monospace, monospace`;
-			g2.textAlign = 'center';
-			g2.fillText(label, 0, -r * 0.5);
+			g2.fillStyle = '#2a1c0c';
+			g2.beginPath();
+			g2.arc(pivotX, pivotY, Math.max(2, r * 0.05), 0, Math.PI * 2);
+			g2.fill();
+
 			g2.restore();
 		}
 
@@ -102,17 +135,15 @@
 		function frame() {
 			const tL = active ? bank(0, 0.5) : 0;
 			const tR = active ? bank(0.5, 1) : 0;
-			// Ballistics: snap up, ease down.
-			posL = tL > posL ? tL : posL + (tL - posL) * 0.12;
-			posR = tR > posR ? tR : posR + (tR - posR) * 0.12;
+			// Eased attack, slower release (≈ VU ballistics).
+			posL += (tL - posL) * (tL > posL ? 0.3 : 0.1);
+			posR += (tR - posR) * (tR > posR ? 0.3 : 0.1);
 
 			if (w > 0 && h > 0) {
-				g2.fillStyle = '#15120c';
+				g2.fillStyle = '#120d07';
 				g2.fillRect(0, 0, w, h);
-				const r = Math.min(w * 0.22, h * 0.7);
-				const baseY = h * 0.62 + r * 0.25;
-				meter(w * 0.28, baseY, r, posL, 'L');
-				meter(w * 0.72, baseY, r, posR, 'R');
+				meter(0, 0, w / 2, h, posL, 'L');
+				meter(w / 2, 0, w / 2, h, posR, 'R');
 			}
 			raf = requestAnimationFrame(frame);
 		}
