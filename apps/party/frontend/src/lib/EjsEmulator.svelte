@@ -56,10 +56,14 @@
 		g.EJS_backgroundColor = cssVar('--bg', '#0f0f0f');
 		// Core option defaults (the INITIAL value; once the user changes an option
 		// in the settings menu their choice persists in localStorage and wins):
-		// - Amiga: force cycle-exact CPU. The (AGA) demos rely on exact 68020/
-		//   copper/blitter timing, since our files lack the "(CE)" tag.
-		//   (Rendering stays on EmulatorJS's default path — forcing webgl2Enabled
-		//   was tried and reverted; it made no clear difference.)
+		// - Amiga: force the A1200 (AGA) model + cycle-exact CPU. The AGA demos
+		//   rely on exact 68020/copper/blitter timing. Cycle-exact is the heaviest
+		//   PUAE mode and is CPU-bound for AGA — note that in this mode PUAE ignores
+		//   the cpu_throttle / immediate_blits / frameskip levers, so the one perf
+		//   option that still applies is collision detection, which demos don't use,
+		//   so we turn it off. If a demo is too slow, drop CPU Compatibility from
+		//   'Cycle-exact' to 'memory'/'compatible' in the settings menu (faster, at
+		//   some timing accuracy). See libretro PUAE core options.
 		// - C64: drive-sound emulation off by default. VICE models the 1541's
 		//   motor/stepper noise faithfully, and many demos keep the drive spinning,
 		//   so the sound runs on under the demo (unlike Amiga, whose floppy noise
@@ -71,8 +75,11 @@
 		//   these are keyboard/non-interactive demos, so the touch d-pad just covers
 		//   the screen with nothing useful. Still re-enableable in the settings menu.
 		const opts: Record<string, string> = { 'virtual-gamepad': 'disabled' };
-		if (core === 'amiga') opts.puae_cpu_compatibility = 'exact';
-		else if (core === 'c64') {
+		if (core === 'amiga') {
+			opts.puae_model = 'A1200'; // force AGA — our Amiga content is AGA demos
+			opts.puae_cpu_compatibility = 'exact'; // demo-accurate (heaviest) timing
+			opts.puae_collision_level = 'none'; // demos don't need collision — saves CPU
+		} else if (core === 'c64') {
 			opts.vice_drive_sound_emulation = 'disabled';
 			opts.vice_autostart_warp = 'enabled';
 		}
