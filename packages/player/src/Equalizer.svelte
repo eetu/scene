@@ -88,10 +88,8 @@
 
 				const have = active && readSpectrum(buf);
 				const padX = Math.max(4, w * 0.015);
-				// Slender bars: each occupies ~58% of its column, centred, leaving a
-				// clear gap so the bars read as separate columns, not one solid blob.
-				const pitch = (w - padX * 2) / bands;
-				const barW = Math.max(1, pitch * 0.58);
+				const gapX = Math.max(1, w * 0.004);
+				const barW = (w - padX * 2 - gapX * (bands - 1)) / bands;
 				const padY = Math.max(3, h * 0.04);
 				const fieldH = h - padY * 2;
 				// Square-ish LED cells: pick a segment count that makes cell height
@@ -126,7 +124,7 @@
 					}
 
 					const [r, gg, bb] = cols[b];
-					const x = padX + b * pitch + (pitch - barW) / 2;
+					const x = padX + b * (barW + gapX);
 					const litCount = Math.round(levels[b] * segments);
 					const peakSeg = Math.round(peaks[b] * segments);
 
@@ -135,15 +133,22 @@
 						const lit = s < litCount;
 						const isPeak = peakSeg > 0 && s === peakSeg - 1;
 						const isTip = lit && s === litCount - 1;
-						if (lit || isPeak) {
+						g2.fillStyle = `rgb(${r},${gg},${bb})`;
+						if (isPeak && !lit) {
+							// Floating peak cap.
 							g2.globalAlpha = 1;
-							g2.fillStyle = `rgb(${r},${gg},${bb})`;
-							// Bloom on the active tip and the floating peak cap.
+							g2.shadowColor = `rgb(${r},${gg},${bb})`;
+							g2.shadowBlur = Math.max(6, barW * 0.9);
+						} else if (lit) {
+							// Fade the column body downward so the bright moving top edge
+							// (where the action is) stands out instead of a solid block:
+							// the lower static fill recedes toward the backlight.
+							const depth = litCount > 1 ? (litCount - 1 - s) / (litCount - 1) : 0;
+							g2.globalAlpha = 1 - depth * 0.78;
 							g2.shadowColor = `rgb(${r},${gg},${bb})`;
 							g2.shadowBlur = isTip || isPeak ? Math.max(6, barW * 0.9) : 0;
 						} else {
-							g2.globalAlpha = 0.14; // unlit cell — faint backlight
-							g2.fillStyle = `rgb(${r},${gg},${bb})`;
+							g2.globalAlpha = 0.1; // unlit cell — faint backlight
 							g2.shadowBlur = 0;
 						}
 						g2.fillRect(x, y, barW, segH);
