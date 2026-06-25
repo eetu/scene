@@ -4,9 +4,8 @@
 	// gets its own bars), each bar has meter ballistics (fast attack / slow
 	// release) and a peak-hold cap that floats and drifts down. Segments are small
 	// uniform squares tinted by a horizontal amber→green wash (the classic
-	// backlit-panel look); lit tips + caps bloom via a soft glow.
-	import { theme } from '@scene/design';
-
+	// backlit-panel look); lit tips + caps bloom via a soft glow. Light theme
+	// drops the glow and shows the unlit cells as a grey grid on a pale panel.
 	import { readSpectrum, SPECTRUM_SIZE } from './player.svelte';
 
 	let { active = true, bands = 56 }: { active?: boolean; bands?: number } = $props();
@@ -61,18 +60,21 @@
 		}
 
 		let cachedMode: string | null = null;
+		let light = false;
 		let cBg = '#08080f';
 		const node: HTMLCanvasElement = el;
 		function refreshColors() {
 			const cs = getComputedStyle(node);
 			cBg = cs.getPropertyValue('--scope-bg').trim() || cBg;
+			light = document.documentElement.dataset.theme === 'light';
 		}
 
 		let raf = 0;
 		function frame() {
-			if (theme.mode !== cachedMode) {
+			const mode = document.documentElement.dataset.theme ?? '';
+			if (mode !== cachedMode) {
 				refreshColors();
-				cachedMode = theme.mode;
+				cachedMode = mode;
 			}
 			if (w > 0 && h > 0) {
 				g2.globalCompositeOperation = 'source-over';
@@ -133,23 +135,30 @@
 						const lit = s < litCount;
 						const isPeak = peakSeg > 0 && s === peakSeg - 1;
 						const isTip = lit && s === litCount - 1;
+						// Glow only reads on a dark panel; light theme draws flat.
+						const glow = light ? 0 : Math.max(6, barW * 0.9);
 						g2.fillStyle = `rgb(${r},${gg},${bb})`;
 						if (isPeak && !lit) {
 							// Floating peak cap.
 							g2.globalAlpha = 1;
 							g2.shadowColor = `rgb(${r},${gg},${bb})`;
-							g2.shadowBlur = Math.max(6, barW * 0.9);
+							g2.shadowBlur = glow;
 						} else if (lit) {
 							// Fade the column body downward so the bright moving top edge
-							// (where the action is) stands out instead of a solid block:
-							// the lower static fill recedes toward the backlight.
+							// (where the action is) stands out instead of a solid block.
 							const depth = litCount > 1 ? (litCount - 1 - s) / (litCount - 1) : 0;
-							g2.globalAlpha = 1 - depth * 0.78;
+							g2.globalAlpha = 1 - depth * (light ? 0.62 : 0.78);
 							g2.shadowColor = `rgb(${r},${gg},${bb})`;
-							g2.shadowBlur = isTip || isPeak ? Math.max(6, barW * 0.9) : 0;
+							g2.shadowBlur = isTip || isPeak ? glow : 0;
 						} else {
-							g2.globalAlpha = 0.1; // unlit cell — faint backlight
+							// Unlit cell: faint backlight on dark; a grey grid on light.
 							g2.shadowBlur = 0;
+							if (light) {
+								g2.globalAlpha = 0.12;
+								g2.fillStyle = '#000';
+							} else {
+								g2.globalAlpha = 0.1;
+							}
 						}
 						g2.fillRect(x, y, barW, segH);
 					}

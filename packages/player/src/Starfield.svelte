@@ -48,10 +48,12 @@
 		for (let i = 0; i < COUNT; i++) place(i, false);
 
 		let accent = '#f78f08';
+		let light = false;
 		let cachedMode: string | null = null;
 		const node: HTMLCanvasElement = el;
 		const refresh = () => {
 			accent = getComputedStyle(node).getPropertyValue('--accent').trim() || accent;
+			light = document.documentElement.dataset.theme === 'light';
 		};
 
 		let raf = 0;
@@ -67,8 +69,9 @@
 			warp += (targetWarp - warp) * 0.1;
 
 			if (w > 0 && h > 0) {
-				// Slight trail: fade the previous frame instead of clearing.
-				g2.fillStyle = 'rgba(6, 6, 12, 0.35)';
+				// Slight trail: fade the previous frame instead of clearing. Light
+				// theme inverts to dark stars streaming over a bright field.
+				g2.fillStyle = light ? 'rgba(244, 244, 250, 0.4)' : 'rgba(6, 6, 12, 0.35)';
 				g2.fillRect(0, 0, w, h);
 				const cx = w / 2;
 				const cy = h / 2;
@@ -82,7 +85,7 @@
 					const b = 1 - zs[i];
 					const size = b * 2.4 + 0.3;
 					g2.globalAlpha = Math.min(1, b * 1.2);
-					g2.fillStyle = b > 0.75 ? '#fff' : accent;
+					g2.fillStyle = light ? (b > 0.75 ? '#0c0c14' : '#3a3550') : b > 0.75 ? '#fff' : accent;
 					g2.fillRect(px, py, size, size);
 				}
 				g2.globalAlpha = 1;

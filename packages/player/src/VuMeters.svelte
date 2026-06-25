@@ -146,6 +146,26 @@
 			g2.restore();
 		}
 
+		// Retro silver hi-fi face: a vertical light→steel→light gradient plus fine
+		// horizontal striations (deterministic, so they don't shimmer) for a
+		// brushed-metal look. Used as the light-theme panel behind the dials.
+		function drawBrushedSteel() {
+			const grad = g2.createLinearGradient(0, 0, 0, h);
+			grad.addColorStop(0, '#e4e5e8');
+			grad.addColorStop(0.5, '#b9bbc1');
+			grad.addColorStop(1, '#d2d4d8');
+			g2.fillStyle = grad;
+			g2.fillRect(0, 0, w, h);
+			g2.globalAlpha = 0.5;
+			for (let y = 0; y < h; y++) {
+				// Stable pseudo-noise per row → brushed striations.
+				const n = (Math.sin(y * 12.9898) * 43758.5453) % 1;
+				g2.fillStyle = n > 0 ? 'rgba(255,255,255,0.20)' : 'rgba(90,92,98,0.20)';
+				g2.fillRect(0, y, w, 1);
+			}
+			g2.globalAlpha = 1;
+		}
+
 		let raf = 0;
 		function frame() {
 			const tL = active ? bank(0, 0.5) : 0;
@@ -155,8 +175,11 @@
 			posR += (tR - posR) * (tR > posR ? 0.3 : 0.1);
 
 			if (w > 0 && h > 0) {
-				g2.fillStyle = '#120d07';
-				g2.fillRect(0, 0, w, h);
+				if (document.documentElement.dataset.theme === 'light') drawBrushedSteel();
+				else {
+					g2.fillStyle = '#120d07';
+					g2.fillRect(0, 0, w, h);
+				}
 				meter(0, 0, w / 2, h, posL, 'L');
 				meter(w / 2, 0, w / 2, h, posR, 'R');
 			}
