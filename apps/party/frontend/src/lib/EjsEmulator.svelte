@@ -12,6 +12,9 @@
 	let host = $state<HTMLDivElement | null>(null);
 	let error = $state<string | null>(null);
 	let fpsOn = $state(false);
+	// iOS Safari has no Fullscreen API on a <div>, so the real button no-ops; fall
+	// back to a CSS "pseudo fullscreen" (fixed overlay), as the DOS surface does.
+	let pseudoFs = $state(false);
 	let scriptEl: HTMLScriptElement | null = null;
 
 	const w = () => window as unknown as Record<string, unknown>;
@@ -61,12 +64,18 @@
 		//   motor/stepper noise faithfully, and many demos keep the drive spinning,
 		//   so the sound runs on under the demo (unlike Amiga, whose floppy noise
 		//   stops with the motor). Re-enable it in the settings menu if wanted.
+		//   autostart_warp: warp the machine while the (slow) 1541 loads, then drop
+		//   back to 1× — keeps true drive emulation on (demos' fastloaders still
+		//   work), only the load is sped up.
 		// - virtual-gamepad off: EmulatorJS defaults it to "enabled" on mobile, but
 		//   these are keyboard/non-interactive demos, so the touch d-pad just covers
 		//   the screen with nothing useful. Still re-enableable in the settings menu.
 		const opts: Record<string, string> = { 'virtual-gamepad': 'disabled' };
 		if (core === 'amiga') opts.puae_cpu_compatibility = 'exact';
-		else if (core === 'c64') opts.vice_drive_sound_emulation = 'disabled';
+		else if (core === 'c64') {
+			opts.vice_drive_sound_emulation = 'disabled';
+			opts.vice_autostart_warp = 'enabled';
+		}
 		g.EJS_defaultOptions = opts;
 		// Load the loader as a uniquely-URL'd ES module: a module's top-level
 		// declarations are scoped to it (a classic <script> re-add would redeclare
@@ -92,7 +101,18 @@
 	}
 
 	function fullscreen() {
-		host?.requestFullscreen?.().catch(() => {});
+		if (document.fullscreenElement) {
+			void document.exitFullscreen?.();
+			return;
+		}
+		// Real Fullscreen API where it exists (desktop); CSS overlay fallback on iOS
+		// Safari, where requestFullscreen is absent on a <div>. EmulatorJS's own
+		// ResizeObserver refits the canvas when the container grows.
+		if (host?.requestFullscreen) {
+			host.requestFullscreen().catch(() => (pseudoFs = true));
+		} else {
+			pseudoFs = !pseudoFs;
+		}
 	}
 
 	// Toggle EmulatorJS's FPS overlay via its runtime settings API.
@@ -121,7 +141,7 @@
 	onDestroy(() => teardown());
 </script>
 
-<div class="emu">
+<div class="emu" class:fs={pseudoFs}>
 	{#if error}<p class="err">{error}</p>{/if}
 	<div class="bar">
 		<button class:on={fpsOn} onclick={toggleFps} title="Toggle FPS counter">FPS</button>
@@ -142,6 +162,14 @@
 		gap: 8px;
 		height: 100%;
 		min-height: 0;
+	}
+	/* iOS fallback fullscreen (no native Fullscreen API on a <div>). */
+	.emu.fs {
+		position: fixed;
+		inset: 0;
+		z-index: 50;
+		background: #000;
+		padding: 8px;
 	}
 	.err {
 		color: #ff4136;
