@@ -12,6 +12,9 @@
 	let host = $state<HTMLDivElement | null>(null);
 	let error = $state<string | null>(null);
 	let fpsOn = $state(false);
+	// Amiga only: trade timing accuracy for speed at runtime (cycle-exact ↔ a
+	// lighter CPU mode) for AGA demos that are too heavy. Defaults to accurate.
+	let perfMode = $state(false);
 	// iOS Safari has no Fullscreen API on a <div>, so the real button no-ops; fall
 	// back to a CSS "pseudo fullscreen" (fixed overlay), as the DOS surface does.
 	let pseudoFs = $state(false);
@@ -136,6 +139,24 @@
 		fpsOn = next === 'show';
 	}
 
+	// Amiga: flip CPU emulation between cycle-exact (accurate, heavy) and a
+	// lighter mode, then reset the machine so PUAE re-reads the variables. Each
+	// option change pushes to the core via setVariable; restart() re-applies them
+	// without re-downloading the core.
+	function togglePerf() {
+		const ci = w().EJS_emulator as
+			| {
+					changeSettingOption?: (k: string, v: string) => void;
+					gameManager?: { restart?: () => void };
+			  }
+			| undefined;
+		if (!ci?.changeSettingOption) return;
+		perfMode = !perfMode;
+		ci.changeSettingOption('puae_cpu_compatibility', perfMode ? 'compatible' : 'exact');
+		ci.changeSettingOption('puae_immediate_blits', perfMode ? 'immediate' : 'waiting');
+		ci.gameManager?.restart?.();
+	}
+
 	// Stop the running core and reset to a fresh Start Game screen.
 	function stop() {
 		teardown();
@@ -151,6 +172,15 @@
 <div class="emu" class:fs={pseudoFs}>
 	{#if error}<p class="err">{error}</p>{/if}
 	<div class="bar">
+		{#if core === 'amiga'}
+			<button
+				class:on={perfMode}
+				onclick={togglePerf}
+				title="Performance mode: trade cycle-exact timing for speed (restarts the demo)"
+			>
+				Perf
+			</button>
+		{/if}
 		<button class:on={fpsOn} onclick={toggleFps} title="Toggle FPS counter">FPS</button>
 		<button onclick={fullscreen} title="Fullscreen" aria-label="Fullscreen">
 			<Maximize size={16} /> Fullscreen
