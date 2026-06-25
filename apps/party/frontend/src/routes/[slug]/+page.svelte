@@ -185,10 +185,13 @@
 		if (isMobile) navOpen = true;
 	}
 
-	// Header back arrow: step out one level — unselect the current production if
-	// one's open, otherwise leave the party for the landing page.
+	// Header back arrow. Mobile is single-pane, so "back" steps out one level:
+	// unselect the open production first (clearing the route), then leave. On
+	// desktop the catalog stays visible beside the detail, so that two-step reads
+	// as confusing — go straight to the landing page (and the ?p/?f route is left
+	// behind with it).
 	function back() {
-		if (selected) clearSelection();
+		if (isMobile && selected) clearSelection();
 		else void goto('/');
 	}
 
@@ -204,7 +207,7 @@
 	<button
 		class="back"
 		onclick={back}
-		title={selected ? 'Back to list' : 'Back to parties'}
+		title={isMobile && selected ? 'Back to list' : 'Back to parties'}
 		aria-label="Back"
 	>
 		<ArrowLeft size={18} />
