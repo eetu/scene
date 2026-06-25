@@ -120,7 +120,7 @@
 
 			// Dark bezel under the pivot — a dome sitting on a flat bottom edge
 			// (the needle emerges from its top), matching the inspiration meter.
-			const bezBottom = pivotY + fh * 0.06;
+			const bezBottom = fy + fh; // flush with the face's bottom edge
 			const bezHalf = fw * 0.34;
 			g2.fillStyle = '#0e0a05';
 			g2.beginPath();
