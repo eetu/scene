@@ -29,10 +29,11 @@ use state::{AppState, ScanProgress};
 /// libretro cores `eval()` JavaScript at runtime (the cores ship as code the
 /// loader evaluates), which only `'unsafe-eval'` permits — `'wasm-unsafe-eval'`
 /// alone blocks it. Acceptable here: a LAN-only archive whose whole point is
-/// running sandboxed WASM demos. Plus `worker-src 'self' blob:`. HSTS /
+/// running sandboxed WASM demos. EmulatorJS also boots its core/worker from a
+/// `blob:` URL, so `blob:` is allowed in `script-src` (and `worker-src`). HSTS /
 /// X-Frame-Options are the edge's job.
 fn build_csp(script_hashes: &[String]) -> String {
-    let mut script_src = String::from("'self' 'wasm-unsafe-eval' 'unsafe-eval'");
+    let mut script_src = String::from("'self' 'wasm-unsafe-eval' 'unsafe-eval' blob:");
     for h in script_hashes {
         script_src.push(' ');
         script_src.push_str(h);
@@ -208,7 +209,7 @@ mod tests {
     #[test]
     fn csp_allows_wasm_and_media() {
         let csp = build_csp(&["'sha256-X'".into()]);
-        assert!(csp.contains("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' 'sha256-X'"));
+        assert!(csp.contains("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' blob: 'sha256-X'"));
         assert!(csp.contains("worker-src 'self' blob:"));
         assert!(csp.contains("media-src 'self' blob:"));
     }
