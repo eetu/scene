@@ -75,6 +75,18 @@ export function readScope(buf: Uint8Array<ArrayBuffer>): boolean {
 	return true;
 }
 
+/** Number of frequency bins the analyser exposes (fftSize / 2). */
+export const SPECTRUM_SIZE = SCOPE_SIZE / 2;
+
+/** Fill `buf` (length SPECTRUM_SIZE) with the current output frequency
+ *  magnitudes (0–255). Returns false until the audio graph exists. Powers the
+ *  equalizer/spectrum visualizer. */
+export function readSpectrum(buf: Uint8Array<ArrayBuffer>): boolean {
+	if (!analyser) return false;
+	analyser.getByteFrequencyData(buf);
+	return true;
+}
+
 // Playback is a small state machine over one loaded module:
 //   stopped: playing=false            (transport shows ▶; play restarts from top)
 //   playing: playing=true, paused=false
@@ -114,6 +126,11 @@ function ensurePlayer(): Promise<void> {
 	// worklet connects to it once it's ready); the analyser just observes.
 	const a: AnalyserNode = player.context.createAnalyser();
 	a.fftSize = SCOPE_SIZE;
+	// Widen the dB window so loud module output doesn't saturate every frequency
+	// bin to 255 (which makes the equalizer top-heavy); leave headroom up top.
+	a.minDecibels = -90;
+	a.maxDecibels = -10;
+	a.smoothingTimeConstant = 0.82;
 	player.gain.connect(a);
 	analyser = a;
 	ready = new Promise<void>((resolve) => player.onInitialized(() => resolve()));

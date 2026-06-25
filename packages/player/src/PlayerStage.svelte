@@ -1,16 +1,22 @@
 <script lang="ts">
-	// The player "stage": a partial header of tabs (pattern / samples / ball) over
+	// The player "stage": a partial header of tabs (pattern / samples / viz) over
 	// a content area that switches between the scrolling pattern grid + scope, the
-	// instrument/sample name lists, and the Amiga boing-ball visualizer. Fills its
+	// instrument/sample name lists, and the visualizers. The "viz" tab holds its
+	// own sub-selector for the equalizer bars and the Amiga boing ball. Fills its
 	// container's height. Pair it with <Transport/>. Shared by tracker + party.
 	import BoingBall from './BoingBall.svelte';
+	import Equalizer from './Equalizer.svelte';
+	import GlowWave from './GlowWave.svelte';
 	import PatternView from './PatternView.svelte';
 	import { playback } from './player.svelte';
 	import Scope from './Scope.svelte';
 
-	let { tab = $bindable<'pattern' | 'samples' | 'ball'>('pattern') } = $props();
+	let { tab = $bindable<'pattern' | 'samples' | 'viz'>('pattern') } = $props();
+	// Which visualizer the "viz" tab shows. Persists across tab switches.
+	let vizMode = $state<'bars' | 'wave' | 'ball'>('bars');
 
 	const energy = $derived(playback.vu.length ? Math.max(...playback.vu) : 0);
+	const playing = $derived(playback.playing && !playback.paused);
 	const hex2 = (n: number) => n.toString(16).toUpperCase().padStart(2, '0');
 
 	// Module format (file extension) — drives the boing ball's pixelation.
@@ -25,15 +31,28 @@
 	<div class="tabs">
 		<button class:on={tab === 'pattern'} onclick={() => (tab = 'pattern')}>pattern</button>
 		<button class:on={tab === 'samples'} onclick={() => (tab = 'samples')}>samples</button>
-		<button class:on={tab === 'ball'} onclick={() => (tab = 'ball')}>ball</button>
+		<button class:on={tab === 'viz'} onclick={() => (tab = 'viz')}>viz</button>
 	</div>
 	<div class="wrap">
 		{#if tab === 'pattern'}
 			<div class="scope-strip"><Scope /></div>
 			<div class="pfill"><PatternView /></div>
-		{:else if tab === 'ball'}
-			<div class="ball">
-				<BoingBall energy={playback.playing && !playback.paused ? energy : 0} {format} />
+		{:else if tab === 'viz'}
+			<div class="viz">
+				<div class="vizpick">
+					<button class:on={vizMode === 'bars'} onclick={() => (vizMode = 'bars')}>bars</button>
+					<button class:on={vizMode === 'wave'} onclick={() => (vizMode = 'wave')}>wave</button>
+					<button class:on={vizMode === 'ball'} onclick={() => (vizMode = 'ball')}>ball</button>
+				</div>
+				<div class="vizbody">
+					{#if vizMode === 'bars'}
+						<Equalizer active={playing} />
+					{:else if vizMode === 'wave'}
+						<GlowWave active={playing} />
+					{:else}
+						<BoingBall energy={playing ? energy : 0} {format} />
+					{/if}
+				</div>
 			</div>
 		{:else}
 			<div class="samples">
@@ -102,7 +121,34 @@
 		flex: 1;
 		min-height: 0;
 	}
-	.ball {
+	.viz {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	.vizpick {
+		flex: 0 0 auto;
+		display: flex;
+		gap: 4px;
+		padding: 6px 8px;
+		border-bottom: 1px solid var(--surface-line-2, var(--border));
+	}
+	.vizpick button {
+		padding: 2px 9px;
+		font-size: 11px;
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		background: var(--panel-hi);
+		color: var(--muted);
+		cursor: pointer;
+	}
+	.vizpick button.on {
+		color: var(--bg);
+		background: var(--accent);
+		border-color: var(--accent);
+	}
+	.vizbody {
 		flex: 1;
 		min-height: 0;
 	}

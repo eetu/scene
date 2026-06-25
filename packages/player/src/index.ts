@@ -5,6 +5,8 @@
 export * from './host';
 export * from './player.svelte';
 export { default as BoingBall } from './BoingBall.svelte';
+export { default as Equalizer } from './Equalizer.svelte';
+export { default as GlowWave } from './GlowWave.svelte';
 export { default as PatternView } from './PatternView.svelte';
 export { default as PlayerStage } from './PlayerStage.svelte';
 export { default as Scope } from './Scope.svelte';

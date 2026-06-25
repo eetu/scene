@@ -13,6 +13,8 @@
 	import { setTheme, theme } from '@scene/design';
 	import {
 		BoingBall,
+		Equalizer,
+		GlowWave,
 		parseModule,
 		PatternView,
 		playback,
@@ -34,7 +36,9 @@
 
 	let showPattern = $state(false);
 	let showSettings = $state(false);
-	let pvTab = $state<'pattern' | 'samples' | 'ball'>('pattern');
+	let pvTab = $state<'pattern' | 'samples' | 'viz'>('pattern');
+	// Which visualizer the "viz" tab shows (equalizer bars / neon waveform / ball).
+	let pvVizMode = $state<'bars' | 'wave' | 'ball'>('bars');
 	// Pattern view style: 'locked' = fixed centerline + vertical VU; 'scroll' =
 	// free-scrolling rows + header VU. Persisted across sessions; set in Settings.
 	let patternMode = $state<'locked' | 'scroll'>(
@@ -681,7 +685,7 @@
 			<div class="pv-tabs">
 				<button class:on={pvTab === 'pattern'} onclick={() => (pvTab = 'pattern')}>pattern</button>
 				<button class:on={pvTab === 'samples'} onclick={() => (pvTab = 'samples')}>samples</button>
-				<button class:on={pvTab === 'ball'} onclick={() => (pvTab = 'ball')}>ball</button>
+				<button class:on={pvTab === 'viz'} onclick={() => (pvTab = 'viz')}>viz</button>
 			</div>
 			<button
 				class="icon-btn gear"
@@ -705,9 +709,28 @@
 				<div class="pfill">
 					{#if patternMode === 'locked'}<PatternView />{:else}<PatternViewScroll />{/if}
 				</div>
-			{:else if pvTab === 'ball'}
-				<div class="ball-view">
-					<BoingBall energy={playback.playing && !playback.paused ? vuEnergy : 0} />
+			{:else if pvTab === 'viz'}
+				<div class="viz-view">
+					<div class="vizpick">
+						<button class:on={pvVizMode === 'bars'} onclick={() => (pvVizMode = 'bars')}
+							>bars</button
+						>
+						<button class:on={pvVizMode === 'wave'} onclick={() => (pvVizMode = 'wave')}
+							>wave</button
+						>
+						<button class:on={pvVizMode === 'ball'} onclick={() => (pvVizMode = 'ball')}
+							>ball</button
+						>
+					</div>
+					<div class="vizbody">
+						{#if pvVizMode === 'bars'}
+							<Equalizer active={playback.playing && !playback.paused} />
+						{:else if pvVizMode === 'wave'}
+							<GlowWave active={playback.playing && !playback.paused} />
+						{:else}
+							<BoingBall energy={playback.playing && !playback.paused ? vuEnergy : 0} />
+						{/if}
+					</div>
 				</div>
 			{:else}
 				<div class="samples">
@@ -1212,7 +1235,34 @@
 		flex: 1;
 		min-height: 0;
 	}
-	.ball-view {
+	.viz-view {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	.vizpick {
+		flex: 0 0 auto;
+		display: flex;
+		gap: 4px;
+		padding: 6px 8px;
+		border-bottom: 1px solid var(--surface-line-2);
+	}
+	.vizpick button {
+		padding: 2px 9px;
+		font-size: 11px;
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		background: var(--panel-hi);
+		color: var(--muted);
+		cursor: pointer;
+	}
+	.vizpick button.on {
+		color: var(--bg);
+		background: var(--accent);
+		border-color: var(--accent);
+	}
+	.vizbody {
 		flex: 1;
 		min-height: 0;
 	}
