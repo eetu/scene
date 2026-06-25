@@ -5,7 +5,15 @@
 	import { Keyboard, Maximize, Play, Power } from '@lucide/svelte';
 	import { onDestroy } from 'svelte';
 
-	let { bundleUrl }: { bundleUrl: string } = $props();
+	let {
+		bundleUrl,
+		onKeyboard
+	}: {
+		bundleUrl: string;
+		/** Fired when the mobile soft keyboard is raised, so the host can free up
+		 *  vertical space (e.g. collapse a list drawer) and keep the screen visible. */
+		onKeyboard?: () => void;
+	} = $props();
 
 	// js-dos KBD_ keycodes (from the vendored bundle's keymap): letters are the
 	// uppercase ASCII code, digits are their ASCII code, plus these specials.
@@ -139,6 +147,9 @@
 	// keyboard itself, and stealing focus here would break it.
 	function raiseKeyboard() {
 		kbdInput?.focus();
+		// Let the host reclaim vertical space so the screen isn't hidden behind the
+		// soft keyboard (only reached on coarse pointers — see callers).
+		onKeyboard?.();
 	}
 	function onScreenTap() {
 		if (coarse) raiseKeyboard();

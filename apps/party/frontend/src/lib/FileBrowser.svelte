@@ -164,7 +164,9 @@
 			{:else if selected.kind === 'exe' && platform === 'pc'}
 				<!-- DOS: js-dos mounts the whole production folder and autoruns the
 			     primary executable, so it's keyed on the production, not the file. -->
-				{#key prodId}<Emulator bundleUrl={bundleUrl(prodId)} />{/key}
+				{#key prodId}
+					<Emulator bundleUrl={bundleUrl(prodId)} onKeyboard={() => (listOpen = false)} />
+				{/key}
 			{:else if selected.kind === 'diskimage' && platform === 'c64'}
 				{#key selected.hash}
 					<EjsEmulator core="c64" gameUrl={diskUrl(selected.hash, selected.filename)} />
