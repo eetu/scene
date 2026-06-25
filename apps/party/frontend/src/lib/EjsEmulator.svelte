@@ -61,14 +61,11 @@
 		//   motor/stepper noise faithfully, and many demos keep the drive spinning,
 		//   so the sound runs on under the demo (unlike Amiga, whose floppy noise
 		//   stops with the motor). Re-enable it in the settings menu if wanted.
-		//   autostart_warp: warp the machine while the (slow) 1541 loads, then drop
-		//   back to 1× — keeps true drive emulation on, so demos' fastloaders still
-		//   work; only the load is sped up.
 		g.EJS_defaultOptions =
 			core === 'amiga'
 				? { puae_cpu_compatibility: 'exact' }
 				: core === 'c64'
-					? { vice_drive_sound_emulation: 'disabled', vice_autostart_warp: 'enabled' }
+					? { vice_drive_sound_emulation: 'disabled' }
 					: {};
 		// Load the loader as a uniquely-URL'd ES module: a module's top-level
 		// declarations are scoped to it (a classic <script> re-add would redeclare
