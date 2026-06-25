@@ -118,10 +118,10 @@
 			g2.stroke();
 			g2.shadowBlur = 0;
 
-			// Dark bezel over the pivot.
+			// Dark bezel over the pivot (a bowl curving down under the needle).
 			g2.fillStyle = '#0e0a05';
 			g2.beginPath();
-			g2.ellipse(pivotX, pivotY + fh * 0.02, fw * 0.34, fh * 0.13, 0, Math.PI, 0, true);
+			g2.ellipse(pivotX, pivotY + fh * 0.02, fw * 0.34, fh * 0.13, 0, 0, Math.PI, false);
 			g2.fill();
 			g2.fillStyle = '#2a1c0c';
 			g2.beginPath();
