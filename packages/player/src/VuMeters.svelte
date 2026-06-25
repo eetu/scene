@@ -146,24 +146,25 @@
 			g2.restore();
 		}
 
-		// Retro silver hi-fi face: a vertical light→steel→light gradient plus fine
-		// horizontal striations (deterministic, so they don't shimmer) for a
-		// brushed-metal look. Used as the light-theme panel behind the dials.
+		// Retro brushed-aluminium hi-fi face (light theme): a near-uniform cool grey
+		// with a faint vertical sheen, overlaid with dense, low-contrast horizontal
+		// micro-striations + a slow broad band — deterministic per row so they don't
+		// shimmer. Used as the panel behind the dials.
 		function drawBrushedSteel() {
 			const grad = g2.createLinearGradient(0, 0, 0, h);
-			grad.addColorStop(0, '#e4e5e8');
-			grad.addColorStop(0.5, '#b9bbc1');
-			grad.addColorStop(1, '#d2d4d8');
+			grad.addColorStop(0, '#cdcfd4');
+			grad.addColorStop(0.5, '#bcbec4');
+			grad.addColorStop(1, '#c6c8ce');
 			g2.fillStyle = grad;
 			g2.fillRect(0, 0, w, h);
-			g2.globalAlpha = 0.5;
 			for (let y = 0; y < h; y++) {
-				// Stable pseudo-noise per row → brushed striations.
-				const n = (Math.sin(y * 12.9898) * 43758.5453) % 1;
-				g2.fillStyle = n > 0 ? 'rgba(255,255,255,0.20)' : 'rgba(90,92,98,0.20)';
+				const r = Math.sin(y * 12.9898) * 43758.5453;
+				const micro = r - Math.floor(r) - 0.5; // -0.5..0.5 fine grain
+				const broad = Math.sin(y * 0.025) * 0.5; // slow sheen bands
+				const d = micro * 0.1 + broad * 0.04; // small brightness delta
+				g2.fillStyle = d >= 0 ? `rgba(255,255,255,${d})` : `rgba(74,76,84,${-d})`;
 				g2.fillRect(0, y, w, 1);
 			}
-			g2.globalAlpha = 1;
 		}
 
 		let raf = 0;
