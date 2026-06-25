@@ -10,6 +10,7 @@
 		Monitor,
 		Music,
 		PanelLeft,
+		Search,
 		X
 	} from '@lucide/svelte';
 	import {
@@ -17,7 +18,8 @@
 		playback,
 		playInOrder,
 		stop as stopPlayback,
-		type Track
+		type Track,
+		Transport
 	} from '@scene/player';
 	import { untrack } from 'svelte';
 
@@ -130,14 +132,30 @@
 		if (prod && prod.id !== untrack(() => pid)) nav({ p: prod.id, f: null });
 	});
 
+	// Catalog search: filters productions by title / group / compo. While a query
+	// is active, every matching card is force-opened (see the template) so results
+	// are visible without manual expansion.
+	let query = $state('');
+	const q = $derived(query.trim().toLowerCase());
+	function matches(p: Production): boolean {
+		if (!q) return true;
+		return (
+			(p.title?.toLowerCase().includes(q) ?? false) ||
+			(p.group?.toLowerCase().includes(q) ?? false) ||
+			p.compo.toLowerCase().includes(q)
+		);
+	}
+
 	// Group by compo. The party-info bits (Info, Misc) are surfaced first — handy
-	// as an overview — then the competitions alphabetically.
+	// as an overview — then the competitions alphabetically. Empty groups (none of
+	// whose entries match the active query) drop out.
 	const FIRST = ['Info', 'Misc'];
 	const groups = $derived.by(() => {
 		// Plain Map: a throwaway grouping recomputed each run, not reactive state.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const m = new Map<string, Production[]>();
 		for (const p of prods) {
+			if (!matches(p)) continue;
 			const arr = m.get(p.compo);
 			if (arr) arr.push(p);
 			else m.set(p.compo, [p]);
@@ -147,6 +165,18 @@
 			([a], [b]) => rank(a) - rank(b) || a.localeCompare(b, undefined, { numeric: true })
 		);
 	});
+
+	// The transport's title doubles as "jump to what's playing": select the
+	// production whose primary is the current track, opening its player view.
+	function openPlayingView() {
+		const cur = playback.current;
+		if (!cur) return;
+		const prod = prods.find((p) => p.primary_hash === cur.hash);
+		if (prod) {
+			nav({ p: prod.id, f: null });
+			if (isMobile) navOpen = false;
+		}
+	}
 
 	// Collapsible category cards, closed by default — the left panel is a scannable
 	// overview (Info/Misc first); open a card to see its entries.
@@ -229,9 +259,24 @@
 	<div class="cols" class:nav-hidden={!navOpen}>
 		<section class="catalog">
 			<div class="catalog-inner">
+				<div class="searchbar">
+					<Search size={14} />
+					<input
+						type="search"
+						placeholder="Search title, group, compo…"
+						bind:value={query}
+						aria-label="Search productions"
+					/>
+					{#if q}
+						<button class="clearq" onclick={() => (query = '')} aria-label="Clear search">
+							<X size={14} />
+						</button>
+					{/if}
+				</div>
 				{#each groups as [compo, entries] (compo)}
-					<div class="cat" class:open={open[compo]}>
-						<button class="cathead" onclick={() => toggle(compo)} aria-expanded={!!open[compo]}>
+					{@const isOpen = open[compo] || !!q}
+					<div class="cat" class:open={isOpen}>
+						<button class="cathead" onclick={() => toggle(compo)} aria-expanded={isOpen}>
 							<ChevronRight class="chev" size={14} />
 							{#key entries[0]?.medium}
 								{@const Icon = mediumIcon(entries[0]?.medium ?? '')}
@@ -240,14 +285,19 @@
 							<span class="catname">{compo}</span>
 							<span class="catcount">{entries.length}</span>
 						</button>
-						{#if open[compo]}
+						{#if isOpen}
 							{@const ranked = entries.filter((e) => e.rank != null)}
 							{@const rest = entries.filter((e) => e.rank == null)}
-							{@const list = showRest[compo] || ranked.length === 0 ? entries : ranked}
+							{@const list = q || showRest[compo] || ranked.length === 0 ? entries : ranked}
 							<ul use:listKeys>
 								{#each list as p (p.id)}
 									<li>
-										<button class:sel={selected?.id === p.id} onclick={() => select(p)}>
+										<button
+											class:sel={selected?.id === p.id}
+											class:playing={p.primary_hash != null &&
+												p.primary_hash === playback.current?.hash}
+											onclick={() => select(p)}
+										>
 											<span class="rank">{p.rank ?? ''}</span>
 											<span class="name">
 												{#if p.group}<b>{p.group}</b> —
@@ -260,13 +310,15 @@
 									</li>
 								{/each}
 							</ul>
-							{#if ranked.length > 0 && rest.length > 0}
+							{#if !q && ranked.length > 0 && rest.length > 0}
 								<button class="more" onclick={() => (showRest[compo] = !showRest[compo])}>
 									{showRest[compo] ? 'Show less' : `+${rest.length} more`}
 								</button>
 							{/if}
 						{/if}
 					</div>
+				{:else}
+					<p class="noresults">No productions match “{query}”.</p>
 				{/each}
 			</div>
 		</section>
@@ -317,6 +369,11 @@
 			{/if}
 		</section>
 	</div>
+
+	<!-- Global now-playing bar: spans both panes and stays visible whenever a
+	     track is loaded, so music keeps its controls even after you navigate to
+	     another production. The title jumps back to the playing entry. -->
+	<Transport onOpenView={openPlayingView} showPos={false} />
 </main>
 
 <style>
@@ -355,6 +412,8 @@
 		margin-right: auto;
 	}
 	main {
+		display: flex;
+		flex-direction: column;
 		flex: 1;
 		min-height: 0;
 		overflow: hidden;
@@ -365,7 +424,7 @@
 	.cols {
 		display: grid;
 		grid-template-columns: 340px 1fr;
-		height: 100%;
+		flex: 1;
 		min-height: 0;
 		transition: grid-template-columns 0.22s ease;
 	}
@@ -457,6 +516,50 @@
 	}
 	.catalog ul button.sel {
 		background: var(--accent-dim);
+	}
+
+	.catalog ul button.playing {
+		box-shadow: inset 2px 0 0 var(--accent);
+	}
+	.catalog ul button.playing .name {
+		color: var(--accent);
+	}
+	.searchbar {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 5px 8px;
+		margin-bottom: 8px;
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		background: var(--panel);
+		color: var(--muted);
+	}
+	.searchbar input {
+		flex: 1;
+		min-width: 0;
+		border: 0;
+		background: none;
+		color: var(--text);
+		font: inherit;
+		outline: none;
+	}
+	.clearq {
+		display: inline-flex;
+		align-items: center;
+		padding: 2px;
+		border: 0;
+		background: none;
+		color: var(--muted);
+		cursor: pointer;
+	}
+	.clearq:hover {
+		color: var(--accent);
+	}
+	.noresults {
+		color: var(--muted);
+		font-size: 13px;
+		padding: 8px 4px;
 	}
 	.more {
 		width: 100%;

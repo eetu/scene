@@ -1,7 +1,9 @@
 <script lang="ts">
-	// Music player surface: the tabbed stage (pattern / samples / ball) + the
-	// shared transport bar, both from @scene/player. Fills the available height.
-	import { PlayerStage, Transport } from '@scene/player';
+	// Music player surface: the tabbed stage (pattern / samples / ball) from
+	// @scene/player. Fills the available height. The transport bar is NOT here —
+	// it's lifted to the route shell so it stays visible (and keeps controlling
+	// playback) even after you navigate away from the music production.
+	import { PlayerStage } from '@scene/player';
 
 	// The pattern grid uses the Amiga TopazPlus font only for Amiga-platform
 	// productions; PC tracker music (FastTracker/ScreamTracker here) uses the
@@ -14,7 +16,6 @@
 	style:--tracker-font={platform === 'amiga' ? 'var(--font-amiga)' : 'var(--font-dos)'}
 >
 	<div class="stage"><PlayerStage /></div>
-	<Transport />
 </div>
 
 <style>
