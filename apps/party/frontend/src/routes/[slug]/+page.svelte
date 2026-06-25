@@ -12,7 +12,13 @@
 		PanelLeft,
 		X
 	} from '@lucide/svelte';
-	import { cueInOrder, playback, playInOrder, type Track } from '@scene/player';
+	import {
+		cueInOrder,
+		playback,
+		playInOrder,
+		stop as stopPlayback,
+		type Track
+	} from '@scene/player';
 	import { untrack } from 'svelte';
 
 	import { goto } from '$app/navigation';
@@ -181,9 +187,11 @@
 	}
 
 	function clearSelection() {
-		// Drop the selection from the URL (the effect clears selected/detail) and
+		// Drop the selection from the URL (the effect clears selected/detail), stop
+		// any playing music (the X closes the view, so the player goes with it), and
 		// reveal the catalog drawer so you can pick another — forced open on both
 		// desktop (if collapsed) and mobile (where it's the full-screen list).
+		stopPlayback();
 		nav({ p: null, f: null });
 		navOpen = true;
 	}
