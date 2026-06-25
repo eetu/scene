@@ -45,6 +45,18 @@
 		void goto(u, { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
+	// Mobile (≤720px): the catalog is a slide-over drawer, auto-closed on
+	// selection so the detail/player gets the whole screen.
+	let isMobile = $state(false);
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		const mq = window.matchMedia('(max-width: 720px)');
+		const update = () => (isMobile = mq.matches);
+		update();
+		mq.addEventListener('change', update);
+		return () => mq.removeEventListener('change', update);
+	});
+
 	// Fetch the productions for the current party.
 	$effect(() => {
 		const s = slug;
@@ -73,6 +85,8 @@
 		if (!prod) return;
 		selected = prod;
 		detail = null;
+		// On a phone, slide the catalog drawer away so the detail fills the screen.
+		if (isMobile) navOpen = false;
 		// Reveal it in the catalog (cards are collapsed by default; unranked
 		// entries hide behind "+N more").
 		open[prod.compo] = true;
@@ -317,6 +331,8 @@
 		min-height: 0;
 		overflow: hidden;
 		padding: 0;
+		/* Positioning context for the mobile catalog drawer (see @media below). */
+		position: relative;
 	}
 	.cols {
 		display: grid;
@@ -477,18 +493,36 @@
 		color: var(--muted);
 	}
 	@media (max-width: 720px) {
-		.cols {
+		/* Single-pane: the detail fills the screen; the catalog is an off-canvas
+		   drawer that slides in over it, toggled by the header list button and
+		   auto-closed on selection (so the player/emulator gets the whole phone). */
+		.cols,
+		.cols.nav-hidden {
 			grid-template-columns: 1fr;
-			grid-template-rows: auto 1fr;
 		}
 		.catalog {
-			border-right: 0;
-			border-bottom: 1px solid var(--border);
-			max-height: 40vh;
+			position: absolute;
+			top: 0;
+			bottom: 0;
+			left: 0;
+			z-index: 8;
+			width: min(85vw, 340px);
+			background: var(--bg);
+			border-right: 1px solid var(--border);
+			box-shadow: 2px 0 16px rgba(0, 0, 0, 0.35);
+			transform: translateX(0);
+			transition: transform 0.22s ease;
 		}
-		/* Stacked single-column layout — the inner goes fluid (no fixed 340px). */
+		.cols.nav-hidden .catalog {
+			transform: translateX(-100%);
+			border-right-color: var(--border);
+			box-shadow: none;
+		}
 		.catalog-inner {
 			width: 100%;
+		}
+		.detail {
+			padding: 12px;
 		}
 	}
 </style>

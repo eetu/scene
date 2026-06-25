@@ -211,4 +211,16 @@
 	.muted {
 		color: var(--muted);
 	}
+	@media (max-width: 480px) {
+		/* Tight phone header: drop the tagline so brand + Rescan + gear fit a row. */
+		.sub {
+			display: none;
+		}
+		main {
+			padding: 14px 12px;
+		}
+		.grid {
+			grid-template-columns: 1fr;
+		}
+	}
 </style>
