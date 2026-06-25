@@ -166,7 +166,9 @@
 	function toTrack(p: Production): Track {
 		return {
 			hash: p.primary_hash as string,
-			filename: p.title ?? 'untitled',
+			// Real filename (with extension) — the display prefers `title`, but the
+			// player reads the extension off this to tune the boing ball's pixels.
+			filename: p.primary_filename ?? p.title ?? 'untitled',
 			title: p.title,
 			group: p.group
 		};

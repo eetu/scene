@@ -12,6 +12,13 @@
 
 	const energy = $derived(playback.vu.length ? Math.max(...playback.vu) : 0);
 	const hex2 = (n: number) => n.toString(16).toUpperCase().padStart(2, '0');
+
+	// Module format (file extension) — drives the boing ball's pixelation.
+	const format = $derived.by(() => {
+		const f = playback.current?.filename ?? '';
+		const dot = f.lastIndexOf('.');
+		return dot >= 0 ? f.slice(dot + 1).toLowerCase() : '';
+	});
 </script>
 
 <div class="stage">
@@ -25,7 +32,9 @@
 			<div class="scope-strip"><Scope /></div>
 			<div class="pfill"><PatternView /></div>
 		{:else if tab === 'ball'}
-			<div class="ball"><BoingBall energy={playback.playing && !playback.paused ? energy : 0} /></div>
+			<div class="ball">
+				<BoingBall energy={playback.playing && !playback.paused ? energy : 0} {format} />
+			</div>
 		{:else}
 			<div class="samples">
 				{#if (playback.song?.instruments?.length ?? 0) > 0}

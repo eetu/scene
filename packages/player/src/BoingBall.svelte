@@ -9,7 +9,28 @@
 	// faster and pulses bigger with the music. Only spin (incremental) and drawn
 	// size react — the analytic position speeds stay fixed so the bounce never
 	// jumps. Default 0 = idle.
-	let { energy = 0 }: { energy?: number } = $props();
+	//
+	// `format` (a module extension, lowercase) tunes the chunkiness: the legacy
+	// Amiga/SoundTracker formats render big, blocky pixels (the authentic look);
+	// the modern PC trackers (XM/IT/S3M/…) get a finer "HD" ball. Empty = neutral.
+	let { energy = 0, format = '' }: { energy?: number; format?: string } = $props();
+
+	// Chunky-era formats — the MOD family + Amiga 4-channel kin. Everything else
+	// (xm, it, s3m, mptm, mo3, …) is treated as "modern" → finer pixels.
+	const LEGACY = new Set([
+		'mod',
+		'm15',
+		'nst',
+		'stk',
+		'st',
+		'wow',
+		'ult',
+		'669',
+		'mtm',
+		'med',
+		'okt',
+		'okta'
+	]);
 
 	let canvas: HTMLCanvasElement | null = $state(null);
 
@@ -29,7 +50,11 @@
 		const og: CanvasRenderingContext2D = offCtx;
 		const gg: CanvasRenderingContext2D = gridCtx;
 
-		const PIXEL = 4; // offscreen→screen upscale (ball chunkiness)
+		// offscreen→screen upscale = ball chunkiness. Format-driven: legacy MOD
+		// renders blocky (6), modern formats get a finer HD ball (3); neutral 4
+		// when no format (e.g. the scan loader). Reading `format` here makes it a
+		// dependency, so a track change re-runs this effect with the new pixel size.
+		const PIXEL = format === '' ? 4 : LEGACY.has(format) ? 6 : 3;
 		const dpr = Math.min(window.devicePixelRatio || 1, 2);
 		let W = 0; // CSS px (grid space)
 		let H = 0;
