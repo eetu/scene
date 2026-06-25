@@ -1,22 +1,54 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Party glyph: Amiga copper/raster bars — the demoscene-party signature
-       (and a nod to the in-app copper-bars visualizer). Same halo family frame
-       as the tracker (dark rounded square, amber accent), different mark. -->
-  <defs>
-    <linearGradient id="copper" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#6e3c05"/>
-      <stop offset="0.42" stop-color="#f78f08"/>
-      <stop offset="0.5" stop-color="#ffe6b3"/>
-      <stop offset="0.58" stop-color="#f78f08"/>
-      <stop offset="1" stop-color="#6e3c05"/>
-    </linearGradient>
-  </defs>
+  <!-- Party glyph: a low-poly rubber duck — the classic 3D test mesh, a
+       demoscene/CG in-joke — in the halo family frame (dark rounded square,
+       amber accent). Properly triangulated (multiple facet hubs, not a radial
+       fan): domed head with a flat crown, broad flat bill, chunky faceted body,
+       little feet. Light from upper-left gives the facets volume. -->
   <rect width="512" height="512" rx="96" fill="#0f0f0f"/>
-  <g fill="url(#copper)">
-    <rect x="76" y="120" width="360" height="44" rx="14"/>
-    <rect x="60" y="180" width="392" height="44" rx="14"/>
-    <rect x="96" y="240" width="320" height="44" rx="14"/>
-    <rect x="60" y="300" width="392" height="44" rx="14"/>
-    <rect x="120" y="360" width="272" height="44" rx="14"/>
+  <g transform="translate(256,256) scale(0.92) translate(-287,-265)">
+    <g stroke="#241606" stroke-width="2" stroke-linejoin="round">
+      <!-- feet (behind body) -->
+      <polygon points="296,400 328,400 312,422" fill="#a85f0a"/>
+      <polygon points="252,402 284,402 268,422" fill="#a85f0a"/>
+
+      <!-- head (two facet hubs: hcA 330,152 upper · hcB 342,198 lower) -->
+      <polygon points="272,140 296,118 330,152" fill="#f7be4f"/>
+      <polygon points="296,118 358,108 330,152" fill="#ffd27a"/>
+      <polygon points="358,108 402,150 330,152" fill="#f4ad34"/>
+      <polygon points="402,150 408,182 330,152" fill="#e89320"/>
+      <polygon points="408,182 330,152 342,198" fill="#d97c0c"/>
+      <polygon points="408,182 386,214 342,198" fill="#c06b0a"/>
+      <polygon points="386,214 338,232 342,198" fill="#b5640a"/>
+      <polygon points="338,232 292,224 342,198" fill="#cf760e"/>
+      <polygon points="292,224 262,184 342,198" fill="#e89320"/>
+      <polygon points="262,184 342,198 330,152" fill="#f4ad34"/>
+      <polygon points="262,184 330,152 272,140" fill="#f7be4f"/>
+
+      <!-- beak (broad flat bill) -->
+      <polygon points="402,150 476,166 408,182" fill="#ff9a2a"/>
+      <polygon points="408,182 476,166 470,196" fill="#ff8a1f"/>
+      <polygon points="408,182 470,196 386,214" fill="#e8740f"/>
+
+      <!-- body (hubs B1 300,304 center · B2 206,332 back · B3 336,322 front) -->
+      <polygon points="338,232 372,250 336,322" fill="#e89320"/>
+      <polygon points="372,250 410,312 336,322" fill="#c8710b"/>
+      <polygon points="410,312 382,372 336,322" fill="#b5640a"/>
+      <polygon points="382,372 336,322 300,304" fill="#a85f0a"/>
+      <polygon points="382,372 326,400 300,304" fill="#9a560a"/>
+      <polygon points="338,232 336,322 300,304" fill="#d27a0e"/>
+      <polygon points="292,224 338,232 300,304" fill="#e3962a"/>
+      <polygon points="326,400 244,406 300,304" fill="#8f4e08"/>
+      <polygon points="244,406 300,304 206,332" fill="#9a560a"/>
+      <polygon points="244,406 160,390 206,332" fill="#a85f0a"/>
+      <polygon points="160,390 108,344 206,332" fill="#c06b0a"/>
+      <polygon points="108,344 98,300 206,332" fill="#e89320"/>
+      <polygon points="98,300 140,262 206,332" fill="#ffcf73"/>
+      <polygon points="140,262 214,242 206,332" fill="#f7be4f"/>
+      <polygon points="214,242 206,332 300,304" fill="#f0a92c"/>
+      <polygon points="214,242 300,304 292,224" fill="#e3962a"/>
+    </g>
+    <!-- eye -->
+    <circle cx="356" cy="150" r="8" fill="#0f0f0f"/>
+    <circle cx="353" cy="147" r="2.5" fill="#ffe0a0"/>
   </g>
 </svg>
