@@ -118,14 +118,14 @@
 			g2.stroke();
 			g2.shadowBlur = 0;
 
-			// Dark bezel under the pivot — a hull/keel: flat top at the pivot line,
-			// bulging downward (a quadratic curve, so the direction is unambiguous).
-			const bezTop = pivotY + fh * 0.01;
+			// Dark bezel under the pivot — a dome sitting on a flat bottom edge
+			// (the needle emerges from its top), matching the inspiration meter.
+			const bezBottom = pivotY + fh * 0.06;
 			const bezHalf = fw * 0.34;
 			g2.fillStyle = '#0e0a05';
 			g2.beginPath();
-			g2.moveTo(pivotX - bezHalf, bezTop);
-			g2.quadraticCurveTo(pivotX, bezTop + fh * 0.2, pivotX + bezHalf, bezTop);
+			g2.moveTo(pivotX - bezHalf, bezBottom);
+			g2.quadraticCurveTo(pivotX, pivotY - fh * 0.22, pivotX + bezHalf, bezBottom);
 			g2.closePath();
 			g2.fill();
 			g2.fillStyle = '#2a1c0c';
