@@ -374,20 +374,32 @@
 		color: var(--muted);
 	}
 	@media (max-width: 640px) {
+		/* Stacked: list on top, content below. The drawer collapses UPWARD (rows,
+		   not columns) so the content slides up to fill — the whole interaction is
+		   the desktop one rotated a quarter-turn. */
 		.panes {
 			grid-template-columns: 1fr;
+			grid-template-rows: 30vh 1fr;
+			transition: grid-template-rows 0.22s ease;
+		}
+		.panes.list-hidden {
+			grid-template-columns: 1fr;
+			grid-template-rows: 0 1fr;
 		}
 		.listpane {
 			border-right: 0;
 			border-bottom: 1px solid var(--border);
-			max-height: 30vh;
+		}
+		.panes.list-hidden .listpane {
+			border-right-color: var(--border);
+			border-bottom-color: transparent;
 		}
 		.list {
 			width: 100%;
 		}
-		/* On a phone the panes stack, so collapse hides the list row entirely. */
-		.panes.list-hidden .listpane {
-			display: none;
+		/* Drawer is on top here — rotate the toggle icon to match (counter-clockwise). */
+		.toggle :global(svg) {
+			transform: rotate(-90deg);
 		}
 	}
 </style>
