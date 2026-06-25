@@ -199,6 +199,10 @@
 					<div class="cat" class:open={open[compo]}>
 						<button class="cathead" onclick={() => toggle(compo)} aria-expanded={!!open[compo]}>
 							<ChevronRight class="chev" size={14} />
+							{#key entries[0]?.medium}
+								{@const Icon = mediumIcon(entries[0]?.medium ?? '')}
+								<Icon class="catkind" size={14} />
+							{/key}
 							<span class="catname">{compo}</span>
 							<span class="catcount">{entries.length}</span>
 						</button>
@@ -210,11 +214,7 @@
 								{#each list as p (p.id)}
 									<li>
 										<button class:sel={selected?.id === p.id} onclick={() => select(p)}>
-											<span class="rank">{p.rank ?? '—'}</span>
-											{#key p.medium}
-												{@const Icon = mediumIcon(p.medium)}
-												<Icon size={14} />
-											{/key}
+											<span class="rank">{p.rank ?? ''}</span>
 											<span class="name">
 												{#if p.group}<b>{p.group}</b> —
 												{/if}{p.title ?? '(untitled)'}
@@ -374,6 +374,10 @@
 	}
 	.cat.open .cathead :global(.chev) {
 		transform: rotate(90deg);
+	}
+	.cathead :global(.catkind) {
+		flex: 0 0 auto;
+		color: var(--muted);
 	}
 	.catname {
 		flex: 1;
