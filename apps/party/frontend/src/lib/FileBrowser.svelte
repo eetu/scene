@@ -379,7 +379,9 @@
 		   the desktop one rotated a quarter-turn. */
 		.panes {
 			grid-template-columns: 1fr;
-			grid-template-rows: 30vh 1fr;
+			/* Content (1fr) flex-grows; the list keeps a small fixed height — enough
+			   to stay scrollable, small enough that the player/emulator dominates. */
+			grid-template-rows: 140px 1fr;
 			transition: grid-template-rows 0.22s ease;
 		}
 		.panes.list-hidden {
