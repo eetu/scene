@@ -70,11 +70,12 @@
 				}
 			}
 			for (let i = 0; i < 256; i++) {
-				const hue = (baseHue + (i / 256) * 100 - 50 + 360) % 360;
-				// Compressed lightness band (no near-black valleys / near-white peaks)
-				// and gentler saturation, so the plasma reads soft instead of harsh.
-				const l = 50 + 14 * Math.sin((i / 256) * Math.PI * 2);
-				const [r, g, b] = hslToRgb(hue, 68, l);
+				// Triangle 0→1→0 over the cycle. Sweep the accent (orange) hue toward
+				// purple via the magenta side (never green) — on-style dark orange ↔ purple.
+				const tri = (1 - Math.cos((i / 256) * Math.PI * 2)) / 2;
+				const hue = ((baseHue - 110 * tri) % 360 + 360) % 360;
+				const l = 46 + 16 * tri; // dark orange → brighter purple
+				const [r, g, b] = hslToRgb(hue, 72, l);
 				palette[i * 3] = r;
 				palette[i * 3 + 1] = g;
 				palette[i * 3 + 2] = b;
