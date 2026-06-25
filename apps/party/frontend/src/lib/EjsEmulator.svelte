@@ -61,12 +61,13 @@
 		//   motor/stepper noise faithfully, and many demos keep the drive spinning,
 		//   so the sound runs on under the demo (unlike Amiga, whose floppy noise
 		//   stops with the motor). Re-enable it in the settings menu if wanted.
-		g.EJS_defaultOptions =
-			core === 'amiga'
-				? { puae_cpu_compatibility: 'exact' }
-				: core === 'c64'
-					? { vice_drive_sound_emulation: 'disabled' }
-					: {};
+		// - virtual-gamepad off: EmulatorJS defaults it to "enabled" on mobile, but
+		//   these are keyboard/non-interactive demos, so the touch d-pad just covers
+		//   the screen with nothing useful. Still re-enableable in the settings menu.
+		const opts: Record<string, string> = { 'virtual-gamepad': 'disabled' };
+		if (core === 'amiga') opts.puae_cpu_compatibility = 'exact';
+		else if (core === 'c64') opts.vice_drive_sound_emulation = 'disabled';
+		g.EJS_defaultOptions = opts;
 		// Load the loader as a uniquely-URL'd ES module: a module's top-level
 		// declarations are scoped to it (a classic <script> re-add would redeclare
 		// loader.js's global `const debug` → "duplicate variable"), and the unique
