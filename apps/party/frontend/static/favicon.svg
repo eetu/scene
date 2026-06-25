@@ -1,17 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Party glyph: Amiga copper/raster bars — the demoscene-party signature
+       (and a nod to the in-app copper-bars visualizer). Same halo family frame
+       as the tracker (dark rounded square, amber accent), different mark. -->
+  <defs>
+    <linearGradient id="copper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6e3c05"/>
+      <stop offset="0.42" stop-color="#f78f08"/>
+      <stop offset="0.5" stop-color="#ffe6b3"/>
+      <stop offset="0.58" stop-color="#f78f08"/>
+      <stop offset="1" stop-color="#6e3c05"/>
+    </linearGradient>
+  </defs>
   <rect width="512" height="512" rx="96" fill="#0f0f0f"/>
-  <rect x="60" y="201" width="392" height="110" rx="16" fill="#f78f08" opacity="0.16"/>
-  <g fill="#5c6677">
-    <rect x="101" y="101" width="86" height="86" rx="12"/>
-    <rect x="213" y="101" width="86" height="86" rx="12"/>
-    <rect x="325" y="101" width="86" height="86" rx="12"/>
-    <rect x="101" y="325" width="86" height="86" rx="12"/>
-    <rect x="213" y="325" width="86" height="86" rx="12"/>
-    <rect x="325" y="325" width="86" height="86" rx="12"/>
-  </g>
-  <g fill="#f78f08">
-    <rect x="101" y="213" width="86" height="86" rx="12"/>
-    <rect x="213" y="213" width="86" height="86" rx="12"/>
-    <rect x="325" y="213" width="86" height="86" rx="12"/>
+  <g fill="url(#copper)">
+    <rect x="76" y="120" width="360" height="44" rx="14"/>
+    <rect x="60" y="180" width="392" height="44" rx="14"/>
+    <rect x="96" y="240" width="320" height="44" rx="14"/>
+    <rect x="60" y="300" width="392" height="44" rx="14"/>
+    <rect x="120" y="360" width="272" height="44" rx="14"/>
   </g>
 </svg>
