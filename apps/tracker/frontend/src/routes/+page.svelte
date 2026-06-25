@@ -4,7 +4,6 @@
 		Monitor,
 		Moon,
 		Pencil,
-		Play,
 		ScanLine,
 		Settings,
 		Star,
@@ -254,6 +253,18 @@
 		if (groupBy === 'group') return t.artist ?? '—';
 		if (groupBy === 'artist') return t.group;
 		return t.artist ? `${t.group} · ${t.artist}` : t.group;
+	}
+
+	// Row label adapts to the grouping: the *other* dimension prefixes the song,
+	// and the format is tagged unless the group already is the format.
+	//   group-by group:  "artist - song [XM]"
+	//   group-by artist: "group - song [XM]"
+	//   group-by ext:    "group · artist - song"
+	function rowLabel(t: Track): string {
+		const title = t.title || t.filename;
+		const fmt = groupBy === 'ext' ? '' : ` [${t.ext.toUpperCase()}]`;
+		const sub = subLabel(t);
+		return sub && sub !== '—' ? `${sub} - ${title}${fmt}` : `${title}${fmt}`;
 	}
 
 	// Group open/closed state. Few groups (≤12) default to open; a user toggle is
@@ -560,27 +571,18 @@
 						</button>
 					{:else}
 						{@const t = row.track}
-						<div
-							class="card li"
-							class:last={row.last}
-							class:current={playback.current?.path === t.path}
-						>
-							<button class="play" aria-label="open" title="open" onclick={() => openTrack(t)}>
-								{#if playback.current?.path === t.path && playback.playing && !playback.paused}
-									<AudioLines size={15} />
-								{:else}
-									<Play size={15} />
+						{@const isCurrent = playback.current?.path === t.path}
+						<div class="card li" class:last={row.last} class:current={isCurrent}>
+							<button class="row" title={t.path} onclick={() => openTrack(t)}>
+								{#if isCurrent && playback.playing && !playback.paused}
+									<AudioLines class="nowicon" size={14} />
 								{/if}
+								<span class="name">{rowLabel(t)}</span>
+								{#if t.play_count > 0}
+									<span class="plays" title="{t.play_count} plays">▸{t.play_count}</span>
+								{/if}
+								{#if t.duration}<span class="dur">{fmtTime(t.duration)}</span>{/if}
 							</button>
-							<span class="fmt">{t.ext}</span>
-							<button class="name" title={t.path} onclick={() => openTrack(t)}>
-								{t.title || t.filename}
-							</button>
-							<span class="sub">{subLabel(t)}</span>
-							{#if t.play_count > 0}
-								<span class="plays" title="{t.play_count} plays">▸{t.play_count}</span>
-							{/if}
-							{#if t.duration}<span class="dur">{fmtTime(t.duration)}</span>{/if}
 							<button
 								class="fav"
 								class:on={t.favorite}
@@ -925,11 +927,14 @@
 		border-bottom: 1px solid var(--border);
 		border-radius: 0 0 6px 6px;
 	}
+	.li:hover:not(.current) {
+		background: var(--panel-hi);
+	}
 	.li.current {
 		background: color-mix(in srgb, var(--accent) 12%, transparent);
 		box-shadow: inset 2px 0 0 var(--accent);
 	}
-	.li.current button.name {
+	.li.current .name {
 		color: var(--accent);
 		font-weight: 600;
 	}
@@ -961,24 +966,28 @@
 		background: var(--accent);
 		border-color: var(--accent);
 	}
-	.play {
-		flex: 0 0 auto;
-		width: 32px;
-		padding: 4px 0;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		color: var(--accent);
-	}
-	button.name {
+	/* The whole row is one click target → openTrack. */
+	.row {
 		flex: 1;
 		min-width: 0;
+		height: 100%;
+		display: flex;
+		align-items: center;
+		gap: 10px;
 		background: none;
 		border: none;
 		padding: 0;
 		text-align: left;
 		color: var(--text);
 		cursor: pointer;
+	}
+	.row :global(.nowicon) {
+		flex: 0 0 auto;
+		color: var(--accent);
+	}
+	.name {
+		flex: 1;
+		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -1090,32 +1099,6 @@
 		color: var(--bg);
 		background: var(--accent);
 		border-color: var(--accent);
-	}
-	.fmt {
-		flex: 0 0 auto;
-		min-width: 44px;
-		text-align: center;
-		font-size: 11px;
-		text-transform: uppercase;
-		color: var(--accent);
-		background: var(--accent-dim);
-		border-radius: 3px;
-		padding: 2px 6px;
-		font-family: ui-monospace, monospace;
-	}
-	.name {
-		flex: 1;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.sub {
-		flex: 0 0 auto;
-		color: var(--muted);
-		max-width: 40%;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 	.dur {
 		flex: 0 0 auto;
@@ -1286,9 +1269,6 @@
 		main {
 			padding: 10px 8px 80px;
 		}
-		.sub {
-			display: none;
-		}
 		.li {
 			gap: 8px;
 		}
@@ -1298,9 +1278,6 @@
 		}
 		.edit {
 			padding: 6px 10px;
-		}
-		.play {
-			padding: 8px 0;
 		}
 		/* (Transport's own responsive rules live in @scene/player.) */
 		/* The player-view top bar repeats the song name the footer already shows

@@ -178,6 +178,20 @@
 		}
 	}
 
+	function clearSelection() {
+		// Drop the selection from the URL (the effect clears selected/detail). On a
+		// phone, slide the catalog drawer back open so you can pick another.
+		nav({ p: null, f: null });
+		if (isMobile) navOpen = true;
+	}
+
+	// Header back arrow: step out one level — unselect the current production if
+	// one's open, otherwise leave the party for the landing page.
+	function back() {
+		if (selected) clearSelection();
+		else void goto('/');
+	}
+
 	function mediumIcon(m: string) {
 		if (m === 'music') return Music;
 		if (m === 'graphics') return ImageIcon;
@@ -187,7 +201,14 @@
 </script>
 
 <header>
-	<a class="back" href="/" aria-label="Back"><ArrowLeft size={18} /></a>
+	<button
+		class="back"
+		onclick={back}
+		title={selected ? 'Back to list' : 'Back to parties'}
+		aria-label="Back"
+	>
+		<ArrowLeft size={18} />
+	</button>
 	<button
 		class="navtoggle"
 		onclick={() => (navOpen = !navOpen)}
@@ -502,14 +523,11 @@
 		}
 		.catalog {
 			position: absolute;
-			top: 0;
-			bottom: 0;
-			left: 0;
+			inset: 0;
 			z-index: 8;
-			width: min(85vw, 340px);
+			width: 100%;
 			background: var(--bg);
-			border-right: 1px solid var(--border);
-			box-shadow: 2px 0 16px rgba(0, 0, 0, 0.35);
+			border-right: 0;
 			transform: translateX(0);
 			transition: transform 0.22s ease;
 		}
