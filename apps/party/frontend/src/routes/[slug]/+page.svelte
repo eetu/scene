@@ -13,6 +13,7 @@
 		X
 	} from '@lucide/svelte';
 	import { cueInOrder, playback, playInOrder, type Track } from '@scene/player';
+	import { untrack } from 'svelte';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -113,13 +114,14 @@
 	});
 
 	// Follow the player: when next/prev/auto-advance changes the current track,
-	// move the catalog selection + URL to match, so the highlight + viewer track
-	// the song that's actually playing (the route drives everything else).
+	// move the catalog selection + URL to match. Depend ONLY on playback.current
+	// — `pid` is read untracked, so an explicit unselect (which clears ?p but
+	// leaves the track playing) doesn't re-trigger this and re-select it.
 	$effect(() => {
 		const cur = playback.current;
 		if (!cur || prods.length === 0) return;
 		const prod = prods.find((p) => p.primary_hash === cur.hash);
-		if (prod && prod.id !== pid) nav({ p: prod.id, f: null });
+		if (prod && prod.id !== untrack(() => pid)) nav({ p: prod.id, f: null });
 	});
 
 	// Group by compo. The party-info bits (Info, Misc) are surfaced first — handy
