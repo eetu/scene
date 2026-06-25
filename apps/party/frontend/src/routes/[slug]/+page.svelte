@@ -4,13 +4,13 @@
 	// libopenmpt Player, images/video native where possible, text → NfoView,
 	// demos/intros → an emulator placeholder (Phase 3). Everything downloadable.
 	import {
-		ArrowLeft,
 		ChevronRight,
 		Film,
 		Image as ImageIcon,
 		Monitor,
 		Music,
-		PanelLeft
+		PanelLeft,
+		X
 	} from '@lucide/svelte';
 	import { cueInOrder, playback, playInOrder, type Track } from '@scene/player';
 
@@ -179,20 +179,11 @@
 	}
 
 	function clearSelection() {
-		// Drop the selection from the URL (the effect clears selected/detail). On a
-		// phone, slide the catalog drawer back open so you can pick another.
+		// Drop the selection from the URL (the effect clears selected/detail) and
+		// reveal the catalog drawer so you can pick another — forced open on both
+		// desktop (if collapsed) and mobile (where it's the full-screen list).
 		nav({ p: null, f: null });
-		if (isMobile) navOpen = true;
-	}
-
-	// Header back arrow. Mobile is single-pane, so "back" steps out one level:
-	// unselect the open production first (clearing the route), then leave. On
-	// desktop the catalog stays visible beside the detail, so that two-step reads
-	// as confusing — go straight to the landing page (and the ?p/?f route is left
-	// behind with it).
-	function back() {
-		if (isMobile && selected) clearSelection();
-		else void goto('/');
+		navOpen = true;
 	}
 
 	function mediumIcon(m: string) {
@@ -205,14 +196,6 @@
 
 <header>
 	<button
-		class="back"
-		onclick={back}
-		title={isMobile && selected ? 'Back to list' : 'Back to parties'}
-		aria-label="Back"
-	>
-		<ArrowLeft size={18} />
-	</button>
-	<button
 		class="navtoggle"
 		onclick={() => (navOpen = !navOpen)}
 		title="Toggle list"
@@ -220,7 +203,8 @@
 	>
 		<PanelLeft size={18} />
 	</button>
-	<h1>{slug}</h1>
+	<!-- The party name is the way home — click it to return to the parties list. -->
+	<a class="title" href="/" title="Back to parties">{slug}</a>
 	<span class="sub">{prods.length} productions</span>
 	<Settings />
 </header>
@@ -281,21 +265,26 @@
 			{:else}
 				{@const prod = selected}
 				<div class="dhead">
-					<h2>{prod.title ?? '(untitled)'}</h2>
-					<p class="credit">
-						{#if prod.group}{prod.group} ·
-						{/if}{prod.compo}
-						{#if prod.rank}· #{prod.rank}{/if}
-						{#if prod.points != null}· {prod.points} pts{/if}
-					</p>
-					{#if detail?.meta}
-						<p class="meta">
-							{detail.meta.type_long ?? ''}
-							{#if detail.meta.channels}· {detail.meta.channels} ch{/if}
-							{#if detail.meta.instruments}· {detail.meta.instruments} ins{/if}
-							{#if detail.meta.tracker}· {detail.meta.tracker}{/if}
+					<div class="dhead-info">
+						<h2>{prod.title ?? '(untitled)'}</h2>
+						<p class="credit">
+							{#if prod.group}{prod.group} ·
+							{/if}{prod.compo}
+							{#if prod.rank}· #{prod.rank}{/if}
+							{#if prod.points != null}· {prod.points} pts{/if}
 						</p>
-					{/if}
+						{#if detail?.meta}
+							<p class="meta">
+								{detail.meta.type_long ?? ''}
+								{#if detail.meta.channels}· {detail.meta.channels} ch{/if}
+								{#if detail.meta.instruments}· {detail.meta.instruments} ins{/if}
+								{#if detail.meta.tracker}· {detail.meta.tracker}{/if}
+							</p>
+						{/if}
+					</div>
+					<button class="unselect" onclick={clearSelection} title="Close" aria-label="Close">
+						<X size={18} />
+					</button>
 				</div>
 
 				<!-- One unified two-pane browser handles every production type: the
@@ -326,7 +315,6 @@
 		padding: 14px 20px;
 		border-bottom: 1px solid var(--border);
 	}
-	.back,
 	.navtoggle {
 		color: var(--text);
 		display: grid;
@@ -339,11 +327,15 @@
 	.navtoggle:hover {
 		color: var(--accent);
 	}
-	h1 {
+	.title {
 		margin: 0;
 		font-family: var(--font-retro);
 		font-size: 18px;
 		color: var(--accent);
+		text-decoration: none;
+	}
+	.title:hover {
+		text-decoration: underline;
 	}
 	.sub {
 		color: var(--muted);
@@ -494,6 +486,31 @@
 		display: flex;
 		flex-direction: column;
 		gap: 14px;
+	}
+	.dhead {
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+	}
+	.dhead-info {
+		flex: 1;
+		min-width: 0;
+	}
+	.unselect {
+		flex: 0 0 auto;
+		display: grid;
+		place-items: center;
+		width: 32px;
+		height: 32px;
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		background: var(--panel);
+		color: var(--text);
+		cursor: pointer;
+	}
+	.unselect:hover {
+		border-color: var(--accent);
+		color: var(--accent);
 	}
 	.dhead h2 {
 		margin: 0;
