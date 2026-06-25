@@ -15,12 +15,12 @@
 	import Starfield from './Starfield.svelte';
 	import VuMeters from './VuMeters.svelte';
 
-	type VizMode = 'bars' | 'wave' | 'vu' | 'stars' | 'copper' | 'plasma' | 'ball';
-	const VIZ: VizMode[] = ['bars', 'wave', 'vu', 'stars', 'copper', 'plasma', 'ball'];
+	type VizMode = 'vu' | 'bars' | 'wave' | 'stars' | 'copper' | 'plasma' | 'ball';
+	const VIZ: VizMode[] = ['vu', 'bars', 'wave', 'stars', 'copper', 'plasma', 'ball'];
 
 	let { tab = $bindable<'pattern' | 'samples' | 'viz'>('pattern') } = $props();
 	// Which visualizer the "viz" tab shows. Persists across tab switches.
-	let vizMode = $state<VizMode>('bars');
+	let vizMode = $state<VizMode>('vu');
 
 	const energy = $derived(playback.vu.length ? Math.max(...playback.vu) : 0);
 	const playing = $derived(playback.playing && !playback.paused);

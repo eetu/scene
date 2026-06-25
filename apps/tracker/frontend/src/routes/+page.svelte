@@ -42,9 +42,9 @@
 	let showSettings = $state(false);
 	let pvTab = $state<'pattern' | 'samples' | 'viz'>('pattern');
 	// Which visualizer the "viz" tab shows. Persists across tab switches.
-	type VizMode = 'bars' | 'wave' | 'vu' | 'stars' | 'copper' | 'plasma' | 'ball';
-	const VIZ: VizMode[] = ['bars', 'wave', 'vu', 'stars', 'copper', 'plasma', 'ball'];
-	let pvVizMode = $state<VizMode>('bars');
+	type VizMode = 'vu' | 'bars' | 'wave' | 'stars' | 'copper' | 'plasma' | 'ball';
+	const VIZ: VizMode[] = ['vu', 'bars', 'wave', 'stars', 'copper', 'plasma', 'ball'];
+	let pvVizMode = $state<VizMode>('vu');
 	// Pattern view style: 'locked' = fixed centerline + vertical VU; 'scroll' =
 	// free-scrolling rows + header VU. Persisted across sessions; set in Settings.
 	let patternMode = $state<'locked' | 'scroll'>(
