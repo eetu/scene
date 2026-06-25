@@ -88,8 +88,10 @@
 
 				const have = active && readSpectrum(buf);
 				const padX = Math.max(4, w * 0.015);
-				const gapX = Math.max(1, w * 0.004);
-				const barW = (w - padX * 2 - gapX * (bands - 1)) / bands;
+				// Slender bars: each occupies ~58% of its column, centred, leaving a
+				// clear gap so the bars read as separate columns, not one solid blob.
+				const pitch = (w - padX * 2) / bands;
+				const barW = Math.max(1, pitch * 0.58);
 				const padY = Math.max(3, h * 0.04);
 				const fieldH = h - padY * 2;
 				// Square-ish LED cells: pick a segment count that makes cell height
@@ -124,7 +126,7 @@
 					}
 
 					const [r, gg, bb] = cols[b];
-					const x = padX + b * (barW + gapX);
+					const x = padX + b * pitch + (pitch - barW) / 2;
 					const litCount = Math.round(levels[b] * segments);
 					const peakSeg = Math.round(peaks[b] * segments);
 
