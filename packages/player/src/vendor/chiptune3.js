@@ -3,12 +3,17 @@
  * Vendored from chiptune3@0.8.7 (DrSnuggles), MIT — libopenmpt parts BSD.
  * https://github.com/DrSnuggles/chiptune
  *
- * Only change from upstream: the AudioWorklet is loaded from a fixed static URL
- * (`workletUrl`, default `/vendor/chiptune3/chiptune3.worklet.js`) instead of
- * `new URL('./chiptune3.worklet.js', import.meta.url)`. We serve the worklet +
- * its embedded-wasm `libopenmpt.worklet.js` verbatim from `static/` so Vite
- * doesn't try to bundle the worklet's internal import. Future: patch the worklet
- * to expose `play_note` for sample keyboard-jamming (see the plan / CLAUDE.md).
+ * Heavily reworked for OFF-THREAD decoding: upstream parses + renders the
+ * module inside the AudioWorklet (audio thread), so constructing a module on a
+ * song change blocks the render and causes audible jitter. Here libopenmpt
+ * lives in a regular module Worker (`decoder.worker.js`) that renders PCM ahead
+ * of time and ships chunks straight to the worklet over a MessagePort; the
+ * worklet (`chiptune3.worklet.js`) only drains the queue. This wrapper keeps
+ * the same public API (load/play/stop/pause/.../onMetadata/onProgress/…), wires
+ * the Worker↔worklet channel, and relays events:
+ *   - onMetadata / onParsed / load errors  ← from the Worker
+ *   - onProgress (pos/vu) / onEnded         ← from the worklet (synced to audio)
+ * A generation counter (bumped on load/seek) lets the worklet drop stale chunks.
  */
 
 const defaultCfg = {
@@ -16,7 +21,8 @@ const defaultCfg = {
 	stereoSeparation: 100, // percents
 	interpolationFilter: 0,
 	context: false,
-	workletUrl: '/vendor/chiptune3/chiptune3.worklet.js'
+	workletUrl: '/vendor/chiptune3/chiptune3.worklet.js',
+	workerUrl: '/vendor/chiptune3/decoder.worker.js'
 };
 
 export class ChiptuneJsPlayer {
@@ -24,9 +30,7 @@ export class ChiptuneJsPlayer {
 		this.config = { ...defaultCfg, ...cfg };
 
 		if (this.config.context) {
-			if (!this.config.context.destination) {
-				throw 'ChiptuneJsPlayer: This is not an audio context';
-			}
+			if (!this.config.context.destination) throw 'ChiptuneJsPlayer: This is not an audio context';
 			this.context = this.config.context;
 			this.destination = false;
 		} else {
@@ -34,13 +38,25 @@ export class ChiptuneJsPlayer {
 			this.destination = this.context.destination;
 		}
 		const workletUrl = this.config.workletUrl;
+		const workerUrl = this.config.workerUrl;
 		delete this.config.context;
 		delete this.config.workletUrl;
+		delete this.config.workerUrl;
 
 		this.gain = this.context.createGain();
 		this.gain.gain.value = 1;
 
 		this.handlers = [];
+		this.gen = 0;
+		this.currentTime = 0;
+		this.workerReady = false;
+		this.nodeReady = false;
+		this.initFired = false;
+
+		// Decoder Worker (module worker → can `import` the libopenmpt glue).
+		this.worker = new Worker(workerUrl, { type: 'module' });
+		this.worker.onmessage = (e) => this.handleWorkerMessage_(e.data);
+		this.worker.onerror = () => this.fireEvent('onError', { type: 'Worker' });
 
 		this.context.audioWorklet
 			.addModule(workletUrl)
@@ -50,128 +66,152 @@ export class ChiptuneJsPlayer {
 					numberOfOutputs: 1,
 					outputChannelCount: [2]
 				});
-				this.processNode.port.onmessage = this.handleMessage_.bind(this);
-				this.processNode.port.postMessage({ cmd: 'config', val: this.config });
-				this.fireEvent('onInitialized');
+				this.processNode.port.onmessage = (e) => this.handleNodeMessage_(e.data);
+
+				// Direct Worker→worklet PCM pipe (no main-thread relay).
+				const mc = new MessageChannel();
+				this.processNode.port.postMessage({ cmd: 'pcmport', port: mc.port1 }, [mc.port1]);
+				this.worker.postMessage(
+					{ cmd: 'pcmport', port: mc.port2, sampleRate: this.context.sampleRate, config: this.config },
+					[mc.port2]
+				);
 
 				this.processNode.connect(this.gain);
 				if (this.destination) this.gain.connect(this.destination);
+
+				this.nodeReady = true;
+				this.maybeInit_();
 			})
 			.catch((e) => console.error(e));
 	}
 
-	handleMessage_(msg) {
-		switch (msg.data.cmd) {
+	maybeInit_() {
+		if (this.workerReady && this.nodeReady && !this.initFired) {
+			this.initFired = true;
+			this.fireEvent('onInitialized');
+		}
+	}
+
+	handleWorkerMessage_(d) {
+		switch (d.cmd) {
+			case 'ready':
+				this.workerReady = true;
+				this.maybeInit_();
+				break;
 			case 'meta':
-				this.meta = msg.data.meta;
-				this.duration = msg.data.meta.dur;
+				this.meta = d.meta;
+				this.duration = d.meta.dur;
 				this.fireEvent('onMetadata', this.meta);
 				break;
+			case 'parsed':
+				this.fireEvent('onParsed', { id: d.id, meta: d.meta });
+				break;
+			case 'err':
+				this.fireEvent('onError', { type: d.val });
+				break;
+			default:
+				break;
+		}
+	}
+
+	handleNodeMessage_(d) {
+		switch (d.cmd) {
 			case 'pos':
-				this.currentTime = msg.data.pos;
-				this.order = msg.data.order;
-				this.pattern = msg.data.pattern;
-				this.row = msg.data.row;
-				this.fireEvent('onProgress', msg.data);
+				this.currentTime = d.pos;
+				this.order = d.order;
+				this.pattern = d.pattern;
+				this.row = d.row;
+				this.fireEvent('onProgress', d);
 				break;
 			case 'end':
 				this.fireEvent('onEnded');
 				break;
 			case 'err':
-				this.fireEvent('onError', { type: msg.data.val });
-				break;
-			case 'fullAudioData':
-				this.fireEvent('onFullAudioData', msg.data);
-				break;
-			case 'parsed':
-				this.fireEvent('onParsed', msg.data);
+				this.fireEvent('onError', { type: d.val });
 				break;
 			default:
-				console.log('Received unknown message', msg.data);
+				break;
 		}
 	}
 
 	fireEvent(eventName, response) {
-		const handlers = this.handlers;
-		if (handlers.length) {
-			handlers.forEach(function (handler) {
-				if (handler.eventName === eventName) {
-					handler.handler(response);
-				}
-			});
-		}
+		for (const h of this.handlers) if (h.eventName === eventName) h.handler(response);
 	}
 	addHandler(eventName, handler) {
-		this.handlers.push({ eventName: eventName, handler: handler });
+		this.handlers.push({ eventName, handler });
 	}
-	onInitialized(handler) {
-		this.addHandler('onInitialized', handler);
+	onInitialized(h) {
+		this.addHandler('onInitialized', h);
 	}
-	onEnded(handler) {
-		this.addHandler('onEnded', handler);
+	onEnded(h) {
+		this.addHandler('onEnded', h);
 	}
-	onError(handler) {
-		this.addHandler('onError', handler);
+	onError(h) {
+		this.addHandler('onError', h);
 	}
-	onMetadata(handler) {
-		this.addHandler('onMetadata', handler);
+	onMetadata(h) {
+		this.addHandler('onMetadata', h);
 	}
-	onProgress(handler) {
-		this.addHandler('onProgress', handler);
+	onProgress(h) {
+		this.addHandler('onProgress', h);
 	}
-	onFullAudioData(handler) {
-		this.addHandler('onFullAudioData', handler);
+	onFullAudioData(h) {
+		this.addHandler('onFullAudioData', h);
 	}
-	onParsed(handler) {
-		this.addHandler('onParsed', handler);
+	onParsed(h) {
+		this.addHandler('onParsed', h);
 	}
 
-	postMsg(cmd, val) {
-		if (this.processNode) this.processNode.port.postMessage({ cmd: cmd, val: val });
-	}
+	// --- transport --------------------------------------------------------
 	load(url) {
 		fetch(url)
-			.then((response) => response.arrayBuffer())
-			.then((arrayBuffer) => this.play(arrayBuffer))
-			.catch(() => {
-				this.fireEvent('onError', { type: 'Load' });
-			});
+			.then((r) => r.arrayBuffer())
+			.then((ab) => this.play(ab))
+			.catch(() => this.fireEvent('onError', { type: 'Load' }));
 	}
-	play(val) {
-		this.postMsg('play', val);
+	play(buffer) {
+		this.gen++;
+		// New song: flush the worklet's queue, then hand the bytes to the worker.
+		this.processNode?.port.postMessage({ cmd: 'flush', gen: this.gen });
+		this.worker.postMessage({ cmd: 'load', bytes: buffer, gen: this.gen }, [buffer]);
 	}
 	stop() {
-		this.postMsg('stop');
+		this.worker.postMessage({ cmd: 'stop' });
+		this.processNode?.port.postMessage({ cmd: 'flush', gen: this.gen });
 	}
 	pause() {
-		this.postMsg('pause');
+		this.processNode?.port.postMessage({ cmd: 'pause' });
 	}
 	unpause() {
-		this.postMsg('unpause');
+		this.processNode?.port.postMessage({ cmd: 'unpause' });
 	}
 	togglePause() {
-		this.postMsg('togglePause');
+		this.processNode?.port.postMessage({ cmd: 'togglePause' });
 	}
 	setRepeatCount(val) {
-		this.postMsg('repeatCount', val);
+		this.worker.postMessage({ cmd: 'repeatCount', val });
 	}
 	setPitch(val) {
-		this.postMsg('setPitch', val);
+		this.worker.postMessage({ cmd: 'setPitch', val });
 	}
 	setTempo(val) {
-		this.postMsg('setTempo', val);
+		this.worker.postMessage({ cmd: 'setTempo', val });
 	}
 	setPos(val) {
-		this.postMsg('setPos', val);
+		this.gen++;
+		this.processNode?.port.postMessage({ cmd: 'flush', gen: this.gen });
+		this.worker.postMessage({ cmd: 'setPos', val, gen: this.gen });
 	}
 	setOrderRow(o, r) {
-		this.postMsg('setOrderRow', { o: o, r: r });
+		this.gen++;
+		this.processNode?.port.postMessage({ cmd: 'flush', gen: this.gen });
+		this.worker.postMessage({ cmd: 'setOrderRow', val: { o, r }, gen: this.gen });
 	}
 	setVol(val) {
 		this.gain.gain.value = val;
 	}
 	selectSubsong(val) {
-		this.postMsg('selectSubsong', val);
+		this.worker.postMessage({ cmd: 'selectSubsong', val });
 	}
 	seek(val) {
 		this.setPos(val);
@@ -179,10 +219,10 @@ export class ChiptuneJsPlayer {
 	getCurrentTime() {
 		return this.currentTime;
 	}
-	decodeAll(ab) {
-		this.postMsg('decodeAll', ab);
+	decodeAll() {
+		/* unused in this app — full-PCM decode path not wired in the worker */
 	}
 	parse(id, ab) {
-		this.postMsg('parse', { id: id, file: ab });
+		this.worker.postMessage({ cmd: 'parse', id, file: ab });
 	}
 }

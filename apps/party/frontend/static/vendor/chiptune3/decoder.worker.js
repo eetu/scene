@@ -1,0 +1,327 @@
+/*
+ * Off-thread libopenmpt decoder (module Worker).
+ *
+ * Why: the upstream chiptune3 builds and renders the module *inside* the
+ * AudioWorklet, on the audio thread. Constructing a module
+ * (openmpt_module_create_from_memory) is a synchronous multi-ms parse, and
+ * doing it on the audio thread blocks the next render quantum → the audible
+ * jitter on song changes. Here libopenmpt lives in a regular Worker: it parses
+ * and renders PCM ahead of time and ships fixed-size chunks to the worklet over
+ * a MessagePort. The worklet only drains the queue (a memcpy), so it never
+ * stalls. Song change = parse here, off the audio thread.
+ *
+ * Flow control is credit-based: we keep at most TARGET chunks "in flight"
+ * (sent but not yet acked by the worklet). The worklet acks each chunk it
+ * finishes playing, which tops us back up. A generation counter (bumped on
+ * load/seek) lets the worklet drop stale chunks still in transit.
+ */
+import libopenmptPromise from './libopenmpt.worklet.js';
+
+const OPENMPT_MODULE_RENDER_STEREOSEPARATION_PERCENT = 2;
+const OPENMPT_MODULE_RENDER_INTERPOLATIONFILTER_LENGTH = 3;
+
+const CHUNK = 1024; // frames per chunk (~21ms @48k) — fine-grained for pattern/VU sync
+const TARGET = 6; // chunks kept in flight (~128ms jitter buffer)
+
+let lib = null;
+let sampleRate = 48000;
+let config = { repeatCount: -1, stereoSeparation: 100, interpolationFilter: 0 };
+
+let modulePtr = 0;
+let leftPtr = 0;
+let rightPtr = 0;
+let channels = 0;
+
+let gen = 0; // current playback generation (bumped on load/seek)
+let playing = false;
+let eof = false;
+let inflight = 0;
+let pcmPort = null;
+
+// --- libopenmpt helpers (from the upstream worklet) -------------------------
+function writeAscii(str, buffer) {
+	for (let i = 0; i < str.length; ++i) lib.HEAP8[buffer++ >> 0] = str.charCodeAt(i);
+	lib.HEAP8[buffer >> 0] = 0;
+}
+function asciiToStack(str) {
+	const p = lib.stackAlloc(str.length + 1);
+	writeAscii(str, p);
+	return p;
+}
+
+libopenmptPromise()
+	.then((res) => {
+		lib = res;
+		if (lib.stackSave) {
+			const stack = lib.stackSave();
+			lib.version = lib.UTF8ToString(lib._openmpt_get_string(asciiToStack('library_version')));
+			lib.build = lib.UTF8ToString(lib._openmpt_get_string(asciiToStack('build')));
+			lib.stackRestore(stack);
+		}
+		self.postMessage({ cmd: 'ready' });
+	})
+	.catch((e) => self.postMessage({ cmd: 'err', val: String(e) }));
+
+// --- module lifecycle -------------------------------------------------------
+function destroyModule() {
+	if (modulePtr) {
+		lib._openmpt_module_destroy(modulePtr);
+		modulePtr = 0;
+	}
+	if (leftPtr) {
+		lib._free(leftPtr);
+		leftPtr = 0;
+	}
+	if (rightPtr) {
+		lib._free(rightPtr);
+		rightPtr = 0;
+	}
+	channels = 0;
+}
+
+function createModule(buffer) {
+	destroyModule();
+	const bytes = new Int8Array(buffer);
+	const filePtr = lib._malloc(bytes.byteLength);
+	lib.HEAPU8.set(bytes, filePtr);
+	modulePtr = lib._openmpt_module_create_from_memory(filePtr, bytes.byteLength, 0, 0, 0);
+	lib._free(filePtr); // openmpt copies the bytes
+	if (!modulePtr) return false;
+
+	if (lib.stackSave) {
+		const stack = lib.stackSave();
+		lib._openmpt_module_ctl_set(
+			modulePtr,
+			asciiToStack('render.resampler.emulate_amiga'),
+			asciiToStack('1')
+		);
+		lib._openmpt_module_ctl_set(
+			modulePtr,
+			asciiToStack('render.resampler.emulate_amiga_type'),
+			asciiToStack('a1200')
+		);
+		lib.stackRestore(stack);
+	}
+	lib._openmpt_module_set_repeat_count(modulePtr, config.repeatCount);
+	lib._openmpt_module_set_render_param(
+		modulePtr,
+		OPENMPT_MODULE_RENDER_STEREOSEPARATION_PERCENT,
+		config.stereoSeparation
+	);
+	lib._openmpt_module_set_render_param(
+		modulePtr,
+		OPENMPT_MODULE_RENDER_INTERPOLATIONFILTER_LENGTH,
+		config.interpolationFilter
+	);
+	leftPtr = lib._malloc(4 * CHUNK);
+	rightPtr = lib._malloc(4 * CHUNK);
+	channels = lib._openmpt_module_get_num_channels(modulePtr);
+	return true;
+}
+
+// Render one chunk and post it to the worklet, tagged with the position/VU at
+// its start (so the worklet can report progress synced to playback).
+function renderAndSend() {
+	if (!modulePtr) return false;
+	const pos = lib._openmpt_module_get_position_seconds(modulePtr);
+	const order = lib._openmpt_module_get_current_order(modulePtr);
+	const pattern = lib._openmpt_module_get_current_pattern(modulePtr);
+	const row = lib._openmpt_module_get_current_row(modulePtr);
+	const vu = [];
+	for (let i = 0; i < channels; i++) {
+		vu.push(lib._openmpt_module_get_current_channel_vu_mono(modulePtr, i));
+	}
+	const frames = lib._openmpt_module_read_float_stereo(modulePtr, sampleRate, CHUNK, leftPtr, rightPtr);
+	if (frames === 0) {
+		eof = true;
+		pcmPort.postMessage({ gen, eof: true });
+		return false;
+	}
+	// Copy out of the WASM heap (it gets reused next render).
+	const left = lib.HEAPF32.slice(leftPtr / 4, leftPtr / 4 + frames);
+	const right = lib.HEAPF32.slice(rightPtr / 4, rightPtr / 4 + frames);
+	pcmPort.postMessage({ gen, frames, left, right, pos, order, pattern, row, vu }, [
+		left.buffer,
+		right.buffer
+	]);
+	inflight++;
+	return true;
+}
+
+function pump() {
+	if (!pcmPort) return;
+	while (playing && !eof && inflight < TARGET) {
+		if (!renderAndSend()) break;
+	}
+}
+
+// Lightweight parse for bulk metadata enrichment — its own throwaway module, so
+// it never disturbs playback.
+function parse(id, file) {
+	const bytes = new Int8Array(file);
+	const p = lib._malloc(bytes.byteLength);
+	lib.HEAPU8.set(bytes, p);
+	const m = lib._openmpt_module_create_from_memory(p, bytes.byteLength, 0, 0, 0);
+	lib._free(p);
+	if (!m) {
+		self.postMessage({ cmd: 'parsed', id, meta: null });
+		return;
+	}
+	const get = (name) => {
+		const kb = lib._malloc(name.length + 1);
+		writeAscii(name, kb);
+		const s = lib.UTF8ToString(lib._openmpt_module_get_metadata(m, kb));
+		lib._free(kb);
+		return s;
+	};
+	const meta = {
+		title: get('title'),
+		type_long: get('type_long'),
+		tracker: get('tracker'),
+		dur: lib._openmpt_module_get_duration_seconds(m),
+		channels: lib._openmpt_module_get_num_channels(m),
+		instruments: lib._openmpt_module_get_num_instruments(m),
+		samples: lib._openmpt_module_get_num_samples(m),
+		orders: lib._openmpt_module_get_num_orders(m),
+		patterns: lib._openmpt_module_get_num_patterns(m)
+	};
+	lib._openmpt_module_destroy(m);
+	self.postMessage({ cmd: 'parsed', id, meta });
+}
+
+// --- full metadata (for the now-playing track) ------------------------------
+function getSong() {
+	const song = { channels: [], instruments: [], samples: [], orders: [], patterns: [] };
+	const chNum = lib._openmpt_module_get_num_channels(modulePtr);
+	for (let i = 0; i < chNum; i++)
+		song.channels.push(lib.UTF8ToString(lib._openmpt_module_get_channel_name(modulePtr, i)));
+	for (let i = 0, e = lib._openmpt_module_get_num_instruments(modulePtr); i < e; i++)
+		song.instruments.push(lib.UTF8ToString(lib._openmpt_module_get_instrument_name(modulePtr, i)));
+	for (let i = 0, e = lib._openmpt_module_get_num_samples(modulePtr); i < e; i++)
+		song.samples.push(lib.UTF8ToString(lib._openmpt_module_get_sample_name(modulePtr, i)));
+	for (let i = 0, e = lib._openmpt_module_get_num_orders(modulePtr); i < e; i++)
+		song.orders.push({
+			name: lib.UTF8ToString(lib._openmpt_module_get_order_name(modulePtr, i)),
+			pat: lib._openmpt_module_get_order_pattern(modulePtr, i)
+		});
+	for (let pi = 0, pn = lib._openmpt_module_get_num_patterns(modulePtr); pi < pn; pi++) {
+		const pattern = { name: lib.UTF8ToString(lib._openmpt_module_get_pattern_name(modulePtr, pi)), rows: [] };
+		for (let ri = 0, rn = lib._openmpt_module_get_pattern_num_rows(modulePtr, pi); ri < rn; ri++) {
+			const rowArr = [];
+			for (let ci = 0; ci < chNum; ci++) {
+				const cell = lib._openmpt_module_format_pattern_row_channel(modulePtr, pi, ri, ci, 0, 0);
+				rowArr.push(lib.UTF8ToString(cell));
+				lib._openmpt_free_string(cell);
+			}
+			pattern.rows.push(rowArr);
+		}
+		song.patterns.push(pattern);
+	}
+	return song;
+}
+function getMeta() {
+	const data = {};
+	data.dur = lib._openmpt_module_get_duration_seconds(modulePtr);
+	if (data.dur === 0) self.postMessage({ cmd: 'err', val: 'dur' });
+	const keys = lib.UTF8ToString(lib._openmpt_module_get_metadata_keys(modulePtr)).split(';');
+	for (let i = 0; i < keys.length; i++) {
+		const kb = lib._malloc(keys[i].length + 1);
+		writeAscii(keys[i], kb);
+		data[keys[i]] = lib.UTF8ToString(lib._openmpt_module_get_metadata(modulePtr, kb));
+		lib._free(kb);
+	}
+	data.song = getSong();
+	data.totalOrders = data.song.orders.length;
+	data.totalPatterns = data.song.patterns.length;
+	data.libopenmptVersion = lib.version;
+	data.libopenmptBuild = lib.build;
+	return data;
+}
+
+// --- command handling -------------------------------------------------------
+function onPcmAck(e) {
+	const d = e.data;
+	if (d.cmd === 'ack' && d.gen === gen) {
+		inflight--;
+		pump();
+	}
+}
+
+self.onmessage = (e) => {
+	const d = e.data;
+	switch (d.cmd) {
+		case 'config':
+			config = { ...config, ...d.val };
+			break;
+		case 'init':
+			sampleRate = d.sampleRate || sampleRate;
+			break;
+		case 'pcmport':
+			sampleRate = d.sampleRate || sampleRate;
+			if (d.config) config = { ...config, ...d.config };
+			pcmPort = d.port;
+			pcmPort.onmessage = onPcmAck;
+			break;
+		case 'load':
+			if (!lib) return self.postMessage({ cmd: 'err', val: 'notready' });
+			gen = d.gen;
+			eof = false;
+			inflight = 0;
+			if (!createModule(d.bytes)) {
+				playing = false;
+				return self.postMessage({ cmd: 'err', val: 'ptr' });
+			}
+			playing = true;
+			self.postMessage({ cmd: 'meta', meta: getMeta() });
+			pump();
+			break;
+		case 'stop':
+			playing = false;
+			eof = true;
+			inflight = 0;
+			destroyModule();
+			break;
+		case 'setPos':
+			if (!modulePtr) return;
+			gen = d.gen;
+			eof = false;
+			inflight = 0;
+			lib._openmpt_module_set_position_seconds(modulePtr, d.val);
+			pump();
+			break;
+		case 'setOrderRow':
+			if (!modulePtr) return;
+			gen = d.gen;
+			eof = false;
+			inflight = 0;
+			lib._openmpt_module_set_position_order_row(modulePtr, d.val.o, d.val.r);
+			pump();
+			break;
+		case 'repeatCount':
+			config.repeatCount = d.val;
+			if (modulePtr) lib._openmpt_module_set_repeat_count(modulePtr, d.val);
+			break;
+		case 'setPitch':
+			if (modulePtr && lib.stackSave) {
+				const s = lib.stackSave();
+				lib._openmpt_module_ctl_set(modulePtr, asciiToStack('play.pitch_factor'), asciiToStack(String(d.val)));
+				lib.stackRestore(s);
+			}
+			break;
+		case 'setTempo':
+			if (modulePtr && lib.stackSave) {
+				const s = lib.stackSave();
+				lib._openmpt_module_ctl_set(modulePtr, asciiToStack('play.tempo_factor'), asciiToStack(String(d.val)));
+				lib.stackRestore(s);
+			}
+			break;
+		case 'selectSubsong':
+			if (modulePtr) lib._openmpt_module_select_subsong(modulePtr, d.val);
+			break;
+		case 'parse':
+			if (lib) parse(d.id, d.file);
+			break;
+		default:
+			break;
+	}
+};
