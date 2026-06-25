@@ -12,7 +12,7 @@
 		Music,
 		PanelLeft
 	} from '@lucide/svelte';
-	import { playInOrder, type Track } from '@scene/player';
+	import { cueInOrder, playback, playInOrder, type Track } from '@scene/player';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -77,6 +77,17 @@
 		// entries hide behind "+N more").
 		open[prod.compo] = true;
 		if (prod.rank == null) showRest[prod.compo] = true;
+		// Music: cue the track (stopped) so the transport renders even on a reload
+		// restore — otherwise `{#if playback.current}` hides the controls. Skip if
+		// it's already current (a click played it, or next/prev advanced to it), so
+		// we don't reset live playback.
+		if (
+			prod.primary_kind === 'music' &&
+			prod.primary_hash &&
+			playback.current?.hash !== prod.primary_hash
+		) {
+			cueInOrder(musicTracks, toTrack(prod));
+		}
 		api
 			.production(id)
 			.then((d) => {
@@ -85,6 +96,16 @@
 			.catch((e) => {
 				if (selected?.id === id) error = String(e);
 			});
+	});
+
+	// Follow the player: when next/prev/auto-advance changes the current track,
+	// move the catalog selection + URL to match, so the highlight + viewer track
+	// the song that's actually playing (the route drives everything else).
+	$effect(() => {
+		const cur = playback.current;
+		if (!cur || prods.length === 0) return;
+		const prod = prods.find((p) => p.primary_hash === cur.hash);
+		if (prod && prod.id !== pid) nav({ p: prod.id, f: null });
 	});
 
 	// Group by compo. The party-info bits (Info, Misc) are surfaced first — handy

@@ -315,6 +315,23 @@ export async function playInOrder(list: Track[], track: Track) {
 	await playTrack(track);
 }
 
+/** Set `track` as the current/queued track WITHOUT playing it (a "cued",
+ *  stopped state) — so the transport renders and next/prev work, but audio
+ *  doesn't start until a user gesture (the play button). Used to restore a
+ *  selection on reload, where the browser blocks autoplay anyway. */
+export function cueInOrder(list: Track[], track: Track) {
+	queue = list;
+	playback.queueLength = list.length;
+	const key = (t: Track) => t.path ?? t.hash;
+	playback.queueIndex = list.findIndex((t) => key(t) === key(track));
+	playback.current = track;
+	playback.playing = false;
+	playback.paused = false;
+	playback.position = 0;
+	playback.duration = track.duration ?? 0;
+	playback.song = null;
+}
+
 export function playNext() {
 	if (playback.queueIndex < 0 || queue.length === 0) return;
 	let next: number;
