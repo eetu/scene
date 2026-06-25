@@ -9,7 +9,7 @@
 
 	import { readSpectrum, SPECTRUM_SIZE } from './player.svelte';
 
-	let { active = true, bands = 40 }: { active?: boolean; bands?: number } = $props();
+	let { active = true, bands = 56 }: { active?: boolean; bands?: number } = $props();
 
 	let canvas: HTMLCanvasElement | null = $state(null);
 
@@ -94,8 +94,8 @@
 				const fieldH = h - padY * 2;
 				// Square-ish LED cells: pick a segment count that makes cell height
 				// roughly match the bar width.
-				const segGap = Math.max(1, barW * 0.18);
-				const segments = Math.max(8, Math.min(40, Math.round(fieldH / (barW + segGap))));
+				const segGap = Math.max(1, barW * 0.16);
+				const segments = Math.max(10, Math.min(64, Math.round(fieldH / (barW + segGap))));
 				const segH = (fieldH - segGap * (segments - 1)) / segments;
 
 				for (let b = 0; b < bands; b++) {
@@ -111,7 +111,8 @@
 						target = Math.min(1, raw ** 0.8 * tilt);
 					}
 					const lv = levels[b];
-					levels[b] = target > lv ? target : lv + (target - lv) * 0.18;
+					// Instant attack, faster release for a snappier, more dynamic fall.
+					levels[b] = target > lv ? target : lv + (target - lv) * 0.34;
 
 					if (levels[b] >= peaks[b]) {
 						peaks[b] = levels[b];
