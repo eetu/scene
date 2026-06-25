@@ -118,10 +118,15 @@
 			g2.stroke();
 			g2.shadowBlur = 0;
 
-			// Dark bezel over the pivot (a bowl curving down under the needle).
+			// Dark bezel under the pivot — a hull/keel: flat top at the pivot line,
+			// bulging downward (a quadratic curve, so the direction is unambiguous).
+			const bezTop = pivotY + fh * 0.01;
+			const bezHalf = fw * 0.34;
 			g2.fillStyle = '#0e0a05';
 			g2.beginPath();
-			g2.ellipse(pivotX, pivotY + fh * 0.02, fw * 0.34, fh * 0.13, 0, 0, Math.PI, false);
+			g2.moveTo(pivotX - bezHalf, bezTop);
+			g2.quadraticCurveTo(pivotX, bezTop + fh * 0.2, pivotX + bezHalf, bezTop);
+			g2.closePath();
 			g2.fill();
 			g2.fillStyle = '#2a1c0c';
 			g2.beginPath();

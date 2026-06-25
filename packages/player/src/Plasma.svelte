@@ -70,9 +70,11 @@
 				}
 			}
 			for (let i = 0; i < 256; i++) {
-				const hue = (baseHue + (i / 256) * 140 - 70 + 360) % 360;
-				const l = 30 + 35 * Math.sin((i / 256) * Math.PI * 2);
-				const [r, g, b] = hslToRgb(hue, 85, l);
+				const hue = (baseHue + (i / 256) * 100 - 50 + 360) % 360;
+				// Compressed lightness band (no near-black valleys / near-white peaks)
+				// and gentler saturation, so the plasma reads soft instead of harsh.
+				const l = 50 + 14 * Math.sin((i / 256) * Math.PI * 2);
+				const [r, g, b] = hslToRgb(hue, 68, l);
 				palette[i * 3] = r;
 				palette[i * 3 + 1] = g;
 				palette[i * 3 + 2] = b;
