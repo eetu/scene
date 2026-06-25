@@ -5,15 +5,22 @@
 	// own sub-selector for the equalizer bars and the Amiga boing ball. Fills its
 	// container's height. Pair it with <Transport/>. Shared by tracker + party.
 	import BoingBall from './BoingBall.svelte';
+	import CopperBars from './CopperBars.svelte';
 	import Equalizer from './Equalizer.svelte';
 	import GlowWave from './GlowWave.svelte';
 	import PatternView from './PatternView.svelte';
 	import { playback } from './player.svelte';
+	import Plasma from './Plasma.svelte';
 	import Scope from './Scope.svelte';
+	import Starfield from './Starfield.svelte';
+	import VuMeters from './VuMeters.svelte';
+
+	type VizMode = 'bars' | 'wave' | 'vu' | 'stars' | 'copper' | 'plasma' | 'ball';
+	const VIZ: VizMode[] = ['bars', 'wave', 'vu', 'stars', 'copper', 'plasma', 'ball'];
 
 	let { tab = $bindable<'pattern' | 'samples' | 'viz'>('pattern') } = $props();
 	// Which visualizer the "viz" tab shows. Persists across tab switches.
-	let vizMode = $state<'bars' | 'wave' | 'ball'>('bars');
+	let vizMode = $state<VizMode>('bars');
 
 	const energy = $derived(playback.vu.length ? Math.max(...playback.vu) : 0);
 	const playing = $derived(playback.playing && !playback.paused);
@@ -40,15 +47,23 @@
 		{:else if tab === 'viz'}
 			<div class="viz">
 				<div class="vizpick">
-					<button class:on={vizMode === 'bars'} onclick={() => (vizMode = 'bars')}>bars</button>
-					<button class:on={vizMode === 'wave'} onclick={() => (vizMode = 'wave')}>wave</button>
-					<button class:on={vizMode === 'ball'} onclick={() => (vizMode = 'ball')}>ball</button>
+					{#each VIZ as m (m)}
+						<button class:on={vizMode === m} onclick={() => (vizMode = m)}>{m}</button>
+					{/each}
 				</div>
 				<div class="vizbody">
 					{#if vizMode === 'bars'}
 						<Equalizer active={playing} />
 					{:else if vizMode === 'wave'}
 						<GlowWave active={playing} />
+					{:else if vizMode === 'vu'}
+						<VuMeters active={playing} />
+					{:else if vizMode === 'stars'}
+						<Starfield active={playing} />
+					{:else if vizMode === 'copper'}
+						<CopperBars active={playing} />
+					{:else if vizMode === 'plasma'}
+						<Plasma active={playing} />
 					{:else}
 						<BoingBall energy={playing ? energy : 0} {format} />
 					{/if}
@@ -130,6 +145,7 @@
 	.vizpick {
 		flex: 0 0 auto;
 		display: flex;
+		flex-wrap: wrap;
 		gap: 4px;
 		padding: 6px 8px;
 		border-bottom: 1px solid var(--surface-line-2, var(--border));

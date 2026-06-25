@@ -13,17 +13,21 @@
 	import { setTheme, theme } from '@scene/design';
 	import {
 		BoingBall,
+		CopperBars,
 		Equalizer,
 		GlowWave,
 		parseModule,
 		PatternView,
+		Plasma,
 		playback,
 		playInOrder,
 		playNext,
 		playPrev,
 		Scope,
+		Starfield,
 		Transport,
-		transportToggle
+		transportToggle,
+		VuMeters
 	} from '@scene/player';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { onMount, untrack } from 'svelte';
@@ -37,8 +41,10 @@
 	let showPattern = $state(false);
 	let showSettings = $state(false);
 	let pvTab = $state<'pattern' | 'samples' | 'viz'>('pattern');
-	// Which visualizer the "viz" tab shows (equalizer bars / neon waveform / ball).
-	let pvVizMode = $state<'bars' | 'wave' | 'ball'>('bars');
+	// Which visualizer the "viz" tab shows. Persists across tab switches.
+	type VizMode = 'bars' | 'wave' | 'vu' | 'stars' | 'copper' | 'plasma' | 'ball';
+	const VIZ: VizMode[] = ['bars', 'wave', 'vu', 'stars', 'copper', 'plasma', 'ball'];
+	let pvVizMode = $state<VizMode>('bars');
 	// Pattern view style: 'locked' = fixed centerline + vertical VU; 'scroll' =
 	// free-scrolling rows + header VU. Persisted across sessions; set in Settings.
 	let patternMode = $state<'locked' | 'scroll'>(
@@ -710,25 +716,28 @@
 					{#if patternMode === 'locked'}<PatternView />{:else}<PatternViewScroll />{/if}
 				</div>
 			{:else if pvTab === 'viz'}
+				{@const vizActive = playback.playing && !playback.paused}
 				<div class="viz-view">
 					<div class="vizpick">
-						<button class:on={pvVizMode === 'bars'} onclick={() => (pvVizMode = 'bars')}
-							>bars</button
-						>
-						<button class:on={pvVizMode === 'wave'} onclick={() => (pvVizMode = 'wave')}
-							>wave</button
-						>
-						<button class:on={pvVizMode === 'ball'} onclick={() => (pvVizMode = 'ball')}
-							>ball</button
-						>
+						{#each VIZ as m (m)}
+							<button class:on={pvVizMode === m} onclick={() => (pvVizMode = m)}>{m}</button>
+						{/each}
 					</div>
 					<div class="vizbody">
 						{#if pvVizMode === 'bars'}
-							<Equalizer active={playback.playing && !playback.paused} />
+							<Equalizer active={vizActive} />
 						{:else if pvVizMode === 'wave'}
-							<GlowWave active={playback.playing && !playback.paused} />
+							<GlowWave active={vizActive} />
+						{:else if pvVizMode === 'vu'}
+							<VuMeters active={vizActive} />
+						{:else if pvVizMode === 'stars'}
+							<Starfield active={vizActive} />
+						{:else if pvVizMode === 'copper'}
+							<CopperBars active={vizActive} />
+						{:else if pvVizMode === 'plasma'}
+							<Plasma active={vizActive} />
 						{:else}
-							<BoingBall energy={playback.playing && !playback.paused ? vuEnergy : 0} />
+							<BoingBall energy={vizActive ? vuEnergy : 0} />
 						{/if}
 					</div>
 				</div>
@@ -1244,6 +1253,7 @@
 	.vizpick {
 		flex: 0 0 auto;
 		display: flex;
+		flex-wrap: wrap;
 		gap: 4px;
 		padding: 6px 8px;
 		border-bottom: 1px solid var(--surface-line-2);

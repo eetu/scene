@@ -5,9 +5,13 @@
 export * from './host';
 export * from './player.svelte';
 export { default as BoingBall } from './BoingBall.svelte';
+export { default as CopperBars } from './CopperBars.svelte';
 export { default as Equalizer } from './Equalizer.svelte';
 export { default as GlowWave } from './GlowWave.svelte';
 export { default as PatternView } from './PatternView.svelte';
+export { default as Plasma } from './Plasma.svelte';
+export { default as Starfield } from './Starfield.svelte';
+export { default as VuMeters } from './VuMeters.svelte';
 export { default as PlayerStage } from './PlayerStage.svelte';
 export { default as Scope } from './Scope.svelte';
 export { default as Transport } from './Transport.svelte';
