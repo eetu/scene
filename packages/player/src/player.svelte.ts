@@ -134,6 +134,8 @@ function ensurePlayer(): Promise<void> {
 	player.gain.connect(a);
 	analyser = a;
 	ready = new Promise<void>((resolve) => player.onInitialized(() => resolve()));
+	// Once the graph exists, tap it for the background-capable media-element route.
+	void ready.then(setupMediaElementRoute);
 	player.onProgress((d: ProgressMsg) => {
 		playback.position = d.pos ?? 0;
 		playback.order = d.order ?? 0;
@@ -150,9 +152,6 @@ function ensurePlayer(): Promise<void> {
 		playback.instruments = meta?.song?.instruments ?? [];
 		if (playback.current) void saveMeta(playback.current, meta);
 		syncNowPlaying(); // title is known now → refresh OS Now Playing
-		// The new module is parsed and cleanly playing — restore output (playTrack
-		// dropped the gain to 0 across the switch to mask any tail/startup artifact).
-		player.setVol(playback.muted ? 0 : 1);
 	});
 	player.onEnded(() => {
 		// (With repeat on, the module loops and onEnded never fires.) Auto-advance
@@ -260,17 +259,60 @@ function wirePlatformIntegration() {
 	}
 }
 
+// --- Background playback ----------------------------------------------------
+// iOS Safari (and backgrounded desktop Safari) suspend a bare AudioContext when
+// the tab is hidden or the screen locks, which freezes the worklet → silence.
+// Audio routed through an <audio> *media element*, however, is allowed to keep
+// playing in the background. So we tap the graph with a MediaStreamDestination
+// and play its stream through a hidden <audio> element; once that element is
+// actually playing we move output entirely onto it (disconnecting
+// context.destination so it isn't heard twice). Best-effort: if the element
+// won't play we keep the normal destination, so audio still works everywhere.
+let mediaEl: HTMLAudioElement | null = null;
+let streamDest: MediaStreamAudioDestinationNode | null = null;
+let routedToElement = false;
+
+function setupMediaElementRoute() {
+	if (!player || streamDest || typeof Audio === 'undefined') return;
+	try {
+		const dest: MediaStreamAudioDestinationNode = player.context.createMediaStreamDestination();
+		player.gain.connect(dest);
+		const el = new Audio();
+		el.srcObject = dest.stream;
+		el.setAttribute('playsinline', '');
+		el.preload = 'auto';
+		el.style.display = 'none';
+		document.body.appendChild(el);
+		streamDest = dest;
+		mediaEl = el;
+	} catch {
+		streamDest = null;
+		mediaEl = null;
+	}
+}
+
+/** Move audible output onto the media element so playback survives the page
+ *  being backgrounded. Call inside the play gesture; no-op once routed or if
+ *  the element can't play (we then stay on context.destination). */
+async function routeAudioToElement() {
+	if (!mediaEl || routedToElement || !player) return;
+	try {
+		await mediaEl.play();
+		try {
+			player.gain.disconnect(player.context.destination);
+		} catch {
+			/* wasn't connected to the speakers */
+		}
+		routedToElement = true;
+	} catch {
+		/* element playback blocked — keep the normal destination path */
+	}
+}
+
 /** Load a track and play it from the start (audible unless muted). */
 export async function playTrack(track: Track) {
-	// Mask the switch entirely: drop the output gain to 0 *synchronously* (it's a
-	// main-thread AudioParam, so it takes effect instantly) before stopping the
-	// old module. The worklet processes stop/play asynchronously, so without this
-	// you hear either the previous track's tail or the new module's startup
-	// artifact. Gain is restored in onMetadata once the new module plays cleanly.
-	if (player) {
-		player.setVol(0);
-		player.stop();
-	}
+	// Stop the current module so the worklet drops it before we load the next.
+	if (player) player.stop();
 	playback.error = null;
 	playback.current = track;
 	playback.playing = true;
@@ -288,9 +330,9 @@ export async function playTrack(track: Track) {
 	} catch {
 		/* already running */
 	}
-	// Stay silent until onMetadata fires for the new module (covers first play,
-	// where the player was just created above with a default gain of 1).
-	player.setVol(0);
+	// Move output onto the media element (best-effort) so it survives the page
+	// being backgrounded / the screen locking. Triggered from the play gesture.
+	void routeAudioToElement();
 	player.load(host().fileUrl(track.hash));
 	syncNowPlaying();
 	// Arm play-count gating for this track; the count fires from onProgress once
