@@ -51,12 +51,22 @@
 		const MINOR = 20;
 		const MAJOR = 4; // every 4th minor tick is major + labelled
 
+		const ASPECT = 1.5; // dial face width:height — keeps it from elongating
+
 		function meter(x0: number, y0: number, cw: number, ch: number, level: number, label: string) {
 			const pad = Math.min(cw, ch) * 0.06;
-			const fx = x0 + pad;
-			const fy = y0 + pad;
-			const fw = cw - pad * 2;
-			const fh = ch - pad * 2;
+			const availW = cw - pad * 2;
+			const availH = ch - pad * 2;
+			// Cap the face to ASPECT and centre it in the cell, so a tall pane just
+			// adds dark margin top/bottom instead of stretching the meter.
+			let fw = availW;
+			let fh = fw / ASPECT;
+			if (fh > availH) {
+				fh = availH;
+				fw = fh * ASPECT;
+			}
+			const fx = x0 + (cw - fw) / 2;
+			const fy = y0 + (ch - fh) / 2;
 			const pivotX = fx + fw / 2;
 			const pivotY = fy + fh * 0.92;
 			const r = Math.min(fw * 0.46, fh * 0.86);
