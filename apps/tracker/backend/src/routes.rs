@@ -636,14 +636,13 @@ async fn api_playlist(
                         COALESCE(s.favorite, 0), COALESCE(s.play_count, 0),
                         pi.title, pi.artist, pi.format, pi.filename
                  FROM playlist_items pi
-                 LEFT JOIN files f ON f.rel_path = (
-                     SELECT ff.rel_path FROM files ff
-                     WHERE ff.md5 = pi.md5 OR LOWER(ff.filename) = LOWER(pi.filename)
-                     ORDER BY (ff.md5 = pi.md5) DESC LIMIT 1)
+                 LEFT JOIN files f ON f.rel_path = COALESCE(
+                     (SELECT rel_path FROM files WHERE md5 = pi.md5 LIMIT 1),
+                     (SELECT rel_path FROM files WHERE LOWER(filename) = LOWER(pi.filename)
+                      LIMIT 1))
                  LEFT JOIN meta  m ON m.content_hash = f.content_hash
                  LEFT JOIN stats s ON s.content_hash = f.content_hash
                  WHERE pi.playlist_id = ?1
-                 GROUP BY pi.id
                  ORDER BY pi.position, pi.id",
             )?;
             let items = stmt
@@ -730,14 +729,17 @@ async fn api_delete_playlist(
 }
 
 /// One item to add/import. Hybrid identity: `md5` (local-library match key, when
-/// known) and/or `path` (a Modland fetch path for a missing module). At least one
-/// must be present; the rest is cached display metadata.
+/// known) and/or a fetch reference — `path` (a Modland `Format/Author/file`) and/
+/// or `url` (a direct-download URL for sources Modland doesn't carry). At least
+/// one must be present; the rest is cached display metadata.
 #[derive(Deserialize, Clone)]
 struct ItemIn {
     #[serde(default)]
     md5: Option<String>,
     #[serde(default)]
     path: Option<String>,
+    #[serde(default)]
+    url: Option<String>,
     title: Option<String>,
     artist: Option<String>,
     format: Option<String>,
@@ -755,9 +757,18 @@ impl ItemIn {
     fn norm_path(&self) -> Option<String> {
         self.path.as_deref().map(str::trim).filter(|p| !p.is_empty()).map(str::to_string)
     }
-    /// De-dup / identity key: md5 if present, else path.
+    /// Normalised url (http/https only — never let an import write arbitrary
+    /// schemes like file:// into a fetch reference).
+    fn norm_url(&self) -> Option<String> {
+        self.url
+            .as_deref()
+            .map(str::trim)
+            .filter(|u| u.starts_with("http://") || u.starts_with("https://"))
+            .map(str::to_string)
+    }
+    /// De-dup / identity key: md5 if present, else path, else url.
     fn key(&self) -> Option<String> {
-        self.norm_md5().or_else(|| self.norm_path())
+        self.norm_md5().or_else(|| self.norm_path()).or_else(|| self.norm_url())
     }
 }
 
@@ -769,8 +780,9 @@ async fn api_add_item(
 ) -> AppResult<StatusCode> {
     let md5 = req.norm_md5();
     let path = req.norm_path();
-    if md5.is_none() && path.is_none() {
-        return Err(AppError::BadRequest("md5 or path is required".into()));
+    let url = req.norm_url();
+    if md5.is_none() && path.is_none() && url.is_none() {
+        return Err(AppError::BadRequest("md5, path, or url is required".into()));
     }
     let (title, artist, format, filename) =
         (req.title.clone(), req.artist.clone(), req.format.clone(), req.filename.clone());
@@ -786,9 +798,9 @@ async fn api_add_item(
             if !exists {
                 return Ok(false);
             }
-            // Idempotent: dedup by md5 if present, else by path.
-            let dup: bool = match (&md5, &path) {
-                (Some(m), _) => tx
+            // Idempotent: dedup by md5 if present, else path, else url.
+            let dup: bool = match (&md5, &path, &url) {
+                (Some(m), _, _) => tx
                     .query_row(
                         "SELECT 1 FROM playlist_items WHERE playlist_id = ?1 AND md5 = ?2",
                         rusqlite::params![id, m],
@@ -796,10 +808,18 @@ async fn api_add_item(
                     )
                     .optional()?
                     .is_some(),
-                (None, Some(p)) => tx
+                (None, Some(p), _) => tx
                     .query_row(
                         "SELECT 1 FROM playlist_items WHERE playlist_id = ?1 AND path = ?2",
                         rusqlite::params![id, p],
+                        |_| Ok(true),
+                    )
+                    .optional()?
+                    .is_some(),
+                (None, None, Some(u)) => tx
+                    .query_row(
+                        "SELECT 1 FROM playlist_items WHERE playlist_id = ?1 AND url = ?2",
+                        rusqlite::params![id, u],
                         |_| Ok(true),
                     )
                     .optional()?
@@ -814,9 +834,9 @@ async fn api_add_item(
                 )?;
                 tx.execute(
                     "INSERT INTO playlist_items
-                       (playlist_id, position, md5, path, title, artist, format, filename)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                    rusqlite::params![id, next, md5, path, title, artist, format, filename],
+                       (playlist_id, position, md5, path, url, title, artist, format, filename)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    rusqlite::params![id, next, md5, path, url, title, artist, format, filename],
                 )?;
             }
             tx.execute(
@@ -950,8 +970,8 @@ async fn api_import_playlist(
             {
                 let mut ins = tx.prepare(
                     "INSERT INTO playlist_items
-                       (playlist_id, position, md5, path, title, artist, format, filename)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                       (playlist_id, position, md5, path, url, title, artist, format, filename)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 )?;
                 for (pos, it) in items.iter().enumerate() {
                     ins.execute(rusqlite::params![
@@ -959,6 +979,7 @@ async fn api_import_playlist(
                         pos as i64,
                         it.norm_md5(),
                         it.norm_path(),
+                        it.norm_url(),
                         it.title,
                         it.artist,
                         it.format,
@@ -988,7 +1009,7 @@ async fn api_export_playlist(
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )?;
             let mut stmt = c.prepare(
-                "SELECT COALESCE(pi.md5, f.md5), pi.path,
+                "SELECT COALESCE(pi.md5, f.md5), pi.path, pi.url,
                         COALESCE(pi.title, m.title),
                         COALESCE(pi.artist, f.artist),
                         COALESCE(pi.format, f.ext),
@@ -1005,10 +1026,11 @@ async fn api_export_playlist(
                     Ok(json!({
                         "md5": r.get::<_, Option<String>>(0)?,
                         "path": r.get::<_, Option<String>>(1)?,
-                        "title": r.get::<_, Option<String>>(2)?,
-                        "artist": r.get::<_, Option<String>>(3)?,
-                        "format": r.get::<_, Option<String>>(4)?,
-                        "filename": r.get::<_, Option<String>>(5)?,
+                        "url": r.get::<_, Option<String>>(2)?,
+                        "title": r.get::<_, Option<String>>(3)?,
+                        "artist": r.get::<_, Option<String>>(4)?,
+                        "format": r.get::<_, Option<String>>(5)?,
+                        "filename": r.get::<_, Option<String>>(6)?,
                     }))
                 })?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -1092,46 +1114,72 @@ async fn api_fetch_missing(
     Ok(Json(json!({ "started": true })))
 }
 
-/// Download a playlist's missing items from Modland by their stored `path`,
-/// placing each under `<author>/<filename>` (suffixed on collision), recording
-/// the downloaded md5 on the item, then rescanning so they resolve as present.
+/// A missing playlist item to fetch: its id plus the fetch references and the
+/// cached filename/artist used to place a by-`url` download.
+struct Missing {
+    item_id: i64,
+    path: Option<String>,
+    url: Option<String>,
+    filename: Option<String>,
+    artist: Option<String>,
+}
+
+/// Download a playlist's missing items — by Modland `path` (preferred), else by
+/// the generic `url` — placing each under `<author>/<filename>` (suffixed on
+/// collision), recording the downloaded md5 on the item, then rescanning so they
+/// resolve as present.
 async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
     use std::sync::atomic::Ordering;
     use std::time::Duration;
 
-    // Missing = items with a fetch path that aren't resolved to a local file yet
-    // (md5 unknown, or md5 set but no matching file).
-    let missing: Vec<(i64, String)> = state
+    // Missing = items with a fetch reference (path or url) not yet resolved to a
+    // local file (md5 unknown, or md5 set but no matching file, and no filename
+    // match either).
+    let missing: Vec<Missing> = state
         .db
         .with({
             let id = id.to_string();
             move |c| {
                 let mut s = c.prepare(
-                    "SELECT pi.id, pi.path FROM playlist_items pi
-                     WHERE pi.playlist_id = ?1 AND pi.path IS NOT NULL
+                    "SELECT pi.id, pi.path, pi.url, pi.filename, pi.artist FROM playlist_items pi
+                     WHERE pi.playlist_id = ?1 AND (pi.path IS NOT NULL OR pi.url IS NOT NULL)
                        AND NOT EXISTS (SELECT 1 FROM files f WHERE f.md5 = pi.md5)
                        AND NOT EXISTS (
                          SELECT 1 FROM files f WHERE LOWER(f.filename) = LOWER(pi.filename))
                      ORDER BY pi.position",
                 )?;
-                let rows = s.query_map([&id], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
+                let rows = s.query_map([&id], |r| {
+                    Ok(Missing {
+                        item_id: r.get(0)?,
+                        path: r.get(1)?,
+                        url: r.get(2)?,
+                        filename: r.get(3)?,
+                        artist: r.get(4)?,
+                    })
+                })?;
                 rows.collect::<rusqlite::Result<Vec<_>>>()
             }
         })
         .await?;
     state.fetch.total.store(missing.len(), Ordering::Relaxed);
-    tracing::info!(count = missing.len(), "fetch-missing: downloading from Modland");
+    tracing::info!(count = missing.len(), "fetch-missing: downloading");
 
     if missing.len() > FETCH_MAX {
         tracing::warn!(cap = FETCH_MAX, total = missing.len(), "capping downloads this run");
     }
     let client = crate::modland::Client::new(state.cfg.modland_base.clone())?;
     let mut wrote_any = false;
-    for (item_id, path) in missing.iter().take(FETCH_MAX) {
-        let bytes = match client.download_path(path).await {
+    for m in missing.iter().take(FETCH_MAX) {
+        // Prefer the Modland path; fall back to a generic url.
+        let dl = match (&m.path, &m.url) {
+            (Some(p), _) => client.download_path(p).await,
+            (None, Some(u)) => client.download_url(u).await,
+            (None, None) => continue,
+        };
+        let bytes = match dl {
             Ok(b) => b,
             Err(e) => {
-                tracing::warn!(path, error = %e, "download failed");
+                tracing::warn!(path = ?m.path, url = ?m.url, error = %e, "download failed");
                 state.fetch.failed.fetch_add(1, Ordering::Relaxed);
                 continue;
             }
@@ -1150,10 +1198,31 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
             .await?
             .is_some();
         if !have {
-            let author = crate::modland::author_from_path(path)
-                .unwrap_or_else(|| DL_FALLBACK_GROUP.to_string());
-            let filename = path.rsplit('/').next().unwrap_or("module").to_string();
-            if let Err(e) = write_module(&state.cfg.root, &author, &filename, &bytes).await {
+            // Place at the library convention `group/artist/file`. From a Modland
+            // path, group = format, artist = author, both straight from the path.
+            // From a url, group = the url host (provenance), artist = the item's
+            // cached artist (when curation supplied one), filename = its filename.
+            let (group, artist, filename) = match &m.path {
+                Some(p) => (
+                    crate::modland::format_from_path(p)
+                        .unwrap_or_else(|| DL_FALLBACK_GROUP.to_string()),
+                    crate::modland::author_from_path(p),
+                    p.rsplit('/').next().unwrap_or("module").to_string(),
+                ),
+                None => {
+                    let group = m
+                        .url
+                        .as_deref()
+                        .and_then(crate::modland::host_group)
+                        .unwrap_or_else(|| DL_FALLBACK_GROUP.to_string());
+                    let artist = m.artist.clone().filter(|a| !a.trim().is_empty());
+                    let filename = m.filename.clone().unwrap_or_else(|| "module".to_string());
+                    (group, artist, filename)
+                }
+            };
+            if let Err(e) =
+                write_module(&state.cfg.root, &group, artist.as_deref(), &filename, &bytes).await
+            {
                 tracing::warn!(file = %filename, error = %e, "write failed");
                 state.fetch.failed.fetch_add(1, Ordering::Relaxed);
                 continue;
@@ -1161,7 +1230,7 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
             wrote_any = true;
         }
         // Record the resolved md5 on the item so it links to the file.
-        let item_id = *item_id;
+        let item_id = m.item_id;
         let md5_for_db = md5.clone();
         state
             .db
@@ -1188,11 +1257,14 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Write a downloaded module under `<group>/<filename>`, suffixing the filename
-/// (`name~2.ext`) on collision so a fetch never overwrites an existing file.
+/// Write a downloaded module under `<group>/<artist>/<filename>` (the library's
+/// `group/artist/song` convention), or `<group>/<filename>` when no artist is
+/// known. Suffixes the filename (`name~2.ext`) on collision so a fetch never
+/// overwrites an existing file.
 async fn write_module(
     root: &std::path::Path,
     group: &str,
+    artist: Option<&str>,
     filename: &str,
     bytes: &[u8],
 ) -> anyhow::Result<()> {
@@ -1200,7 +1272,10 @@ async fn write_module(
     let name = clean_segment(filename)
         .filter(|n| crate::scan::has_module_ext(n))
         .ok_or_else(|| anyhow::anyhow!("unsafe or non-module filename: {filename}"))?;
-    let dir = root.join(&g);
+    let dir = match artist.and_then(clean_segment) {
+        Some(a) => root.join(&g).join(a),
+        None => root.join(&g),
+    };
     tokio::fs::create_dir_all(&dir).await?;
     let dest = unique_dest(&dir, &name);
     tokio::fs::write(&dest, bytes).await?;

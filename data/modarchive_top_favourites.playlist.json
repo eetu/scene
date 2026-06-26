@@ -1,0 +1,2075 @@
+{
+  "name": "Mod Archive Top Favourites",
+  "source": "modarchive:top_favourites",
+  "items": [
+    {
+      "title": "2nd_pm",
+      "format": "s3m",
+      "filename": "2nd_pm.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=212083",
+      "md5": "66af9167fcf28a6ecb3e2e25fa11a833"
+    },
+    {
+      "title": "space_debris",
+      "format": "mod",
+      "filename": "space_debris.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=57925",
+      "md5": "d0e61283309c5d72a050d14fcb2e6704",
+      "path": "Protracker/Captain/space_debris.mod",
+      "artist": "Captain"
+    },
+    {
+      "title": "DEADLOCK",
+      "format": "xm",
+      "filename": "DEADLOCK.XM",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=35280",
+      "md5": "84d09a89de4998aad278ef8dbb9be982",
+      "path": "Fasttracker 2/Elwood/deadlock.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "external",
+      "format": "xm",
+      "filename": "external.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=66187",
+      "md5": "4e7887bcd4495e8ad2147a17057fb94e",
+      "path": "Fasttracker 2/Quazar/funky stars.xm",
+      "artist": "Quazar"
+    },
+    {
+      "title": "ELYSIUM",
+      "format": "mod",
+      "filename": "ELYSIUM.MOD",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=40475",
+      "md5": "45b205dd41fe63c2de0e77ae749322de"
+    },
+    {
+      "title": "aryx",
+      "format": "s3m",
+      "filename": "aryx.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=191789",
+      "md5": "0f5bcf77f32f9f7299c49050094caeb8",
+      "path": "Screamtracker 3/Karsten Koch/aryx.s3m",
+      "artist": "Karsten Koch"
+    },
+    {
+      "title": "pod",
+      "format": "s3m",
+      "filename": "pod.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=55696",
+      "md5": "437efc7f1acbaf67102b2753e1aafa62",
+      "path": "Screamtracker 3/Necros/point of departure.s3m",
+      "artist": "Necros"
+    },
+    {
+      "title": "GSLINGER",
+      "format": "mod",
+      "filename": "GSLINGER.MOD",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=42560",
+      "md5": "310761e5e500f5f8f7cbdf28b4f6522d"
+    },
+    {
+      "title": "radix_-_yuki_satellites",
+      "format": "xm",
+      "filename": "radix_-_yuki_satellites.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=167157",
+      "md5": "8c76bd78c5fc4f05b4ea08e64902d009",
+      "path": "Fasttracker 2/Radix/yuki satellites.xm",
+      "artist": "Radix"
+    },
+    {
+      "title": "unreeeal_superhero_3",
+      "format": "xm",
+      "filename": "unreeeal_superhero_3.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=149252",
+      "md5": "e7e25c8b63842992cbd4d2aa266379a8",
+      "path": "Fasttracker 2/Rez/coop-Kenet/unreeeal superhero 3.xm",
+      "artist": "Rez"
+    },
+    {
+      "title": "elw-sick",
+      "format": "xm",
+      "filename": "elw-sick.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=41760",
+      "md5": "6396969ee6b3ca827e008ee8ff829d85",
+      "path": "Fasttracker 2/Elwood/sick on monday.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "stardstm",
+      "format": "mod",
+      "filename": "stardstm.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=59344",
+      "md5": "3e2716df273cddc097b28d5f1ffceef8"
+    },
+    {
+      "title": "celestial_fantasia",
+      "format": "s3m",
+      "filename": "celestial_fantasia.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=70716",
+      "md5": "3136484a39fa6cc2b8de8c225e3e3f31",
+      "path": "Screamtracker 3/Beat/celestial fantasia.s3m",
+      "artist": "Beat"
+    },
+    {
+      "title": "musiklinjen",
+      "format": "mod",
+      "filename": "musiklinjen.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=101789",
+      "md5": "dea0bca1cdf7f718067013c9f232aafb"
+    },
+    {
+      "title": "sweetdre",
+      "format": "xm",
+      "filename": "sweetdre.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=62274",
+      "md5": "50fae15c25aa0fa62ed12e91de0d078d",
+      "path": "Fasttracker 2/Elwood/sweet dreams.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "hymn_to_aurora",
+      "format": "mod",
+      "filename": "hymn_to_aurora.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=99684",
+      "md5": "1f7297f17b99aadfea63cbf8f74dc5d9",
+      "path": "Protracker/Horace Wimp/hymn to aurora.mod",
+      "artist": "Horace Wimp"
+    },
+    {
+      "title": "SATELL",
+      "format": "s3m",
+      "filename": "SATELL.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=54250",
+      "md5": "4993611aca1474535d6396e01f86cca8",
+      "path": "Screamtracker 3/Purple Motion/satellite one.s3m",
+      "artist": "Purple Motion"
+    },
+    {
+      "title": "strshine",
+      "format": "s3m",
+      "filename": "strshine.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=60693",
+      "md5": "37dd08f6c904d0d4a356614510f2533f",
+      "path": "Screamtracker 3/Purple Motion/starshine.s3m",
+      "artist": "Purple Motion"
+    },
+    {
+      "title": "surasshu_-_eek",
+      "format": "it",
+      "filename": "surasshu_-_eek.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=186901",
+      "md5": "8a226adf9e9db87c23da55fb46af8254",
+      "path": "Impulsetracker/Surasshu/meek!.it",
+      "artist": "Surasshu"
+    },
+    {
+      "title": "a-windf",
+      "format": "it",
+      "filename": "a-windf.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=32547",
+      "md5": "3d7ee48fda35999aa65c036fd4282f45",
+      "path": "Impulsetracker/Minomus/winds of fjords.it",
+      "artist": "Minomus"
+    },
+    {
+      "title": "BUTTERFL",
+      "format": "xm",
+      "filename": "BUTTERFL.XM",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=34596",
+      "md5": "cff1c9f66ec149a72f8456e6399942ec",
+      "path": "Fasttracker 2/Damac/butterfly flew away.xm",
+      "artist": "Damac"
+    },
+    {
+      "title": "tempest-acidjazz",
+      "format": "mod",
+      "filename": "tempest-acidjazz.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=66334",
+      "md5": "b83d11b72d0062dba779f61556e98260",
+      "path": "Protracker/Tempest/acidjazzed evening.mod",
+      "artist": "Tempest"
+    },
+    {
+      "title": "an-path",
+      "format": "xm",
+      "filename": "an-path.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=33501",
+      "md5": "fe5860a3c7db2896684f5320730f0bc2",
+      "path": "Fasttracker 2/Anvil/path to nowhere.xm",
+      "artist": "Anvil"
+    },
+    {
+      "title": "rollingdownthestreet",
+      "format": "xm",
+      "filename": "rollingdownthestreet.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=169549",
+      "md5": "9b9840eb41bb3952ccf4e0abd87cee07",
+      "path": "Fasttracker 2/Fearofdark/rollin'downthestreet.xm",
+      "artist": "Fearofdark"
+    },
+    {
+      "title": "beyond_the_network",
+      "format": "it",
+      "filename": "beyond_the_network.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=156184",
+      "md5": "f89273dbfca924b96f8f0a37ff70bad6",
+      "path": "Impulsetracker/Skaven/beyond the network.it",
+      "artist": "Skaven"
+    },
+    {
+      "title": "jogeir_liljedahl_-_addiction",
+      "format": "mod",
+      "filename": "jogeir_liljedahl_-_addiction.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=167100",
+      "md5": "0ac8c1899445bc4dd315973d57162d3c",
+      "path": "Protracker/Jogeir Liljedahl/addiction.mod",
+      "artist": "Jogeir Liljedahl"
+    },
+    {
+      "title": "CTGOBLIN",
+      "format": "s3m",
+      "filename": "CTGOBLIN.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=34654",
+      "md5": "d4534b812dbc92848c1e1e7b65375402",
+      "path": "Screamtracker 3/Skaven/catch that goblin!!.s3m",
+      "artist": "Skaven"
+    },
+    {
+      "title": "foregone",
+      "format": "it",
+      "filename": "foregone.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=68847",
+      "md5": "e784a3056bf2477f0623a733e72d981e",
+      "path": "Impulsetracker/Michiel Van Den Bos/unreal tournament - foregone destruction.it",
+      "artist": "Michiel Van Den Bos"
+    },
+    {
+      "title": "beyond_music",
+      "format": "mod",
+      "filename": "beyond_music.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=83779",
+      "md5": "fff4d969f614031188432ca1c41fb828"
+    },
+    {
+      "title": "DOPE",
+      "format": "mod",
+      "filename": "DOPE.MOD",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=35344",
+      "md5": "8b7ecc245e6c981107ff307b0d35da4b",
+      "path": "Fasttracker/Jugi/dope (demo version).mod",
+      "artist": "Jugi"
+    },
+    {
+      "title": "1fineday",
+      "format": "xm",
+      "filename": "1fineday.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=60034",
+      "md5": "2dcce40cc69d16f8a0121fe4f394fd26",
+      "path": "Fasttracker 2/Elwood/one fine day.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "jt_letgo",
+      "format": "xm",
+      "filename": "jt_letgo.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=46496",
+      "md5": "612021aa77b20893128edadcdc469321",
+      "path": "Fasttracker 2/Jeroen Tel/letting go.xm",
+      "artist": "Jeroen Tel"
+    },
+    {
+      "title": "jt_911",
+      "format": "xm",
+      "filename": "jt_911.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=46469",
+      "md5": "38a55733e653064021577a0edf85cc7b",
+      "path": "Fasttracker 2/Jeroen Tel/nine one one.xm",
+      "artist": "Jeroen Tel"
+    },
+    {
+      "title": "ascent",
+      "format": "s3m",
+      "filename": "ascent.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=34073",
+      "md5": "3e72d1e6ac8dc36acde62bb2403925c0",
+      "path": "Screamtracker 3/Necros/ascent of the cloud eagle.s3m",
+      "artist": "Necros"
+    },
+    {
+      "title": "jt_strng",
+      "format": "xm",
+      "filename": "jt_strng.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=46508",
+      "md5": "7309c632ec7dfe045502b8a716b6e97a",
+      "path": "Fasttracker 2/Jeroen Tel/stranglehold.xm",
+      "artist": "Jeroen Tel"
+    },
+    {
+      "title": "physical_presence",
+      "format": "mod",
+      "filename": "physical_presence.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=104644",
+      "md5": "e732ec5ebd4a26c2c90ead7f44da24a1",
+      "path": "Protracker/Jogeir Liljedahl/physical presence.mod",
+      "artist": "Jogeir Liljedahl"
+    },
+    {
+      "title": "xyce-dans_la_rue",
+      "format": "xm",
+      "filename": "xyce-dans_la_rue.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=172032",
+      "md5": "7b14d0cb28abf67321006035e488863d",
+      "path": "Fasttracker 2/Cerror/coop-Xylo/dans la rue.xm",
+      "artist": "Cerror"
+    },
+    {
+      "title": "MECH8",
+      "format": "s3m",
+      "filename": "MECH8.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=48333",
+      "md5": "42166bf3333653f14c1876eab6a44396",
+      "path": "Screamtracker 3/Necros/mechanism eight.s3m",
+      "artist": "Necros"
+    },
+    {
+      "title": "radix-unreal_superhero",
+      "format": "xm",
+      "filename": "radix-unreal_superhero.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=67561",
+      "md5": "53c466c3499085ccae8f5f6f42a0aac0",
+      "path": "Fasttracker 2/Radix/unreal superhero.xm",
+      "artist": "Radix"
+    },
+    {
+      "title": "4mat_-_eternity",
+      "format": "xm",
+      "filename": "4mat_-_eternity.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=154795",
+      "md5": "6c94138c8b4a9702a083c99550d59867",
+      "path": "Fasttracker 2/4-Mat/eternity.xm",
+      "artist": "4-Mat"
+    },
+    {
+      "title": "SHADOWRU",
+      "format": "mod",
+      "filename": "SHADOWRU.MOD",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=54299",
+      "md5": "7fc9fd47b9098090e9ce847bd11080ca",
+      "path": "Protracker/Purple Motion/shadowrun.mod",
+      "artist": "Purple Motion"
+    },
+    {
+      "title": "echoing",
+      "format": "mod",
+      "filename": "echoing.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=79054",
+      "md5": "d5d7fbe92cf269ab3084d83181db7932"
+    },
+    {
+      "title": "bz_pif",
+      "format": "it",
+      "filename": "bz_pif.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=39717",
+      "md5": "11252b9b22aafdf0862877d06a430e0c",
+      "path": "Impulsetracker/Badliz/the great strategy.it",
+      "artist": "Badliz"
+    },
+    {
+      "title": "creamof",
+      "format": "mod",
+      "filename": "creamof.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=211324",
+      "md5": "3ea6662c43070194b1b46b64966afb4f"
+    },
+    {
+      "title": "12TH",
+      "format": "mod",
+      "filename": "12TH.MOD",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=59601",
+      "md5": "d62373ec1f75fa0a6b8bccfc3e3d5c3b"
+    },
+    {
+      "title": "surfonasinewave",
+      "format": "xm",
+      "filename": "surfonasinewave.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=169104",
+      "md5": "e720dfcb35c6866f959dd3d5f8b1f1fc",
+      "path": "Fasttracker 2/Fearofdark/surfingonasinewave.xm",
+      "artist": "Fearofdark"
+    },
+    {
+      "title": "aws_aq16",
+      "format": "xm",
+      "filename": "aws_aq16.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=34414",
+      "md5": "eab549eecc05bc692adada85b12be1ba",
+      "path": "Fasttracker 2/Awesome/aquarium - 16 bit.xm",
+      "artist": "Awesome"
+    },
+    {
+      "title": "A94FINAL",
+      "format": "s3m",
+      "filename": "A94FINAL.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=32355",
+      "md5": "57c5664838569a353d6a3b683fc067e9",
+      "path": "Screamtracker 3/Skaven/deep in her eyes.s3m",
+      "artist": "Skaven"
+    },
+    {
+      "title": "fall",
+      "format": "xm",
+      "filename": "fall.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=41177",
+      "md5": "2ba9286a4d9ad5d080567ed50b7f7db6",
+      "path": "Fasttracker 2/Elwood/fall from sky.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "kuk",
+      "format": "xm",
+      "filename": "kuk.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=171180",
+      "md5": "64d5b1d5f48ff7d38a484ee0d6ca7f0b",
+      "path": "Fasttracker 2/Ogge/kuk.xm",
+      "artist": "Ogge"
+    },
+    {
+      "title": "badapple",
+      "format": "it",
+      "filename": "badapple.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=179366",
+      "md5": "c919f2791670ca108912d8f084afd266"
+    },
+    {
+      "title": "random_voice_-_monday",
+      "format": "mod",
+      "filename": "random_voice_-_monday.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=164407",
+      "md5": "ec7b7e2756b698cfed265d59c5f6d526",
+      "path": "Protracker/Random Voice/monday.mod",
+      "artist": "Random Voice"
+    },
+    {
+      "title": "ICEFRONT",
+      "format": "s3m",
+      "filename": "ICEFRONT.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=44366",
+      "md5": "e0597bb0db35e9734cf6b6f5d262aa0a",
+      "path": "Screamtracker 3/Skaven/ice frontier.s3m",
+      "artist": "Skaven"
+    },
+    {
+      "title": "christms",
+      "format": "xm",
+      "filename": "christms.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=37049",
+      "md5": "f5a5fdbdb56eb0124181a428bd0eebf2",
+      "path": "Fasttracker 2/Drax/happy happy christmas.xm",
+      "artist": "Drax"
+    },
+    {
+      "title": "cloudcones",
+      "format": "xm",
+      "filename": "cloudcones.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=146374",
+      "md5": "40133876a1584aadb5ef99388797acdf",
+      "path": "Fasttracker 2/Nagz/coop-Zabutom/cloudcones.xm",
+      "artist": "Nagz"
+    },
+    {
+      "title": "experience",
+      "format": "xm",
+      "filename": "experience.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=42927",
+      "md5": "4d56d701c0e367b5d116111b59a46455",
+      "path": "Fasttracker 2/Elwood/experience.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "AQUA",
+      "format": "s3m",
+      "filename": "AQUA.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=32382",
+      "md5": "babd95149418c2e4ab9c542f34fe0adf",
+      "path": "Screamtracker 3/Purple Motion/aquaphobia - 1993.s3m",
+      "artist": "Purple Motion"
+    },
+    {
+      "title": "toilet4",
+      "format": "xm",
+      "filename": "toilet4.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=63621",
+      "md5": "18e896e683eecafeb1b54cbe52b7b2c6",
+      "path": "Fasttracker 2/Ghidorah/toilet story 4 u.xm",
+      "artist": "Ghidorah"
+    },
+    {
+      "title": "moh-kont",
+      "format": "xm",
+      "filename": "moh-kont.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=52316",
+      "md5": "9056d2026f111e4740338a42c0d38c96",
+      "path": "Fasttracker 2/Moh/koktaktproblem.xm",
+      "artist": "Moh"
+    },
+    {
+      "title": "projectx",
+      "format": "mod",
+      "filename": "projectx.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=56660",
+      "md5": "64a688b00d3fa888de3729a0ef3e1149",
+      "path": "Protracker/Allister Brimble/project x - bladswede remix!.mod",
+      "artist": "Allister Brimble"
+    },
+    {
+      "title": "mindrmr",
+      "format": "xm",
+      "filename": "mindrmr.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=51852",
+      "md5": "00fd21674d9e846e2b88a9785588fddd",
+      "path": "Fasttracker 2/Beat/mind of a dreamer.xm",
+      "artist": "Beat"
+    },
+    {
+      "title": "street_jungle",
+      "format": "mod",
+      "filename": "street_jungle.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=211598",
+      "md5": "544d1a1c2689d5d244c874f9d2544516"
+    },
+    {
+      "title": "bananasplit",
+      "format": "mod",
+      "filename": "bananasplit.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=35151",
+      "md5": "b6edb2fe5ca943d068a0a7fc198282bd",
+      "path": "Protracker/Dizzy/banana split.mod",
+      "artist": "Dizzy"
+    },
+    {
+      "title": "isotoxin",
+      "format": "s3m",
+      "filename": "isotoxin.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=46539",
+      "md5": "21eeea396c42e8337552bd733765786e",
+      "path": "Screamtracker 3/Necros/isotoxin.s3m",
+      "artist": "Necros"
+    },
+    {
+      "title": "aceman_-_my_first_console",
+      "format": "xm",
+      "filename": "aceman_-_my_first_console.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=157368",
+      "md5": "a49e882f9ef6bda5e282eb98567c4b8b",
+      "path": "Fasttracker 2/AceMan/my first console.xm",
+      "artist": "AceMan"
+    },
+    {
+      "title": "asd",
+      "format": "xm",
+      "filename": "asd.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=34082",
+      "md5": "eb7ae7291936fefcff913e5e1f1fe1b5",
+      "path": "Fasttracker 2/Reed/a synthetic device.xm",
+      "artist": "Reed"
+    },
+    {
+      "title": "alf2_zalza_edit",
+      "format": "xm",
+      "filename": "alf2_zalza_edit.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=153944",
+      "md5": "d0444526414f81849a71d87fe2a91dd4",
+      "path": "Fasttracker 2/Zalza/alf2 (zalza edit).xm",
+      "artist": "Zalza"
+    },
+    {
+      "title": "dragonatlas",
+      "format": "xm",
+      "filename": "dragonatlas.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=174158",
+      "md5": "627442543cdad32f402a563f68957f88"
+    },
+    {
+      "title": "class09",
+      "format": "mod",
+      "filename": "class09.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=37620",
+      "md5": "e09ed85e3d7ce90f0498d546ee17febc",
+      "path": "Protracker/Maktone/class09.mod",
+      "artist": "Maktone"
+    },
+    {
+      "title": "world_of_plastic",
+      "format": "s3m",
+      "filename": "world_of_plastic.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=73799",
+      "md5": "617254a28c8a59d7e2cf818cc1bd73a4",
+      "path": "Screamtracker 3/Purple Motion/world of plastic.s3m",
+      "artist": "Purple Motion"
+    },
+    {
+      "title": "aftertouch",
+      "format": "mod",
+      "filename": "aftertouch.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=126990",
+      "md5": "c779f1698467b5d64d9b0ace890f6228",
+      "path": "Protracker/Substance/aftertouch.mod",
+      "artist": "Substance"
+    },
+    {
+      "title": "FOUNTAIN",
+      "format": "mod",
+      "filename": "FOUNTAIN.MOD",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=40748",
+      "md5": "6527182ec7fe8df7148c35cabb5fe744",
+      "path": "Protracker/Unreal/fountain of sighs.mod",
+      "artist": "Unreal"
+    },
+    {
+      "title": "zeta_force",
+      "format": "xm",
+      "filename": "zeta_force.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=153916",
+      "md5": "33bc2b34a59fa887418963e735d48275",
+      "path": "Fasttracker 2/Zabutom/zeta force.xm",
+      "artist": "Zabutom"
+    },
+    {
+      "title": "fap",
+      "format": "xm",
+      "filename": "fap.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=169152",
+      "md5": "0e2f8a0805af03dfe32f38ef375cdbde"
+    },
+    {
+      "title": "radix-imaginary_friend",
+      "format": "xm",
+      "filename": "radix-imaginary_friend.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=67609",
+      "md5": "3e42cd743445d61b67b8b57dbcb84cc2",
+      "path": "Fasttracker 2/Radix/imaginary friend.xm",
+      "artist": "Radix"
+    },
+    {
+      "title": "4mat_-_broken_heart",
+      "format": "xm",
+      "filename": "4mat_-_broken_heart.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=182782",
+      "md5": "b6c16e7b00df58cf559e76c5c8c35f28",
+      "path": "Fasttracker 2/4-Mat/broken heart.xm",
+      "artist": "4-Mat"
+    },
+    {
+      "title": "galway",
+      "format": "xm",
+      "filename": "galway.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=42809",
+      "md5": "879c5466831f1908d3be8c7aa222fa22",
+      "path": "Fasttracker 2/Jogeir Liljedahl/god = martin galway.xm",
+      "artist": "Jogeir Liljedahl"
+    },
+    {
+      "title": "amegas",
+      "format": "mod",
+      "filename": "amegas.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=186736",
+      "md5": "e462b09bcd8ae14f0d1797a20abaee69",
+      "path": "Soundtracker/Karsten Obarski/amegas.mod",
+      "artist": "Karsten Obarski"
+    },
+    {
+      "title": "2nd_reality",
+      "format": "s3m",
+      "filename": "2nd_reality.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=74573",
+      "md5": "6bd36eebf307f8b96eb0187980f35fcc",
+      "path": "Screamtracker 3/Skaven/2nd reality.s3m",
+      "artist": "Skaven"
+    },
+    {
+      "title": "SHADOW",
+      "format": "xm",
+      "filename": "SHADOW.XM",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=54298",
+      "md5": "75adc785cd047538bea484349c9d1493",
+      "path": "Fasttracker 2/Elwood/into the shadow.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "crystalhammer",
+      "format": "mod",
+      "filename": "crystalhammer.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=104882",
+      "md5": "a4cfb6ae7d5e315b01a9605ed56fbce1",
+      "path": "Soundtracker/Karsten Obarski/crystalhammer.mod",
+      "artist": "Karsten Obarski"
+    },
+    {
+      "title": "OCC-SAN",
+      "format": "mod",
+      "filename": "OCC-SAN.MOD",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=49836",
+      "md5": "d5d610c9a8c63eac18b488cdc54db177"
+    },
+    {
+      "title": "wire_-_tintin_on_the_moon",
+      "format": "xm",
+      "filename": "wire_-_tintin_on_the_moon.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=158697",
+      "md5": "d3af5b24c76862d91aeba967af3036bf",
+      "path": "Fasttracker 2/Wire/tintin on the moon.xm",
+      "artist": "Wire"
+    },
+    {
+      "title": "hoffman_and_daytripper_-_professional_tracker",
+      "format": "mod",
+      "filename": "hoffman_and_daytripper_-_professional_tracker.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=174955",
+      "md5": "2c0b8c776491f4972f83f115da10f192",
+      "path": "Protracker/Hoffman/coop-Daytripper/professional tracker.mod",
+      "artist": "Hoffman"
+    },
+    {
+      "title": "FEATSOFV",
+      "format": "xm",
+      "filename": "FEATSOFV.XM",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=40713",
+      "md5": "4b9cee450140e92cd95f26eee4b5eab7",
+      "path": "Fasttracker 2/Elwood/feats of valor.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "cant_stop_coming",
+      "format": "mod",
+      "filename": "cant_stop_coming.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=86456",
+      "md5": "0da4068a1d9aadcb1eb4785911fcd7cc",
+      "path": "Protracker/Azazel/can't stop coming.mod",
+      "artist": "Azazel"
+    },
+    {
+      "title": "knockerb",
+      "format": "mod",
+      "filename": "knockerb.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=48096",
+      "md5": "255557a8f4ecfd67173106bc22e7048f",
+      "path": "Protracker/TDK/knocker boys.mod",
+      "artist": "TDK"
+    },
+    {
+      "title": "jk_whatever",
+      "format": "xm",
+      "filename": "jk_whatever.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=168271",
+      "md5": "f521b39009b67262cd6e9f732762c2d3",
+      "path": "Fasttracker 2/Jakim/whatever it means.xm",
+      "artist": "Jakim"
+    },
+    {
+      "title": "j-kgdsky",
+      "format": "xm",
+      "filename": "j-kgdsky.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=44452",
+      "md5": "40916d7c757715d59fcc7cba327aa5a7",
+      "path": "Fasttracker 2/Jase/kingdom skies.xm",
+      "artist": "Jase"
+    },
+    {
+      "title": "radix-weather_girl",
+      "format": "xm",
+      "filename": "radix-weather_girl.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=67573",
+      "md5": "d9f4a42b6a1e220665e1907967449079"
+    },
+    {
+      "title": "colours",
+      "format": "xm",
+      "filename": "colours.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=68796",
+      "md5": "491a3a703960dd42c415c11553103b00",
+      "path": "Fasttracker 2/Radix/coop-Lluvia/colours.xm",
+      "artist": "Radix"
+    },
+    {
+      "title": "playingw",
+      "format": "mod",
+      "filename": "playingw.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=67779",
+      "md5": "bd56f42deb527bc3970496b9ab618667",
+      "path": "Protracker/Heatbeat/playing with delay.mod",
+      "artist": "Heatbeat"
+    },
+    {
+      "title": "WHEN",
+      "format": "s3m",
+      "filename": "WHEN.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=59854",
+      "md5": "268feb71a291c15f3079761b5395a193",
+      "path": "Screamtracker 3/Purple Motion/when the heavens fall.s3m",
+      "artist": "Purple Motion"
+    },
+    {
+      "title": "desert2",
+      "format": "mod",
+      "filename": "desert2.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=37611",
+      "md5": "fa5d5ae4360f5a8886950ffe012d762a"
+    },
+    {
+      "title": "95-ravers-megamix",
+      "format": "mod",
+      "filename": "95-ravers-megamix.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=62009",
+      "md5": "d2359b603322d1fae2c003b403f139ca",
+      "path": "Protracker/Daxx/'95 raver's megamix.mod",
+      "artist": "Daxx"
+    },
+    {
+      "title": "verzion",
+      "format": "it",
+      "filename": "verzion.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=156646",
+      "md5": "58f279f6332a1891516f22d64629bded",
+      "path": "Impulsetracker/Syphus/verzion.it",
+      "artist": "Syphus"
+    },
+    {
+      "title": "apoplexy",
+      "format": "mod",
+      "filename": "apoplexy.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=82262",
+      "md5": "2624a7b7acb674ce71f3f9a1b667f2db",
+      "path": "Protracker/Bee Hunter/apoplexy.mod",
+      "artist": "Bee Hunter"
+    },
+    {
+      "title": "kajahtaa",
+      "format": "xm",
+      "filename": "kajahtaa.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=47425",
+      "md5": "1e9f8e6978f0100957e7eb2817b1d5b7",
+      "path": "Fasttracker 2/Cube/ransumaasta kajahtaa.xm",
+      "artist": "Cube"
+    },
+    {
+      "title": "toilet6",
+      "format": "xm",
+      "filename": "toilet6.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=63627",
+      "md5": "3618195a20fa91b6b92471b4d5b2b708",
+      "path": "Fasttracker 2/Ghidorah/toilet sex!.xm",
+      "artist": "Ghidorah"
+    },
+    {
+      "title": "CLICK",
+      "format": "s3m",
+      "filename": "CLICK.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=34622",
+      "md5": "c8e69f2d9591e3437f6b64ea8e3834b3",
+      "path": "Screamtracker 3/Necros/click.s3m",
+      "artist": "Necros"
+    },
+    {
+      "title": "i_realize_compo_edit",
+      "format": "xm",
+      "filename": "i_realize_compo_edit.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=148463",
+      "md5": "57bbb97cd3cddb4f1b58ff36227e9551",
+      "path": "Fasttracker 2/Radix/i realize (compo edit).xm",
+      "artist": "Radix"
+    },
+    {
+      "title": "back_again",
+      "format": "mod",
+      "filename": "back_again.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=76215",
+      "md5": "14394dbb8add500bcf1d3ff7d2525d24",
+      "path": "Protracker/4-Mat/back again.mod",
+      "artist": "4-Mat"
+    },
+    {
+      "title": "ryukenden",
+      "format": "xm",
+      "filename": "ryukenden.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=172148",
+      "md5": "c94eacd0e446bbac46f5d57f9e205350"
+    },
+    {
+      "title": "KLISJE",
+      "format": "mod",
+      "filename": "KLISJE.MOD",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=47057",
+      "md5": "e998012c700eb43af0321711305829b2",
+      "path": "Protracker/Walkman/klisje paa klisje.mod",
+      "artist": "Walkman"
+    },
+    {
+      "title": "bj-vte",
+      "format": "s3m",
+      "filename": "bj-vte.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=36892",
+      "md5": "56b06e90e2b782a5918eeccd05e803fa",
+      "path": "Screamtracker 3/Big Jim/voyage to eternity.s3m",
+      "artist": "Big Jim"
+    },
+    {
+      "title": "tiny_tunes",
+      "format": "mod",
+      "filename": "tiny_tunes.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=106484",
+      "md5": "a730bc5252a2a8fc20ccf9ed15fc0bcf",
+      "path": "Protracker/Jogeir Liljedahl/tiny tunes.mod",
+      "artist": "Jogeir Liljedahl"
+    },
+    {
+      "title": "jet_lag",
+      "format": "xm",
+      "filename": "jet_lag.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=146550",
+      "md5": "c2c691bd10ed909896a7d478a30b8ac2",
+      "path": "Fasttracker 2/Nighthawk/jet lag.xm",
+      "artist": "Nighthawk"
+    },
+    {
+      "title": "alone-mr",
+      "format": "it",
+      "filename": "alone-mr.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=33337",
+      "md5": "3c45f8b4bd398dfe8035192137b18e06",
+      "path": "Impulsetracker/Mick Rippon/alone.it",
+      "artist": "Mick Rippon"
+    },
+    {
+      "title": "mrghoest",
+      "format": "xm",
+      "filename": "mrghoest.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=52717",
+      "md5": "a28ab70fa413dd4f6b1775cff3b001bd",
+      "path": "Fasttracker 2/MrGamer/hostlov.xm",
+      "artist": "MrGamer"
+    },
+    {
+      "title": "NETWORK",
+      "format": "s3m",
+      "filename": "NETWORK.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=48923",
+      "md5": "4bcfd5dabd9c23a8fe761a0f44965f8f",
+      "path": "Screamtracker 3/Skaven/network.s3m",
+      "artist": "Skaven"
+    },
+    {
+      "title": "superglam",
+      "format": "xm",
+      "filename": "superglam.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=68785",
+      "md5": "2059bea0f85f370a2954185ea8b4dad1",
+      "path": "Fasttracker 2/Radix/superglam.xm",
+      "artist": "Radix"
+    },
+    {
+      "title": "2nd_skav",
+      "format": "s3m",
+      "filename": "2nd_skav.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=212082",
+      "md5": "ed8577098332edabe6e9c5bb8d3f83a7"
+    },
+    {
+      "title": "ZAK",
+      "format": "s3m",
+      "filename": "ZAK.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=63213",
+      "md5": "3843294e59348ee6a0adb172a817c491"
+    },
+    {
+      "title": "rainbowdash",
+      "format": "xm",
+      "filename": "rainbowdash.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=173206",
+      "md5": "68f8d4b824ff660d799b06e38e9293b8",
+      "path": "Fasttracker 2/Radix/coop-Xylo/rainbow dash.xm",
+      "artist": "Radix"
+    },
+    {
+      "title": "chris31b",
+      "format": "it",
+      "filename": "chris31b.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=37029",
+      "md5": "67dcd6106b9ac7a2ed6ccfd0660a387a",
+      "path": "Impulsetracker/Chris Jarvis/blue flame.short.it",
+      "artist": "Chris Jarvis"
+    },
+    {
+      "title": "nearly_there_",
+      "format": "mod",
+      "filename": "nearly_there_.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=104178",
+      "md5": "fd69f5299e54059ad274c56eff3472fa",
+      "path": "Protracker/Jogeir Liljedahl/nearly there.mod",
+      "artist": "Jogeir Liljedahl"
+    },
+    {
+      "title": "virt_-_nightfall_over_the_city",
+      "format": "it",
+      "filename": "virt_-_nightfall_over_the_city.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=181523",
+      "md5": "0436b360e29fcaa7fe31c0b1c93ee559",
+      "path": "Impulsetracker/Virt/nightfall over the city.it",
+      "artist": "Virt"
+    },
+    {
+      "title": "jt_mind",
+      "format": "xm",
+      "filename": "jt_mind.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=46499",
+      "md5": "4219cc94645d8c223c9501174b3d84ba",
+      "path": "Fasttracker 2/Jeroen Tel/in my life, my mind.xm",
+      "artist": "Jeroen Tel"
+    },
+    {
+      "title": "titsfits",
+      "format": "xm",
+      "filename": "titsfits.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=63093",
+      "md5": "ff3ce956f9ed50351a80f8057fa5b747",
+      "path": "Fasttracker 2/Andromeda/tits that fits.xm",
+      "artist": "Andromeda"
+    },
+    {
+      "title": "alex_brandon_-_deus_ex_title_music",
+      "format": "it",
+      "filename": "alex_brandon_-_deus_ex_title_music.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=155905",
+      "md5": "5ea6224bb4069f8ed976c4e7d3bfca5c"
+    },
+    {
+      "title": "skyrider",
+      "format": "s3m",
+      "filename": "skyrider.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=74888",
+      "md5": "a8778cfd50bdbdd307f33944f15e02e3",
+      "path": "Screamtracker 3/Purple Motion/skyrider.s3m",
+      "artist": "Purple Motion"
+    },
+    {
+      "title": "neutralz",
+      "format": "xm",
+      "filename": "neutralz.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=50077",
+      "md5": "774c4cf53e670141df92778500a12774",
+      "path": "Fasttracker 2/Elwood/neutral zone.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "hours",
+      "format": "xm",
+      "filename": "hours.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=46468",
+      "md5": "bb27a790246d622a2afdaa2508721dfb",
+      "path": "Fasttracker 2/Elwood/after hours.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "scotch",
+      "format": "xm",
+      "filename": "scotch.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=55761",
+      "md5": "36aaa11174bcff311456070428de6631",
+      "path": "Fasttracker 2/Cube/scotchman in a skirt.xm",
+      "artist": "Cube"
+    },
+    {
+      "title": "08_sad_song",
+      "format": "it",
+      "filename": "08_sad_song.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=172778",
+      "md5": "f62f771447ff86fb4a859ee66c527fce",
+      "path": "Impulsetracker/Darkman007/sad song.it",
+      "artist": "Darkman007"
+    },
+    {
+      "title": "sapphire_eyes",
+      "format": "xm",
+      "filename": "sapphire_eyes.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=185286",
+      "md5": "6099237a488221e8f70a71c6d843566b"
+    },
+    {
+      "title": "inside_out",
+      "format": "s3m",
+      "filename": "inside_out.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=212701",
+      "md5": "10a3bad1053db408ccffc6089965553e"
+    },
+    {
+      "title": "jmnerd_ijf_point_of_no_return",
+      "format": "it",
+      "filename": "jmnerd_ijf_point_of_no_return.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=182718",
+      "md5": "219fc1f2882b4cbd19c97320b7fd91a2"
+    },
+    {
+      "title": "118in64",
+      "format": "xm",
+      "filename": "118in64.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=59450",
+      "md5": "17da1fdf4adef806fe77c888bdd68e0d",
+      "path": "Fasttracker 2/Reed/118 in 64 and 194.xm",
+      "artist": "Reed"
+    },
+    {
+      "title": "zeta_force_level_2",
+      "format": "xm",
+      "filename": "zeta_force_level_2.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=153915",
+      "md5": "ad7d2e8f49d984024026c423a3e12f4f",
+      "path": "Fasttracker 2/Zabutom/zeta force level 2.xm",
+      "artist": "Zabutom"
+    },
+    {
+      "title": "lovetrp",
+      "format": "xm",
+      "filename": "lovetrp.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=49116",
+      "md5": "9c1b60b5cfbd437153a35579e8ec4134",
+      "path": "Fasttracker 2/Anvil/the love trap.xm",
+      "artist": "Anvil"
+    },
+    {
+      "title": "sirens",
+      "format": "mod",
+      "filename": "sirens.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=77604",
+      "md5": "389bba90b8e072550ba6de9c35fc5d7b",
+      "path": "Protracker/Dave The Brave/sirens.mod",
+      "artist": "Dave The Brave"
+    },
+    {
+      "title": "1_channel_moog",
+      "format": "it",
+      "filename": "1_channel_moog.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=158975",
+      "md5": "8c6127ae09adc0468fbb23860a823ac2",
+      "path": "Impulsetracker/Manwe/1 channel !!!.it",
+      "artist": "Manwe"
+    },
+    {
+      "title": "486",
+      "format": "xm",
+      "filename": "486.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=61172",
+      "md5": "6ecf2bdc1fd201a871364a3ae5590272",
+      "path": "Fasttracker 2/Excelion/ibm 486 66mhz.xm",
+      "artist": "Excelion"
+    },
+    {
+      "title": "for_funky_fish",
+      "format": "xm",
+      "filename": "for_funky_fish.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=140279",
+      "md5": "6b45466be1819fdf60ceb1e982724405",
+      "path": "Fasttracker 2/Cerror/for funky fish.xm",
+      "artist": "Cerror"
+    },
+    {
+      "title": "little_computer_boy",
+      "format": "xm",
+      "filename": "little_computer_boy.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=154086",
+      "md5": "bc44d7a2f3b0d1fd7794eb1bbb9d94ea",
+      "path": "Fasttracker 2/Zalza/coop-Lookagain/little computer boy.xm",
+      "artist": "Zalza"
+    },
+    {
+      "title": "knulla-kuk",
+      "format": "mod",
+      "filename": "knulla-kuk.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=48107",
+      "md5": "188989fa606a1d19171106f60f6340a4"
+    },
+    {
+      "title": "AXELF",
+      "format": "mod",
+      "filename": "AXELF.MOD",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=32394",
+      "md5": "ebf81e1aad5e80764eedacc903a3dc55",
+      "path": "Soundtracker/- unknown/axel f.mod",
+      "artist": "- unknown"
+    },
+    {
+      "title": "easter_egg",
+      "format": "xm",
+      "filename": "easter_egg.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=133766",
+      "md5": "d452990cbb9ec264ea23fdc0e4466e81",
+      "path": "Fasttracker 2/Ghidorah/easter egg.xm",
+      "artist": "Ghidorah"
+    },
+    {
+      "title": "radix_-_feng_shui_schematics",
+      "format": "xm",
+      "filename": "radix_-_feng_shui_schematics.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=169628",
+      "md5": "90368ee934775d4891ff9608546b7431",
+      "path": "Fasttracker 2/Radix/feng shui schematics.xm",
+      "artist": "Radix"
+    },
+    {
+      "title": "getabrain",
+      "format": "xm",
+      "filename": "getabrain.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=168205",
+      "md5": "cc4e2949ab2e1576958f36e547318343",
+      "path": "Fasttracker 2/Fearofdark/get a brian morans.xm",
+      "artist": "Fearofdark"
+    },
+    {
+      "title": "ninja",
+      "format": "xm",
+      "filename": "ninja.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=50901",
+      "md5": "3ae9f0bc5cdc12f278fb0307228b20d0",
+      "path": "Fasttracker 2/Chavez/ninja bolognese.xm",
+      "artist": "Chavez"
+    },
+    {
+      "title": "skogen11",
+      "format": "mod",
+      "filename": "skogen11.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=67116",
+      "md5": "0b795f6700a72d85a3bbaa1955ab3bcc",
+      "path": "Protracker/Coma/skogens djur 011.mod",
+      "artist": "Coma"
+    },
+    {
+      "title": "4mats-madness",
+      "format": "mod",
+      "filename": "4mats-madness.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=66036",
+      "md5": "67b2bcfab06172df027904d666df9c28"
+    },
+    {
+      "title": "radix_-_the_mission",
+      "format": "xm",
+      "filename": "radix_-_the_mission.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=167156",
+      "md5": "19e5aa830e01f8371ffe6ad441001279",
+      "path": "Fasttracker 2/Radix/the mission.xm",
+      "artist": "Radix"
+    },
+    {
+      "title": "corruption",
+      "format": "mod",
+      "filename": "corruption.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=39162",
+      "md5": "52d1b3bb8dfc0d5149218d901163be6d"
+    },
+    {
+      "title": "mental_delivrance",
+      "format": "xm",
+      "filename": "mental_delivrance.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=137932",
+      "md5": "8aee7352cf70a3737a118df2f54f7c85",
+      "path": "Fasttracker 2/Kalachnikov/mental delivrance.xm",
+      "artist": "Kalachnikov"
+    },
+    {
+      "title": "the_snippet",
+      "format": "xm",
+      "filename": "the_snippet.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=160476",
+      "md5": "9b44a9432ea3504e38da2f346ee4ee34"
+    },
+    {
+      "title": "popcorn_remix",
+      "format": "mod",
+      "filename": "popcorn_remix.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=104811",
+      "md5": "7f5548a59e2bbafbfe7aa4f34b82fe8d",
+      "path": "Protracker/Lizardking/popcorn.remix.mod",
+      "artist": "Lizardking"
+    },
+    {
+      "title": "boo-come_along",
+      "format": "xm",
+      "filename": "boo-come_along.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=66913",
+      "md5": "4dd3c421727368b11f9c26f2c03b5be5",
+      "path": "Fasttracker 2/Boo/come along.xm",
+      "artist": "Boo"
+    },
+    {
+      "title": "ambrozia",
+      "format": "xm",
+      "filename": "ambrozia.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=33432",
+      "md5": "5e7b850f78f8758b693a972bcb57929e"
+    },
+    {
+      "title": "robocop3",
+      "format": "xm",
+      "filename": "robocop3.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=136815",
+      "md5": "defdc7ed619eca5eaef4ffecd2cd4ae8",
+      "path": "Fasttracker 2/Alien (DE)/robocop3.xm",
+      "artist": "Alien (DE)"
+    },
+    {
+      "title": "class01",
+      "format": "mod",
+      "filename": "class01.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=37594",
+      "md5": "b812d1ae5ebc9e6a43028f2df5b70439",
+      "path": "Protracker/Maktone/class cracktro#15.mod",
+      "artist": "Maktone"
+    },
+    {
+      "title": "_sunlight_",
+      "format": "xm",
+      "filename": "_sunlight_.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=142447",
+      "md5": "8261979cb7d6bb70b9835bd723a3ba6f",
+      "path": "Fasttracker 2/Fender/sunlight.xm",
+      "artist": "Fender"
+    },
+    {
+      "title": "donovans_moonbike",
+      "format": "xm",
+      "filename": "donovans_moonbike.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=148458",
+      "md5": "6fa026c02dfb082c7cfe5415c5575b5f",
+      "path": "Fasttracker 2/Radix/donovan's moonbike.xm",
+      "artist": "Radix"
+    },
+    {
+      "title": "h0ffman_-_eon",
+      "format": "mod",
+      "filename": "h0ffman_-_eon.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=185270",
+      "md5": "5b4d7b9d724d6e341c3503822bcf76a4",
+      "path": "Protracker/Hoffman/eon.mod",
+      "artist": "Hoffman"
+    },
+    {
+      "title": "jt_pools",
+      "format": "xm",
+      "filename": "jt_pools.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=46502",
+      "md5": "ea293797dc3f04bdd5ba4269909736f3",
+      "path": "Fasttracker 2/Jeroen Tel/pools of poison.xm",
+      "artist": "Jeroen Tel"
+    },
+    {
+      "title": "paul",
+      "format": "mod",
+      "filename": "paul.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=53421",
+      "md5": "2bceebead94d314f9084c884db47ead6",
+      "path": "Protracker/Radix/paul the penguin.mod",
+      "artist": "Radix"
+    },
+    {
+      "title": "elw-hom2",
+      "format": "xm",
+      "filename": "elw-hom2.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=41757",
+      "md5": "1553b02f1cebba742c2f52395dd1cf8e",
+      "path": "Fasttracker 2/Elwood/homecoming.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "scrambld",
+      "format": "mod",
+      "filename": "scrambld.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=55789",
+      "md5": "423951c6677138f47bcfbebec1c1e926",
+      "path": "Protracker/Heatbeat/scrambled mind.mod",
+      "artist": "Heatbeat"
+    },
+    {
+      "title": "dirt",
+      "format": "mod",
+      "filename": "dirt.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=38520",
+      "md5": "b4b2b823b35512ce239a60242a5f7beb",
+      "path": "Protracker/Nightlight/dirt.mod",
+      "artist": "Nightlight"
+    },
+    {
+      "title": "rain_eater",
+      "format": "xm",
+      "filename": "rain_eater.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=143396",
+      "md5": "3c98a7b36500a11d277e7dddfd8bfaae",
+      "path": "Fasttracker 2/Graff/rain eater.xm",
+      "artist": "Graff"
+    },
+    {
+      "title": "trans_atlantic",
+      "format": "mod",
+      "filename": "trans_atlantic.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=105709",
+      "md5": "f0f98cbf3075e338f739aac1cf81bda2",
+      "path": "Protracker/Lizardking/trans atlantic.mod",
+      "artist": "Lizardking"
+    },
+    {
+      "title": "ambpower",
+      "format": "mod",
+      "filename": "ambpower.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=33431",
+      "md5": "56e3978b03364726c84033055d86dc92"
+    },
+    {
+      "title": "blue_val",
+      "format": "s3m",
+      "filename": "blue_val.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=37685",
+      "md5": "73fbcb960e65aa1a5718849d90dc57f2",
+      "path": "Screamtracker 3/Karsten Koch/the blue valley.s3m",
+      "artist": "Karsten Koch"
+    },
+    {
+      "title": "ledstorm",
+      "format": "xm",
+      "filename": "ledstorm.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=136977",
+      "md5": "6f7e99c441f574a7303ff3aade72995f",
+      "path": "Fasttracker 2/Jogeir Liljedahl/ledstorm.xm",
+      "artist": "Jogeir Liljedahl"
+    },
+    {
+      "title": "seldom_seen",
+      "format": "xm",
+      "filename": "seldom_seen.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=68783",
+      "md5": "41d9ff3a964daf0d090abb8bc1425eea",
+      "path": "Fasttracker 2/Radix/seldom seen.xm",
+      "artist": "Radix"
+    },
+    {
+      "title": "sick-ass",
+      "format": "it",
+      "filename": "sick-ass.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=177712",
+      "md5": "681a18f127d932044f533ef8186f727b"
+    },
+    {
+      "title": "mydoglivesonthemoon",
+      "format": "xm",
+      "filename": "mydoglivesonthemoon.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=146298",
+      "md5": "5b66dd20986ee39ee79512e997240094",
+      "path": "Fasttracker 2/Nagz/mydoglivesonthemoon.xm",
+      "artist": "Nagz"
+    },
+    {
+      "title": "sinny_-_sky_sunday",
+      "format": "xm",
+      "filename": "sinny_-_sky_sunday.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=185267",
+      "md5": "010e05c2530e333fa2ad12ca1d4c3113",
+      "path": "Fasttracker 2/Sinny/sky sunday.xm",
+      "artist": "Sinny"
+    },
+    {
+      "title": "overdriv",
+      "format": "s3m",
+      "filename": "overdriv.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=211654",
+      "md5": "e6044c025d2e2760a624656493247383"
+    },
+    {
+      "title": "unk",
+      "format": "xm",
+      "filename": "unk.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=58949",
+      "md5": "2929038be65e90858427ef975db4f45e",
+      "path": "Fasttracker 2/Elwood/unknown phuture.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "hotdogs",
+      "format": "xm",
+      "filename": "hotdogs.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=46415",
+      "md5": "a95df170a149bbf98258aee2e36c7da3",
+      "path": "Fasttracker 2/Lesnik/hot dogs.xm",
+      "artist": "Lesnik"
+    },
+    {
+      "title": "artificial_sweetener",
+      "format": "xm",
+      "filename": "artificial_sweetener.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=148808",
+      "md5": "915f6f8bf309a512e53faa98503c1978",
+      "path": "Fasttracker 2/Raina/coop-Funky Fish/artificial sweetener.xm",
+      "artist": "Raina"
+    },
+    {
+      "title": "contraduct_design",
+      "format": "xm",
+      "filename": "contraduct_design.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=185479",
+      "md5": "089ccfa9f0c9208c288340f2ac340aba",
+      "path": "Fasttracker 2/The Hardliner/contraduct design.xm",
+      "artist": "The Hardliner"
+    },
+    {
+      "title": "lick_the_alphabet",
+      "format": "it",
+      "filename": "lick_the_alphabet.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=157280",
+      "md5": "5cfd3b946e42a3649aac1020b0326e3b",
+      "path": "Impulsetracker/Virt/lick the alphabet.it",
+      "artist": "Virt"
+    },
+    {
+      "title": "PANIC",
+      "format": "s3m",
+      "filename": "PANIC.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=52695",
+      "md5": "7864d163734c7e1c68a28c9f515709b9"
+    },
+    {
+      "title": "zalza-g_te_g_r_p_tivoli",
+      "format": "xm",
+      "filename": "zalza-g_te_g_r_p_tivoli.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=66597",
+      "md5": "80e511e1a7adab2882c2cdf274f331ac",
+      "path": "Fasttracker 2/Zalza/gote gar pa tivoli.xm",
+      "artist": "Zalza"
+    },
+    {
+      "title": "godown",
+      "format": "it",
+      "filename": "godown.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=68848",
+      "md5": "138200f10719745f8a838ec3dc551052",
+      "path": "Impulsetracker/Siren/unreal tournament - go down.it",
+      "artist": "Siren"
+    },
+    {
+      "title": "fod_ohcimadethisforyou",
+      "format": "it",
+      "filename": "fod_ohcimadethisforyou.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=174270",
+      "md5": "65268435530005ba9e178440a9adaf12",
+      "path": "Impulsetracker/Fearofdark/i made this for you, moot.it",
+      "artist": "Fearofdark"
+    },
+    {
+      "title": "interference",
+      "format": "mod",
+      "filename": "interference.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=68804",
+      "md5": "ee6d76649670e424f6e771c51dc7bfab"
+    },
+    {
+      "title": "chubb1-1",
+      "format": "mod",
+      "filename": "chubb1-1.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=67101",
+      "md5": "f62ce2d5b937784ec16218ecfa464df1",
+      "path": "Protracker/TDK/chubby-chip-chip.mod",
+      "artist": "TDK"
+    },
+    {
+      "title": "purple_motion_-_sundance",
+      "format": "mod",
+      "filename": "purple_motion_-_sundance.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=171453",
+      "md5": "d3cdccadff7347e117aa1531eaf23c7e",
+      "path": "Protracker/Purple Motion/sundance.mod",
+      "artist": "Purple Motion"
+    },
+    {
+      "title": "toilet",
+      "format": "xm",
+      "filename": "toilet.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=63611",
+      "md5": "b81266b397d76c45aed68c8ebb9be4fb",
+      "path": "Fasttracker 2/Ghidorah/toilet story.xm",
+      "artist": "Ghidorah"
+    },
+    {
+      "title": "squired",
+      "format": "xm",
+      "filename": "squired.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=58684",
+      "md5": "33a00e947f83941a36185f330a56a6d5",
+      "path": "Fasttracker 2/Gaius/coop-Bazooie/squired.xm",
+      "artist": "Gaius"
+    },
+    {
+      "title": "dancingonthemoon",
+      "format": "xm",
+      "filename": "dancingonthemoon.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=168543",
+      "md5": "c5606b675caf50316546a87f6d1a8696",
+      "path": "Fasttracker 2/Fearofdark/dancing 0n the m%n.xm",
+      "artist": "Fearofdark"
+    },
+    {
+      "title": "m5v-mars",
+      "format": "it",
+      "filename": "m5v-mars.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=48561",
+      "md5": "e9b6d4a9731d29aae4c85e6ba6e1c805"
+    },
+    {
+      "title": "plastic_pop",
+      "format": "xm",
+      "filename": "plastic_pop.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=144933",
+      "md5": "01e93348dfe58327a84dec3bf432da59",
+      "path": "Fasttracker 2/Maniac/plastic pop.xm",
+      "artist": "Maniac"
+    },
+    {
+      "title": "pelimusa",
+      "format": "s3m",
+      "filename": "pelimusa.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=54383",
+      "md5": "530adb83f58148ea9eb17e3f6ee3ea48",
+      "path": "Screamtracker 3/Juizzi The Shock/pelimusa.s3m",
+      "artist": "Juizzi The Shock"
+    },
+    {
+      "title": "db_toffe",
+      "format": "xm",
+      "filename": "db_toffe.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=36662",
+      "md5": "fa296470cf8eb431c730760f967f81b2",
+      "path": "Fasttracker 2/Dubmood/toffelskater-hero.xm",
+      "artist": "Dubmood"
+    },
+    {
+      "title": "cyberrid",
+      "format": "mod",
+      "filename": "cyberrid.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=40293",
+      "md5": "a9cf8ea3a03b0ce8cc10d438662b1ffb",
+      "path": "Protracker/Jester/cyberride.mod",
+      "artist": "Jester"
+    },
+    {
+      "title": "ENERGIA",
+      "format": "s3m",
+      "filename": "ENERGIA.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=40496",
+      "md5": "0ddeea1b5aef5a500f33efa6f5a7dc0f"
+    },
+    {
+      "title": "1989-a_number",
+      "format": "mod",
+      "filename": "1989-a_number.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=116659",
+      "md5": "4f0a81329c6342f8905832a0f69c09d6",
+      "path": "Protracker/Romeo Knight/1989-a number.mod",
+      "artist": "Romeo Knight"
+    },
+    {
+      "title": "intro_number_101",
+      "format": "mod",
+      "filename": "intro_number_101.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=121774",
+      "md5": "2e6eed848c35aded051963881f684360"
+    },
+    {
+      "title": "necros_-_winters_dream",
+      "format": "it",
+      "filename": "necros_-_winters_dream.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=168560",
+      "md5": "5ca09ab15fc7dde759297be7b8cabad7",
+      "path": "Impulsetracker/Necros/winter's dream.it",
+      "artist": "Necros"
+    },
+    {
+      "title": "90deg",
+      "format": "xm",
+      "filename": "90deg.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=61952",
+      "md5": "3f37f8eb81c5dced1e3666c4722051c6",
+      "path": "Fasttracker 2/Lesnik/ninety degrees.xm",
+      "artist": "Lesnik"
+    },
+    {
+      "title": "znm-wopeace",
+      "format": "it",
+      "filename": "znm-wopeace.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=64023",
+      "md5": "7289eec5ead65f6aef3320466df579cb",
+      "path": "Impulsetracker/Zanoma/world of peace.it",
+      "artist": "Zanoma"
+    },
+    {
+      "title": "v17-revengeofcats",
+      "format": "it",
+      "filename": "v17-revengeofcats.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=59025",
+      "md5": "f347a8257b97a8d3c09ded3524d652ed",
+      "path": "Impulsetracker/Skaven/revenge of the cats.it",
+      "artist": "Skaven"
+    },
+    {
+      "title": "4706-astraldreams",
+      "format": "it",
+      "filename": "4706-astraldreams.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=61147",
+      "md5": "60e59e55c55f4850d5d7decb6332ac68",
+      "path": "Impulsetracker/Nightbeat/astral dreams.it",
+      "artist": "Nightbeat"
+    },
+    {
+      "title": "necros_-_introspection",
+      "format": "s3m",
+      "filename": "necros_-_introspection.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=168513",
+      "md5": "ade235e382b98e6285a5fa94667aa829",
+      "path": "Screamtracker 3/Necros/introspection.s3m",
+      "artist": "Necros"
+    },
+    {
+      "title": "outrun2k",
+      "format": "xm",
+      "filename": "outrun2k.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=51441",
+      "md5": "00793e8cc5684573ed62008b13882cc4",
+      "path": "Fasttracker 2/Reptile (SE)/coop-Sky/outrun 2000 rmx.xm",
+      "artist": "Reptile (SE)"
+    },
+    {
+      "title": "SHOOTING",
+      "format": "xm",
+      "filename": "SHOOTING.XM",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=54301",
+      "md5": "9792496c18515c75170f2e941d8723ab",
+      "path": "Fasttracker 2/Elwood/shooting star.xm",
+      "artist": "Elwood"
+    },
+    {
+      "title": "db_3dg",
+      "format": "xm",
+      "filename": "db_3dg.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=36523",
+      "md5": "d8e258fdbe58e8ea3084cc44304ba0a9",
+      "path": "Fasttracker 2/Dubmood/3d galax.xm",
+      "artist": "Dubmood"
+    },
+    {
+      "title": "nwk-last",
+      "format": "xm",
+      "filename": "nwk-last.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=52077",
+      "md5": "908b7b1b2d7156e3f3edc53ae1da1a1f",
+      "path": "Fasttracker 2/Nighthawk/last sunset.xm",
+      "artist": "Nighthawk"
+    },
+    {
+      "title": "vince_kaichan_-_rollerdisco_rumble",
+      "format": "mptm",
+      "filename": "vince_kaichan_-_rollerdisco_rumble.mptm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=178802",
+      "md5": "46409bfee4b032162f5e9c9b25e4239f"
+    },
+    {
+      "title": "autonom",
+      "format": "s3m",
+      "filename": "autonom.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=34290",
+      "md5": "966541f828a2c51ab802ab8d11129c19",
+      "path": "Screamtracker 3/Skaven/autonomus.s3m",
+      "artist": "Skaven"
+    },
+    {
+      "title": "BALLAD3",
+      "format": "s3m",
+      "filename": "BALLAD3.S3M",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=34553",
+      "md5": "dbe8c141faa5cfdffe42433eb70e87ef",
+      "path": "Screamtracker 3/Siren/the last ballad.s3m",
+      "artist": "Siren"
+    },
+    {
+      "title": "crack",
+      "format": "xm",
+      "filename": "crack.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=39429",
+      "md5": "334014e67926c89780da8f189afc9820",
+      "path": "Fasttracker 2/Dualtrax/keygentune2003 orn.xm",
+      "artist": "Dualtrax"
+    },
+    {
+      "title": "068",
+      "format": "xm",
+      "filename": "068.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=160971",
+      "md5": "79c74cc09b9c2dbb595506b78e1943c5"
+    },
+    {
+      "title": "necros_-_gateway",
+      "format": "s3m",
+      "filename": "necros_-_gateway.s3m",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=168612",
+      "md5": "d13e9ee528668956867f0589c68ed1b5",
+      "path": "Screamtracker 3/Necros/gateway.s3m",
+      "artist": "Necros"
+    },
+    {
+      "title": "vvertur",
+      "format": "mod",
+      "filename": "vvertur.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=61595",
+      "md5": "b879ed3a6fdc06096404eda0fae6388d",
+      "path": "Protracker/Jogeir Liljedahl/overture.mod",
+      "artist": "Jogeir Liljedahl"
+    },
+    {
+      "title": "miriel",
+      "format": "it",
+      "filename": "miriel.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=156627",
+      "md5": "35413876a4467ce6bac1db9d60cb711d",
+      "path": "Impulsetracker/Nightbeat/miriel.it",
+      "artist": "Nightbeat"
+    },
+    {
+      "title": "tiger_mission_hi_score",
+      "format": "xm",
+      "filename": "tiger_mission_hi_score.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=141569",
+      "md5": "81a54998981027ccfa51183a3391a123",
+      "path": "Fasttracker 2/Drax/tiger mission hi-score.xm",
+      "artist": "Drax"
+    },
+    {
+      "title": "svengit",
+      "format": "xm",
+      "filename": "svengit.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=209676",
+      "md5": "54cb39b09570096247ec9f056664510c",
+      "path": "Fasttracker 2/Jockson/svengit.xm",
+      "artist": "Jockson"
+    },
+    {
+      "title": "skogen14",
+      "format": "mod",
+      "filename": "skogen14.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=67120",
+      "md5": "5bb06ad0542f6f06420487ac8cc591b1",
+      "path": "Protracker/Coma/skogens djur 014.mod",
+      "artist": "Coma"
+    },
+    {
+      "title": "lhs_rld9",
+      "format": "xm",
+      "filename": "lhs_rld9.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=176145",
+      "md5": "30d245118ad5874270b39fe1ea20ede2"
+    },
+    {
+      "title": "onward",
+      "format": "xm",
+      "filename": "onward.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=50820",
+      "md5": "294f0526ddd592b2d921f899d96d951c",
+      "path": "Fasttracker 2/Jugi/onward.xm",
+      "artist": "Jugi"
+    },
+    {
+      "title": "axel_f_-_dj_metune",
+      "format": "mod",
+      "filename": "axel_f_-_dj_metune.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=177642",
+      "md5": "cd72673d769783ae85ff329e6e1a93ef",
+      "path": "Protracker/DJ Metune/axel f.mod",
+      "artist": "DJ Metune"
+    },
+    {
+      "title": "mrg8bit",
+      "format": "xm",
+      "filename": "mrg8bit.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=52662",
+      "md5": "e41394a3efbf0f6368a84e7d4074c725",
+      "path": "Fasttracker 2/MrGamer/8-bit love.xm",
+      "artist": "MrGamer"
+    },
+    {
+      "title": "ap_sad",
+      "format": "xm",
+      "filename": "ap_sad.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=33782",
+      "md5": "28510c7c839738beb8647837a214edee",
+      "path": "Fasttracker 2/Arachno/a sad touch.xm",
+      "artist": "Arachno"
+    },
+    {
+      "title": "m4v-fasc",
+      "format": "it",
+      "filename": "m4v-fasc.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=48552",
+      "md5": "dfd1ce2cbbc762b2454d8a74c5244067",
+      "path": "Impulsetracker/Necros/tangerine fascination.it",
+      "artist": "Necros"
+    },
+    {
+      "title": "playing_",
+      "format": "xm",
+      "filename": "playing_.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=55486",
+      "md5": "e926b3ac173a2c8e80cfa66d6f355b7a",
+      "path": "Fasttracker 2/Nighthawk/playing with death.xm",
+      "artist": "Nighthawk"
+    },
+    {
+      "title": "__lightning__",
+      "format": "xm",
+      "filename": "__lightning__.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=149049",
+      "md5": "05ebfbf378915ffbf319169c6c2ed66d",
+      "path": "Fasttracker 2/Ray/lightning.xm",
+      "artist": "Ray"
+    },
+    {
+      "title": "kookoo",
+      "format": "xm",
+      "filename": "kookoo.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=148490",
+      "md5": "d48c8b0856bd094ec6f2f42cdd7cfe32",
+      "path": "Fasttracker 2/Radix/coop-Loonie/kookoo.xm",
+      "artist": "Radix"
+    },
+    {
+      "title": "lhs_rld1",
+      "format": "xm",
+      "filename": "lhs_rld1.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=173261",
+      "md5": "d0a04ea93287e7845b1e7dbda41507ce"
+    },
+    {
+      "title": "oro_incenso-orig",
+      "format": "mod",
+      "filename": "oro_incenso-orig.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=105634",
+      "md5": "b4a4062de0c6604a4f1d3cb0f9fecda1",
+      "path": "Protracker/Jogeir Liljedahl/oro incenso-orig.mod",
+      "artist": "Jogeir Liljedahl"
+    },
+    {
+      "title": "strangers",
+      "format": "xm",
+      "filename": "strangers.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=60450",
+      "md5": "6e0894ced7d88a0be33c2f8c3cbd008e",
+      "path": "Fasttracker 2/Drax/when strangers meet!.xm",
+      "artist": "Drax"
+    },
+    {
+      "title": "db_pdx3",
+      "format": "xm",
+      "filename": "db_pdx3.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=36636",
+      "md5": "7008aa603d8a0ca43d13462182635513",
+      "path": "Fasttracker 2/Dubmood/paradox #3.xm",
+      "artist": "Dubmood"
+    },
+    {
+      "title": "rainbow_runner",
+      "format": "xm",
+      "filename": "rainbow_runner.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=146786",
+      "md5": "46946d8fb39edf7cb51c8b9f1a26cf01",
+      "path": "Fasttracker 2/Norfair/coop-Nighthawk/rainbow runner.xm",
+      "artist": "Norfair"
+    },
+    {
+      "title": "disease_-_beautiful_insanity",
+      "format": "xm",
+      "filename": "disease_-_beautiful_insanity.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=179200",
+      "md5": "3102f44e38eafe017b038c69f47368c6",
+      "path": "Fasttracker 2/Disease/beautiful insanity.xm",
+      "artist": "Disease"
+    },
+    {
+      "title": "db_key5",
+      "format": "xm",
+      "filename": "db_key5.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=36583",
+      "md5": "dc876cf704130bf5faaf5038427ffec8",
+      "path": "Fasttracker 2/Dubmood/lucid keygen #2.xm",
+      "artist": "Dubmood"
+    },
+    {
+      "title": "xyce-je_suis_baguette",
+      "format": "xm",
+      "filename": "xyce-je_suis_baguette.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=172268",
+      "md5": "948e42837551bd9c56262116024267ee",
+      "path": "Fasttracker 2/Cerror/coop-Xylo/je suis baguette.xm",
+      "artist": "Cerror"
+    },
+    {
+      "title": "siren_-_jazz_jackrabbit_3_castle_city",
+      "format": "it",
+      "filename": "siren_-_jazz_jackrabbit_3_castle_city.it",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=175740",
+      "md5": "0fec2554b9687678ef23fb41c984e8ea"
+    },
+    {
+      "title": "loonie-biohazard",
+      "format": "xm",
+      "filename": "loonie-biohazard.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=68075",
+      "md5": "74fe5c6103ba5ad90e0f033a35678fbb",
+      "path": "Fasttracker 2/Loonie/biohazard.xm",
+      "artist": "Loonie"
+    },
+    {
+      "title": "1990chip",
+      "format": "mod",
+      "filename": "1990chip.mod",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=59808",
+      "md5": "2fd6dc3d1d88377c46415a8a08a633cf",
+      "path": "Protracker/Maktone/1992.mod",
+      "artist": "Maktone"
+    },
+    {
+      "title": "ancient_stories",
+      "format": "xm",
+      "filename": "ancient_stories.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=134324",
+      "md5": "c67fabadca1d1cfe7bd2e53cf4d8a9c0",
+      "path": "Fasttracker 2/Awesome/ancient stories.xm",
+      "artist": "Awesome"
+    },
+    {
+      "title": "autumn_in_budapest",
+      "format": "xm",
+      "filename": "autumn_in_budapest.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=140628",
+      "md5": "b525b34f85ce66233ee8318a3f763e2b",
+      "path": "Fasttracker 2/Carlos/autumn in budapest.xm",
+      "artist": "Carlos"
+    },
+    {
+      "title": "jt_hello",
+      "format": "xm",
+      "filename": "jt_hello.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=46490",
+      "md5": "f14987f3f195b0531df56e4ef8e0c30e",
+      "path": "Fasttracker 2/Jeroen Tel/hello 1997.xm",
+      "artist": "Jeroen Tel"
+    },
+    {
+      "title": "yendi",
+      "format": "xm",
+      "filename": "yendi.xm",
+      "url": "https://api.modarchive.org/downloads.php?moduleid=148483",
+      "md5": "64e7c5e0738e88434367b30872b63b75",
+      "path": "Fasttracker 2/Radix/yendi.xm",
+      "artist": "Radix"
+    }
+  ]
+}

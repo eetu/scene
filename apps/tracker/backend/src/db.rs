@@ -27,6 +27,14 @@ impl Db {
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         // Enforce FKs so deleting a playlist cascades to its items.
         conn.pragma_update(None, "foreign_keys", "ON")?;
+        // Tuned for the Raspberry Pi target (slow SD-card I/O): keep sort/group
+        // temporaries in RAM rather than spilling to the card, give the page
+        // cache some room (~16 MB, negative = KiB), and wait out a transient lock
+        // instead of erroring. One connection (a tokio Mutex) means no real
+        // contention, but the timeout is cheap insurance against WAL checkpoints.
+        conn.pragma_update(None, "temp_store", "MEMORY")?;
+        conn.pragma_update(None, "cache_size", -16_000)?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
         Self::migrate(&conn)?;
         Ok(Self {
             inner: Arc::new(Mutex::new(conn)),
@@ -86,6 +94,8 @@ impl Db {
         // SCHEMA is created after, so it lands once the column exists.
         add_column_if_missing(conn, "files", "md5", "TEXT")?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_files_md5 ON files(md5)", [])?;
+        // `url` was added after the hybrid reshape; add it to an existing table.
+        add_column_if_missing(conn, "playlist_items", "url", "TEXT")?;
         conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         Ok(())
     }
@@ -152,6 +162,10 @@ CREATE TABLE IF NOT EXISTS files (
 );
 CREATE INDEX IF NOT EXISTS idx_files_hash ON files(content_hash);
 CREATE INDEX IF NOT EXISTS idx_files_grp ON files(grp);
+-- Case-insensitive filename lookup, so a playlist item resolves to a local file
+-- by name (the md5-or-filename fallback in the detail query) without scanning
+-- the whole `files` table per item.
+CREATE INDEX IF NOT EXISTS idx_files_fname_lower ON files(LOWER(filename));
 -- idx_files_md5 is created in migrate(), after the md5 column is ensured to
 -- exist (an older `files` table predates it).
 
@@ -195,17 +209,21 @@ CREATE TABLE IF NOT EXISTS playlists (
 );
 
 -- Ordered playlist entries (hybrid identity). `md5` is the local-library match
--- key (when known); `path` is a Modland `Format/Author/file` fetch path for a
--- missing module. A library-added item has md5 + null path; an imported item has
--- a path + maybe md5 (filled on fetch). An entry resolves to a local file via
--- `files.md5`; absent → "missing" (shown from the cached metadata, fetched by
--- path). `id` is a stable surrogate for reorder/remove.
+-- key (when known); `path` is a Modland `Format/Author/file` fetch path; `url`
+-- is a generic direct-download URL (e.g. a Mod Archive `downloads.php?moduleid`)
+-- for sources Modland doesn't carry. A library-added item has md5 + null fetch
+-- refs; an imported item has a path and/or url + maybe md5 (filled on fetch). An
+-- entry resolves to a local file via `files.md5`; absent → "missing" (shown from
+-- the cached metadata, fetched by path first, else url). `id` is a stable
+-- surrogate for reorder/remove. The backend stays service-agnostic: it downloads
+-- whatever `url` the curation supplied and verifies the bytes' md5.
 CREATE TABLE IF NOT EXISTS playlist_items (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   playlist_id  TEXT NOT NULL,
   position     INTEGER NOT NULL,
   md5          TEXT,
   path         TEXT,
+  url          TEXT,
   -- Cached display metadata (from the import doc / library at add time), used
   -- when the module isn't present locally.
   title        TEXT,

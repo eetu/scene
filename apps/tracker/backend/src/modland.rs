@@ -37,9 +37,16 @@ impl Client {
     /// Modland listing). The path is percent-encoded here (paths contain spaces).
     pub async fn download_path(&self, raw_path: &str) -> anyhow::Result<Vec<u8>> {
         let url = format!("{}/pub/modules/{}", self.base, encode_path(raw_path));
+        self.download_url(&url).await
+    }
+
+    /// Download from an absolute URL (the generic by-`url` fetch fallback for
+    /// sources Modland doesn't carry — e.g. a Mod Archive `downloads.php` link).
+    /// The caller supplies the URL verbatim; we stay agnostic about the service.
+    pub async fn download_url(&self, url: &str) -> anyhow::Result<Vec<u8>> {
         let bytes = self
             .http
-            .get(&url)
+            .get(url)
             .send()
             .await
             .with_context(|| format!("GET {url}"))?
@@ -50,8 +57,23 @@ impl Client {
     }
 }
 
+/// A folder name derived from a URL's host (scheme + leading `api.`/`www.`
+/// stripped) — where a by-`url` download lands when its item carries no artist.
+pub fn host_group(url: &str) -> Option<String> {
+    let after = url.split("://").nth(1).unwrap_or(url);
+    let host = after.split('/').next().unwrap_or(after);
+    let host = host.strip_prefix("api.").unwrap_or(host);
+    let host = host.strip_prefix("www.").unwrap_or(host);
+    let host = host.trim();
+    if host.is_empty() {
+        None
+    } else {
+        Some(host.to_string())
+    }
+}
+
 /// Author = the second path segment of a Modland path (`Format/Author/.../file`).
-/// `None` for a path too shallow to carry one.
+/// `None` for a path too shallow to carry one. Maps to the library **artist**.
 pub fn author_from_path(path: &str) -> Option<String> {
     let segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
     if segs.len() >= 3 {
@@ -59,6 +81,14 @@ pub fn author_from_path(path: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+/// Format = the first path segment of a Modland path (e.g. `Fasttracker 2`).
+/// Maps to the library **group** so a fetched module lands at the convention's
+/// `group/artist/file` — not `author/file` (which would file the author *as* a
+/// group). `None` for an empty path.
+pub fn format_from_path(path: &str) -> Option<String> {
+    path.split('/').find(|s| !s.is_empty()).map(str::to_string)
 }
 
 const HEX: &[u8; 16] = b"0123456789ABCDEF";
