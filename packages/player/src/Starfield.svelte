@@ -1,7 +1,11 @@
 <script lang="ts">
-	// Parallax starfield — the quintessential demo effect. Stars stream out of the
-	// centre; their speed and brightness pulse with the music's energy (VU). On a
-	// dark panel in both themes (a starfield only reads on black). Accent-tinted.
+	// Parallax starfield over a deep-space backdrop: a centred nebula image sits
+	// at the back, parallax stars stream out of the centre (speed pulsing with the
+	// music's energy), and a chrome starfighter rides on top — so the stars fly
+	// *under* the ship, toward the nebula it's racing into. The backdrop + ship are
+	// pre-rendered assets (static/starfield-bg.jpg, static/starfield-ship.png, the
+	// ship keyed to transparency). Always dark — a "window into space" in either
+	// theme.
 	import { playback } from './player.svelte';
 
 	let { active = true }: { active?: boolean } = $props();
@@ -30,8 +34,13 @@
 		});
 		ro.observe(el);
 
-		// Stars in a normalized space: x,y in [-1,1], z (depth) in (0,1]. Seeded
-		// deterministically (no Math.random dependence on first paint order).
+		// Backdrop + ship sprite (ship background already keyed to transparent).
+		const bg = new Image();
+		bg.src = '/starfield-bg.jpg';
+		const ship = new Image();
+		ship.src = '/starfield-ship.webp';
+
+		// Stars in a normalized space: x,y in [-1,1], z (depth) in (0,1].
 		const xs = new Float32Array(COUNT);
 		const ys = new Float32Array(COUNT);
 		const zs = new Float32Array(COUNT);
@@ -47,34 +56,32 @@
 		}
 		for (let i = 0; i < COUNT; i++) place(i, false);
 
-		let accent = '#f78f08';
-		let light = false;
-		let cachedMode: string | null = null;
-		const node: HTMLCanvasElement = el;
-		const refresh = () => {
-			accent = getComputedStyle(node).getPropertyValue('--accent').trim() || accent;
-			light = document.documentElement.dataset.theme === 'light';
-		};
+		// Draw an image scaled to *cover* the canvas (centre-crop), keeping the
+		// centred nebula centred regardless of the pane's aspect ratio.
+		function drawCover(img: HTMLImageElement) {
+			const s = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+			const dw = img.naturalWidth * s;
+			const dh = img.naturalHeight * s;
+			g2.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+		}
 
 		let raf = 0;
 		let warp = 0.004; // eased speed
 		function frame() {
-			const mode = document.documentElement.dataset.theme ?? '';
-			if (mode !== cachedMode) {
-				refresh();
-				cachedMode = mode;
-			}
 			const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
-			// Calmer cruise: lower base + a gentler energy term so loud passages
-			// quicken the stream without making stars whiz past.
 			const targetWarp = active ? 0.0014 + energy * 0.009 : 0.0005;
 			warp += (targetWarp - warp) * 0.1;
 
 			if (w > 0 && h > 0) {
-				// Slight trail: fade the previous frame instead of clearing. Light
-				// theme inverts to dark stars streaming over a bright field.
-				g2.fillStyle = light ? 'rgba(244, 244, 250, 0.4)' : 'rgba(6, 6, 12, 0.35)';
-				g2.fillRect(0, 0, w, h);
+				// Backdrop (or a dark fill until it loads). Full redraw each frame, so
+				// no trail buildup — crisp stars read better over the busy nebula.
+				if (bg.complete && bg.naturalWidth) drawCover(bg);
+				else {
+					g2.fillStyle = '#0a0a12';
+					g2.fillRect(0, 0, w, h);
+				}
+
+				// Parallax stars, streaming out of the centre.
 				const cx = w / 2;
 				const cy = h / 2;
 				const scale = Math.min(w, h) * 0.9;
@@ -85,12 +92,25 @@
 					const py = cy + (ys[i] / zs[i]) * scale * 0.5;
 					if (px < 0 || px >= w || py < 0 || py >= h) continue;
 					const b = 1 - zs[i];
-					const size = b * 2.4 + 0.3;
-					g2.globalAlpha = Math.min(1, b * 1.2);
-					g2.fillStyle = light ? (b > 0.75 ? '#0c0c14' : '#3a3550') : b > 0.75 ? '#fff' : accent;
+					const size = b * 2.2 + 0.3;
+					g2.globalAlpha = Math.min(1, b * 1.3);
+					g2.fillStyle = '#fff';
 					g2.fillRect(px, py, size, size);
 				}
 				g2.globalAlpha = 1;
+
+				// Ship on top — stars pass behind it. POV foreground: scaled to most
+				// of the height, bottom-anchored (slight overhang), centred — so on a
+				// narrow pane the wings crop off the sides and the nose points up into
+				// the nebula at the starfield's centre.
+				if (ship.complete && ship.naturalWidth) {
+					const sAR = ship.naturalWidth / ship.naturalHeight;
+					const dH = h * 0.95;
+					const dW = dH * sAR;
+					// ~14% bottom overhang so the engines crop off-frame (POV "near"),
+					// nose up toward the nebula; on narrow panes the wings crop too.
+					g2.drawImage(ship, (w - dW) / 2, h - dH * 0.86, dW, dH);
+				}
 			}
 			raf = requestAnimationFrame(frame);
 		}
