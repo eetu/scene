@@ -1,5 +1,7 @@
 # Rust
 /target
+# bacon's exported jump locations
+.bacon-locations
 
 # Node / yarn (Berry, node-modules linker)
 node_modules
