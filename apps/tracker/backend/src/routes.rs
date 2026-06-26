@@ -637,6 +637,7 @@ async fn api_playlist(
                         pi.title, pi.artist, pi.format, pi.filename
                  FROM playlist_items pi
                  LEFT JOIN files f ON f.md5 = pi.md5
+                      OR (pi.md5 IS NULL AND LOWER(f.filename) = LOWER(pi.filename))
                  LEFT JOIN meta  m ON m.content_hash = f.content_hash
                  LEFT JOIN stats s ON s.content_hash = f.content_hash
                  WHERE pi.playlist_id = ?1
@@ -1105,9 +1106,10 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
             move |c| {
                 let mut s = c.prepare(
                     "SELECT pi.id, pi.path FROM playlist_items pi
-                     LEFT JOIN files f ON f.md5 = pi.md5
                      WHERE pi.playlist_id = ?1 AND pi.path IS NOT NULL
-                       AND (pi.md5 IS NULL OR f.md5 IS NULL)
+                       AND NOT EXISTS (SELECT 1 FROM files f WHERE f.md5 = pi.md5)
+                       AND NOT EXISTS (
+                         SELECT 1 FROM files f WHERE LOWER(f.filename) = LOWER(pi.filename))
                      ORDER BY pi.position",
                 )?;
                 let rows = s.query_map([&id], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
