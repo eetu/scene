@@ -1,6 +1,5 @@
 <script lang="ts">
 	import {
-		ListMusic,
 		ListPlus,
 		Monitor,
 		Moon,
@@ -38,9 +37,25 @@
 
 	import { api, ApiError, fileUrl, type Playlist, type StatusResponse, type Track } from '$lib/api';
 	import PatternViewScroll from '$lib/PatternViewScroll.svelte';
-	import PlaylistsPanel from '$lib/PlaylistsPanel.svelte';
+	import PlaylistsTab from '$lib/PlaylistsTab.svelte';
 
 	type GroupKey = 'group' | 'artist' | 'ext';
+
+	// The main view is tabbed: the library list, the same list filtered to
+	// favourites, or the playlists surface. Restored from last session.
+	type Tab = 'library' | 'favourites' | 'playlists';
+	let activeTab = $state<Tab>(
+		((typeof localStorage !== 'undefined' && localStorage.getItem('tracker:tab')) as Tab) ||
+			'library'
+	);
+	function setTab(t: Tab) {
+		activeTab = t;
+		if (typeof localStorage !== 'undefined') localStorage.setItem('tracker:tab', t);
+	}
+	// Library and Favourites share the grouped/virtualized list; only the filter
+	// predicate differs. (Playlists tab renders its own surface.)
+	const favView = $derived(activeTab === 'favourites');
+	const listView = $derived(activeTab === 'library' || activeTab === 'favourites');
 
 	let showPattern = $state(false);
 	let showSettings = $state(false);
@@ -81,7 +96,6 @@
 
 	let groupBy = $state<GroupKey>('group');
 	let sortBy = $state<'name' | 'plays'>('name');
-	let favoritesOnly = $state(false);
 	let query = $state('');
 
 	async function toggleFavorite(t: Track) {
@@ -235,7 +249,7 @@
 	const filtered = $derived.by(() => {
 		const q = query.trim().toLowerCase();
 		let list = tracks;
-		if (favoritesOnly) list = list.filter((t) => t.favorite);
+		if (favView) list = list.filter((t) => t.favorite);
 		if (q)
 			list = list.filter((t) =>
 				[t.path, t.title, t.filename, t.group, t.artist, t.type_long]
@@ -387,10 +401,6 @@
 			addTrack = null;
 			return;
 		}
-		if (e.key === 'Escape' && showPlaylists) {
-			showPlaylists = false;
-			return;
-		}
 		if (e.key === 'Escape' && showSettings) {
 			showSettings = false;
 			return;
@@ -468,14 +478,13 @@
 	}
 
 	// ---- playlists ----
-	let showPlaylists = $state(false);
 	let playlists = $state<Playlist[]>([]);
 
 	async function refreshPlaylists() {
 		try {
 			playlists = await api.playlists();
 		} catch {
-			/* non-fatal — panel still opens */
+			/* non-fatal — the tab still renders */
 		}
 	}
 
@@ -484,7 +493,6 @@
 		if (!list.length) return;
 		void playInOrder(list, start ?? list[0]);
 		showPattern = true;
-		showPlaylists = false;
 	}
 
 	// Add-to-playlist chooser: which library track we're filing, if any.
@@ -537,46 +545,30 @@
 
 <header class="bar">
 	<div class="brand">tracker</div>
-	<input
-		class="filter"
-		type="search"
-		placeholder="filter…"
-		bind:value={query}
-		disabled={scanning}
-	/>
-	<button
-		class="icon-btn"
-		class:on={favoritesOnly}
-		onclick={() => (favoritesOnly = !favoritesOnly)}
-		title={favoritesOnly ? 'showing favourites' : 'show favourites only'}
-		aria-label="toggle favourites filter"
-		aria-pressed={favoritesOnly}
-	>
-		<Star size={16} fill={favoritesOnly ? 'currentColor' : 'none'} />
-	</button>
-	<button
-		class="icon-btn"
-		onclick={() => (showPlaylists = true)}
-		title="playlists"
-		aria-label="playlists"
-	>
-		<ListMusic size={16} />
-	</button>
-	<label class="groupby">
-		group by
-		<select bind:value={groupBy} disabled={scanning}>
-			<option value="group">group</option>
-			<option value="artist">artist</option>
-			<option value="ext">format</option>
-		</select>
-	</label>
-	<label class="groupby">
-		sort
-		<select bind:value={sortBy} disabled={scanning}>
-			<option value="name">name</option>
-			<option value="plays">most played</option>
-		</select>
-	</label>
+	{#if listView}
+		<input
+			class="filter"
+			type="search"
+			placeholder="filter…"
+			bind:value={query}
+			disabled={scanning}
+		/>
+		<label class="groupby">
+			group by
+			<select bind:value={groupBy} disabled={scanning}>
+				<option value="group">group</option>
+				<option value="artist">artist</option>
+				<option value="ext">format</option>
+			</select>
+		</label>
+		<label class="groupby">
+			sort
+			<select bind:value={sortBy} disabled={scanning}>
+				<option value="name">name</option>
+				<option value="plays">most played</option>
+			</select>
+		</label>
+	{/if}
 	<div class="count">
 		{#if scanning}
 			{#if (status?.scan_total ?? 0) > 0}
@@ -587,8 +579,12 @@
 				{(status?.scan_processed ?? 0).toLocaleString()} modules
 			{/if}
 			{#if status?.scan_hashed}· {status.scan_hashed.toLocaleString()} hashed{/if}
+		{:else if activeTab === 'playlists'}
+			{playlists.length} {playlists.length === 1 ? 'playlist' : 'playlists'}
 		{:else if status}
-			{filtered.length} / {tracks.length} modules · {groups.length}
+			{filtered.length}{#if !favView}
+				/ {tracks.length}{/if}
+			{favView ? 'favourites' : 'modules'} · {groups.length}
 			{groupBy === 'ext' ? 'formats' : groupBy === 'artist' ? 'artists' : 'groups'}
 		{/if}
 	</div>
@@ -601,6 +597,15 @@
 		<Settings size={16} />
 	</button>
 </header>
+
+<nav class="tabs" aria-label="view">
+	<button class:on={activeTab === 'library'} onclick={() => setTab('library')}>library</button>
+	<button class:on={activeTab === 'favourites'} onclick={() => setTab('favourites')}>
+		favourites
+	</button>
+	<button class:on={activeTab === 'playlists'} onclick={() => setTab('playlists')}>playlists</button
+	>
+</nav>
 
 {#if scanning}
 	<div class="progress" class:indeterminate={scanPct === null}>
@@ -616,7 +621,9 @@
 {/if}
 
 <main bind:this={scrollEl}>
-	{#if scanning && tracks.length === 0}
+	{#if activeTab === 'playlists'}
+		<PlaylistsTab {playlists} onRefresh={refreshPlaylists} onPlay={playList} />
+	{:else if scanning && tracks.length === 0}
 		<div class="scan-panel">
 			<div class="boing"><BoingBall /></div>
 			<p>Scanning the collection…</p>
@@ -641,6 +648,8 @@
 		<p class="msg">
 			No modules indexed yet — try <button class="link" onclick={rescan}>rescan</button>.
 		</p>
+	{:else if favView && flatTracks.length === 0}
+		<p class="msg">No favourites yet — tap the ☆ on any track.</p>
 	{:else}
 		<div class="vlist" style:height="{$virtualizer.getTotalSize()}px">
 			{#each $virtualizer.getVirtualItems() as v (v.key)}
@@ -803,14 +812,6 @@
 		</div>
 	</div>
 {/if}
-
-<PlaylistsPanel
-	open={showPlaylists}
-	{playlists}
-	onClose={() => (showPlaylists = false)}
-	onRefresh={refreshPlaylists}
-	onPlay={playList}
-/>
 
 {#if addTrack}
 	{@const at = addTrack}
@@ -1013,6 +1014,28 @@
 		font-variant-numeric: tabular-nums;
 	}
 
+	/* View switcher: a thin segmented row under the toolbar. `main` is the only
+	   scroll container, so this (a body-level sibling) stays pinned for free. */
+	.tabs {
+		display: flex;
+		gap: 4px;
+		padding: 6px 14px;
+		background: var(--panel);
+		border-bottom: 1px solid var(--border);
+	}
+	.tabs button {
+		padding: 5px 14px;
+		font-size: 13px;
+		text-transform: lowercase;
+		background: var(--panel-hi);
+		color: var(--muted);
+	}
+	.tabs button.on {
+		color: var(--bg);
+		background: var(--accent);
+		border-color: var(--accent);
+	}
+
 	.progress {
 		height: 3px;
 		background: var(--panel-hi);
@@ -1207,11 +1230,6 @@
 	}
 	.li:hover .fav {
 		visibility: visible;
-	}
-	.icon-btn.on {
-		color: var(--bg);
-		background: var(--accent);
-		border-color: var(--accent);
 	}
 	/* The whole row is one click target → openTrack. */
 	.row {
@@ -1599,6 +1617,9 @@
 			order: 4;
 			flex-basis: 100%;
 			margin-left: 0;
+		}
+		.tabs button {
+			flex: 1;
 		}
 		main {
 			padding: 10px 8px 80px;

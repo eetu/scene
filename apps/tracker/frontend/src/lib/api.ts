@@ -116,10 +116,12 @@ export type PlaylistDetail = {
 };
 
 /** One item in an import/export document. Needs an md5 (local match) and/or a
- *  Modland `path` (to fetch a missing module); the rest is cached metadata. */
+ *  fetch reference — a Modland `path` and/or a direct-download `url` (for sources
+ *  Modland doesn't carry); the rest is cached metadata. */
 export type ImportItem = {
 	md5?: string | null;
 	path?: string | null;
+	url?: string | null;
 	title?: string | null;
 	artist?: string | null;
 	format?: string | null;

@@ -1,19 +1,11 @@
 <script lang="ts">
-	import {
-		ChevronDown,
-		ChevronUp,
-		Download,
-		ListMusic,
-		Play,
-		Plus,
-		Trash2,
-		X
-	} from '@lucide/svelte';
+	import { ChevronDown, ChevronUp, Download, Play, Plus, Trash2, Upload, X } from '@lucide/svelte';
 	import { playback } from '@scene/player';
 
 	import {
 		api,
 		type FetchStatus,
+		type ImportDoc,
 		itemToTrack,
 		type Playlist,
 		type PlaylistDetail,
@@ -22,21 +14,20 @@
 	} from '$lib/api';
 
 	type Props = {
-		open: boolean;
 		playlists: Playlist[];
-		onClose: () => void;
 		/** Re-fetch the playlist list (after create/delete/rename/import). */
 		onRefresh: () => Promise<void> | void;
 		/** Play a list of present tracks in order, optionally starting at `start`. */
 		onPlay: (tracks: Track[], start?: Track) => void;
 	};
 
-	let { open, playlists, onClose, onRefresh, onPlay }: Props = $props();
+	let { playlists, onRefresh, onPlay }: Props = $props();
 
 	let newName = $state('');
 	let detail = $state<PlaylistDetail | null>(null);
 	let detailLoading = $state(false);
 	let busy = $state(false);
+	let importInput = $state<HTMLInputElement | undefined>(undefined);
 
 	// Fetch-missing progress for the open playlist.
 	let fetchp = $state<FetchStatus | null>(null);
@@ -69,6 +60,7 @@
 
 	function closeDetail() {
 		detail = null;
+		detailLoading = false;
 	}
 
 	async function remove(id: string) {
@@ -142,200 +134,205 @@
 		}
 	}
 
+	// ---- import / export (JSON documents — see api.ImportDoc) ----
+	async function onImportFile(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		busy = true;
+		try {
+			const doc = JSON.parse(await file.text()) as ImportDoc;
+			const pl = await api.importPlaylist(doc);
+			await onRefresh();
+			await openDetail(pl.id);
+		} catch (err) {
+			alert(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
+		} finally {
+			busy = false;
+			input.value = ''; // allow re-importing the same file
+		}
+	}
+
+	async function exportPlaylist(p: Playlist) {
+		const doc = await api.exportPlaylist(p.id);
+		const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `${p.name.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}.playlist.json`;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
 	function label(i: PlaylistDetail['items'][number]): string {
 		return i.title || i.filename || (i.md5 ? i.md5.slice(0, 12) : 'unknown');
 	}
 </script>
 
-{#if open}
-	<div class="panel-bg">
-		<button class="scrim" aria-label="close" onclick={onClose}></button>
-		<div class="panel" role="dialog" aria-modal="true" aria-label="playlists">
-			<header class="ph">
-				<ListMusic size={16} />
-				<h3>{detail ? detail.playlist.name : 'playlists'}</h3>
-				<button class="x" aria-label="close" onclick={onClose}><X size={16} /></button>
-			</header>
+<div class="tab">
+	{#if !detail && !detailLoading}
+		<!-- master: list of playlists -->
+		<div class="newrow">
+			<input
+				placeholder="new playlist…"
+				bind:value={newName}
+				onkeydown={(e) => e.key === 'Enter' && create()}
+			/>
+			<button class="ok" onclick={create} disabled={busy || !newName.trim()}>
+				<Plus size={14} /> add
+			</button>
+			<button
+				class="ghost"
+				onclick={() => importInput?.click()}
+				disabled={busy}
+				title="import a list"
+			>
+				<Upload size={14} /> import
+			</button>
+			<input
+				bind:this={importInput}
+				type="file"
+				accept="application/json,.json"
+				class="hidden-file"
+				onchange={onImportFile}
+			/>
+		</div>
 
-			{#if !detail}
-				<!-- list of playlists -->
-				<div class="newrow">
-					<input
-						placeholder="new playlist…"
-						bind:value={newName}
-						onkeydown={(e) => e.key === 'Enter' && create()}
-					/>
-					<button class="ok" onclick={create} disabled={busy || !newName.trim()}>
-						<Plus size={14} /> add
+		<ul class="plist">
+			{#each playlists as p (p.id)}
+				<li>
+					<button class="open" onclick={() => openDetail(p.id)}>
+						<span class="pn">{p.name}</span>
+						<span class="pc">{p.item_count}</span>
 					</button>
-				</div>
-
-				<ul class="plist">
-					{#each playlists as p (p.id)}
-						<li>
-							<button class="open" onclick={() => openDetail(p.id)}>
-								<span class="pn">{p.name}</span>
-								<span class="pc">{p.item_count}</span>
-							</button>
-							<button class="mini" title="rename" onclick={() => rename(p)}>✎</button>
-							<button class="mini" title="delete" onclick={() => remove(p.id)}>
-								<Trash2 size={13} />
-							</button>
-						</li>
-					{:else}
-						<li class="empty">no playlists yet</li>
-					{/each}
-				</ul>
+					<button class="mini" title="export" onclick={() => exportPlaylist(p)}>
+						<Download size={13} />
+					</button>
+					<button class="mini" title="rename" onclick={() => rename(p)}>✎</button>
+					<button class="mini" title="delete" onclick={() => remove(p.id)}>
+						<Trash2 size={13} />
+					</button>
+				</li>
 			{:else}
-				<!-- single playlist detail -->
-				<div class="dactions">
-					<button class="back" onclick={closeDetail}>‹ all</button>
-					{#if missingCount > 0}
-						<button
-							class="ok"
-							onclick={fetchMissing}
-							disabled={fetching}
-							title="download missing via Modland"
-						>
-							<Download size={14} />
-							{fetching
-								? `fetching ${fetchp?.fetched ?? 0}/${fetchp?.total ?? missingCount}`
-								: `fetch ${missingCount} missing`}
-						</button>
-					{/if}
-					<button
-						class="ok play"
-						onclick={playDetail}
-						disabled={!detail.items.some((i) => i.present)}
-					>
-						<Play size={14} /> play
-					</button>
-				</div>
-				{#if detailLoading}
-					<p class="msg">loading…</p>
-				{:else}
-					<ol class="items">
-						{#each detail.items as it, i (it.id)}
-							<li class:missing={!it.present} class:current={isCurrent(it)}>
-								<span class="ix">{i + 1}</span>
-								{#if it.present}
-									<button
-										class="it-name play-it"
-										title="play — {it.path ?? ''}"
-										onclick={() => playItem(it)}
-									>
-										{label(it)}
-									</button>
-								{:else}
-									<span class="it-name" title={it.md5 ?? ''}>
-										{label(it)}<span class="pending"> (missing)</span>
-									</span>
-								{/if}
-								<button class="mini" title="up" disabled={i === 0} onclick={() => move(i, -1)}>
-									<ChevronUp size={13} />
-								</button>
-								<button
-									class="mini"
-									title="down"
-									disabled={i === detail.items.length - 1}
-									onclick={() => move(i, 1)}
-								>
-									<ChevronDown size={13} />
-								</button>
-								<button class="mini" title="remove" onclick={() => removeItem(it.id)}>
-									<X size={13} />
-								</button>
-							</li>
-						{:else}
-							<li class="empty">empty — add tracks from the library or import a list</li>
-						{/each}
-					</ol>
-				{/if}
+				<li class="empty">no playlists yet — create one above, or import a list</li>
+			{/each}
+		</ul>
+	{:else}
+		<!-- detail: a single playlist's tracks -->
+		<div class="dactions">
+			<button class="back" onclick={closeDetail}>‹ playlists</button>
+			<span class="crumb">{detail?.playlist.name ?? 'loading…'}</span>
+			{#if detail && missingCount > 0}
+				<button
+					class="ok"
+					onclick={fetchMissing}
+					disabled={fetching}
+					title="download missing (Modland, else direct url)"
+				>
+					<Download size={14} />
+					{fetching
+						? `fetching ${fetchp?.fetched ?? 0}/${fetchp?.total ?? missingCount}`
+						: `fetch ${missingCount} missing`}
+				</button>
+			{/if}
+			{#if detail}
+				<button
+					class="ok play"
+					onclick={playDetail}
+					disabled={!detail.items.some((i) => i.present)}
+				>
+					<Play size={14} /> play
+				</button>
 			{/if}
 		</div>
-	</div>
-{/if}
+		{#if !detail || detailLoading}
+			<p class="msg">loading…</p>
+		{:else}
+			<ol class="items">
+				{#each detail.items as it, i (it.id)}
+					<li class:missing={!it.present} class:current={isCurrent(it)}>
+						<span class="ix">{i + 1}</span>
+						{#if it.present}
+							<button
+								class="it-name play-it"
+								title="play — {it.path ?? ''}"
+								onclick={() => playItem(it)}
+							>
+								{label(it)}
+							</button>
+						{:else}
+							<span class="it-name" title={it.md5 ?? ''}>
+								{label(it)}<span class="pending"> (missing)</span>
+							</span>
+						{/if}
+						<button class="mini" title="up" disabled={i === 0} onclick={() => move(i, -1)}>
+							<ChevronUp size={13} />
+						</button>
+						<button
+							class="mini"
+							title="down"
+							disabled={i === detail.items.length - 1}
+							onclick={() => move(i, 1)}
+						>
+							<ChevronDown size={13} />
+						</button>
+						<button class="mini" title="remove" onclick={() => removeItem(it.id)}>
+							<X size={13} />
+						</button>
+					</li>
+				{:else}
+					<li class="empty">empty — add tracks from the library tab</li>
+				{/each}
+			</ol>
+		{/if}
+	{/if}
+</div>
 
 <style>
-	.panel-bg {
-		position: fixed;
-		inset: 0;
-		z-index: 6;
-		display: flex;
-		justify-content: flex-end;
-	}
-	.scrim {
-		position: absolute;
-		inset: 0;
-		border: none;
-		background: rgba(0, 0, 0, 0.5);
-		cursor: pointer;
-	}
-	.panel {
-		position: relative;
-		z-index: 1;
-		width: min(420px, 100%);
-		height: 100%;
-		background: var(--panel);
-		border-left: 1px solid var(--border);
+	.tab {
 		display: flex;
 		flex-direction: column;
-		overflow: hidden;
-	}
-	.ph {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 12px 14px;
-		border-bottom: 1px solid var(--border);
-		color: var(--accent);
-	}
-	.ph h3 {
-		margin: 0;
-		font-size: 14px;
-		flex: 1;
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.x,
-	.mini,
-	.back {
-		background: none;
-		border: none;
-		color: var(--muted);
-		cursor: pointer;
-		display: inline-flex;
-		align-items: center;
-		padding: 4px 6px;
+		gap: 4px;
 	}
 	.newrow {
 		display: flex;
 		gap: 8px;
-		padding: 12px 14px;
+		padding: 0 0 12px;
+		flex-wrap: wrap;
 	}
 	.newrow input {
 		flex: 1;
-		min-width: 0;
+		min-width: 160px;
 		padding: 7px 10px;
 		background: var(--bg);
 		border: 1px solid var(--border);
 		border-radius: 4px;
 		color: var(--text);
 	}
-	.ok {
+	.hidden-file {
+		display: none;
+	}
+	.ok,
+	.ghost {
 		display: inline-flex;
 		align-items: center;
 		gap: 5px;
-		border: 1px solid var(--accent);
-		color: var(--accent);
-		background: var(--panel-hi);
 		border-radius: 4px;
 		padding: 6px 10px;
 		cursor: pointer;
 	}
-	.ok:disabled {
+	.ok {
+		border: 1px solid var(--accent);
+		color: var(--accent);
+		background: var(--panel-hi);
+	}
+	.ghost {
+		border: 1px solid var(--border);
+		color: var(--muted);
+		background: var(--panel-hi);
+	}
+	.ok:disabled,
+	.ghost:disabled {
 		opacity: 0.5;
 		cursor: default;
 	}
@@ -343,9 +340,7 @@
 	.items {
 		list-style: none;
 		margin: 0;
-		padding: 0 8px 24px;
-		overflow-y: auto;
-		flex: 1;
+		padding: 0;
 	}
 	.plist li {
 		display: flex;
@@ -366,7 +361,7 @@
 		border: none;
 		color: var(--text);
 		text-align: left;
-		padding: 9px 8px;
+		padding: 10px 8px;
 		cursor: pointer;
 	}
 	.pn {
@@ -381,15 +376,38 @@
 		font-size: 12px;
 		font-variant-numeric: tabular-nums;
 	}
+	.mini,
+	.back {
+		background: none;
+		border: none;
+		color: var(--muted);
+		cursor: pointer;
+		display: inline-flex;
+		align-items: center;
+		padding: 4px 6px;
+	}
+	.mini:disabled {
+		opacity: 0.3;
+		cursor: default;
+	}
 	.dactions {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 10px 14px;
+		padding: 0 0 10px;
+		margin-bottom: 6px;
 		border-bottom: 1px solid var(--border);
 	}
 	.back {
 		color: var(--text);
+		flex: 0 0 auto;
+	}
+	.crumb {
+		font-weight: 600;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.play {
 		margin-left: auto;
@@ -416,7 +434,7 @@
 	}
 	.ix {
 		flex: 0 0 auto;
-		width: 22px;
+		width: 26px;
 		color: var(--muted);
 		font-size: 12px;
 		font-variant-numeric: tabular-nums;
@@ -448,9 +466,5 @@
 		color: var(--muted);
 		padding: 16px 8px;
 		list-style: none;
-	}
-	.mini:disabled {
-		opacity: 0.3;
-		cursor: default;
 	}
 </style>
