@@ -55,6 +55,7 @@ mod tests {
             root: PathBuf::new(),
             db_path: PathBuf::new(),
             static_dir: PathBuf::new(),
+            modland_base: String::new(),
         };
         AppState::new(cfg, Db::open_in_memory().unwrap())
     }

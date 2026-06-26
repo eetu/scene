@@ -26,6 +26,12 @@ pub struct Stack {
 
 impl Stack {
     pub async fn start() -> anyhow::Result<Self> {
+        Self::start_with_env(&[]).await
+    }
+
+    /// Like [`Stack::start`] but with extra environment variables (e.g. pointing
+    /// the Mod Archive client at a stub via `MODARCHIVE_WEB_BASE`/`_DL_BASE`).
+    pub async fn start_with_env(extra: &[(&str, &str)]) -> anyhow::Result<Self> {
         let root_tmp = tempfile::tempdir()?;
         let root = root_tmp.path().to_path_buf();
         seed_fixture(&root)?;
@@ -42,14 +48,17 @@ impl Stack {
         let port = free_port()?;
         let base = format!("http://127.0.0.1:{port}");
 
-        let child = Command::new(bin_path())
-            .env("DEV_AUTH", "1")
+        let mut cmd = Command::new(bin_path());
+        cmd.env("DEV_AUTH", "1")
             .env("TRACKER_BIND", format!("127.0.0.1:{port}"))
             .env("TRACKER_ROOT", &root)
             .env("TRACKER_DB_PATH", &db_path)
             .env("STATIC_DIR", static_tmp.path())
-            .env("RUST_LOG", "warn")
-            .spawn()?;
+            .env("RUST_LOG", "warn");
+        for (k, v) in extra {
+            cmd.env(k, v);
+        }
+        let child = cmd.spawn()?;
 
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
@@ -106,6 +115,29 @@ impl Stack {
             .send()
             .await
             .expect("request failed")
+    }
+
+    pub async fn put_json(&self, route: &str, body: serde_json::Value) -> reqwest::Response {
+        self.client
+            .put(format!("{}{route}", self.base))
+            .json(&body)
+            .send()
+            .await
+            .expect("request failed")
+    }
+
+    pub async fn delete(&self, route: &str) -> reqwest::Response {
+        self.client
+            .delete(format!("{}{route}", self.base))
+            .send()
+            .await
+            .expect("request failed")
+    }
+
+    pub async fn get_json(&self, route: &str) -> serde_json::Value {
+        let r = self.get(route).await;
+        assert!(r.status().is_success(), "GET {route} → {}", r.status());
+        r.json().await.expect("json")
     }
 
     /// Run a synchronous rescan and return it once the index is up to date.

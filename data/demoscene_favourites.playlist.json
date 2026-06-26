@@ -1,0 +1,706 @@
+{
+  "name": "Demoscene Favourites",
+  "source": "modland:favourites_by_coma",
+  "items": [
+    {
+      "path": "Fasttracker 2/4-Mat/blade1.xm",
+      "title": "blade1",
+      "artist": "4-Mat",
+      "format": "xm",
+      "filename": "blade1.xm"
+    },
+    {
+      "path": "Fasttracker 2/4-Mat/not shouting.xm",
+      "title": "not shouting",
+      "artist": "4-Mat",
+      "format": "xm",
+      "filename": "not shouting.xm"
+    },
+    {
+      "path": "Fasttracker 2/Boo/eighties pop.xm",
+      "title": "eighties pop",
+      "artist": "Boo",
+      "format": "xm",
+      "filename": "eighties pop.xm"
+    },
+    {
+      "path": "Fasttracker 2/Dalezy/water chute.xm",
+      "title": "water chute",
+      "artist": "Dalezy",
+      "format": "xm",
+      "filename": "water chute.xm"
+    },
+    {
+      "path": "Fasttracker 2/Drax/barbiecute monkey.xm",
+      "title": "barbiecute monkey",
+      "artist": "Drax",
+      "format": "xm",
+      "filename": "barbiecute monkey.xm"
+    },
+    {
+      "path": "Fasttracker 2/Drax/coop-MSK/farfiser.xm",
+      "title": "farfiser",
+      "artist": "Drax",
+      "format": "xm",
+      "filename": "farfiser.xm"
+    },
+    {
+      "path": "Fasttracker 2/Drax/fogging around.xm",
+      "title": "fogging around",
+      "artist": "Drax",
+      "format": "xm",
+      "filename": "fogging around.xm"
+    },
+    {
+      "path": "Fasttracker 2/Drax/living in a dream.xm",
+      "title": "living in a dream",
+      "artist": "Drax",
+      "format": "xm",
+      "filename": "living in a dream.xm"
+    },
+    {
+      "path": "Fasttracker 2/Drax/solitaire.xm",
+      "title": "solitaire",
+      "artist": "Drax",
+      "format": "xm",
+      "filename": "solitaire.xm"
+    },
+    {
+      "path": "Fasttracker 2/Drax/zarathustra.xm",
+      "title": "zarathustra",
+      "artist": "Drax",
+      "format": "xm",
+      "filename": "zarathustra.xm"
+    },
+    {
+      "path": "Fasttracker 2/Elwood/inferiority complex.xm",
+      "title": "inferiority complex",
+      "artist": "Elwood",
+      "format": "xm",
+      "filename": "inferiority complex.xm"
+    },
+    {
+      "path": "Fasttracker 2/Jelly/coop-Loonie/ultrajakob.xm",
+      "title": "ultrajakob",
+      "artist": "Jelly",
+      "format": "xm",
+      "filename": "ultrajakob.xm"
+    },
+    {
+      "path": "Fasttracker 2/Jeroen Tel/letting go.xm",
+      "title": "letting go",
+      "artist": "Jeroen Tel",
+      "format": "xm",
+      "filename": "letting go.xm"
+    },
+    {
+      "path": "Fasttracker 2/Jeroen Tel/versions.xm",
+      "title": "versions",
+      "artist": "Jeroen Tel",
+      "format": "xm",
+      "filename": "versions.xm"
+    },
+    {
+      "path": "Fasttracker 2/Lizardking/coop-Codec/heartland.xm",
+      "title": "heartland",
+      "artist": "Lizardking",
+      "format": "xm",
+      "filename": "heartland.xm"
+    },
+    {
+      "path": "Fasttracker 2/Loonie/battery love.xm",
+      "title": "battery love",
+      "artist": "Loonie",
+      "format": "xm",
+      "filename": "battery love.xm"
+    },
+    {
+      "path": "Fasttracker 2/Metal/candybar.xm",
+      "title": "candybar",
+      "artist": "Metal",
+      "format": "xm",
+      "filename": "candybar.xm"
+    },
+    {
+      "path": "Fasttracker 2/Nagz/raw sheep bugfix.xm",
+      "title": "raw sheep bugfix",
+      "artist": "Nagz",
+      "format": "xm",
+      "filename": "raw sheep bugfix.xm"
+    },
+    {
+      "path": "Fasttracker 2/Pink/downtown.xm",
+      "title": "downtown",
+      "artist": "Pink",
+      "format": "xm",
+      "filename": "downtown.xm"
+    },
+    {
+      "path": "Fasttracker 2/Radix/donovan's moonbike.xm",
+      "title": "donovan's moonbike",
+      "artist": "Radix",
+      "format": "xm",
+      "filename": "donovan's moonbike.xm"
+    },
+    {
+      "path": "Fasttracker 2/Radix/little adventure.xm",
+      "title": "little adventure",
+      "artist": "Radix",
+      "format": "xm",
+      "filename": "little adventure.xm"
+    },
+    {
+      "path": "Fasttracker 2/Radix/superglam.xm",
+      "title": "superglam",
+      "artist": "Radix",
+      "format": "xm",
+      "filename": "superglam.xm"
+    },
+    {
+      "path": "Fasttracker 2/Reed/fairlight in action.xm",
+      "title": "fairlight in action",
+      "artist": "Reed",
+      "format": "xm",
+      "filename": "fairlight in action.xm"
+    },
+    {
+      "path": "Fasttracker 2/Vim!/winsum losum.xm",
+      "title": "winsum losum",
+      "artist": "Vim!",
+      "format": "xm",
+      "filename": "winsum losum.xm"
+    },
+    {
+      "path": "Impulsetracker/Beek/my brick house.it",
+      "title": "my brick house",
+      "artist": "Beek",
+      "format": "it",
+      "filename": "my brick house.it"
+    },
+    {
+      "path": "Protracker/- unknown/newhill.mod",
+      "title": "newhill",
+      "artist": "- unknown",
+      "format": "mod",
+      "filename": "newhill.mod"
+    },
+    {
+      "path": "Protracker/4-Mat/cardiaxx-pause.mod",
+      "title": "cardiaxx-pause",
+      "artist": "4-Mat",
+      "format": "mod",
+      "filename": "cardiaxx-pause.mod"
+    },
+    {
+      "path": "Protracker/4-Mat/world of dentro.mod",
+      "title": "world of dentro",
+      "artist": "4-Mat",
+      "format": "mod",
+      "filename": "world of dentro.mod"
+    },
+    {
+      "path": "Protracker/Alien/breathtaker part 2.mod",
+      "title": "breathtaker part 2",
+      "artist": "Alien",
+      "format": "mod",
+      "filename": "breathtaker part 2.mod"
+    },
+    {
+      "path": "Protracker/Archon/dopus.mod",
+      "title": "dopus",
+      "artist": "Archon",
+      "format": "mod",
+      "filename": "dopus.mod"
+    },
+    {
+      "path": "Protracker/Audiomonster/daily pleasure.mod",
+      "title": "daily pleasure",
+      "artist": "Audiomonster",
+      "format": "mod",
+      "filename": "daily pleasure.mod"
+    },
+    {
+      "path": "Protracker/Banana/koosebanian.mod",
+      "title": "koosebanian",
+      "artist": "Banana",
+      "format": "mod",
+      "filename": "koosebanian.mod"
+    },
+    {
+      "path": "Protracker/Bass MC/yeah.mod",
+      "title": "yeah",
+      "artist": "Bass MC",
+      "format": "mod",
+      "filename": "yeah.mod"
+    },
+    {
+      "path": "Protracker/Bernard Sumner/zeus.mod",
+      "title": "zeus",
+      "artist": "Bernard Sumner",
+      "format": "mod",
+      "filename": "zeus.mod"
+    },
+    {
+      "path": "Protracker/Blazer/masqrade.mod",
+      "title": "masqrade",
+      "artist": "Blazer",
+      "format": "mod",
+      "filename": "masqrade.mod"
+    },
+    {
+      "path": "Protracker/Brainbug/excalibur outrun.mod",
+      "title": "excalibur outrun",
+      "artist": "Brainbug",
+      "format": "mod",
+      "filename": "excalibur outrun.mod"
+    },
+    {
+      "path": "Protracker/Chorus/coop-Sid/beneath the mask.mod",
+      "title": "beneath the mask",
+      "artist": "Chorus",
+      "format": "mod",
+      "filename": "beneath the mask.mod"
+    },
+    {
+      "path": "Protracker/Chromag/1974.mod",
+      "title": "1974",
+      "artist": "Chromag",
+      "format": "mod",
+      "filename": "1974.mod"
+    },
+    {
+      "path": "Protracker/Clawz/cyberotica.mod",
+      "title": "cyberotica",
+      "artist": "Clawz",
+      "format": "mod",
+      "filename": "cyberotica.mod"
+    },
+    {
+      "path": "Protracker/Cutcreator/eurochart 18.mod",
+      "title": "eurochart 18",
+      "artist": "Cutcreator",
+      "format": "mod",
+      "filename": "eurochart 18.mod"
+    },
+    {
+      "path": "Protracker/Daddy Freddy/teadrop in a pot.mod",
+      "title": "teadrop in a pot",
+      "artist": "Daddy Freddy",
+      "format": "mod",
+      "filename": "teadrop in a pot.mod"
+    },
+    {
+      "path": "Protracker/Deelite/ana-kata.mod",
+      "title": "ana-kata",
+      "artist": "Deelite",
+      "format": "mod",
+      "filename": "ana-kata.mod"
+    },
+    {
+      "path": "Protracker/Deetsay/science project.mod",
+      "title": "science project",
+      "artist": "Deetsay",
+      "format": "mod",
+      "filename": "science project.mod"
+    },
+    {
+      "path": "Protracker/Diablo/endtheme2-diablo.mod",
+      "title": "endtheme2-diablo",
+      "artist": "Diablo",
+      "format": "mod",
+      "filename": "endtheme2-diablo.mod"
+    },
+    {
+      "path": "Protracker/Dizzy/citronative.mod",
+      "title": "citronative",
+      "artist": "Dizzy",
+      "format": "mod",
+      "filename": "citronative.mod"
+    },
+    {
+      "path": "Protracker/Dizzy/myonnytyspolska.mod",
+      "title": "myonnytyspolska",
+      "artist": "Dizzy",
+      "format": "mod",
+      "filename": "myonnytyspolska.mod"
+    },
+    {
+      "path": "Protracker/Dizzy/tuulenvire.mod",
+      "title": "tuulenvire",
+      "artist": "Dizzy",
+      "format": "mod",
+      "filename": "tuulenvire.mod"
+    },
+    {
+      "path": "Protracker/Dreamer/kakafon.mod",
+      "title": "kakafon",
+      "artist": "Dreamer",
+      "format": "mod",
+      "filename": "kakafon.mod"
+    },
+    {
+      "path": "Protracker/Emax/secret gardens.mod",
+      "title": "secret gardens",
+      "artist": "Emax",
+      "format": "mod",
+      "filename": "secret gardens.mod"
+    },
+    {
+      "path": "Protracker/Firefox/coop-Tip/disaster is obvious.mod",
+      "title": "disaster is obvious",
+      "artist": "Firefox",
+      "format": "mod",
+      "filename": "disaster is obvious.mod"
+    },
+    {
+      "path": "Protracker/Firefox/firefoxspecialv2.mod",
+      "title": "firefoxspecialv2",
+      "artist": "Firefox",
+      "format": "mod",
+      "filename": "firefoxspecialv2.mod"
+    },
+    {
+      "path": "Protracker/Firefox/weird technology.mod",
+      "title": "weird technology",
+      "artist": "Firefox",
+      "format": "mod",
+      "filename": "weird technology.mod"
+    },
+    {
+      "path": "Protracker/Groo/#.mod",
+      "title": "#",
+      "artist": "Groo",
+      "format": "mod",
+      "filename": "#.mod"
+    },
+    {
+      "path": "Protracker/Groo/einstein.mod",
+      "title": "einstein",
+      "artist": "Groo",
+      "format": "mod",
+      "filename": "einstein.mod"
+    },
+    {
+      "path": "Protracker/Groo/towards immortality.mod",
+      "title": "towards immortality",
+      "artist": "Groo",
+      "format": "mod",
+      "filename": "towards immortality.mod"
+    },
+    {
+      "path": "Protracker/Heatbeat/cah-caqlach.mod",
+      "title": "cah-caqlach",
+      "artist": "Heatbeat",
+      "format": "mod",
+      "filename": "cah-caqlach.mod"
+    },
+    {
+      "path": "Protracker/Heatbeat/intromuz-1.hb.mod",
+      "title": "intromuz-1.hb",
+      "artist": "Heatbeat",
+      "format": "mod",
+      "filename": "intromuz-1.hb.mod"
+    },
+    {
+      "path": "Protracker/Heatbeat/scupping around.mod",
+      "title": "scupping around",
+      "artist": "Heatbeat",
+      "format": "mod",
+      "filename": "scupping around.mod"
+    },
+    {
+      "path": "Protracker/Hi-Lite/purple-shades.mod",
+      "title": "purple-shades",
+      "artist": "Hi-Lite",
+      "format": "mod",
+      "filename": "purple-shades.mod"
+    },
+    {
+      "path": "Protracker/Jazz/tamagotchi.mod",
+      "title": "tamagotchi",
+      "artist": "Jazz",
+      "format": "mod",
+      "filename": "tamagotchi.mod"
+    },
+    {
+      "path": "Protracker/Jesper Kyd/hardwired2.mod",
+      "title": "hardwired2",
+      "artist": "Jesper Kyd",
+      "format": "mod",
+      "filename": "hardwired2.mod"
+    },
+    {
+      "path": "Protracker/Jester/my glamorous life.mod",
+      "title": "my glamorous life",
+      "artist": "Jester",
+      "format": "mod",
+      "filename": "my glamorous life.mod"
+    },
+    {
+      "path": "Protracker/Jogeir Liljedahl/beetle music.mod",
+      "title": "beetle music",
+      "artist": "Jogeir Liljedahl",
+      "format": "mod",
+      "filename": "beetle music.mod"
+    },
+    {
+      "path": "Protracker/Jogeir Liljedahl/happy hour.mod",
+      "title": "happy hour",
+      "artist": "Jogeir Liljedahl",
+      "format": "mod",
+      "filename": "happy hour.mod"
+    },
+    {
+      "path": "Protracker/Jogeir Liljedahl/pelifix.mod",
+      "title": "pelifix",
+      "artist": "Jogeir Liljedahl",
+      "format": "mod",
+      "filename": "pelifix.mod"
+    },
+    {
+      "path": "Protracker/Jogeir Liljedahl/toybox.mod",
+      "title": "toybox",
+      "artist": "Jogeir Liljedahl",
+      "format": "mod",
+      "filename": "toybox.mod"
+    },
+    {
+      "path": "Protracker/Lizard/lemon'e trippies!.mod",
+      "title": "lemon'e trippies!",
+      "artist": "Lizard",
+      "format": "mod",
+      "filename": "lemon'e trippies!.mod"
+    },
+    {
+      "path": "Protracker/Lizardking/coop-Some1/bubble bobble.mod",
+      "title": "bubble bobble",
+      "artist": "Lizardking",
+      "format": "mod",
+      "filename": "bubble bobble.mod"
+    },
+    {
+      "path": "Protracker/Lizardking/lk.mod",
+      "title": "lk",
+      "artist": "Lizardking",
+      "format": "mod",
+      "filename": "lk.mod"
+    },
+    {
+      "path": "Protracker/Lizardking/sune cyklar i stan.mod",
+      "title": "sune cyklar i stan",
+      "artist": "Lizardking",
+      "format": "mod",
+      "filename": "sune cyklar i stan.mod"
+    },
+    {
+      "path": "Protracker/Lizardking/water below.mod",
+      "title": "water below",
+      "artist": "Lizardking",
+      "format": "mod",
+      "filename": "water below.mod"
+    },
+    {
+      "path": "Protracker/Mango/3266-chippy.mod",
+      "title": "3266-chippy",
+      "artist": "Mango",
+      "format": "mod",
+      "filename": "3266-chippy.mod"
+    },
+    {
+      "path": "Protracker/Mantronix/coop-Tip/hidden truths.mod",
+      "title": "hidden truths",
+      "artist": "Mantronix",
+      "format": "mod",
+      "filename": "hidden truths.mod"
+    },
+    {
+      "path": "Protracker/Marillion/hysterical baby.mod",
+      "title": "hysterical baby",
+      "artist": "Marillion",
+      "format": "mod",
+      "filename": "hysterical baby.mod"
+    },
+    {
+      "path": "Protracker/Maza/40k intro.mod",
+      "title": "40k intro",
+      "artist": "Maza",
+      "format": "mod",
+      "filename": "40k intro.mod"
+    },
+    {
+      "path": "Protracker/Merge/desert dream.mod",
+      "title": "desert dream",
+      "artist": "Merge",
+      "format": "mod",
+      "filename": "desert dream.mod"
+    },
+    {
+      "path": "Protracker/Mortimer Twang/15 minuter.mod",
+      "title": "15 minuter",
+      "artist": "Mortimer Twang",
+      "format": "mod",
+      "filename": "15 minuter.mod"
+    },
+    {
+      "path": "Protracker/Mortimer Twang/suggestive vibes 8.mod",
+      "title": "suggestive vibes 8",
+      "artist": "Mortimer Twang",
+      "format": "mod",
+      "filename": "suggestive vibes 8.mod"
+    },
+    {
+      "path": "Protracker/Muffler/g-spot.mod",
+      "title": "g-spot",
+      "artist": "Muffler",
+      "format": "mod",
+      "filename": "g-spot.mod"
+    },
+    {
+      "path": "Protracker/Neurodancer/4 spirits.mod",
+      "title": "4 spirits",
+      "artist": "Neurodancer",
+      "format": "mod",
+      "filename": "4 spirits.mod"
+    },
+    {
+      "path": "Protracker/Nightlight/fletch.mod",
+      "title": "fletch",
+      "artist": "Nightlight",
+      "format": "mod",
+      "filename": "fletch.mod"
+    },
+    {
+      "path": "Protracker/Orpheus/orpheus53.mod",
+      "title": "orpheus53",
+      "artist": "Orpheus",
+      "format": "mod",
+      "filename": "orpheus53.mod"
+    },
+    {
+      "path": "Protracker/Pink/alloy run.mod",
+      "title": "alloy run",
+      "artist": "Pink",
+      "format": "mod",
+      "filename": "alloy run.mod"
+    },
+    {
+      "path": "Protracker/Pink/journey part-2.mod",
+      "title": "journey part-2",
+      "artist": "Pink",
+      "format": "mod",
+      "filename": "journey part-2.mod"
+    },
+    {
+      "path": "Protracker/Pink/wario is missing.mod",
+      "title": "wario is missing",
+      "artist": "Pink",
+      "format": "mod",
+      "filename": "wario is missing.mod"
+    },
+    {
+      "path": "Protracker/Radix/bridget hall.mod",
+      "title": "bridget hall",
+      "artist": "Radix",
+      "format": "mod",
+      "filename": "bridget hall.mod"
+    },
+    {
+      "path": "Protracker/Radix/paul the penguin.mod",
+      "title": "paul the penguin",
+      "artist": "Radix",
+      "format": "mod",
+      "filename": "paul the penguin.mod"
+    },
+    {
+      "path": "Protracker/Reed/urethra franklin.mod",
+      "title": "urethra franklin",
+      "artist": "Reed",
+      "format": "mod",
+      "filename": "urethra franklin.mod"
+    },
+    {
+      "path": "Protracker/Silence/blast your brain.mod",
+      "title": "blast your brain",
+      "artist": "Silence",
+      "format": "mod",
+      "filename": "blast your brain.mod"
+    },
+    {
+      "path": "Protracker/Some1/coop-Prime/bamse i trollskogen.mod",
+      "title": "bamse i trollskogen",
+      "artist": "Some1",
+      "format": "mod",
+      "filename": "bamse i trollskogen.mod"
+    },
+    {
+      "path": "Protracker/Spaceman/blood thirsty.mod",
+      "title": "blood thirsty",
+      "artist": "Spaceman",
+      "format": "mod",
+      "filename": "blood thirsty.mod"
+    },
+    {
+      "path": "Protracker/Spaceman/moody breeze.mod",
+      "title": "moody breeze",
+      "artist": "Spaceman",
+      "format": "mod",
+      "filename": "moody breeze.mod"
+    },
+    {
+      "path": "Protracker/Spaceman/where now.mod",
+      "title": "where now",
+      "artist": "Spaceman",
+      "format": "mod",
+      "filename": "where now.mod"
+    },
+    {
+      "path": "Protracker/Supernao/mysterious 64 tune.mod",
+      "title": "mysterious 64 tune",
+      "artist": "Supernao",
+      "format": "mod",
+      "filename": "mysterious 64 tune.mod"
+    },
+    {
+      "path": "Protracker/TDK/orgasmic-chipper2.mod",
+      "title": "orgasmic-chipper2",
+      "artist": "TDK",
+      "format": "mod",
+      "filename": "orgasmic-chipper2.mod"
+    },
+    {
+      "path": "Protracker/Tivurr/det ska' nok gaa.mod",
+      "title": "det ska' nok gaa",
+      "artist": "Tivurr",
+      "format": "mod",
+      "filename": "det ska' nok gaa.mod"
+    },
+    {
+      "path": "Protracker/Uncle Tom/occ-san-geen.mod",
+      "title": "occ-san-geen",
+      "artist": "Uncle Tom",
+      "format": "mod",
+      "filename": "occ-san-geen.mod"
+    },
+    {
+      "path": "Protracker/Vim!/encious pretty.mod",
+      "title": "encious pretty",
+      "artist": "Vim!",
+      "format": "mod",
+      "filename": "encious pretty.mod"
+    },
+    {
+      "path": "Protracker/Walkman/piano plinker.mod",
+      "title": "piano plinker",
+      "artist": "Walkman",
+      "format": "mod",
+      "filename": "piano plinker.mod"
+    },
+    {
+      "path": "Protracker/Zenix/timemix.mod",
+      "title": "timemix",
+      "artist": "Zenix",
+      "format": "mod",
+      "filename": "timemix.mod"
+    }
+  ]
+}

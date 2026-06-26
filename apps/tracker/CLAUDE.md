@@ -82,6 +82,15 @@ Cargo workspace = `backend` + `e2e`.
 - `GET /status` also reports live scan progress (`scanning`, `scan_total`,
   `scan_processed`, `scan_hashed`) from lock-free counters, so the UI can show a
   progress bar without touching the scan-locked DB.
+- **Playlists** (hash-keyed items, like meta/stats, so they survive moves):
+  `GET/POST /api/playlists`, `GET/POST(rename)/DELETE /api/playlists/{id}`,
+  `POST(add)/PUT(reorder) /api/playlists/{id}/items`,
+  `DELETE /api/playlists/{id}/items/{hash}`.
+- **Top Favourites discovery** (The Mod Archive): `GET /api/top/preview`
+  (fetch chart + filename-diff, no download), `POST /api/top/sync` (background:
+  fetch → md5-diff → auto-download missing into `Top Favourites/` → rescan →
+  rebuild the `top_favourites` playlist), `GET /api/top/status` (lock-free
+  progress `{syncing, total, have, fetched, failed}`).
 
 ## Working on this repo
 
@@ -168,6 +177,20 @@ Cargo workspace = `backend` + `e2e`.
   stream (group-header rows + track rows of open groups) and rendered with
   **TanStack Virtual** (`@tanstack/svelte-virtual`, `createVirtualizer` +
   `measureElement`). `<main>` is the scroll container (body no longer scrolls).
+- **Playlists + Top Favourites (done):** `playlists` + `playlist_items` tables
+  (hash-keyed items, `ON DELETE CASCADE` with `PRAGMA foreign_keys=ON`); full CRUD
+  + reorder API; a right-side `PlaylistsPanel.svelte` (create/rename/delete, item
+  reorder, play-in-order via `playInOrder`) and a per-row "add to playlist"
+  chooser. **Top Favourites discovery:** the `files` table gained an `md5` column
+  (computed alongside SHA-256 in one read pass — one-time full re-hash on first
+  boot after the upgrade) to match The Mod Archive, which keys modules by MD5. The
+  `modarchive.rs` client scrapes the public Top Favourites chart (no API key
+  needed; `MODARCHIVE_API_KEY` reserved for a future XML path) for `(moduleid,
+  filename)`; `POST /api/top/sync` runs in the background — filename/md5-diffs
+  against the collection, auto-downloads missing modules (sequential, throttled,
+  capped) into a `Top Favourites/` group, rescans, and rebuilds the
+  `top_favourites` playlist in chart order. Client base URLs are env-overridable
+  (`MODARCHIVE_WEB_BASE`/`_DL_BASE`) so the e2e drives it against a wiremock stub.
 - **Backlog (ideas):**
   - **Installable offline PWA** — service worker caching the shell + chiptune
     WASM (+ recently-played module bytes) for offline foreground playback.

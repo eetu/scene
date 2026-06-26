@@ -1,5 +1,7 @@
 <script lang="ts">
 	import {
+		ListMusic,
+		ListPlus,
 		Monitor,
 		Moon,
 		Pencil,
@@ -34,8 +36,9 @@
 	import { onMount, untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 
-	import { api, ApiError, fileUrl, type StatusResponse, type Track } from '$lib/api';
+	import { api, ApiError, fileUrl, type Playlist, type StatusResponse, type Track } from '$lib/api';
 	import PatternViewScroll from '$lib/PatternViewScroll.svelte';
+	import PlaylistsPanel from '$lib/PlaylistsPanel.svelte';
 
 	type GroupKey = 'group' | 'artist' | 'ext';
 
@@ -207,7 +210,10 @@
 		}
 	}
 
-	onMount(init);
+	onMount(() => {
+		void init();
+		void refreshPlaylists();
+	});
 
 	// Lock body scroll while the full-screen player overlay is open, so the
 	// page's own (now-pointless) scrollbar for the list behind it disappears.
@@ -377,6 +383,14 @@
 	function onKey(e: KeyboardEvent) {
 		const el = e.target as HTMLElement | null;
 		if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+		if (e.key === 'Escape' && addTrack) {
+			addTrack = null;
+			return;
+		}
+		if (e.key === 'Escape' && showPlaylists) {
+			showPlaylists = false;
+			return;
+		}
 		if (e.key === 'Escape' && showSettings) {
 			showSettings = false;
 			return;
@@ -452,6 +466,71 @@
 		if (e.key === 'Enter') saveEdit(t);
 		else if (e.key === 'Escape') cancelEdit();
 	}
+
+	// ---- playlists ----
+	let showPlaylists = $state(false);
+	let playlists = $state<Playlist[]>([]);
+
+	async function refreshPlaylists() {
+		try {
+			playlists = await api.playlists();
+		} catch {
+			/* non-fatal — panel still opens */
+		}
+	}
+
+	// Play a playlist: its present tracks become the queue, in order.
+	function playList(list: Track[]) {
+		if (!list.length) return;
+		void playInOrder(list, list[0]);
+		showPattern = true;
+		showPlaylists = false;
+	}
+
+	// Add-to-playlist chooser: which library track we're filing, if any.
+	let addTrack = $state<Track | null>(null);
+	let addNewName = $state('');
+	let addBusy = $state(false);
+
+	function startAdd(t: Track) {
+		addTrack = t;
+		addNewName = '';
+		void refreshPlaylists();
+	}
+	// Playlist items are keyed by md5; carry the track's metadata as the cache.
+	function trackItem(t: Track) {
+		return {
+			md5: t.md5 ?? '',
+			title: t.title,
+			artist: t.artist,
+			format: t.ext,
+			filename: t.filename
+		};
+	}
+	async function addToPlaylist(id: string) {
+		if (!addTrack?.md5) return;
+		addBusy = true;
+		try {
+			await api.addToPlaylist(id, trackItem(addTrack));
+			addTrack = null;
+			await refreshPlaylists();
+		} finally {
+			addBusy = false;
+		}
+	}
+	async function addToNewPlaylist() {
+		const name = addNewName.trim();
+		if (!name || !addTrack?.md5) return;
+		addBusy = true;
+		try {
+			const pl = await api.createPlaylist(name);
+			await api.addToPlaylist(pl.id, trackItem(addTrack));
+			addTrack = null;
+			await refreshPlaylists();
+		} finally {
+			addBusy = false;
+		}
+	}
 </script>
 
 <svelte:window onkeydown={onKey} />
@@ -474,6 +553,14 @@
 		aria-pressed={favoritesOnly}
 	>
 		<Star size={16} fill={favoritesOnly ? 'currentColor' : 'none'} />
+	</button>
+	<button
+		class="icon-btn"
+		onclick={() => (showPlaylists = true)}
+		title="playlists"
+		aria-label="playlists"
+	>
+		<ListMusic size={16} />
 	</button>
 	<label class="groupby">
 		group by
@@ -600,6 +687,14 @@
 							>
 								<Star size={14} fill={t.favorite ? 'currentColor' : 'none'} />
 							</button>
+							<button
+								class="edit"
+								title="add to playlist"
+								aria-label="add to playlist"
+								onclick={() => startAdd(t)}
+							>
+								<ListPlus size={14} />
+							</button>
 							<button class="edit" title="rename / move" onclick={() => startEdit(t)}>
 								<Pencil size={14} />
 							</button>
@@ -704,6 +799,48 @@
 			</div>
 			<div class="modal-actions">
 				<button onclick={() => (showSettings = false)}>close</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<PlaylistsPanel
+	open={showPlaylists}
+	{playlists}
+	onClose={() => (showPlaylists = false)}
+	onRefresh={refreshPlaylists}
+	onPlay={playList}
+/>
+
+{#if addTrack}
+	{@const at = addTrack}
+	<div class="modal-bg">
+		<button class="modal-scrim" aria-label="close" onclick={() => (addTrack = null)}></button>
+		<div class="modal" role="dialog" aria-modal="true" aria-label="add to playlist">
+			<h3>add to playlist</h3>
+			<p class="add-track">{at.title || at.filename}</p>
+			<div class="add-list">
+				{#each playlists as p (p.id)}
+					<button class="add-row" onclick={() => addToPlaylist(p.id)} disabled={addBusy}>
+						<span class="pn">{p.name}</span>
+						<span class="pc">{p.item_count}</span>
+					</button>
+				{:else}
+					<p class="msg">no playlists yet — make one below</p>
+				{/each}
+			</div>
+			<div class="newrow">
+				<input
+					placeholder="new playlist…"
+					bind:value={addNewName}
+					onkeydown={(e) => e.key === 'Enter' && addToNewPlaylist()}
+				/>
+				<button class="ok" onclick={addToNewPlaylist} disabled={addBusy || !addNewName.trim()}>
+					create &amp; add
+				</button>
+			</div>
+			<div class="modal-actions">
+				<button onclick={() => (addTrack = null)} disabled={addBusy}>cancel</button>
 			</div>
 		</div>
 	</div>
@@ -1175,6 +1312,57 @@
 		justify-content: flex-end;
 		gap: 8px;
 		margin-top: 4px;
+	}
+
+	/* Add-to-playlist chooser. */
+	.add-track {
+		margin: 0;
+		color: var(--accent);
+		font-size: 13px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.add-list {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		max-height: 240px;
+		overflow-y: auto;
+	}
+	.add-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		text-align: left;
+		background: var(--bg);
+		border: 1px solid var(--border);
+	}
+	.add-row .pn {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.add-row .pc {
+		color: var(--muted);
+		font-size: 12px;
+		font-variant-numeric: tabular-nums;
+	}
+	.newrow {
+		display: flex;
+		gap: 8px;
+	}
+	.newrow input {
+		flex: 1;
+		min-width: 0;
+		padding: 8px 10px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		color: var(--text);
 	}
 
 	/* Settings rows: a label above a segmented choice control. */

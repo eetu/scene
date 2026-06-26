@@ -20,6 +20,9 @@ pub struct Config {
     pub db_path: PathBuf,
     /// Directory of the built SPA to serve (Vite `dist/`).
     pub static_dir: PathBuf,
+    /// Base for Modland — the md5→author index (`allmods.zip`) and by-md5 module
+    /// downloads used to fetch a playlist's missing songs. Overridable for tests.
+    pub modland_base: String,
 }
 
 impl Config {
@@ -44,6 +47,8 @@ impl Config {
                 env::var("TRACKER_DB_PATH").unwrap_or_else(|_| "tracker.db".into()),
             ),
             static_dir: PathBuf::from(env::var("STATIC_DIR").unwrap_or_else(|_| "./dist".into())),
+            modland_base: env::var("MODLAND_BASE")
+                .unwrap_or_else(|_| "https://ftp.modland.com".into()),
         })
     }
 }

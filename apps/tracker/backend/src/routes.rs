@@ -3,8 +3,9 @@ use std::sync::atomic::Ordering;
 use axum::extract::{Path, State};
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -30,6 +31,29 @@ pub fn router(state: AppState) -> Router {
         .route("/api/rename", post(api_rename))
         // Re-walk the collection (e.g. after moving files around).
         .route("/api/rescan", post(api_rescan))
+        // Playlists: list/create, fetch/rename/delete one, manage its items.
+        .route("/api/playlists", get(api_playlists).post(api_create_playlist))
+        // Import a md5-keyed playlist document (static segment before {id}).
+        .route("/api/playlists/import", post(api_import_playlist))
+        .route(
+            "/api/playlists/{id}",
+            get(api_playlist)
+                .post(api_rename_playlist)
+                .delete(api_delete_playlist),
+        )
+        .route("/api/playlists/{id}/export", get(api_export_playlist))
+        .route(
+            "/api/playlists/{id}/items",
+            post(api_add_item).put(api_reorder_items),
+        )
+        .route("/api/playlists/{id}/items/{item_id}", delete(api_remove_item))
+        // Download a playlist's missing songs by md5 via Modland; poll progress.
+        .route("/api/playlists/{id}/fetch-missing", post(api_fetch_missing))
+        .route("/api/fetch/status", get(api_fetch_status))
+        // All local md5s (for external curation/diffing).
+        .route("/api/library/md5", get(api_library_md5))
+        // Duplicate report (exact + likely).
+        .route("/api/dupes", get(api_dupes))
         // SPA fallback — serve a real built asset, else index.html with 200 so
         // the client router owns the route. NOT tower-http ServeDir (its
         // not_found_service leaks a 404 onto every client route).
@@ -102,6 +126,7 @@ async fn status(State(state): State<AppState>) -> Json<Value> {
 #[derive(Serialize)]
 struct Track {
     hash: String,
+    md5: Option<String>,
     path: String,
     group: String,
     artist: Option<String>,
@@ -119,40 +144,49 @@ struct Track {
     play_count: i64,
 }
 
+/// The `Track` projection (16 columns, in struct field order), assuming `files`
+/// aliased `f`, `meta` `m`, `stats` `s`. Shared by `api_tracks` and the playlist
+/// detail query so the row mapper [`track_from_row`] works for both.
+const TRACK_COLS: &str = "f.content_hash, f.rel_path, f.grp, f.artist, f.filename, f.ext, f.size,
+    m.title, m.type_long, m.tracker, m.duration, m.channels, m.instruments, m.samples,
+    COALESCE(s.favorite, 0), COALESCE(s.play_count, 0), f.md5";
+
+/// Map a row projected by [`TRACK_COLS`] (optionally with leading extra columns,
+/// hence `base` offset) into a [`Track`].
+fn track_from_row(r: &rusqlite::Row, base: usize) -> rusqlite::Result<Track> {
+    Ok(Track {
+        hash: r.get(base)?,
+        md5: r.get(base + 16)?,
+        path: r.get(base + 1)?,
+        group: r.get(base + 2)?,
+        artist: r.get(base + 3)?,
+        filename: r.get(base + 4)?,
+        ext: r.get(base + 5)?,
+        size: r.get(base + 6)?,
+        title: r.get(base + 7)?,
+        type_long: r.get(base + 8)?,
+        tracker: r.get(base + 9)?,
+        duration: r.get(base + 10)?,
+        channels: r.get(base + 11)?,
+        instruments: r.get(base + 12)?,
+        samples: r.get(base + 13)?,
+        favorite: r.get::<_, i64>(base + 14)? != 0,
+        play_count: r.get(base + 15)?,
+    })
+}
+
 async fn api_tracks(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
     let tracks = state
         .db
         .with(|c| {
-            let mut stmt = c.prepare(
-                "SELECT f.content_hash, f.rel_path, f.grp, f.artist, f.filename, f.ext, f.size,
-                        m.title, m.type_long, m.tracker, m.duration, m.channels,
-                        m.instruments, m.samples,
-                        COALESCE(s.favorite, 0), COALESCE(s.play_count, 0)
+            let mut stmt = c.prepare(&format!(
+                "SELECT {TRACK_COLS}
                  FROM files f
                  LEFT JOIN meta m ON m.content_hash = f.content_hash
                  LEFT JOIN stats s ON s.content_hash = f.content_hash
                  ORDER BY f.grp COLLATE NOCASE, f.artist COLLATE NOCASE, f.filename COLLATE NOCASE",
-            )?;
-            let rows = stmt.query_map([], |r| {
-                Ok(Track {
-                    hash: r.get(0)?,
-                    path: r.get(1)?,
-                    group: r.get(2)?,
-                    artist: r.get(3)?,
-                    filename: r.get(4)?,
-                    ext: r.get(5)?,
-                    size: r.get(6)?,
-                    title: r.get(7)?,
-                    type_long: r.get(8)?,
-                    tracker: r.get(9)?,
-                    duration: r.get(10)?,
-                    channels: r.get(11)?,
-                    instruments: r.get(12)?,
-                    samples: r.get(13)?,
-                    favorite: r.get::<_, i64>(14)? != 0,
-                    play_count: r.get(15)?,
-                })
-            })?;
+            ))?;
+            let rows = stmt.query_map([], |r| track_from_row(r, 0))?;
             rows.collect::<rusqlite::Result<Vec<_>>>()
         })
         .await?;
@@ -436,18 +470,813 @@ async fn api_rescan(_auth: Auth, State(state): State<AppState>) -> AppResult<Jso
     })))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::clean_segment;
+// ---------- playlists ----------
 
-    #[test]
-    fn clean_segment_rejects_unsafe() {
-        assert_eq!(clean_segment("Acme").as_deref(), Some("Acme"));
-        assert_eq!(clean_segment("  spaced  ").as_deref(), Some("spaced"));
-        assert_eq!(clean_segment(""), None);
-        assert_eq!(clean_segment("."), None);
-        assert_eq!(clean_segment(".."), None);
-        assert_eq!(clean_segment("a/b"), None);
-        assert_eq!(clean_segment("a\\b"), None);
+#[derive(Serialize)]
+struct PlaylistSummary {
+    id: String,
+    name: String,
+    kind: String,
+    source_ref: Option<String>,
+    item_count: i64,
+    created_at: String,
+    updated_at: String,
+}
+
+/// A playlist entry. `id` is the stable surrogate (reorder/remove). When the
+/// module is present locally (md5 matches a file) the fields come from the
+/// library and `hash` is its content_hash for playback; when missing they fall
+/// back to the cached metadata and `present=false` (greyed, fetchable).
+#[derive(Serialize)]
+struct PlaylistTrack {
+    id: i64,
+    position: i64,
+    md5: Option<String>,
+    present: bool,
+    hash: Option<String>,
+    path: Option<String>,
+    group: Option<String>,
+    artist: Option<String>,
+    filename: Option<String>,
+    ext: Option<String>,
+    size: Option<i64>,
+    title: Option<String>,
+    type_long: Option<String>,
+    tracker: Option<String>,
+    duration: Option<f64>,
+    channels: Option<i64>,
+    instruments: Option<i64>,
+    samples: Option<i64>,
+    favorite: bool,
+    play_count: i64,
+}
+
+/// A URL/id-safe slug from a playlist name (lowercase alphanumerics, single
+/// dashes), falling back to "playlist" when the name has no usable characters.
+fn slug(name: &str) -> String {
+    let mut s = String::new();
+    let mut prev_dash = false;
+    for c in name.trim().to_lowercase().chars() {
+        if c.is_ascii_alphanumeric() {
+            s.push(c);
+            prev_dash = false;
+        } else if !prev_dash {
+            s.push('-');
+            prev_dash = true;
+        }
     }
+    let s = s.trim_matches('-').to_string();
+    if s.is_empty() {
+        "playlist".to_string()
+    } else {
+        s
+    }
+}
+
+async fn api_playlists(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
+    let lists = state
+        .db
+        .with(|c| {
+            let mut stmt = c.prepare(
+                "SELECT p.id, p.name, p.kind, p.source_ref, p.created_at, p.updated_at,
+                        (SELECT COUNT(*) FROM playlist_items pi WHERE pi.playlist_id = p.id)
+                 FROM playlists p
+                 ORDER BY p.updated_at DESC, p.name COLLATE NOCASE",
+            )?;
+            let rows = stmt.query_map([], |r| {
+                Ok(PlaylistSummary {
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    kind: r.get(2)?,
+                    source_ref: r.get(3)?,
+                    created_at: r.get(4)?,
+                    updated_at: r.get(5)?,
+                    item_count: r.get(6)?,
+                })
+            })?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+        })
+        .await?;
+    Ok(Json(json!({ "playlists": lists })))
+}
+
+#[derive(Deserialize)]
+struct CreatePlaylistIn {
+    name: String,
+}
+
+async fn api_create_playlist(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Json(req): Json<CreatePlaylistIn>,
+) -> AppResult<Json<PlaylistSummary>> {
+    let name = req.name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::BadRequest("name is required".into()));
+    }
+    let now = chrono::Utc::now();
+    let id = format!("{}-{}", slug(&name), now.timestamp_millis());
+    let now = now.to_rfc3339();
+    let summary = PlaylistSummary {
+        id: id.clone(),
+        name: name.clone(),
+        kind: "user".into(),
+        source_ref: None,
+        item_count: 0,
+        created_at: now.clone(),
+        updated_at: now.clone(),
+    };
+    state
+        .db
+        .with(move |c| {
+            c.execute(
+                "INSERT INTO playlists (id, name, kind, source_ref, created_at, updated_at)
+                 VALUES (?1, ?2, 'user', NULL, ?3, ?3)",
+                rusqlite::params![id, name, now],
+            )
+        })
+        .await?;
+    Ok(Json(summary))
+}
+
+async fn api_playlist(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let (summary, items) = state
+        .db
+        .with(move |c| {
+            let summary = c.query_row(
+                "SELECT p.id, p.name, p.kind, p.source_ref, p.created_at, p.updated_at,
+                        (SELECT COUNT(*) FROM playlist_items pi WHERE pi.playlist_id = p.id)
+                 FROM playlists p WHERE p.id = ?1",
+                [&id],
+                |r| {
+                    Ok(PlaylistSummary {
+                        id: r.get(0)?,
+                        name: r.get(1)?,
+                        kind: r.get(2)?,
+                        source_ref: r.get(3)?,
+                        created_at: r.get(4)?,
+                        updated_at: r.get(5)?,
+                        item_count: r.get(6)?,
+                    })
+                },
+            )?;
+            // Resolve each md5 to a local file (if present); an md5 can map to
+            // several `files` rows (duplicate files), GROUP BY collapses to one.
+            // Display fields prefer the local data, falling back to the cached
+            // import metadata (pi.title/artist/format/filename) when missing.
+            let mut stmt = c.prepare(
+                "SELECT pi.id, pi.position, pi.md5,
+                        f.content_hash, f.rel_path, f.grp, f.artist, f.filename, f.ext, f.size,
+                        m.title, m.type_long, m.tracker, m.duration, m.channels,
+                        m.instruments, m.samples,
+                        COALESCE(s.favorite, 0), COALESCE(s.play_count, 0),
+                        pi.title, pi.artist, pi.format, pi.filename
+                 FROM playlist_items pi
+                 LEFT JOIN files f ON f.md5 = pi.md5
+                 LEFT JOIN meta  m ON m.content_hash = f.content_hash
+                 LEFT JOIN stats s ON s.content_hash = f.content_hash
+                 WHERE pi.playlist_id = ?1
+                 GROUP BY pi.id
+                 ORDER BY pi.position, pi.id",
+            )?;
+            let items = stmt
+                .query_map([&id], |r| {
+                    let hash: Option<String> = r.get(3)?;
+                    let present = hash.is_some();
+                    let loc_artist: Option<String> = r.get(6)?;
+                    let loc_filename: Option<String> = r.get(7)?;
+                    let loc_ext: Option<String> = r.get(8)?;
+                    let loc_title: Option<String> = r.get(10)?;
+                    let cached_title: Option<String> = r.get(19)?;
+                    let cached_artist: Option<String> = r.get(20)?;
+                    let cached_format: Option<String> = r.get(21)?;
+                    let cached_filename: Option<String> = r.get(22)?;
+                    Ok(PlaylistTrack {
+                        id: r.get(0)?,
+                        position: r.get(1)?,
+                        md5: r.get(2)?,
+                        present,
+                        hash,
+                        path: r.get(4)?,
+                        group: r.get(5)?,
+                        artist: loc_artist.or(cached_artist),
+                        filename: loc_filename.or(cached_filename),
+                        ext: loc_ext.or(cached_format),
+                        size: r.get(9)?,
+                        title: loc_title.or(cached_title),
+                        type_long: r.get(11)?,
+                        tracker: r.get(12)?,
+                        duration: r.get(13)?,
+                        channels: r.get(14)?,
+                        instruments: r.get(15)?,
+                        samples: r.get(16)?,
+                        favorite: r.get::<_, i64>(17)? != 0,
+                        play_count: r.get(18)?,
+                    })
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok((summary, items))
+        })
+        .await?;
+    Ok(Json(json!({ "playlist": summary, "items": items })))
+}
+
+async fn api_rename_playlist(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(req): Json<CreatePlaylistIn>,
+) -> AppResult<StatusCode> {
+    let name = req.name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::BadRequest("name is required".into()));
+    }
+    let now = chrono::Utc::now().to_rfc3339();
+    let changed = state
+        .db
+        .with(move |c| {
+            c.execute(
+                "UPDATE playlists SET name = ?2, updated_at = ?3 WHERE id = ?1",
+                rusqlite::params![id, name, now],
+            )
+        })
+        .await?;
+    if changed == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn api_delete_playlist(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> AppResult<StatusCode> {
+    let changed = state
+        .db
+        .with(move |c| c.execute("DELETE FROM playlists WHERE id = ?1", [&id]))
+        .await?;
+    if changed == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// One item to add/import. Hybrid identity: `md5` (local-library match key, when
+/// known) and/or `path` (a Modland fetch path for a missing module). At least one
+/// must be present; the rest is cached display metadata.
+#[derive(Deserialize, Clone)]
+struct ItemIn {
+    #[serde(default)]
+    md5: Option<String>,
+    #[serde(default)]
+    path: Option<String>,
+    title: Option<String>,
+    artist: Option<String>,
+    format: Option<String>,
+    filename: Option<String>,
+}
+
+impl ItemIn {
+    /// Normalised md5 (lowercased, blanked if not a 32-hex string).
+    fn norm_md5(&self) -> Option<String> {
+        self.md5
+            .as_deref()
+            .map(|m| m.trim().to_lowercase())
+            .filter(|m| m.len() == 32 && m.bytes().all(|b| b.is_ascii_hexdigit()))
+    }
+    fn norm_path(&self) -> Option<String> {
+        self.path.as_deref().map(str::trim).filter(|p| !p.is_empty()).map(str::to_string)
+    }
+    /// De-dup / identity key: md5 if present, else path.
+    fn key(&self) -> Option<String> {
+        self.norm_md5().or_else(|| self.norm_path())
+    }
+}
+
+async fn api_add_item(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(req): Json<ItemIn>,
+) -> AppResult<StatusCode> {
+    let md5 = req.norm_md5();
+    let path = req.norm_path();
+    if md5.is_none() && path.is_none() {
+        return Err(AppError::BadRequest("md5 or path is required".into()));
+    }
+    let (title, artist, format, filename) =
+        (req.title.clone(), req.artist.clone(), req.format.clone(), req.filename.clone());
+    let touched = chrono::Utc::now().to_rfc3339();
+    state
+        .db
+        .with_mut(move |c| {
+            let tx = c.transaction()?;
+            let exists: bool = tx
+                .query_row("SELECT 1 FROM playlists WHERE id = ?1", [&id], |_| Ok(true))
+                .optional()?
+                .unwrap_or(false);
+            if !exists {
+                return Ok(false);
+            }
+            // Idempotent: dedup by md5 if present, else by path.
+            let dup: bool = match (&md5, &path) {
+                (Some(m), _) => tx
+                    .query_row(
+                        "SELECT 1 FROM playlist_items WHERE playlist_id = ?1 AND md5 = ?2",
+                        rusqlite::params![id, m],
+                        |_| Ok(true),
+                    )
+                    .optional()?
+                    .is_some(),
+                (None, Some(p)) => tx
+                    .query_row(
+                        "SELECT 1 FROM playlist_items WHERE playlist_id = ?1 AND path = ?2",
+                        rusqlite::params![id, p],
+                        |_| Ok(true),
+                    )
+                    .optional()?
+                    .is_some(),
+                _ => false,
+            };
+            if !dup {
+                let next: i64 = tx.query_row(
+                    "SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_items WHERE playlist_id = ?1",
+                    [&id],
+                    |r| r.get(0),
+                )?;
+                tx.execute(
+                    "INSERT INTO playlist_items
+                       (playlist_id, position, md5, path, title, artist, format, filename)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    rusqlite::params![id, next, md5, path, title, artist, format, filename],
+                )?;
+            }
+            tx.execute(
+                "UPDATE playlists SET updated_at = ?2 WHERE id = ?1",
+                rusqlite::params![id, touched],
+            )?;
+            tx.commit()?;
+            Ok(true)
+        })
+        .await?
+        .then_some(StatusCode::NO_CONTENT)
+        .ok_or(AppError::NotFound)
+}
+
+#[derive(Deserialize)]
+struct ReorderIn {
+    /// The playlist's item ids in the desired order (the frontend sends the full
+    /// list). Items not listed keep their old position.
+    ids: Vec<i64>,
+}
+
+async fn api_reorder_items(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(req): Json<ReorderIn>,
+) -> AppResult<StatusCode> {
+    let touched = chrono::Utc::now().to_rfc3339();
+    state
+        .db
+        .with_mut(move |c| {
+            let tx = c.transaction()?;
+            let exists: bool = tx
+                .query_row("SELECT 1 FROM playlists WHERE id = ?1", [&id], |_| Ok(true))
+                .optional()?
+                .unwrap_or(false);
+            if !exists {
+                return Ok(false);
+            }
+            for (pos, item_id) in req.ids.iter().enumerate() {
+                tx.execute(
+                    "UPDATE playlist_items SET position = ?1 WHERE id = ?2 AND playlist_id = ?3",
+                    rusqlite::params![pos as i64, item_id, id],
+                )?;
+            }
+            tx.execute(
+                "UPDATE playlists SET updated_at = ?2 WHERE id = ?1",
+                rusqlite::params![id, touched],
+            )?;
+            tx.commit()?;
+            Ok(true)
+        })
+        .await?
+        .then_some(StatusCode::NO_CONTENT)
+        .ok_or(AppError::NotFound)
+}
+
+async fn api_remove_item(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path((id, item_id)): Path<(String, i64)>,
+) -> AppResult<StatusCode> {
+    let changed = state
+        .db
+        .with(move |c| {
+            c.execute(
+                "DELETE FROM playlist_items WHERE playlist_id = ?1 AND id = ?2",
+                rusqlite::params![id, item_id],
+            )
+        })
+        .await?;
+    if changed == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ---------- import / export ----------
+
+#[derive(Deserialize)]
+struct ImportIn {
+    name: String,
+    source: Option<String>,
+    items: Vec<ItemIn>,
+}
+
+/// Import a playlist document. Each item needs an md5 and/or a Modland path;
+/// de-duplicated by that key in order. Cached metadata is stored for display +
+/// later fetching. Items resolve to local files by `files.md5`.
+async fn api_import_playlist(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Json(req): Json<ImportIn>,
+) -> AppResult<Json<PlaylistSummary>> {
+    let name = req.name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::BadRequest("name is required".into()));
+    }
+    // Keep items with a usable key (md5 or path), de-duped, first-seen order.
+    let mut seen = std::collections::HashSet::new();
+    let mut items: Vec<ItemIn> = Vec::new();
+    for it in req.items {
+        if let Some(k) = it.key() {
+            if seen.insert(k) {
+                items.push(it);
+            }
+        }
+    }
+    let now = chrono::Utc::now();
+    let id = format!("{}-{}", slug(&name), now.timestamp_millis());
+    let now = now.to_rfc3339();
+    let source = req.source.clone();
+    let summary = PlaylistSummary {
+        id: id.clone(),
+        name: name.clone(),
+        kind: "imported".into(),
+        source_ref: source.clone(),
+        item_count: items.len() as i64,
+        created_at: now.clone(),
+        updated_at: now.clone(),
+    };
+    state
+        .db
+        .with_mut(move |c| {
+            let tx = c.transaction()?;
+            tx.execute(
+                "INSERT INTO playlists (id, name, kind, source_ref, created_at, updated_at)
+                 VALUES (?1, ?2, 'imported', ?3, ?4, ?4)",
+                rusqlite::params![id, name, source, now],
+            )?;
+            {
+                let mut ins = tx.prepare(
+                    "INSERT INTO playlist_items
+                       (playlist_id, position, md5, path, title, artist, format, filename)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                )?;
+                for (pos, it) in items.iter().enumerate() {
+                    ins.execute(rusqlite::params![
+                        id,
+                        pos as i64,
+                        it.norm_md5(),
+                        it.norm_path(),
+                        it.title,
+                        it.artist,
+                        it.format,
+                        it.filename
+                    ])?;
+                }
+            }
+            tx.commit()
+        })
+        .await?;
+    Ok(Json(summary))
+}
+
+/// Export a playlist as an import document (md5 + best-known metadata, preferring
+/// the cached values, falling back to the local library).
+async fn api_export_playlist(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let (name, source, items) = state
+        .db
+        .with(move |c| {
+            let (name, source): (String, Option<String>) = c.query_row(
+                "SELECT name, source_ref FROM playlists WHERE id = ?1",
+                [&id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )?;
+            let mut stmt = c.prepare(
+                "SELECT COALESCE(pi.md5, f.md5), pi.path,
+                        COALESCE(pi.title, m.title),
+                        COALESCE(pi.artist, f.artist),
+                        COALESCE(pi.format, f.ext),
+                        COALESCE(pi.filename, f.filename)
+                 FROM playlist_items pi
+                 LEFT JOIN files f ON f.md5 = pi.md5
+                 LEFT JOIN meta  m ON m.content_hash = f.content_hash
+                 WHERE pi.playlist_id = ?1
+                 GROUP BY pi.id
+                 ORDER BY pi.position, pi.id",
+            )?;
+            let items = stmt
+                .query_map([&id], |r| {
+                    Ok(json!({
+                        "md5": r.get::<_, Option<String>>(0)?,
+                        "path": r.get::<_, Option<String>>(1)?,
+                        "title": r.get::<_, Option<String>>(2)?,
+                        "artist": r.get::<_, Option<String>>(3)?,
+                        "format": r.get::<_, Option<String>>(4)?,
+                        "filename": r.get::<_, Option<String>>(5)?,
+                    }))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok((name, source, items))
+        })
+        .await?;
+    Ok(Json(json!({ "name": name, "source": source, "items": items })))
+}
+
+/// All distinct content MD5s in the library — lets an external curator diff a
+/// candidate list against the collection before producing an import doc.
+async fn api_library_md5(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
+    let md5s: Vec<String> = state
+        .db
+        .with(|c| {
+            let mut s = c.prepare("SELECT DISTINCT md5 FROM files WHERE md5 IS NOT NULL")?;
+            let rows = s.query_map([], |r| r.get::<_, String>(0))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+        })
+        .await?;
+    Ok(Json(json!({ "md5": md5s })))
+}
+
+// ---------- fetch missing (download by Modland path) ----------
+
+/// Fallback group for a fetched module whose Modland path carries no author.
+const DL_FALLBACK_GROUP: &str = "Modland";
+/// Safety cap on downloads per fetch run (be kind to a volunteer-run service).
+const FETCH_MAX: usize = 500;
+
+async fn api_fetch_status(_auth: Auth, State(state): State<AppState>) -> Json<Value> {
+    use std::sync::atomic::Ordering;
+    Json(json!({
+        "running": state.fetch.running.load(Ordering::Relaxed),
+        "total": state.fetch.total.load(Ordering::Relaxed),
+        "fetched": state.fetch.fetched.load(Ordering::Relaxed),
+        "failed": state.fetch.failed.load(Ordering::Relaxed),
+    }))
+}
+
+async fn api_fetch_missing(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Value>> {
+    use std::sync::atomic::Ordering;
+    // Playlist must exist.
+    let exists: bool = state
+        .db
+        .with({
+            let id = id.clone();
+            move |c| {
+                c.query_row("SELECT 1 FROM playlists WHERE id = ?1", [&id], |_| Ok(true))
+                    .optional()
+                    .map(|o| o.unwrap_or(false))
+            }
+        })
+        .await?;
+    if !exists {
+        return Err(AppError::NotFound);
+    }
+    if state
+        .fetch
+        .running
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err(AppError::Conflict("a fetch is already running".into()));
+    }
+    state.fetch.total.store(0, Ordering::Relaxed);
+    state.fetch.fetched.store(0, Ordering::Relaxed);
+    state.fetch.failed.store(0, Ordering::Relaxed);
+
+    let bg = state.clone();
+    tokio::spawn(async move {
+        if let Err(e) = run_fetch_missing(&bg, &id).await {
+            tracing::error!(error = %e, "fetch-missing failed");
+        }
+        bg.fetch.running.store(false, Ordering::Relaxed);
+    });
+    Ok(Json(json!({ "started": true })))
+}
+
+/// Download a playlist's missing items from Modland by their stored `path`,
+/// placing each under `<author>/<filename>` (suffixed on collision), recording
+/// the downloaded md5 on the item, then rescanning so they resolve as present.
+async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
+
+    // Missing = items with a fetch path that aren't resolved to a local file yet
+    // (md5 unknown, or md5 set but no matching file).
+    let missing: Vec<(i64, String)> = state
+        .db
+        .with({
+            let id = id.to_string();
+            move |c| {
+                let mut s = c.prepare(
+                    "SELECT pi.id, pi.path FROM playlist_items pi
+                     LEFT JOIN files f ON f.md5 = pi.md5
+                     WHERE pi.playlist_id = ?1 AND pi.path IS NOT NULL
+                       AND (pi.md5 IS NULL OR f.md5 IS NULL)
+                     ORDER BY pi.position",
+                )?;
+                let rows = s.query_map([&id], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
+                rows.collect::<rusqlite::Result<Vec<_>>>()
+            }
+        })
+        .await?;
+    state.fetch.total.store(missing.len(), Ordering::Relaxed);
+    tracing::info!(count = missing.len(), "fetch-missing: downloading from Modland");
+
+    if missing.len() > FETCH_MAX {
+        tracing::warn!(cap = FETCH_MAX, total = missing.len(), "capping downloads this run");
+    }
+    let client = crate::modland::Client::new(state.cfg.modland_base.clone())?;
+    let mut wrote_any = false;
+    for (item_id, path) in missing.iter().take(FETCH_MAX) {
+        let bytes = match client.download_path(path).await {
+            Ok(b) => b,
+            Err(e) => {
+                tracing::warn!(path, error = %e, "download failed");
+                state.fetch.failed.fetch_add(1, Ordering::Relaxed);
+                continue;
+            }
+        };
+        let (_sha, md5) = crate::scan::hash_bytes(&bytes);
+        // Already have these exact bytes under another name? Just resolve the item.
+        let have = state
+            .db
+            .with({
+                let md5 = md5.clone();
+                move |c| {
+                    c.query_row("SELECT 1 FROM files WHERE md5 = ?1", [&md5], |_| Ok(()))
+                        .optional()
+                }
+            })
+            .await?
+            .is_some();
+        if !have {
+            let author = crate::modland::author_from_path(path)
+                .unwrap_or_else(|| DL_FALLBACK_GROUP.to_string());
+            let filename = path.rsplit('/').next().unwrap_or("module").to_string();
+            if let Err(e) = write_module(&state.cfg.root, &author, &filename, &bytes).await {
+                tracing::warn!(file = %filename, error = %e, "write failed");
+                state.fetch.failed.fetch_add(1, Ordering::Relaxed);
+                continue;
+            }
+            wrote_any = true;
+        }
+        // Record the resolved md5 on the item so it links to the file.
+        let item_id = *item_id;
+        let md5_for_db = md5.clone();
+        state
+            .db
+            .with(move |c| {
+                c.execute(
+                    "UPDATE playlist_items SET md5 = ?1 WHERE id = ?2",
+                    rusqlite::params![md5_for_db, item_id],
+                )
+            })
+            .await?;
+        state.fetch.fetched.fetch_add(1, Ordering::Relaxed);
+        tokio::time::sleep(Duration::from_millis(300)).await;
+    }
+
+    // Index the new files so their md5s exist → playlist items resolve as present.
+    if wrote_any {
+        crate::run_scan(state.db.clone(), state.cfg.root.clone(), state.scan.clone()).await?;
+    }
+    tracing::info!(
+        fetched = state.fetch.fetched.load(Ordering::Relaxed),
+        failed = state.fetch.failed.load(Ordering::Relaxed),
+        "fetch-missing complete"
+    );
+    Ok(())
+}
+
+/// Write a downloaded module under `<group>/<filename>`, suffixing the filename
+/// (`name~2.ext`) on collision so a fetch never overwrites an existing file.
+async fn write_module(
+    root: &std::path::Path,
+    group: &str,
+    filename: &str,
+    bytes: &[u8],
+) -> anyhow::Result<()> {
+    let g = clean_segment(group).unwrap_or_else(|| DL_FALLBACK_GROUP.to_string());
+    let name = clean_segment(filename)
+        .filter(|n| crate::scan::has_module_ext(n))
+        .ok_or_else(|| anyhow::anyhow!("unsafe or non-module filename: {filename}"))?;
+    let dir = root.join(&g);
+    tokio::fs::create_dir_all(&dir).await?;
+    let dest = unique_dest(&dir, &name);
+    tokio::fs::write(&dest, bytes).await?;
+    Ok(())
+}
+
+/// A non-existing destination in `dir` for `name`, suffixing `~2`, `~3`, … on the
+/// stem when the plain name is taken.
+fn unique_dest(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let plain = dir.join(name);
+    if !plain.exists() {
+        return plain;
+    }
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((s, e)) => (s.to_string(), format!(".{e}")),
+        None => (name.to_string(), String::new()),
+    };
+    for n in 2..1000 {
+        let cand = dir.join(format!("{stem}~{n}{ext}"));
+        if !cand.exists() {
+            return cand;
+        }
+    }
+    plain
+}
+
+// ---------- duplicate report ----------
+
+/// Report duplicate modules: **exact** (identical md5 at multiple paths) and
+/// **likely** (same filename, different md5 — probably the same tune re-encoded).
+/// Tracker only reports; resolution (rename/delete) stays manual / external.
+async fn api_dupes(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
+    use std::collections::BTreeMap;
+    let (exact, likely) = state
+        .db
+        .with(|c| {
+            // Exact: same md5, multiple files.
+            let mut by_md5: BTreeMap<String, Vec<String>> = BTreeMap::new();
+            {
+                let mut s = c.prepare(
+                    "SELECT md5, rel_path FROM files
+                     WHERE md5 IS NOT NULL AND md5 IN (
+                       SELECT md5 FROM files WHERE md5 IS NOT NULL
+                       GROUP BY md5 HAVING COUNT(*) > 1)
+                     ORDER BY md5, rel_path",
+                )?;
+                let mut rows = s.query([])?;
+                while let Some(r) = rows.next()? {
+                    by_md5.entry(r.get(0)?).or_default().push(r.get(1)?);
+                }
+            }
+            // Likely: same filename, >1 distinct md5.
+            let mut by_name: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+            {
+                let mut s = c.prepare(
+                    "SELECT LOWER(filename) fn, rel_path, md5 FROM files
+                     WHERE md5 IS NOT NULL AND LOWER(filename) IN (
+                       SELECT LOWER(filename) FROM files WHERE md5 IS NOT NULL
+                       GROUP BY LOWER(filename) HAVING COUNT(DISTINCT md5) > 1)
+                     ORDER BY fn, rel_path",
+                )?;
+                let mut rows = s.query([])?;
+                while let Some(r) = rows.next()? {
+                    let fname: String = r.get(0)?;
+                    by_name.entry(fname).or_default().push(json!({
+                        "path": r.get::<_, String>(1)?,
+                        "md5": r.get::<_, String>(2)?,
+                    }));
+                }
+            }
+            let exact: Vec<Value> = by_md5
+                .into_iter()
+                .map(|(md5, paths)| json!({ "md5": md5, "paths": paths }))
+                .collect();
+            let likely: Vec<Value> = by_name
+                .into_iter()
+                .map(|(filename, files)| json!({ "filename": filename, "files": files }))
+                .collect();
+            Ok((exact, likely))
+        })
+        .await?;
+    Ok(Json(json!({ "exact": exact, "likely": likely })))
 }
