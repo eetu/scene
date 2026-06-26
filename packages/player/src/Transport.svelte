@@ -62,7 +62,7 @@
 				<SkipBack size={16} />
 			</button>
 			<button
-				class="t-btn"
+				class="t-btn t-play"
 				onclick={transportToggle}
 				aria-label={playback.playing && !playback.paused ? 'pause' : 'play'}
 			>
@@ -70,24 +70,6 @@
 			</button>
 			<button class="t-btn" onclick={playNext} disabled={!hasNext} aria-label="next">
 				<SkipForward size={16} />
-			</button>
-			<button
-				class="t-btn"
-				class:on={playback.shuffle}
-				onclick={toggleShuffle}
-				aria-label="shuffle"
-				title="shuffle"
-			>
-				<Shuffle size={16} />
-			</button>
-			<button
-				class="t-btn"
-				class:on={playback.repeat}
-				onclick={toggleRepeat}
-				aria-label="repeat"
-				title="repeat (loop)"
-			>
-				<Repeat size={16} />
 			</button>
 			{#if onOpenView}
 				<button class="t-info" onclick={onOpenView} title="open player view">
@@ -110,6 +92,24 @@
 					</span>
 				</div>
 			{/if}
+			<button
+				class="t-btn t-mode"
+				class:on={playback.shuffle}
+				onclick={toggleShuffle}
+				aria-label="shuffle"
+				title="shuffle"
+			>
+				<Shuffle size={16} />
+			</button>
+			<button
+				class="t-btn t-mode"
+				class:on={playback.repeat}
+				onclick={toggleRepeat}
+				aria-label="repeat"
+				title="repeat (loop)"
+			>
+				<Repeat size={16} />
+			</button>
 			<div class="t-time">
 				{playback.duration
 					? `${fmtTime(playback.position)} / ${fmtTime(playback.duration)}`
@@ -177,6 +177,25 @@
 		background: var(--accent);
 		border-color: var(--accent);
 	}
+	/* Play/pause is the primary control — accent-filled and a touch wider. */
+	.t-play {
+		color: var(--bg);
+		background: var(--accent);
+		border-color: var(--accent);
+		min-width: 48px;
+	}
+	/* Shuffle/repeat are secondary toggles — ghost buttons, accent only when on. */
+	.t-mode {
+		min-width: 0;
+		background: none;
+		border-color: transparent;
+		color: var(--muted);
+	}
+	.t-mode.on {
+		color: var(--accent);
+		background: none;
+		border-color: transparent;
+	}
 	.t-btn :global(svg) {
 		display: block;
 		stroke-width: 2.5;
@@ -196,7 +215,7 @@
 	.t-title {
 		display: block;
 		font-family: var(--font-retro, ui-monospace, monospace);
-		font-size: 11px;
+		font-size: 13px;
 		color: var(--accent);
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -218,14 +237,14 @@
 	.t-time {
 		flex: 0 0 auto;
 		color: var(--muted);
-		font-size: 16px;
+		font-size: 13px;
 		font-family: var(--font-mono-retro, ui-monospace, monospace);
 		font-variant-numeric: tabular-nums;
 	}
 	.t-pos {
 		flex: 0 0 auto;
 		color: var(--muted);
-		font-size: 16px;
+		font-size: 12px;
 		font-family: var(--font-mono-retro, ui-monospace, monospace);
 		font-variant-numeric: tabular-nums;
 	}
