@@ -82,15 +82,23 @@ Cargo workspace = `backend` + `e2e`.
 - `GET /status` also reports live scan progress (`scanning`, `scan_total`,
   `scan_processed`, `scan_hashed`) from lock-free counters, so the UI can show a
   progress bar without touching the scan-locked DB.
-- **Playlists** (hash-keyed items, like meta/stats, so they survive moves):
-  `GET/POST /api/playlists`, `GET/POST(rename)/DELETE /api/playlists/{id}`,
-  `POST(add)/PUT(reorder) /api/playlists/{id}/items`,
-  `DELETE /api/playlists/{id}/items/{hash}`.
-- **Top Favourites discovery** (The Mod Archive): `GET /api/top/preview`
-  (fetch chart + filename-diff, no download), `POST /api/top/sync` (background:
-  fetch → md5-diff → auto-download missing into `Top Favourites/` → rescan →
-  rebuild the `top_favourites` playlist), `GET /api/top/status` (lock-free
-  progress `{syncing, total, have, fetched, failed}`).
+- **Playlists** (items keyed by md5/path/url so they follow a module's bytes
+  across moves): `GET/POST /api/playlists`,
+  `GET/POST(rename)/DELETE /api/playlists/{id}`,
+  `POST(add)/PUT(reorder) /api/playlists/{id}/items` — add takes
+  `{md5|path|url, …}`, reorder takes `{ids:[item_id]}` —
+  `DELETE /api/playlists/{id}/items/{item_id}`.
+- **Import / export** a playlist document (md5 + Modland path + cached display
+  metadata): `POST /api/playlists/import` (kind `imported`),
+  `GET /api/playlists/{id}/export`; `GET /api/library/md5` dumps all local md5s
+  so an external curator can diff before producing an import doc.
+- **Fetch missing** (download a playlist's missing items from Modland):
+  `POST /api/playlists/{id}/fetch-missing` (background — downloads each item by
+  its Modland `path`, else a generic `url`, into `<group>/<artist>/<file>`,
+  records the md5, rescans so items resolve as present), `GET /api/fetch/status`
+  (lock-free progress `{running, total, fetched, failed}`). The Modland base is
+  `MODLAND_BASE` (default `https://ftp.modland.com`), env-overridable so the e2e
+  drives it against a wiremock stub.
 
 ## Working on this repo
 
@@ -177,20 +185,23 @@ Cargo workspace = `backend` + `e2e`.
   stream (group-header rows + track rows of open groups) and rendered with
   **TanStack Virtual** (`@tanstack/svelte-virtual`, `createVirtualizer` +
   `measureElement`). `<main>` is the scroll container (body no longer scrolls).
-- **Playlists + Top Favourites (done):** `playlists` + `playlist_items` tables
-  (hash-keyed items, `ON DELETE CASCADE` with `PRAGMA foreign_keys=ON`); full CRUD
-  + reorder API; a right-side `PlaylistsPanel.svelte` (create/rename/delete, item
-  reorder, play-in-order via `playInOrder`) and a per-row "add to playlist"
-  chooser. **Top Favourites discovery:** the `files` table gained an `md5` column
+- **Playlists + Modland fetch (done):** `playlists` + `playlist_items` tables
+  (items keyed by md5/path/url, `ON DELETE CASCADE` with `PRAGMA foreign_keys=ON`);
+  full CRUD + reorder (by item id) API; a right-side `PlaylistsPanel.svelte`
+  (create/rename/delete, item reorder, play-in-order via `playInOrder`) and a
+  per-row "add to playlist" chooser. The `files` table gained an `md5` column
   (computed alongside SHA-256 in one read pass — one-time full re-hash on first
-  boot after the upgrade) to match The Mod Archive, which keys modules by MD5. The
-  `modarchive.rs` client scrapes the public Top Favourites chart (no API key
-  needed; `MODARCHIVE_API_KEY` reserved for a future XML path) for `(moduleid,
-  filename)`; `POST /api/top/sync` runs in the background — filename/md5-diffs
-  against the collection, auto-downloads missing modules (sequential, throttled,
-  capped) into a `Top Favourites/` group, rescans, and rebuilds the
-  `top_favourites` playlist in chart order. Client base URLs are env-overridable
-  (`MODARCHIVE_WEB_BASE`/`_DL_BASE`) so the e2e drives it against a wiremock stub.
+  boot after the upgrade) so an item resolves to a local file by md5 (falling
+  back to a filename match when the md5 is unknown). **Import + fetch-missing:**
+  `POST /api/playlists/import` ingests a curated document (each item an md5
+  and/or a Modland `path`, plus cached display metadata); `fetch-missing`
+  downloads the items not present locally via the `modland.rs` client — by
+  Modland `path` (placed at `<format>/<author>/<file>`) or a generic `url`
+  (placed under the url host) — sequential, throttled, capped at `FETCH_MAX`,
+  then rescans so they resolve as present. `MODLAND_BASE` is env-overridable so
+  the e2e drives it against a wiremock stub. (An earlier plan to auto-sync The
+  Mod Archive "Top Favourites" chart was dropped in favour of this curated
+  import + Modland fetch path — there is no `modarchive` client or `/api/top/*`.)
 - **Backlog (ideas):**
   - **Installable offline PWA** — service worker caching the shell + chiptune
     WASM (+ recently-played module bytes) for offline foreground playback.
