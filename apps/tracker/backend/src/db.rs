@@ -25,6 +25,16 @@ impl Db {
         let conn = Connection::open(path)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
+        // Enforce FKs so deleting a playlist cascades to its items.
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        // Tuned for the Raspberry Pi target (slow SD-card I/O): keep sort/group
+        // temporaries in RAM rather than spilling to the card, give the page
+        // cache some room (~16 MB, negative = KiB), and wait out a transient lock
+        // instead of erroring. One connection (a tokio Mutex) means no real
+        // contention, but the timeout is cheap insurance against WAL checkpoints.
+        conn.pragma_update(None, "temp_store", "MEMORY")?;
+        conn.pragma_update(None, "cache_size", -16_000)?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
         Self::migrate(&conn)?;
         Ok(Self {
             inner: Arc::new(Mutex::new(conn)),
@@ -34,6 +44,7 @@ impl Db {
     #[cfg(test)]
     pub fn open_in_memory() -> anyhow::Result<Self> {
         let conn = Connection::open_in_memory()?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
         Self::migrate(&conn)?;
         Ok(Self {
             inner: Arc::new(Mutex::new(conn)),
@@ -68,10 +79,57 @@ impl Db {
     }
 
     fn migrate(conn: &Connection) -> anyhow::Result<()> {
+        // `playlist_items` has been reshaped a couple of times during development
+        // (content_hash → md5 → hybrid md5+path with a surrogate id). Drop any
+        // table lacking the `path` column so SCHEMA recreates the current shape.
+        // Safe: this feature is unreleased, so there's no real data to keep.
+        if table_exists(conn, "playlist_items") && !has_column(conn, "playlist_items", "path") {
+            conn.execute("DROP TABLE playlist_items", [])?;
+        }
         conn.execute_batch(SCHEMA)?;
+        // `CREATE TABLE IF NOT EXISTS` won't add a new column to a `files` table
+        // that already exists from a pre-md5 boot. Add it idempotently: SQLite
+        // has no `ADD COLUMN IF NOT EXISTS`, so swallow the duplicate-column
+        // error and let everything else propagate. The `idx_files_md5` index in
+        // SCHEMA is created after, so it lands once the column exists.
+        add_column_if_missing(conn, "files", "md5", "TEXT")?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_files_md5 ON files(md5)", [])?;
+        // `url` was added after the hybrid reshape; add it to an existing table.
+        add_column_if_missing(conn, "playlist_items", "url", "TEXT")?;
         conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         Ok(())
     }
+}
+
+/// Columns of `table` (empty if the table doesn't exist).
+fn columns(conn: &Connection, table: &str) -> Vec<String> {
+    conn.prepare(&format!("PRAGMA table_info({table})"))
+        .and_then(|mut s| {
+            s.query_map([], |r| r.get::<_, String>(1))?
+                .collect::<rusqlite::Result<Vec<_>>>()
+        })
+        .unwrap_or_default()
+}
+
+fn table_exists(conn: &Connection, table: &str) -> bool {
+    !columns(conn, table).is_empty()
+}
+
+fn has_column(conn: &Connection, table: &str, col: &str) -> bool {
+    columns(conn, table).iter().any(|c| c == col)
+}
+
+/// Idempotently add `col` to `table`. No-op if the column already exists.
+fn add_column_if_missing(
+    conn: &Connection,
+    table: &str,
+    col: &str,
+    decl: &str,
+) -> anyhow::Result<()> {
+    if !has_column(conn, table, col) {
+        conn.execute(&format!("ALTER TABLE {table} ADD COLUMN {col} {decl}"), [])?;
+    }
+    Ok(())
 }
 
 /// The declarative schema, for tests that need a raw connection (the scanner
@@ -86,6 +144,11 @@ const SCHEMA: &str = r#"
 -- scans so a cached content_hash can be reused when (size, mtime) are
 -- unchanged — avoids re-reading the whole NAS over CIFS every scan.
 -- `grp` (not `group`, a SQL keyword) is the first path segment under the root.
+-- `md5` is the MD5 of the file bytes (alongside the SHA-256 `content_hash`):
+-- The Mod Archive identifies modules by MD5, so it's how top-list entries are
+-- matched against the local collection. Nullable so a pre-md5 row triggers a
+-- one-time re-hash on the next scan (see scan.rs). `content_hash` stays the
+-- canonical key for meta/stats/playlists.
 CREATE TABLE IF NOT EXISTS files (
   rel_path     TEXT PRIMARY KEY,
   grp          TEXT NOT NULL,
@@ -94,10 +157,17 @@ CREATE TABLE IF NOT EXISTS files (
   ext          TEXT NOT NULL,
   size         INTEGER NOT NULL,
   mtime        INTEGER NOT NULL,
-  content_hash TEXT NOT NULL
+  content_hash TEXT NOT NULL,
+  md5          TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_files_hash ON files(content_hash);
 CREATE INDEX IF NOT EXISTS idx_files_grp ON files(grp);
+-- Case-insensitive filename lookup, so a playlist item resolves to a local file
+-- by name (the md5-or-filename fallback in the detail query) without scanning
+-- the whole `files` table per item.
+CREATE INDEX IF NOT EXISTS idx_files_fname_lower ON files(LOWER(filename));
+-- idx_files_md5 is created in migrate(), after the md5 column is ensured to
+-- exist (an older `files` table predates it).
 
 -- libopenmpt-parsed enrichment, keyed by content hash so it survives a file
 -- being moved/renamed (the path changes, the bytes don't). Filled lazily by
@@ -125,6 +195,44 @@ CREATE TABLE IF NOT EXISTS stats (
   play_count   INTEGER NOT NULL DEFAULT 0,
   last_played  TEXT
 );
+
+-- User-curated playlists, plus the synthesised 'top_favourites' list mirroring
+-- The Mod Archive chart. `kind` distinguishes them; `source_ref` records the
+-- external origin for synced lists (e.g. 'modarchive:top_favourites').
+CREATE TABLE IF NOT EXISTS playlists (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  kind        TEXT NOT NULL DEFAULT 'user',
+  source_ref  TEXT,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+
+-- Ordered playlist entries (hybrid identity). `md5` is the local-library match
+-- key (when known); `path` is a Modland `Format/Author/file` fetch path; `url`
+-- is a generic direct-download URL (e.g. a Mod Archive `downloads.php?moduleid`)
+-- for sources Modland doesn't carry. A library-added item has md5 + null fetch
+-- refs; an imported item has a path and/or url + maybe md5 (filled on fetch). An
+-- entry resolves to a local file via `files.md5`; absent → "missing" (shown from
+-- the cached metadata, fetched by path first, else url). `id` is a stable
+-- surrogate for reorder/remove. The backend stays service-agnostic: it downloads
+-- whatever `url` the curation supplied and verifies the bytes' md5.
+CREATE TABLE IF NOT EXISTS playlist_items (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  playlist_id  TEXT NOT NULL,
+  position     INTEGER NOT NULL,
+  md5          TEXT,
+  path         TEXT,
+  url          TEXT,
+  -- Cached display metadata (from the import doc / library at add time), used
+  -- when the module isn't present locally.
+  title        TEXT,
+  artist       TEXT,
+  format       TEXT,
+  filename     TEXT,
+  FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_pli_playlist ON playlist_items(playlist_id);
 "#;
 
 #[cfg(test)]

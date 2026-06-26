@@ -87,20 +87,37 @@ struct Cached {
     size: i64,
     mtime: i64,
     hash: String,
+    /// MD5 (lowercase hex), or None for a row indexed before the md5 column
+    /// existed — such a row is re-hashed once to backfill it.
+    md5: Option<String>,
 }
 
-fn hash_file(path: &Path) -> std::io::Result<String> {
+/// SHA-256 (our canonical key) + MD5 (to match The Mod Archive) in one read
+/// pass — hashing dominates a scan over CIFS, so don't read the file twice.
+fn hash_file(path: &Path) -> std::io::Result<(String, String)> {
     let mut f = std::fs::File::open(path)?;
-    let mut hasher = Sha256::new();
+    let mut sha = Sha256::new();
+    let mut md5 = md5::Context::new();
     let mut buf = [0u8; 64 * 1024];
     loop {
         let n = f.read(&mut buf)?;
         if n == 0 {
             break;
         }
-        hasher.update(&buf[..n]);
+        sha.update(&buf[..n]);
+        md5.consume(&buf[..n]);
     }
-    Ok(hex::encode(hasher.finalize()))
+    Ok((hex::encode(sha.finalize()), format!("{:x}", md5.compute())))
+}
+
+/// SHA-256 + MD5 (both lowercase hex) of an in-memory buffer, using the same
+/// algorithms as [`hash_file`]. Used by the Top Favourites sync so a freshly
+/// downloaded module gets the exact `content_hash` the scanner will later
+/// assign on disk, and an `md5` to dedup against the existing collection.
+pub fn hash_bytes(bytes: &[u8]) -> (String, String) {
+    let sha = hex::encode(Sha256::digest(bytes));
+    let md5 = format!("{:x}", md5::compute(bytes));
+    (sha, md5)
 }
 
 /// Split a relative path (forward-slash separated) into (group, artist).
@@ -136,7 +153,8 @@ pub fn scan_into(
     // until rows exist). Avoids a second full CIFS walk just to count.
     let mut cache: HashMap<String, Cached> = HashMap::new();
     {
-        let mut stmt = conn.prepare("SELECT rel_path, size, mtime, content_hash FROM files")?;
+        let mut stmt =
+            conn.prepare("SELECT rel_path, size, mtime, content_hash, md5 FROM files")?;
         let rows = stmt.query_map([], |r| {
             Ok((
                 r.get::<_, String>(0)?,
@@ -144,6 +162,7 @@ pub fn scan_into(
                     size: r.get(1)?,
                     mtime: r.get(2)?,
                     hash: r.get(3)?,
+                    md5: r.get(4)?,
                 },
             ))
         })?;
@@ -159,12 +178,12 @@ pub fn scan_into(
     {
         let mut seen: Vec<String> = Vec::new();
         let mut upsert = tx.prepare(
-            "INSERT INTO files (rel_path, grp, artist, filename, ext, size, mtime, content_hash)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            "INSERT INTO files (rel_path, grp, artist, filename, ext, size, mtime, content_hash, md5)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
              ON CONFLICT(rel_path) DO UPDATE SET
                grp=excluded.grp, artist=excluded.artist, filename=excluded.filename,
                ext=excluded.ext, size=excluded.size, mtime=excluded.mtime,
-               content_hash=excluded.content_hash",
+               content_hash=excluded.content_hash, md5=excluded.md5",
         )?;
 
         let walker = WalkDir::new(root)
@@ -212,14 +231,17 @@ pub fn scan_into(
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0);
 
-            // Reuse the cached hash if nothing changed; otherwise read + hash.
-            let hash = match cache.get(&rel_path) {
-                Some(c) if c.size == size && c.mtime == mtime => c.hash.clone(),
+            // Reuse the cached hashes if nothing changed *and* the md5 backfill
+            // is already done; otherwise read + hash (computes both digests).
+            let (hash, md5) = match cache.get(&rel_path) {
+                Some(c) if c.size == size && c.mtime == mtime && c.md5.is_some() => {
+                    (c.hash.clone(), c.md5.clone().unwrap())
+                }
                 _ => match hash_file(path) {
-                    Ok(h) => {
+                    Ok(pair) => {
                         result.hashed += 1;
                         progress.hashed.fetch_add(1, Ordering::Relaxed);
-                        h
+                        pair
                     }
                     Err(e) => {
                         tracing::warn!(path = %rel_path, error = %e, "hash failed; skipping");
@@ -230,7 +252,7 @@ pub fn scan_into(
 
             let (grp, artist) = group_artist(&rel_path);
             upsert.execute(rusqlite::params![
-                rel_path, grp, artist, name, ext, size, mtime, hash
+                rel_path, grp, artist, name, ext, size, mtime, hash, md5
             ])?;
             seen.push(rel_path);
             result.indexed += 1;
@@ -302,6 +324,17 @@ mod tests {
         let r1 = scan_into(&mut conn, root, &progress).unwrap();
         assert_eq!(r1.indexed, 1, "only the .mod is indexed");
         assert_eq!(r1.hashed, 1);
+        // Both digests are computed and stored. MD5 of b"MODDATA".
+        let (sha, md5): (String, Option<String>) = conn
+            .query_row("SELECT content_hash, md5 FROM files LIMIT 1", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!(sha.len(), 64, "sha-256 hex");
+        assert_eq!(
+            md5.as_deref(),
+            Some(format!("{:x}", md5::compute(b"MODDATA")).as_str())
+        );
         // First scan: empty cache → denominator 0 (UI shows a live count).
         assert_eq!(progress.total.load(Ordering::Relaxed), 0);
         assert_eq!(progress.processed.load(Ordering::Relaxed), 1);

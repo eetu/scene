@@ -46,7 +46,10 @@ justfile           task runner — `just dev party`, `just build`, `just lint`
 
 ## Working on this repo
 
-- `just dev party` / `just dev tracker` — backend (cargo) + frontend (vite).
+- `just dev party` / `just dev tracker` — whole service together: backend
+  (bacon, auto-reloads on src + `.env`) + frontend (vite) + sidecars (party's
+  transcoder). Per-component instead: `cd backend && bacon` (TUI), `yarn dev`,
+  `uv run …` for a Python sidecar.
 - `just build` — all frontends + the whole rust workspace.
 - `just lint` — yarn lint/format + cargo clippy (whole workspace).
 - Backend dev needs each app's `backend/.env` (see `backend/.env.example`);

@@ -16,11 +16,26 @@ pub struct ScanProgress {
     pub hashed: AtomicUsize,
 }
 
+/// Live progress for a playlist "fetch missing" run (download missing md5s via
+/// Modland → rescan). Lock-free like [`ScanProgress`] so `/api/fetch/status`
+/// reports it while the rescan holds the DB. `running` gates one fetch at a time.
+#[derive(Default)]
+pub struct FetchProgress {
+    pub running: AtomicBool,
+    /// Missing items to fetch this run.
+    pub total: AtomicUsize,
+    /// Fetched (downloaded + written) so far.
+    pub fetched: AtomicUsize,
+    /// Items that failed (not in Modland / download error).
+    pub failed: AtomicUsize,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub cfg: Arc<Config>,
     pub db: Db,
     pub scan: Arc<ScanProgress>,
+    pub fetch: Arc<FetchProgress>,
 }
 
 impl AppState {
@@ -29,6 +44,7 @@ impl AppState {
             cfg: Arc::new(cfg),
             db,
             scan: Arc::new(ScanProgress::default()),
+            fetch: Arc::new(FetchProgress::default()),
         }
     }
 }

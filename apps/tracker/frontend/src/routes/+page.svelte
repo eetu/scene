@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		ListPlus,
 		Monitor,
 		Moon,
 		Pencil,
@@ -34,10 +35,27 @@
 	import { onMount, untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 
-	import { api, ApiError, fileUrl, type StatusResponse, type Track } from '$lib/api';
+	import { api, ApiError, fileUrl, type Playlist, type StatusResponse, type Track } from '$lib/api';
 	import PatternViewScroll from '$lib/PatternViewScroll.svelte';
+	import PlaylistsTab from '$lib/PlaylistsTab.svelte';
 
 	type GroupKey = 'group' | 'artist' | 'ext';
+
+	// The main view is tabbed: the library list, the same list filtered to
+	// favourites, or the playlists surface. Restored from last session.
+	type Tab = 'library' | 'favourites' | 'playlists';
+	let activeTab = $state<Tab>(
+		((typeof localStorage !== 'undefined' && localStorage.getItem('tracker:tab')) as Tab) ||
+			'library'
+	);
+	function setTab(t: Tab) {
+		activeTab = t;
+		if (typeof localStorage !== 'undefined') localStorage.setItem('tracker:tab', t);
+	}
+	// Library and Favourites share the grouped/virtualized list; only the filter
+	// predicate differs. (Playlists tab renders its own surface.)
+	const favView = $derived(activeTab === 'favourites');
+	const listView = $derived(activeTab === 'library' || activeTab === 'favourites');
 
 	let showPattern = $state(false);
 	let showSettings = $state(false);
@@ -78,7 +96,6 @@
 
 	let groupBy = $state<GroupKey>('group');
 	let sortBy = $state<'name' | 'plays'>('name');
-	let favoritesOnly = $state(false);
 	let query = $state('');
 
 	async function toggleFavorite(t: Track) {
@@ -207,7 +224,10 @@
 		}
 	}
 
-	onMount(init);
+	onMount(() => {
+		void init();
+		void refreshPlaylists();
+	});
 
 	// Lock body scroll while the full-screen player overlay is open, so the
 	// page's own (now-pointless) scrollbar for the list behind it disappears.
@@ -229,7 +249,7 @@
 	const filtered = $derived.by(() => {
 		const q = query.trim().toLowerCase();
 		let list = tracks;
-		if (favoritesOnly) list = list.filter((t) => t.favorite);
+		if (favView) list = list.filter((t) => t.favorite);
 		if (q)
 			list = list.filter((t) =>
 				[t.path, t.title, t.filename, t.group, t.artist, t.type_long]
@@ -377,6 +397,10 @@
 	function onKey(e: KeyboardEvent) {
 		const el = e.target as HTMLElement | null;
 		if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+		if (e.key === 'Escape' && addTrack) {
+			addTrack = null;
+			return;
+		}
 		if (e.key === 'Escape' && showSettings) {
 			showSettings = false;
 			return;
@@ -452,44 +476,99 @@
 		if (e.key === 'Enter') saveEdit(t);
 		else if (e.key === 'Escape') cancelEdit();
 	}
+
+	// ---- playlists ----
+	let playlists = $state<Playlist[]>([]);
+
+	async function refreshPlaylists() {
+		try {
+			playlists = await api.playlists();
+		} catch {
+			/* non-fatal — the tab still renders */
+		}
+	}
+
+	// Play a playlist: its present tracks become the queue, in order.
+	function playList(list: Track[], start?: Track) {
+		if (!list.length) return;
+		void playInOrder(list, start ?? list[0]);
+		showPattern = true;
+	}
+
+	// Add-to-playlist chooser: which library track we're filing, if any.
+	let addTrack = $state<Track | null>(null);
+	let addNewName = $state('');
+	let addBusy = $state(false);
+
+	function startAdd(t: Track) {
+		addTrack = t;
+		addNewName = '';
+		void refreshPlaylists();
+	}
+	// Playlist items are keyed by md5; carry the track's metadata as the cache.
+	function trackItem(t: Track) {
+		return {
+			md5: t.md5 ?? '',
+			title: t.title,
+			artist: t.artist,
+			format: t.ext,
+			filename: t.filename
+		};
+	}
+	async function addToPlaylist(id: string) {
+		if (!addTrack?.md5) return;
+		addBusy = true;
+		try {
+			await api.addToPlaylist(id, trackItem(addTrack));
+			addTrack = null;
+			await refreshPlaylists();
+		} finally {
+			addBusy = false;
+		}
+	}
+	async function addToNewPlaylist() {
+		const name = addNewName.trim();
+		if (!name || !addTrack?.md5) return;
+		addBusy = true;
+		try {
+			const pl = await api.createPlaylist(name);
+			await api.addToPlaylist(pl.id, trackItem(addTrack));
+			addTrack = null;
+			await refreshPlaylists();
+		} finally {
+			addBusy = false;
+		}
+	}
 </script>
 
 <svelte:window onkeydown={onKey} />
 
 <header class="bar">
 	<div class="brand">tracker</div>
-	<input
-		class="filter"
-		type="search"
-		placeholder="filter…"
-		bind:value={query}
-		disabled={scanning}
-	/>
-	<button
-		class="icon-btn"
-		class:on={favoritesOnly}
-		onclick={() => (favoritesOnly = !favoritesOnly)}
-		title={favoritesOnly ? 'showing favourites' : 'show favourites only'}
-		aria-label="toggle favourites filter"
-		aria-pressed={favoritesOnly}
-	>
-		<Star size={16} fill={favoritesOnly ? 'currentColor' : 'none'} />
-	</button>
-	<label class="groupby">
-		group by
-		<select bind:value={groupBy} disabled={scanning}>
-			<option value="group">group</option>
-			<option value="artist">artist</option>
-			<option value="ext">format</option>
-		</select>
-	</label>
-	<label class="groupby">
-		sort
-		<select bind:value={sortBy} disabled={scanning}>
-			<option value="name">name</option>
-			<option value="plays">most played</option>
-		</select>
-	</label>
+	{#if listView}
+		<input
+			class="filter"
+			type="search"
+			placeholder="filter…"
+			bind:value={query}
+			disabled={scanning}
+		/>
+		<label class="groupby">
+			group by
+			<select bind:value={groupBy} disabled={scanning}>
+				<option value="group">group</option>
+				<option value="artist">artist</option>
+				<option value="ext">format</option>
+			</select>
+		</label>
+		<label class="groupby">
+			sort
+			<select bind:value={sortBy} disabled={scanning}>
+				<option value="name">name</option>
+				<option value="plays">most played</option>
+			</select>
+		</label>
+	{/if}
 	<div class="count">
 		{#if scanning}
 			{#if (status?.scan_total ?? 0) > 0}
@@ -500,8 +579,12 @@
 				{(status?.scan_processed ?? 0).toLocaleString()} modules
 			{/if}
 			{#if status?.scan_hashed}· {status.scan_hashed.toLocaleString()} hashed{/if}
+		{:else if activeTab === 'playlists'}
+			{playlists.length} {playlists.length === 1 ? 'playlist' : 'playlists'}
 		{:else if status}
-			{filtered.length} / {tracks.length} modules · {groups.length}
+			{filtered.length}{#if !favView}
+				/ {tracks.length}{/if}
+			{favView ? 'favourites' : 'modules'} · {groups.length}
 			{groupBy === 'ext' ? 'formats' : groupBy === 'artist' ? 'artists' : 'groups'}
 		{/if}
 	</div>
@@ -514,6 +597,15 @@
 		<Settings size={16} />
 	</button>
 </header>
+
+<nav class="tabs" aria-label="view">
+	<button class:on={activeTab === 'library'} onclick={() => setTab('library')}>library</button>
+	<button class:on={activeTab === 'favourites'} onclick={() => setTab('favourites')}>
+		favourites
+	</button>
+	<button class:on={activeTab === 'playlists'} onclick={() => setTab('playlists')}>playlists</button
+	>
+</nav>
 
 {#if scanning}
 	<div class="progress" class:indeterminate={scanPct === null}>
@@ -529,7 +621,9 @@
 {/if}
 
 <main bind:this={scrollEl}>
-	{#if scanning && tracks.length === 0}
+	{#if activeTab === 'playlists'}
+		<PlaylistsTab {playlists} onRefresh={refreshPlaylists} onPlay={playList} />
+	{:else if scanning && tracks.length === 0}
 		<div class="scan-panel">
 			<div class="boing"><BoingBall /></div>
 			<p>Scanning the collection…</p>
@@ -554,6 +648,8 @@
 		<p class="msg">
 			No modules indexed yet — try <button class="link" onclick={rescan}>rescan</button>.
 		</p>
+	{:else if favView && flatTracks.length === 0}
+		<p class="msg">No favourites yet — tap the ☆ on any track.</p>
 	{:else}
 		<div class="vlist" style:height="{$virtualizer.getTotalSize()}px">
 			{#each $virtualizer.getVirtualItems() as v (v.key)}
@@ -599,6 +695,14 @@
 								onclick={() => toggleFavorite(t)}
 							>
 								<Star size={14} fill={t.favorite ? 'currentColor' : 'none'} />
+							</button>
+							<button
+								class="edit"
+								title="add to playlist"
+								aria-label="add to playlist"
+								onclick={() => startAdd(t)}
+							>
+								<ListPlus size={14} />
 							</button>
 							<button class="edit" title="rename / move" onclick={() => startEdit(t)}>
 								<Pencil size={14} />
@@ -704,6 +808,40 @@
 			</div>
 			<div class="modal-actions">
 				<button onclick={() => (showSettings = false)}>close</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if addTrack}
+	{@const at = addTrack}
+	<div class="modal-bg">
+		<button class="modal-scrim" aria-label="close" onclick={() => (addTrack = null)}></button>
+		<div class="modal" role="dialog" aria-modal="true" aria-label="add to playlist">
+			<h3>add to playlist</h3>
+			<p class="add-track">{at.title || at.filename}</p>
+			<div class="add-list">
+				{#each playlists as p (p.id)}
+					<button class="add-row" onclick={() => addToPlaylist(p.id)} disabled={addBusy}>
+						<span class="pn">{p.name}</span>
+						<span class="pc">{p.item_count}</span>
+					</button>
+				{:else}
+					<p class="msg">no playlists yet — make one below</p>
+				{/each}
+			</div>
+			<div class="newrow">
+				<input
+					placeholder="new playlist…"
+					bind:value={addNewName}
+					onkeydown={(e) => e.key === 'Enter' && addToNewPlaylist()}
+				/>
+				<button class="ok" onclick={addToNewPlaylist} disabled={addBusy || !addNewName.trim()}>
+					create &amp; add
+				</button>
+			</div>
+			<div class="modal-actions">
+				<button onclick={() => (addTrack = null)} disabled={addBusy}>cancel</button>
 			</div>
 		</div>
 	</div>
@@ -874,6 +1012,28 @@
 		margin-left: auto;
 		color: var(--muted);
 		font-variant-numeric: tabular-nums;
+	}
+
+	/* View switcher: a thin segmented row under the toolbar. `main` is the only
+	   scroll container, so this (a body-level sibling) stays pinned for free. */
+	.tabs {
+		display: flex;
+		gap: 4px;
+		padding: 6px 14px;
+		background: var(--panel);
+		border-bottom: 1px solid var(--border);
+	}
+	.tabs button {
+		padding: 5px 14px;
+		font-size: 13px;
+		text-transform: lowercase;
+		background: var(--panel-hi);
+		color: var(--muted);
+	}
+	.tabs button.on {
+		color: var(--bg);
+		background: var(--accent);
+		border-color: var(--accent);
 	}
 
 	.progress {
@@ -1071,11 +1231,6 @@
 	.li:hover .fav {
 		visibility: visible;
 	}
-	.icon-btn.on {
-		color: var(--bg);
-		background: var(--accent);
-		border-color: var(--accent);
-	}
 	/* The whole row is one click target → openTrack. */
 	.row {
 		flex: 1;
@@ -1175,6 +1330,57 @@
 		justify-content: flex-end;
 		gap: 8px;
 		margin-top: 4px;
+	}
+
+	/* Add-to-playlist chooser. */
+	.add-track {
+		margin: 0;
+		color: var(--accent);
+		font-size: 13px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.add-list {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		max-height: 240px;
+		overflow-y: auto;
+	}
+	.add-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		text-align: left;
+		background: var(--bg);
+		border: 1px solid var(--border);
+	}
+	.add-row .pn {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.add-row .pc {
+		color: var(--muted);
+		font-size: 12px;
+		font-variant-numeric: tabular-nums;
+	}
+	.newrow {
+		display: flex;
+		gap: 8px;
+	}
+	.newrow input {
+		flex: 1;
+		min-width: 0;
+		padding: 8px 10px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		color: var(--text);
 	}
 
 	/* Settings rows: a label above a segmented choice control. */
@@ -1411,6 +1617,9 @@
 			order: 4;
 			flex-basis: 100%;
 			margin-left: 0;
+		}
+		.tabs button {
+			flex: 1;
 		}
 		main {
 			padding: 10px 8px 80px;
