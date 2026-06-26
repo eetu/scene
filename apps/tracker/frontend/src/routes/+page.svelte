@@ -1,9 +1,10 @@
 <script lang="ts">
 	import {
-		AudioLines,
 		Monitor,
 		Moon,
 		Pencil,
+		Play,
+		RefreshCw,
 		ScanLine,
 		Settings,
 		Star,
@@ -265,17 +266,10 @@
 		return t.artist ? `${t.group} · ${t.artist}` : t.group;
 	}
 
-	// Row label adapts to the grouping: the *other* dimension prefixes the song,
-	// and the format is tagged unless the group already is the format.
-	//   group-by group:  "artist - song [XM]"
-	//   group-by artist: "group - song [XM]"
-	//   group-by ext:    "group · artist - song"
-	function rowLabel(t: Track): string {
-		const title = t.title || t.filename;
-		const fmt = groupBy === 'ext' ? '' : ` [${t.ext.toUpperCase()}]`;
-		const sub = subLabel(t);
-		return sub && sub !== '—' ? `${sub} - ${title}${fmt}` : `${title}${fmt}`;
-	}
+	// A row's label is rendered as styled parts (not one string): the *other*
+	// dimension as a muted prefix (artist/group via subLabel), the song title in
+	// the main text colour, and a format chip — unless the grouping is already by
+	// format. See the list row markup below.
 
 	// Group open/closed state. Few groups (≤12) default to open; a user toggle is
 	// remembered per group in an override map (so auto-open groups can be closed
@@ -365,6 +359,14 @@
 	// Tapping a track opens the player (pattern) view. A new track starts playing
 	// from the top (in the visible order); the already-loaded track just reopens
 	// the view without disturbing playback.
+	// The full library Track for the loaded module (the player store holds only a
+	// minimal shape), so the player-view header can favourite / rename it.
+	const currentTrack = $derived.by(() => {
+		const c = playback.current;
+		if (!c) return null;
+		return tracks.find((t) => t.path === c.path) ?? null;
+	});
+
 	function openTrack(t: Track) {
 		if (playback.current?.path !== t.path) void playInOrder(flatTracks, t);
 		showPattern = true;
@@ -456,6 +458,13 @@
 
 <header class="bar">
 	<div class="brand">tracker</div>
+	<input
+		class="filter"
+		type="search"
+		placeholder="filter…"
+		bind:value={query}
+		disabled={scanning}
+	/>
 	<button
 		class="icon-btn"
 		class:on={favoritesOnly}
@@ -466,13 +475,6 @@
 	>
 		<Star size={16} fill={favoritesOnly ? 'currentColor' : 'none'} />
 	</button>
-	<input
-		class="filter"
-		type="search"
-		placeholder="filter…"
-		bind:value={query}
-		disabled={scanning}
-	/>
 	<label class="groupby">
 		group by
 		<select bind:value={groupBy} disabled={scanning}>
@@ -488,14 +490,6 @@
 			<option value="plays">most played</option>
 		</select>
 	</label>
-	<button onclick={rescan} disabled={scanning}>{scanning ? 'scanning…' : 'rescan'}</button>
-	{#if enriching}
-		<button onclick={() => (enriching = false)}>cancel {enrichDone}/{enrichTotal}</button>
-	{:else if unEnriched > 0}
-		<button onclick={enrichAll} disabled={scanning} title="parse metadata for all modules">
-			enrich {unEnriched}
-		</button>
-	{/if}
 	<div class="count">
 		{#if scanning}
 			{#if (status?.scan_total ?? 0) > 0}
@@ -582,16 +576,19 @@
 					{:else}
 						{@const t = row.track}
 						{@const isCurrent = playback.current?.path === t.path}
+						{@const sub = subLabel(t)}
 						<div class="card li" class:last={row.last} class:current={isCurrent}>
 							<button class="row" title={t.path} onclick={() => openTrack(t)}>
-								{#if isCurrent && playback.playing && !playback.paused}
-									<AudioLines class="nowicon" size={14} />
-								{/if}
-								<span class="name">{rowLabel(t)}</span>
-								{#if t.play_count > 0}
-									<span class="plays" title="{t.play_count} plays">▸{t.play_count}</span>
-								{/if}
-								{#if t.duration}<span class="dur">{fmtTime(t.duration)}</span>{/if}
+								<span class="name"
+									><span class="sub">{sub}&nbsp;</span><span class="song"
+										>{t.title || t.filename}</span
+									></span
+								>
+								{#if groupBy !== 'ext'}<span class="fmt-chip">{t.ext}</span>{/if}
+								<span class="plays" title={t.play_count > 0 ? `${t.play_count} plays` : undefined}>
+									{#if t.play_count > 0}<Play size={9} fill="currentColor" />{t.play_count}{/if}
+								</span>
+								<span class="dur">{t.duration ? fmtTime(t.duration) : ''}</span>
 							</button>
 							<button
 								class="fav"
@@ -677,6 +674,34 @@
 					</button>
 				</div>
 			</div>
+			<div class="setting">
+				<span class="setting-label">library</span>
+				<div class="seg">
+					<button onclick={rescan} disabled={scanning}>
+						<RefreshCw size={15} />
+						{scanning ? 'scanning…' : 'rescan'}
+					</button>
+					{#if enriching}
+						<button onclick={() => (enriching = false)}>cancel {enrichDone}/{enrichTotal}</button>
+					{:else}
+						<button onclick={enrichAll} disabled={scanning || unEnriched === 0}>
+							{unEnriched > 0 ? `enrich ${unEnriched}` : 'all enriched'}
+						</button>
+					{/if}
+				</div>
+				<span class="setting-hint">
+					{#if scanning}
+						scanning… {(
+							status?.scan_processed ?? 0
+						).toLocaleString()}{#if (status?.scan_total ?? 0) > 0}/{(
+								status?.scan_total ?? 0
+							).toLocaleString()}{/if}
+					{:else}
+						{tracks.length.toLocaleString()} modules{#if unEnriched > 0}
+							· {unEnriched.toLocaleString()} need metadata{/if}
+					{/if}
+				</span>
+			</div>
 			<div class="modal-actions">
 				<button onclick={() => (showSettings = false)}>close</button>
 			</div>
@@ -687,27 +712,49 @@
 {#if playback.current && showPattern}
 	<div class="pattern-overlay">
 		<div class="pv-bar">
-			<span class="pv-title">{playback.current.title || playback.current.filename}</span>
 			<div class="pv-tabs">
 				<button class:on={pvTab === 'pattern'} onclick={() => (pvTab = 'pattern')}>pattern</button>
 				<button class:on={pvTab === 'samples'} onclick={() => (pvTab = 'samples')}>samples</button>
 				<button class:on={pvTab === 'viz'} onclick={() => (pvTab = 'viz')}>viz</button>
 			</div>
-			<button
-				class="icon-btn gear"
-				onclick={() => (showSettings = true)}
-				title="settings"
-				aria-label="settings"
-			>
-				<Settings size={16} />
-			</button>
-			<button
-				class="icon-btn pv-close"
-				onclick={() => (showPattern = false)}
-				aria-label="close pattern view"
-			>
-				<X size={16} />
-			</button>
+			<div class="pv-actions">
+				{#if currentTrack}
+					{@const ct = currentTrack}
+					<button
+						class="icon-btn"
+						class:faved={ct.favorite}
+						onclick={() => toggleFavorite(ct)}
+						title={ct.favorite ? 'unfavourite' : 'favourite'}
+						aria-label="toggle favourite"
+						aria-pressed={ct.favorite}
+					>
+						<Star size={16} fill={ct.favorite ? 'currentColor' : 'none'} />
+					</button>
+					<button
+						class="icon-btn"
+						onclick={() => startEdit(ct)}
+						title="rename / move"
+						aria-label="rename / move"
+					>
+						<Pencil size={16} />
+					</button>
+				{/if}
+				<button
+					class="icon-btn gear"
+					onclick={() => (showSettings = true)}
+					title="settings"
+					aria-label="settings"
+				>
+					<Settings size={16} />
+				</button>
+				<button
+					class="icon-btn pv-close"
+					onclick={() => (showPattern = false)}
+					aria-label="close pattern view"
+				>
+					<X size={16} />
+				</button>
+			</div>
 		</div>
 		<div class="pv-wrap">
 			{#if pvTab === 'pattern'}
@@ -966,15 +1013,46 @@
 		background: color-mix(in srgb, var(--accent) 12%, transparent);
 		box-shadow: inset 2px 0 0 var(--accent);
 	}
-	.li.current .name {
+	.li.current .song {
 		color: var(--accent);
 		font-weight: 600;
 	}
+	/* Muted artist/group prefix; main-text song title (the row's focus). */
+	.sub {
+		color: var(--muted);
+	}
+	.song {
+		color: var(--text);
+	}
+	/* Format as a small chip rather than inline "[XM]" text. */
+	.fmt-chip {
+		flex: 0 0 auto;
+		font-size: 10px;
+		line-height: 1;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--muted);
+		background: var(--panel-hi);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		padding: 3px 5px;
+	}
+	/* Right-aligned fixed-width metadata columns so the row's right edge lines up
+	   across rows (plays/duration are per-track optional — reserving the column
+	   keeps the edge from going ragged). */
 	.plays {
 		flex: 0 0 auto;
+		width: 38px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 3px;
 		color: var(--muted);
 		font-size: 12px;
 		font-variant-numeric: tabular-nums;
+	}
+	.plays :global(svg) {
+		opacity: 0.75;
 	}
 	.fav {
 		visibility: hidden;
@@ -1012,10 +1090,6 @@
 		text-align: left;
 		color: var(--text);
 		cursor: pointer;
-	}
-	.row :global(.nowicon) {
-		flex: 0 0 auto;
-		color: var(--accent);
 	}
 	.name {
 		flex: 1;
@@ -1113,6 +1187,12 @@
 		font-size: 12px;
 		color: var(--muted);
 	}
+	/* Status line under a setting's controls (e.g. library counts / scan state). */
+	.setting-hint {
+		font-size: 12px;
+		color: var(--muted);
+		font-variant-numeric: tabular-nums;
+	}
 	.seg {
 		display: flex;
 		gap: 6px;
@@ -1134,6 +1214,8 @@
 	}
 	.dur {
 		flex: 0 0 auto;
+		width: 40px;
+		text-align: right;
 		color: var(--muted);
 		font-size: 12px;
 		font-variant-numeric: tabular-nums;
@@ -1155,21 +1237,23 @@
 		background: var(--surface-bar);
 		border-bottom: 1px solid var(--surface-line-2);
 	}
-	.pv-title {
-		flex: 1;
-		min-width: 0;
-		font-family: var(--font-retro);
-		font-size: 16px;
-		color: var(--accent);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
 	.pv-close {
 		flex: 0 0 auto;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
+	}
+	/* Right-hand cluster: fav + edit (tracker-only) + settings + close. The
+	   title isn't repeated here (the docked transport already shows it), so the
+	   tabs sit left and margin-auto pushes this cluster to the right. */
+	.pv-actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		margin-left: auto;
+	}
+	.pv-actions .faved {
+		color: var(--accent);
 	}
 	.pv-tabs {
 		display: flex;
@@ -1313,8 +1397,10 @@
 			order: 1;
 			margin-left: auto;
 		}
+		/* Search is the primary action: first wrapped row (under brand+gear),
+		   above the fav/group/sort cluster. */
 		.filter {
-			order: 3;
+			order: 2;
 			max-width: none;
 			flex-basis: 100%;
 		}
@@ -1336,21 +1422,15 @@
 		select {
 			padding: 8px 12px;
 		}
-		.edit {
-			padding: 6px 10px;
-		}
-		/* (Transport's own responsive rules live in @scene/player.) */
-		/* The player-view top bar repeats the song name the footer already shows
-		   — drop it on a phone so the tabs + close get the width. */
-		.pv-bar {
-			gap: 8px;
-		}
-		.pv-title {
+		/* Declutter narrow rows: fav + rename move to the player-view header
+		   (tap a track to open it). The whole row stays a play target. */
+		.li .fav,
+		.li .edit {
 			display: none;
 		}
-		/* Title gone: tabs stay left, the settings + close buttons group right. */
-		.pv-bar .gear {
-			margin-left: auto;
+		/* (Transport's own responsive rules live in @scene/player.) */
+		.pv-bar {
+			gap: 8px;
 		}
 	}
 </style>
