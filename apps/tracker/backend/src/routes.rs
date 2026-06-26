@@ -636,8 +636,10 @@ async fn api_playlist(
                         COALESCE(s.favorite, 0), COALESCE(s.play_count, 0),
                         pi.title, pi.artist, pi.format, pi.filename
                  FROM playlist_items pi
-                 LEFT JOIN files f ON f.md5 = pi.md5
-                      OR (pi.md5 IS NULL AND LOWER(f.filename) = LOWER(pi.filename))
+                 LEFT JOIN files f ON f.rel_path = (
+                     SELECT ff.rel_path FROM files ff
+                     WHERE ff.md5 = pi.md5 OR LOWER(ff.filename) = LOWER(pi.filename)
+                     ORDER BY (ff.md5 = pi.md5) DESC LIMIT 1)
                  LEFT JOIN meta  m ON m.content_hash = f.content_hash
                  LEFT JOIN stats s ON s.content_hash = f.content_hash
                  WHERE pi.playlist_id = ?1
