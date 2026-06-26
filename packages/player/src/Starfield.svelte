@@ -1,12 +1,15 @@
 <script lang="ts">
 	// Parallax starfield over a deep-space backdrop: a centred nebula image sits
 	// at the back, parallax stars stream out of the centre (speed pulsing with the
-	// music's energy), and a chrome starfighter rides on top — so the stars fly
+	// music's energy), and an angular starfighter rides on top — so the stars fly
 	// *under* the ship, toward the nebula it's racing into. The backdrop + ship are
-	// pre-rendered assets (static/starfield-bg.jpg, static/starfield-ship.png, the
-	// ship keyed to transparency). Always dark — a "window into space" in either
-	// theme.
+	// pre-rendered assets imported below (./assets/*, the ship keyed to
+	// transparency). Always dark — a "window into space" in either theme.
 	import { playback } from './player.svelte';
+	// Shared assets live in this package (one copy in git); each app's Vite emits
+	// them into its own build.
+	import bgUrl from './assets/starfield-bg.jpg';
+	import shipUrl from './assets/starfield-ship.webp';
 
 	let { active = true }: { active?: boolean } = $props();
 
@@ -36,9 +39,9 @@
 
 		// Backdrop + ship sprite (ship background already keyed to transparent).
 		const bg = new Image();
-		bg.src = '/starfield-bg.jpg';
+		bg.src = bgUrl;
 		const ship = new Image();
-		ship.src = '/starfield-ship.webp';
+		ship.src = shipUrl;
 
 		// Stars in a normalized space: x,y in [-1,1], z (depth) in (0,1].
 		const xs = new Float32Array(COUNT);
@@ -92,24 +95,31 @@
 					const py = cy + (ys[i] / zs[i]) * scale * 0.5;
 					if (px < 0 || px >= w || py < 0 || py >= h) continue;
 					const b = 1 - zs[i];
-					const size = b * 2.2 + 0.3;
-					g2.globalAlpha = Math.min(1, b * 1.3);
+					// Bigger, chunkier stars with a brightness floor so even the far
+					// ones stay legible over the busy nebula (they were vanishing into
+					// it). Size/alpha still grow as they rush past.
+					const size = b * 3.6 + 1;
+					g2.globalAlpha = Math.min(1, 0.4 + b * 1.1);
 					g2.fillStyle = '#fff';
 					g2.fillRect(px, py, size, size);
 				}
 				g2.globalAlpha = 1;
 
-				// Ship on top — stars pass behind it. POV foreground: scaled to most
-				// of the height, bottom-anchored (slight overhang), centred — so on a
-				// narrow pane the wings crop off the sides and the nose points up into
-				// the nebula at the starfield's centre.
+				// Ship on top — stars pass behind it. POV foreground: scaled to ~60%
+				// of the height, bottom-anchored (slight overhang), centred — racing
+				// away into the depth with the nose pointing up toward the nebula at
+				// the starfield's centre.
 				if (ship.complete && ship.naturalWidth) {
 					const sAR = ship.naturalWidth / ship.naturalHeight;
-					const dH = h * 0.95;
+					const dH = h * 0.6;
 					const dW = dH * sAR;
-					// ~14% bottom overhang so the engines crop off-frame (POV "near"),
-					// nose up toward the nebula; on narrow panes the wings crop too.
-					g2.drawImage(ship, (w - dW) / 2, h - dH * 0.86, dW, dH);
+					// The nose sits at ~0.36 of the sprite width (left of centre), so
+					// nudge the ship right by ~0.14·dW to aim the tip at the screen
+					// centre (the nebula core the stars stream from).
+					const x = (w - dW) / 2 + dW * 0.14;
+					// Bottom-anchored with a small (~8%) overhang so the engines crop
+					// just off-frame (POV "near").
+					g2.drawImage(ship, x, h - dH * 0.92, dW, dH);
 				}
 			}
 			raf = requestAnimationFrame(frame);
