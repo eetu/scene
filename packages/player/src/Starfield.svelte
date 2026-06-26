@@ -8,7 +8,7 @@
 
 	let canvas: HTMLCanvasElement | null = $state(null);
 
-	const COUNT = 320;
+	const COUNT = 560;
 
 	$effect(() => {
 		const el = canvas;
@@ -65,7 +65,9 @@
 				cachedMode = mode;
 			}
 			const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
-			const targetWarp = active ? 0.0022 + energy * 0.024 : 0.0006;
+			// Calmer cruise: lower base + a gentler energy term so loud passages
+			// quicken the stream without making stars whiz past.
+			const targetWarp = active ? 0.0014 + energy * 0.009 : 0.0005;
 			warp += (targetWarp - warp) * 0.1;
 
 			if (w > 0 && h > 0) {

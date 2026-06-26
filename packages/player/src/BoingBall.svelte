@@ -6,14 +6,27 @@
 	// chunky/pixelated. Used both as the scan loader and a playback visualizer.
 
 	// `energy` (0..1) modulates the ball when used as a visualizer: it spins
-	// faster and pulses bigger with the music. Only spin (incremental) and drawn
-	// size react — the analytic position speeds stay fixed so the bounce never
-	// jumps. Default 0 = idle.
+	// faster, pulses bigger, and (in `react` mode) bounces higher with the music.
+	// Default 0 = idle.
+	//
+	// `react` turns on visualizer behaviour: the bounce amplitude tracks `energy`
+	// and, when `live` is false (playback paused), eases down so the ball settles
+	// to rest with inertia instead of stopping dead. Off by default, so the scan
+	// loader (`<BoingBall />`) keeps its full, lively bounce unchanged.
+	//
+	// `live` = is the music playing (only meaningful with `react`). Read inside the
+	// animation loop, not synchronously, so toggling play/pause doesn't tear the
+	// effect down — the amplitude just eases toward the new target.
 	//
 	// `format` (a module extension, lowercase) tunes the chunkiness: the legacy
 	// Amiga/SoundTracker formats render big, blocky pixels (the authentic look);
 	// the modern PC trackers (XM/IT/S3M/…) get a finer "HD" ball. Empty = neutral.
-	let { energy = 0, format = '' }: { energy?: number; format?: string } = $props();
+	let {
+		energy = 0,
+		format = '',
+		live = true,
+		react = false
+	}: { energy?: number; format?: string; live?: boolean; react?: boolean } = $props();
 
 	// Chunky-era formats — the MOD family + Amiga 4-channel kin. Everything else
 	// (xm, it, s3m, mptm, mo3, …) is treated as "modern" → finer pixels.
@@ -81,6 +94,24 @@
 		ro.observe(el);
 
 		let spin = 0;
+		// Eased bounce/liveliness (0..1). `react` is constant per usage (safe to read
+		// here); start settled in react mode, full for the loader. `live` is read in
+		// the loop so it doesn't re-run the effect.
+		let amp = react ? 0 : 1;
+		// Ball position/velocity in offscreen px. While driven (playing / loader) the
+		// position follows the analytic boing exactly; on pause (react + !live) we
+		// hand off to a gravity sim that keeps the current velocity and lets the ball
+		// fall and bounce to rest. `blendT` eases the position back onto the analytic
+		// path when playback resumes.
+		let px = 0;
+		let py = 0;
+		let vx = 0;
+		let vy = 0;
+		let ppx = 0;
+		let ppy = 0;
+		let free = false;
+		let blendT = 0;
+		let started = false;
 		let t0 = 0;
 		let lastT = 0;
 		const tilt = (16 * Math.PI) / 180;
@@ -229,14 +260,84 @@
 				const floor = oH - r - pad;
 				const ceil = r + pad;
 
+				// Liveliness target: full for the loader; in react mode the bounce
+				// height tracks the music. Eased so it grows/shrinks smoothly.
+				const ampTarget = react ? (live ? Math.min(1, 0.45 + energy * 0.55) : 0) : 1;
+				amp += (ampTarget - amp) * (1 - Math.exp(-dt * 2.5));
+
 				const hp = t * H_SPEED;
 				const f = hp - Math.floor(hp);
 				const hx = f < 0.5 ? f * 2 : 2 - f * 2;
 				const dir = f < 0.5 ? 1 : -1;
-				const x = left + (right - left) * hx;
+				const xc = (left + right) / 2;
+				// Analytic "boing" target — energy scales the height via amp.
+				const dx = xc + (left + (right - left) * hx - xc) * amp;
+				const dy = floor - (floor - ceil) * Math.abs(Math.sin(t * V_SPEED)) * amp;
 
-				const bounce = Math.abs(Math.sin(t * V_SPEED));
-				const y = floor - (floor - ceil) * bounce;
+				if (!started) {
+					px = dx;
+					py = dy;
+					ppx = dx;
+					ppy = dy;
+					started = true;
+				}
+
+				if (react && !live) {
+					// Paused → gravity sim. The velocity carried over from the last driven
+					// frame keeps the ball moving; gravity then pulls it down to bounce off
+					// the floor/walls (restitution + friction) until it settles. Gravity
+					// scales with the canvas so the feel is size-independent.
+					free = true;
+					vy += oH * 7 * dt;
+					px += vx * dt;
+					py += vy * dt;
+					if (px < left) {
+						px = left;
+						vx = -vx * 0.7;
+					} else if (px > right) {
+						px = right;
+						vx = -vx * 0.7;
+					}
+					if (py < ceil) {
+						py = ceil;
+						vy = -vy * 0.62;
+					}
+					if (py > floor) {
+						py = floor;
+						vy = -vy * 0.62;
+						vx *= 0.78; // floor friction
+						if (Math.abs(vy) < oH * 0.5) vy = 0; // tiny bounces settle out
+					}
+					vx *= 1 - Math.min(0.5, dt * 0.8); // air drag
+					if (py >= floor - 0.5 && Math.abs(vy) < 1 && Math.abs(vx) < oH * 0.08) {
+						vx = 0;
+						vy = 0;
+						py = floor;
+					}
+				} else {
+					// Driven (playing / loader). Resuming from the sim eases back onto the
+					// analytic path; otherwise track it exactly. Velocity is sampled so a
+					// later pause can hand off cleanly.
+					if (free) {
+						free = false;
+						blendT = 0.3;
+					}
+					if (blendT > 0) {
+						blendT = Math.max(0, blendT - dt);
+						const kB = 1 - Math.exp(-dt * 10);
+						px += (dx - px) * kB;
+						py += (dy - py) * kB;
+					} else {
+						px = dx;
+						py = dy;
+					}
+					if (dt > 0.0001) {
+						vx = (px - ppx) / dt;
+						vy = (py - ppy) / dt;
+					}
+				}
+				ppx = px;
+				ppy = py;
 
 				spin += SPIN_RATE * (0.6 + energy * 2) * dir * dt;
 				const rDraw = r * (1 + energy * 0.15);
@@ -251,9 +352,9 @@
 				// drop shadow on the wall, offset down-right behind the ball
 				og.fillStyle = 'rgba(30,30,30,0.3)';
 				og.beginPath();
-				og.arc(x + rDraw * 0.32, y + rDraw * 0.22, rDraw, 0, Math.PI * 2);
+				og.arc(px + rDraw * 0.32, py + rDraw * 0.22, rDraw, 0, Math.PI * 2);
 				og.fill();
-				ball(x, y, rDraw);
+				ball(px, py, rDraw);
 
 				main.drawImage(off, 0, 0, oW, oH, 0, 0, W, H);
 			}

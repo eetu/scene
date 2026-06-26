@@ -784,7 +784,7 @@
 						{:else if pvVizMode === 'plasma'}
 							<Plasma active={vizActive} />
 						{:else}
-							<BoingBall energy={vizActive ? vuEnergy : 0} />
+							<BoingBall energy={vizActive ? vuEnergy : 0} live={vizActive} react />
 						{/if}
 					</div>
 				</div>

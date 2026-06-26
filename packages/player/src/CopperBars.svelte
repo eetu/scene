@@ -42,7 +42,9 @@
 			const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
 			const target = active ? 0.25 + energy * 0.75 : 0.12;
 			amp += (target - amp) * 0.08;
-			t += 0.012 + (active ? energy * 0.022 : 0);
+			// Slower sweep — a calmer base cadence and a gentler energy term so the
+			// bars don't race while a track plays.
+			t += 0.007 + (active ? energy * 0.012 : 0);
 
 			if (w > 0 && h > 0) {
 				// Light theme: a pale panel so the glossy bars read as colour on light.
