@@ -9,6 +9,7 @@
 		Trash2,
 		X
 	} from '@lucide/svelte';
+	import { playback } from '@scene/player';
 
 	import {
 		api,
@@ -16,6 +17,7 @@
 		itemToTrack,
 		type Playlist,
 		type PlaylistDetail,
+		type PlaylistItem,
 		type Track
 	} from '$lib/api';
 
@@ -25,8 +27,8 @@
 		onClose: () => void;
 		/** Re-fetch the playlist list (after create/delete/rename/import). */
 		onRefresh: () => Promise<void> | void;
-		/** Play a list of present tracks in order. */
-		onPlay: (tracks: Track[]) => void;
+		/** Play a list of present tracks in order, optionally starting at `start`. */
+		onPlay: (tracks: Track[], start?: Track) => void;
 	};
 
 	let { open, playlists, onClose, onRefresh, onPlay }: Props = $props();
@@ -93,6 +95,18 @@
 		if (!detail) return;
 		const tracks = detail.items.filter((i) => i.present).map(itemToTrack);
 		if (tracks.length) onPlay(tracks);
+	}
+
+	/** Play the playlist's present tracks, starting from the clicked item. */
+	function playItem(it: PlaylistItem) {
+		if (!detail || !it.present) return;
+		const tracks = detail.items.filter((i) => i.present).map(itemToTrack);
+		onPlay(tracks, itemToTrack(it));
+	}
+
+	/** Is this item the track currently loaded in the player? */
+	function isCurrent(it: PlaylistItem): boolean {
+		return it.present && !!playback.current && playback.current.path === it.path;
 	}
 
 	async function removeItem(itemId: number) {
@@ -202,11 +216,21 @@
 				{:else}
 					<ol class="items">
 						{#each detail.items as it, i (it.id)}
-							<li class:missing={!it.present}>
+							<li class:missing={!it.present} class:current={isCurrent(it)}>
 								<span class="ix">{i + 1}</span>
-								<span class="it-name" title={it.path ?? it.md5 ?? ''}>
-									{label(it)}{#if !it.present}<span class="pending"> (missing)</span>{/if}
-								</span>
+								{#if it.present}
+									<button
+										class="it-name play-it"
+										title="play — {it.path ?? ''}"
+										onclick={() => playItem(it)}
+									>
+										{label(it)}
+									</button>
+								{:else}
+									<span class="it-name" title={it.md5 ?? ''}>
+										{label(it)}<span class="pending"> (missing)</span>
+									</span>
+								{/if}
 								<button class="mini" title="up" disabled={i === 0} onclick={() => move(i, -1)}>
 									<ChevronUp size={13} />
 								</button>
@@ -380,6 +404,16 @@
 	.items li.missing {
 		opacity: 0.5;
 	}
+	/* Currently-playing item: accent left-bar + tint, like the library row. */
+	.items li.current {
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		box-shadow: inset 2px 0 0 var(--accent);
+		border-radius: 4px;
+	}
+	.items li.current .it-name {
+		color: var(--accent);
+		font-weight: 600;
+	}
 	.ix {
 		flex: 0 0 auto;
 		width: 22px;
@@ -394,6 +428,16 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	/* Present rows are click-to-play buttons; strip the button chrome. */
+	.play-it {
+		background: none;
+		border: none;
+		padding: 0;
+		font: inherit;
+		color: var(--text);
+		text-align: left;
+		cursor: pointer;
 	}
 	.pending {
 		color: var(--muted);

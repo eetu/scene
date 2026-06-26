@@ -480,9 +480,9 @@
 	}
 
 	// Play a playlist: its present tracks become the queue, in order.
-	function playList(list: Track[]) {
+	function playList(list: Track[], start?: Track) {
 		if (!list.length) return;
-		void playInOrder(list, list[0]);
+		void playInOrder(list, start ?? list[0]);
 		showPattern = true;
 		showPlaylists = false;
 	}
