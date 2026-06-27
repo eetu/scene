@@ -1,12 +1,17 @@
 # scene monorepo task runner. `just` with no args lists recipes.
 # Frontends: yarn workspaces. Backends: one cargo workspace. Sidecars: uv.
 
+# Yarn = the repo-vendored release pinned by `yarnPath` in .yarnrc.yml, run via
+# node. No global yarn / corepack needed (recipes run under sh, which can't see a
+# shell yarn function), and it auto-tracks `yarn set version` bumps.
+yarn := "node " + (justfile_directory() / `awk '/^yarnPath:/{print $2}' .yarnrc.yml`)
+
 default:
     @just --list
 
 # Install all JS workspace deps (root yarn workspace).
 install:
-    yarn install
+    {{yarn}} install
 
 # Per-component alternative (own terminals): `cd apps/<app>/backend && bacon`
 # (TUI), `cd apps/<app>/frontend && yarn dev`, `uv run …` for a Python sidecar.
@@ -32,7 +37,7 @@ dev app:
     trap cleanup INT TERM EXIT
     ( cd apps/{{app}}/backend && exec bacon --headless -j run ) &
     pids="$pids $!"
-    ( cd apps/{{app}}/frontend && exec yarn dev ) &
+    ( cd apps/{{app}}/frontend && exec {{yarn}} dev ) &
     pids="$pids $!"
     # Sidecars this service needs (loopback). Party fronts the ffmpeg transcoder.
     if [ "{{app}}" = "party" ]; then
@@ -43,21 +48,21 @@ dev app:
 
 # Build everything: all frontends, then the whole rust workspace.
 build:
-    yarn build
+    {{yarn}} build
     cargo build --release --workspace
 
 # Build one app's frontend + backend.
 build-app app:
-    yarn workspace {{app}}-frontend run build
+    {{yarn}} workspace {{app}}-frontend run build
     cargo build --release -p {{app}}-backend
 
 # Lint/format/typecheck across the repo.
 lint:
-    yarn lint
+    {{yarn}} lint
     cargo clippy --workspace --all-targets -- -D warnings
 
 format:
-    yarn format
+    {{yarn}} format
 
 # Tests: rust workspace.
 test:

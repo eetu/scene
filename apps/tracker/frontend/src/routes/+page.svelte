@@ -95,8 +95,28 @@
 	let rescanning = $state(false);
 
 	let groupBy = $state<GroupKey>('group');
-	let sortBy = $state<'name' | 'plays'>('name');
+	// Two independent sort axes: `trackSort` orders the tracks *within* a group;
+	// `groupSort` orders the group buckets themselves. Plus two facet filters
+	// over the enrichment (format, tracker) and the free-text query.
+	let trackSort = $state<'name' | 'duration' | 'channels' | 'plays'>('name');
+	let groupSort = $state<'name' | 'plays' | 'size'>('name');
+	let fmtFilter = $state('');
+	let trackerFilter = $state('');
 	let query = $state('');
+	function resetControls() {
+		trackSort = 'name';
+		groupSort = 'name';
+		fmtFilter = '';
+		trackerFilter = '';
+	}
+	const controlsActive = $derived(
+		trackSort !== 'name' || groupSort !== 'name' || !!fmtFilter || !!trackerFilter
+	);
+	// What the buckets are called for the current group-by — used for the bucket
+	// sort label and the count line so they read "artists" / "formats" / "groups".
+	const bucketNoun = $derived(
+		groupBy === 'ext' ? 'formats' : groupBy === 'artist' ? 'artists' : 'groups'
+	);
 
 	async function toggleFavorite(t: Track) {
 		const next = !t.favorite;
@@ -246,10 +266,24 @@
 		return Math.round((Math.min(status?.scan_processed ?? 0, total) / total) * 100);
 	});
 
+	// Facet options come from the current tab's tracks (favourites vs all), so the
+	// dropdowns only offer values that can actually match.
+	const facetBase = $derived(favView ? tracks.filter((t) => t.favorite) : tracks);
+	const formats = $derived(
+		[...new Set(facetBase.map((t) => t.ext.toUpperCase()))].sort((a, b) => a.localeCompare(b))
+	);
+	const trackers = $derived(
+		[...new Set(facetBase.map((t) => t.tracker).filter((t): t is string => !!t))].sort((a, b) =>
+			a.localeCompare(b, undefined, { sensitivity: 'base' })
+		)
+	);
+
 	const filtered = $derived.by(() => {
 		const q = query.trim().toLowerCase();
 		let list = tracks;
 		if (favView) list = list.filter((t) => t.favorite);
+		if (fmtFilter) list = list.filter((t) => t.ext.toUpperCase() === fmtFilter);
+		if (trackerFilter) list = list.filter((t) => (t.tracker ?? '') === trackerFilter);
 		if (q)
 			list = list.filter((t) =>
 				[t.path, t.title, t.filename, t.group, t.artist, t.type_long]
@@ -271,13 +305,29 @@
 			const k = keyOf(t);
 			(acc[k] ??= []).push(t);
 		}
-		// Within each group: 'name' keeps the server's title/filename order;
-		// 'plays' sorts most-played first.
-		if (sortBy === 'plays')
-			for (const items of Object.values(acc)) items.sort((a, b) => b.play_count - a.play_count);
-		return Object.entries(acc).sort((a, b) =>
-			a[0].localeCompare(b[0], undefined, { sensitivity: 'base' })
-		);
+		// Within a bucket: 'name' keeps the server's order; the others sort by an
+		// enrichment field, biggest first, with un-enriched (null) values last.
+		// JS sort is stable, so ties keep the server order.
+		if (trackSort !== 'name') {
+			const metric: (t: Track) => number =
+				trackSort === 'duration'
+					? (t) => t.duration ?? -1
+					: trackSort === 'channels'
+						? (t) => t.channels ?? -1
+						: (t) => t.play_count;
+			for (const items of Object.values(acc)) items.sort((a, b) => metric(b) - metric(a));
+		}
+		// Order the buckets themselves. 'name' = A-Z; 'plays' = busiest bucket first
+		// (sum of play counts); 'size' = most modules first. Non-name falls back to
+		// A-Z on ties.
+		const byName = (a: [string, Track[]], b: [string, Track[]]) =>
+			a[0].localeCompare(b[0], undefined, { sensitivity: 'base' });
+		const plays = (items: Track[]) => items.reduce((n, t) => n + t.play_count, 0);
+		return Object.entries(acc).sort((a, b) => {
+			if (groupSort === 'plays') return plays(b[1]) - plays(a[1]) || byName(a, b);
+			if (groupSort === 'size') return b[1].length - a[1].length || byName(a, b);
+			return byName(a, b);
+		});
 	});
 
 	function subLabel(t: Track): string {
@@ -366,6 +416,25 @@
 				getItemKey: (i: number) => rowKey(rows[i])
 			});
 			$virtualizer.measure();
+		});
+	});
+	// When the grouping/filter changes, the row stream is a different list — jump
+	// back to the top so the virtualizer can't hold an out-of-range scroll offset
+	// from the previous (often longer) grouping. Without this, switching e.g.
+	// artist→format while scrolled down left stale, unclickable cards at the
+	// bottom until you scrolled. Tracked deps below define "a different list".
+	$effect(() => {
+		void groupBy;
+		void favView;
+		void query;
+		void fmtFilter;
+		void trackerFilter;
+		void trackSort;
+		void groupSort;
+		untrack(() => {
+			if (!scrollEl) return;
+			scrollEl.scrollTop = 0;
+			$virtualizer.scrollToOffset(0);
 		});
 	});
 	// Loudest channel VU drives the Boing-ball visualizer energy.
@@ -553,21 +622,6 @@
 			bind:value={query}
 			disabled={scanning}
 		/>
-		<label class="groupby">
-			group by
-			<select bind:value={groupBy} disabled={scanning}>
-				<option value="group">group</option>
-				<option value="artist">artist</option>
-				<option value="ext">format</option>
-			</select>
-		</label>
-		<label class="groupby">
-			sort
-			<select bind:value={sortBy} disabled={scanning}>
-				<option value="name">name</option>
-				<option value="plays">most played</option>
-			</select>
-		</label>
 	{/if}
 	<div class="count">
 		{#if scanning}
@@ -585,7 +639,7 @@
 			{filtered.length}{#if !favView}
 				/ {tracks.length}{/if}
 			{favView ? 'favourites' : 'modules'} · {groups.length}
-			{groupBy === 'ext' ? 'formats' : groupBy === 'artist' ? 'artists' : 'groups'}
+			{bucketNoun}
 		{/if}
 	</div>
 	<button
@@ -606,6 +660,66 @@
 	<button class:on={activeTab === 'playlists'} onclick={() => setTab('playlists')}>playlists</button
 	>
 </nav>
+
+{#if listView}
+	<div class="controls" aria-label="library controls">
+		<!-- Cluster 1 — how the list is organised: bucket dimension + bucket order. -->
+		<div class="cgroup">
+			<label class="groupby">
+				group by
+				<select bind:value={groupBy} disabled={scanning}>
+					<option value="group">group</option>
+					<option value="artist">artist</option>
+					<option value="ext">format</option>
+				</select>
+			</label>
+			<label class="groupby opt">
+				{bucketNoun}
+				<select bind:value={groupSort} disabled={scanning} aria-label="order {bucketNoun}">
+					<option value="name">A-Z</option>
+					<option value="plays">play count</option>
+					<option value="size">size</option>
+				</select>
+			</label>
+		</div>
+		<!-- Cluster 2 — how tracks are ordered within each bucket. -->
+		<div class="cgroup">
+			<label class="groupby">
+				sort
+				<select bind:value={trackSort} disabled={scanning}>
+					<option value="name">name</option>
+					<option value="duration">duration</option>
+					<option value="channels">channels</option>
+					<option value="plays">plays</option>
+				</select>
+			</label>
+		</div>
+		<!-- Cluster 3 — facet filters over the enrichment. -->
+		<div class="cgroup">
+			<label class="groupby">
+				format
+				<select bind:value={fmtFilter} disabled={scanning}>
+					<option value="">all</option>
+					{#each formats as f (f)}
+						<option value={f}>{f}</option>
+					{/each}
+				</select>
+			</label>
+			<label class="groupby opt">
+				tracker
+				<select bind:value={trackerFilter} disabled={scanning}>
+					<option value="">all</option>
+					{#each trackers as tr (tr)}
+						<option value={tr}>{tr}</option>
+					{/each}
+				</select>
+			</label>
+		</div>
+		{#if controlsActive}
+			<button class="reset" onclick={resetControls} disabled={scanning}>reset</button>
+		{/if}
+	</div>
+{/if}
 
 {#if scanning}
 	<div class="progress" class:indeterminate={scanPct === null}>
@@ -656,10 +770,10 @@
 				{@const row = rows[v.index]}
 				<div
 					class="vrow"
-					class:spaced={row.kind === 'header' && !row.first}
+					class:spaced={row?.kind === 'header' && !row.first}
 					style:transform="translateY({v.start}px)"
 				>
-					{#if row.kind === 'header'}
+					{#if row?.kind === 'header'}
 						<button
 							class="card head"
 							class:closed={!row.open}
@@ -669,7 +783,7 @@
 							<span class="grp-name">{row.name}</span>
 							<span class="grp-count">{row.count}</span>
 						</button>
-					{:else}
+					{:else if row?.kind === 'track'}
 						{@const t = row.track}
 						{@const isCurrent = playback.current?.path === t.path}
 						{@const sub = subLabel(t)}
@@ -1034,6 +1148,33 @@
 		color: var(--bg);
 		background: var(--accent);
 		border-color: var(--accent);
+	}
+
+	/* Facet/sort toolbar for the library + favourites lists. A body-level sibling
+	   like the tabs, so it stays pinned while `main` scrolls. Related controls are
+	   grouped into `.cgroup` clusters (organise / sort / filter); the wider
+	   column-gap separates clusters, the tighter gap binds controls within one.
+	   Clusters wrap as whole units rather than splitting mid-cluster. */
+	.controls {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px 18px;
+		padding: 8px 14px;
+		background: var(--panel);
+		border-bottom: 1px solid var(--border);
+		font-size: 13px;
+	}
+	.cgroup {
+		display: flex;
+		align-items: center;
+		gap: 6px 10px;
+	}
+	.controls .reset {
+		margin-left: auto;
+		font-size: 12px;
+		color: var(--muted);
+		padding: 4px 10px;
 	}
 
 	.progress {
@@ -1617,6 +1758,16 @@
 			order: 4;
 			flex-basis: 100%;
 			margin-left: 0;
+		}
+		/* Library controls: tighter spacing and hide the least-used facets (bucket
+		   order + tracker filter, marked `.opt`) so the row stays short on a phone.
+		   Both remain available on desktop. group-by, track sort + format stay. */
+		.controls {
+			gap: 8px 12px;
+			padding: 8px 10px;
+		}
+		.controls .opt {
+			display: none;
 		}
 		.tabs button {
 			flex: 1;
