@@ -1,10 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- Party glyph: a low-poly rubber duck — the classic 3D test mesh, a
-       demoscene/CG in-joke — in the halo family frame (dark rounded square,
-       amber accent). Properly triangulated (multiple facet hubs, not a radial
-       fan): domed head with a flat crown, broad flat bill, chunky faceted body,
-       little feet. Light from upper-left gives the facets volume. -->
-  <rect width="512" height="512" rx="96" fill="#0f0f0f"/>
+       demoscene/CG in-joke — in the halo family frame (full-bleed square dark
+       frame, amber accent). The frame is a SQUARE on purpose: iOS/Android round
+       home-screen icons themselves, so we must not bake in rounded corners.
+       Properly triangulated (multiple facet hubs, not a radial fan): domed head
+       with a flat crown, broad flat bill, chunky faceted body, little feet.
+       Light from upper-left gives the facets volume. -->
+  <rect width="512" height="512" fill="#0f0f0f"/>
   <g transform="translate(256,256) scale(0.92) translate(-287,-265)">
     <g stroke="#241606" stroke-width="2" stroke-linejoin="round">
       <!-- feet (behind body) -->
