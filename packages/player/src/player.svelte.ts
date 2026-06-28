@@ -87,6 +87,54 @@ export function readSpectrum(buf: Uint8Array<ArrayBuffer>): boolean {
 	return true;
 }
 
+// --- Beat tracking (module row/tempo) ---------------------------------------
+// In tracker music the pattern rows are the beat grid; a musical beat is the
+// conventional every-4th-row. We watch the row advance in onProgress (which the
+// worklet fires synced to audio) and pulse on each beat boundary — so this is
+// exact to the module and tracks tempo/speed changes for free (rows simply
+// arrive faster or slower). Visualizers read `playback.beat` for the on-beat
+// tick and `beatPhase()` for a smooth 0→1 ramp between beats.
+const ROWS_PER_BEAT = 4;
+let lastRow = -1;
+let lastOrder = -1;
+let lastPattern = -1;
+let lastBeatAt = 0; // performance.now() of the last beat onset (0 = none yet)
+let beatInterval = 500; // eased ms between beats, for the phase ramp
+
+function resetBeat() {
+	lastRow = -1;
+	lastOrder = -1;
+	lastPattern = -1;
+	lastBeatAt = 0;
+	beatInterval = 500;
+}
+
+function noteRow(order: number, pattern: number, row: number) {
+	const advanced = row !== lastRow || order !== lastOrder || pattern !== lastPattern;
+	if (!advanced) return;
+	lastRow = row;
+	lastOrder = order;
+	lastPattern = pattern;
+	if (row % ROWS_PER_BEAT !== 0) return;
+	const now = performance.now();
+	if (lastBeatAt > 0) {
+		const dt = now - lastBeatAt;
+		// Ease the interval toward the latest gap, ignoring seeks/stalls (out of a
+		// plausible 30ms–2s beat range) so the phase ramp stays smooth.
+		if (dt > 30 && dt < 2000) beatInterval += (dt - beatInterval) * 0.25;
+	}
+	lastBeatAt = now;
+	playback.beat++;
+}
+
+/** A 0→1 ramp since the last beat, from the eased inter-beat interval (clamped at
+ *  1, and 0 until the first beat). Lets a viz pulse on-beat without each one
+ *  re-deriving timing from the raw row. */
+export function beatPhase(now = performance.now()): number {
+	if (!lastBeatAt) return 0;
+	return Math.min(1, (now - lastBeatAt) / beatInterval);
+}
+
 // Playback is a small state machine over one loaded module:
 //   stopped: playing=false            (transport shows ▶; play restarts from top)
 //   playing: playing=true, paused=false
@@ -102,6 +150,7 @@ export const playback = $state({
 	order: 0,
 	pattern: 0,
 	row: 0,
+	beat: 0, // bumps once per musical beat (see noteRow) — a reactive on-beat tick
 	vu: [] as number[],
 	song: null as Song | null,
 	samples: [] as string[],
@@ -142,6 +191,7 @@ function ensurePlayer(): Promise<void> {
 		playback.pattern = d.pattern ?? 0;
 		playback.row = d.row ?? 0;
 		playback.vu = d.vu ?? [];
+		noteRow(playback.order, playback.pattern, playback.row);
 		maybeCountPlay(d.pos ?? 0);
 	});
 	player.onMetadata((meta: Meta) => {
@@ -323,6 +373,7 @@ export async function playTrack(track: Track) {
 	playback.row = 0;
 	playback.order = 0;
 	playback.pattern = 0;
+	resetBeat();
 	const p = ensurePlayer();
 	await p;
 	try {
@@ -443,6 +494,7 @@ export function stop() {
 	playback.position = 0;
 	playback.row = 0;
 	playback.order = 0;
+	resetBeat();
 	syncNowPlaying();
 }
 
