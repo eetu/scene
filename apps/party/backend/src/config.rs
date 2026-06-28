@@ -14,6 +14,16 @@ pub struct Config {
     /// `DEV_AUTH=1` (local dev) or `PARTY_OPEN=1` (a LAN-only deploy with no
     /// oauth2-proxy in front).
     pub dev_auth: bool,
+    /// Read-only public mode (`PARTY_KIOSK=1`). Refuses operator mutations
+    /// (`POST /api/rescan` → 403) and redacts the filesystem `root` from
+    /// `/status`, so a publicly-exposed instance is browse/play/run only. This is
+    /// orthogonal to auth: `dev_auth`/`PARTY_OPEN` controls *who* can reach the
+    /// API; `kiosk` controls *what actions exist*. The immutable data-image
+    /// deploy runs with this on (the tree never changes at runtime, so rescan is
+    /// meaningless there). The initial boot scan still runs; only the
+    /// operator-triggered rescan endpoint is disabled. `/api/meta` enrichment
+    /// stays on — it's idempotent and content-hash-keyed.
+    pub kiosk: bool,
     /// Root of the `Parties/` tree. Each immediate subdirectory is one party.
     pub root: PathBuf,
     /// Directory of checked-in per-party config JSONs (`<slug>.json`).
@@ -43,6 +53,7 @@ impl Config {
     pub fn from_env() -> anyhow::Result<Self> {
         let dev_auth = env::var("DEV_AUTH").as_deref() == Ok("1")
             || env::var("PARTY_OPEN").as_deref() == Ok("1");
+        let kiosk = env::var("PARTY_KIOSK").as_deref() == Ok("1");
         let root = env::var("PARTY_ROOT")
             .ok()
             .filter(|s| !s.is_empty())
@@ -58,6 +69,7 @@ impl Config {
             .unwrap_or_else(|| root.join(".support"));
         Ok(Self {
             dev_auth,
+            kiosk,
             bind: env::var("PARTY_BIND").unwrap_or_else(|_| "0.0.0.0:3020".into()),
             support_dir,
             root,

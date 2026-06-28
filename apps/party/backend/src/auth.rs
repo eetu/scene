@@ -52,6 +52,7 @@ mod tests {
         let cfg = Config {
             bind: String::new(),
             dev_auth,
+            kiosk: false,
             root: PathBuf::new(),
             config_dir: PathBuf::new(),
             cache_dir: PathBuf::new(),

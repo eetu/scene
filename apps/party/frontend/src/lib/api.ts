@@ -67,7 +67,8 @@ export type StatusResponse = {
   file_count: number | null;
   production_count: number | null;
   party_count: number | null;
-  root: string;
+  root: string | null; // redacted (null) in kiosk mode
+  kiosk: boolean; // public read-only deploy: no rescan/operator actions
   scanning: boolean;
   scan_total: number;
   scan_processed: number;

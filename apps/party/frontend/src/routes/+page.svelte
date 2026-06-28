@@ -49,10 +49,17 @@
 <header>
   <h1>party</h1>
   <span class="sub">demoparty archive player</span>
-  <button class="action" onclick={rescan} disabled={rescanning} title="Rescan the archive">
-    <RefreshCw size={15} class={rescanning ? "spin" : ""} />
-    {rescanning ? "Rescanning…" : "Rescan"}
-  </button>
+  <!-- Stable spacer so the right group (Rescan?, gear) stays right-aligned even
+       when the button is absent (kiosk) or the tagline is hidden (mobile). -->
+  <span class="spacer"></span>
+  <!-- Operator-only: hidden on a public (kiosk) instance, where the backend also
+       refuses POST /api/rescan. Shown once status loads on a non-kiosk instance. -->
+  {#if status && !status.kiosk}
+    <button class="action" onclick={rescan} disabled={rescanning} title="Rescan the archive">
+      <RefreshCw size={15} class={rescanning ? "spin" : ""} />
+      {rescanning ? "Rescanning…" : "Rescan"}
+    </button>
+  {/if}
   <Settings />
 </header>
 
@@ -112,8 +119,10 @@
     color: var(--muted);
     font-size: 13px;
   }
+  .spacer {
+    flex: 1;
+  }
   .action {
-    margin-left: auto;
     display: inline-flex;
     align-items: center;
     gap: 6px;
