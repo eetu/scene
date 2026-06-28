@@ -95,7 +95,13 @@ async fn status(State(state): State<AppState>) -> Json<Value> {
         "file_count": counts.map(|c| c.0),
         "production_count": counts.map(|c| c.1),
         "party_count": counts.map(|c| c.2),
-        "root": state.cfg.root.display().to_string(),
+        // Kiosk redacts the server's filesystem path from a public probe.
+        "root": if state.cfg.kiosk {
+            Value::Null
+        } else {
+            Value::String(state.cfg.root.display().to_string())
+        },
+        "kiosk": state.cfg.kiosk,
         "scanning": scanning,
         "scan_total": state.scan.total.load(Ordering::Relaxed),
         "scan_processed": state.scan.processed.load(Ordering::Relaxed),
@@ -765,6 +771,11 @@ async fn api_bundle(
 }
 
 async fn api_rescan(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
+    // Kiosk (public, read-only) refuses operator mutations. The button is hidden
+    // in the SPA, but enforce it here too — the endpoint is reachable directly.
+    if state.cfg.kiosk {
+        return Err(AppError::Forbidden);
+    }
     let result = crate::run_scan(
         state.db.clone(),
         state.cfg.root.clone(),
