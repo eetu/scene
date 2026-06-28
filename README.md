@@ -77,3 +77,11 @@ read-only data image built by hand from the NAS-mounted tree:
 just package-party-data /Volumes/scene/parties Assembly95 1995
 # → ghcr.io/eetu/scene-party-data-assembly95:1995
 ```
+
+## Licensing
+
+This repository's own code has no license declared (personal project). It
+bundles and serves third-party emulators (EmulatorJS, js-dos), the libopenmpt
+audio engine, and fonts, each under its own license — see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). No Amiga Kickstart ROM is
+distributed; the emulator falls back to the free AROS ROM.
