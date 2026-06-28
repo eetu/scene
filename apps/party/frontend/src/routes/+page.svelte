@@ -106,6 +106,19 @@
   {/if}
 </main>
 
+<!-- Archive disclaimer — shown to everyone, kiosk included. Productions belong to
+     their authors; this is a non-commercial preservation mirror, with a removal
+     path via the repo's issues. -->
+<footer class="legal">
+  A non-commercial archive for demoscene preservation. Productions are © their respective authors
+  &amp; groups, mirrored from
+  <a href="https://scene.org" target="_blank" rel="noreferrer">scene.org</a>. Not affiliated with
+  scene.org or the parties' organizers. Source &amp; removal requests:
+  <a href="https://github.com/eetu/scene/issues" target="_blank" rel="noreferrer"
+    >github.com/eetu/scene/issues</a
+  >.
+</footer>
+
 <style>
   header {
     display: flex;
@@ -156,8 +169,25 @@
     }
   }
   main {
+    flex: 1;
+    min-height: 0;
     padding: 20px;
     overflow: auto;
+  }
+  .legal {
+    flex: 0 0 auto;
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .legal a {
+    color: var(--muted);
+    text-decoration: underline;
+  }
+  .legal a:hover {
+    color: var(--accent);
   }
   .grid {
     display: grid;
