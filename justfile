@@ -71,3 +71,36 @@ test:
 # Run the party transcoder sidecar (loopback), auto-reloading via bacon.
 transcoder:
     cd services/transcoder && bacon --headless -j run
+
+# Package a finalized party tree into a read-only data image (run where the NAS
+# is mounted). The content (~hundreds of MB) isn't in the repo, so this is a
+# manual, reproducible one-off — NOT a CI artifact. Re-push a new :tag whenever
+# the tree changes. Whatever sits under <party>/**/.support/ (the per-prod Amiga
+# ADF/HDF) is captured automatically. The runtime party image is unchanged —
+# PARTY_ROOT still points at this data volume at deploy time.
+#
+# Cleanliness: the build stages a junk-free copy first, so macOS/OS sidecars
+# (._*, .DS_Store, .Spotlight-V100, …) never land in the image. The derived-asset
+# cache (PARTY_CACHE_DIR) and party.db live OUTSIDE PARTY_ROOT and so are never in
+# the tree being packaged; the cache/*.db excludes are belt-and-suspenders.
+# Image repo names must be lowercase, so the slug is lowercased for the tag while
+# the in-image path keeps the real directory name.
+#
+# Usage: just package-party-data /Volumes/scene/parties Assembly95 1995
+package-party-data src slug tag:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    stage="$(mktemp -d)"
+    trap 'rm -rf "$stage"' EXIT
+    rsync -a \
+      --exclude='._*' --exclude='.DS_Store' --exclude='.AppleDouble' \
+      --exclude='.Spotlight-V100' --exclude='.Trashes' --exclude='.fseventsd' \
+      --exclude='.TemporaryItems' --exclude='.DocumentRevisions-V100' \
+      --exclude='.apdisk' --exclude='Thumbs.db' --exclude='desktop.ini' \
+      --exclude='cache' --exclude='.cache' \
+      --exclude='*.db' --exclude='*.db-wal' --exclude='*.db-shm' \
+      "{{src}}/{{slug}}" "$stage/"
+    printf 'FROM scratch\nCOPY %s /%s\n' '{{slug}}' '{{slug}}' > "$stage/Dockerfile"
+    img="ghcr.io/inviniteopen/scene-party-data-$(printf '%s' '{{slug}}' | tr '[:upper:]' '[:lower:]'):{{tag}}"
+    docker buildx build --platform linux/amd64 -t "$img" --push "$stage"
+    echo "pushed $img"
