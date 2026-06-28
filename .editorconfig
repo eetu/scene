@@ -1,0 +1,23 @@
+# EditorConfig — https://editorconfig.org
+# Single root file for the whole monorepo (cascades into apps/* and packages/*).
+# Prettier reads indent_style, indent_size/tab_width, max_line_length and
+# end_of_line from here, so indentation + line width live here, not in .prettierrc.
+# Override e.g. line width by editing this file once.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+max_line_length = 100
+
+# Rust (rustfmt) and Python (PEP 8) use 4-space indent.
+[*.{rs,py}]
+indent_size = 4
+
+# Markdown keeps trailing whitespace (two trailing spaces = hard line break).
+[*.md]
+trim_trailing_whitespace = false
