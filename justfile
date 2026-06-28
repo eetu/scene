@@ -101,6 +101,6 @@ package-party-data src slug tag:
       --exclude='*.db' --exclude='*.db-wal' --exclude='*.db-shm' \
       "{{src}}/{{slug}}" "$stage/"
     printf 'FROM scratch\nCOPY %s /%s\n' '{{slug}}' '{{slug}}' > "$stage/Dockerfile"
-    img="ghcr.io/inviniteopen/scene-party-data-$(printf '%s' '{{slug}}' | tr '[:upper:]' '[:lower:]'):{{tag}}"
+    img="ghcr.io/eetu/scene-party-data-$(printf '%s' '{{slug}}' | tr '[:upper:]' '[:lower:]'):{{tag}}"
     docker buildx build --platform linux/amd64 -t "$img" --push "$stage"
     echo "pushed $img"
