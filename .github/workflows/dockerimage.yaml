@@ -108,9 +108,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/arm64
+          platforms: linux/amd64,linux/arm64
           # Skip provenance + SBOM: each becomes its own GHCR "version", inflating
-          # the package version count for no benefit on a single-platform image.
+          # the package version count for no benefit. (invinite pulls the amd64
+          # leg via the normal CI tags; the Pi deploy pulls arm64 — one multi-arch
+          # tag serves both.)
           provenance: false
           sbom: false
           cache-from: type=gha,scope=${{ matrix.service }}
