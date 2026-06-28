@@ -102,5 +102,10 @@ package-party-data src slug tag:
       "{{src}}/{{slug}}" "$stage/"
     printf 'FROM scratch\nCOPY %s /%s\n' '{{slug}}' '{{slug}}' > "$stage/Dockerfile"
     img="ghcr.io/eetu/scene-party-data-$(printf '%s' '{{slug}}' | tr '[:upper:]' '[:lower:]'):{{tag}}"
-    docker buildx build --platform linux/amd64 -t "$img" --push "$stage"
-    echo "pushed $img"
+    # podman or docker (override with CONTAINER_ENGINE). A scratch + COPY image
+    # runs nothing, so --platform just stamps the amd64 manifest on any host (no
+    # emulation, no buildx); plain build + push is portable across both engines.
+    engine="${CONTAINER_ENGINE:-$(command -v podman >/dev/null 2>&1 && echo podman || echo docker)}"
+    "$engine" build --platform linux/amd64 -t "$img" "$stage"
+    "$engine" push "$img"
+    echo "pushed $img via $engine"
