@@ -2,7 +2,7 @@
   // DOS emulator surface (js-dos v8, self-hosted under /vendor/js-dos/). The
   // runtime + WASM (~1.4 MB+) load only when the user clicks Launch — never on
   // page view. Everything is same-origin, so the strict CSP is unchanged.
-  import { Keyboard, Maximize, Play, Power } from "@lucide/svelte";
+  import { Keyboard, Maximize, Play, Power, Volume2, X } from "@lucide/svelte";
   import { onDestroy } from "svelte";
 
   let {
@@ -64,6 +64,12 @@
   // one — so on coarse pointers we focus a hidden input to raise the soft
   // keyboard and forward its keys into DOSBox.
   let pseudoFs = $state(false);
+  // Sound-card cheat-sheet snackbar. Many DOS demos run their own SETUP that
+  // ignores the BLASTER/ULTRASND env we bake in and asks you to pick a card by
+  // hand — so we surface the values (GUS first) on launch, dismissible, and
+  // re-openable from the toolbar. Keep these in sync with the backend
+  // `dosbox_conf` (routes.rs): GUS base 240 / IRQ 5 / DMA 3; SB16 220 / 7 / 1+5.
+  let showSound = $state(false);
   let kbdInput = $state<HTMLInputElement | null>(null);
   const coarse = $derived(
     typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches,
@@ -90,6 +96,8 @@
   async function launch() {
     if (started) return;
     started = true;
+    // Pop the sound-card hint right as the demo (and its SETUP) starts.
+    showSound = true;
     loading = true;
     error = null;
     try {
@@ -215,11 +223,33 @@
           <Keyboard size={16} /> Keys
         </button>
       {/if}
+      <button
+        onclick={() => (showSound = !showSound)}
+        class:active={showSound}
+        title="Sound card settings"
+      >
+        <Volume2 size={16} /> Sound
+      </button>
       <button onclick={fullscreen} title="Fullscreen" aria-label="Fullscreen">
         <Maximize size={16} /> Fullscreen
       </button>
       <button class="exit" onclick={exitEmu} title="Stop the emulator">
         <Power size={16} /> Exit
+      </button>
+    </div>
+  {/if}
+
+  <!-- Sound-card cheat-sheet: appears on launch (when the demo's SETUP would),
+       GUS first, dismissible, re-openable from the toolbar. -->
+  {#if started && showSound}
+    <div class="snack" role="status">
+      <Volume2 size={16} />
+      <div class="snack-text">
+        <b>Sound card?</b> Pick <b>Gravis UltraSound</b> — Port 240 · IRQ 5 · DMA 3.
+        <span class="snack-sub">Sound Blaster 16 also set: 220 · IRQ 7 · DMA 1/5</span>
+      </div>
+      <button class="snack-x" onclick={() => (showSound = false)} aria-label="Dismiss hint">
+        <X size={14} />
       </button>
     </div>
   {/if}
@@ -249,6 +279,8 @@
     gap: 8px;
     height: 100%;
     min-height: 0;
+    /* Positioning context for the sound-card snackbar overlay. */
+    position: relative;
   }
   /* iOS fallback fullscreen (no native Fullscreen API on a <div>). */
   .emu.fs {
@@ -314,6 +346,56 @@
   .bar button.exit:hover {
     border-color: #ff4136;
     color: #ff4136;
+  }
+  .bar button.active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  /* Sound-card hint snackbar — floats over the bottom of the screen. */
+  .snack {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(460px, calc(100% - 24px));
+    padding: 8px 8px 8px 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    color: var(--text);
+    font-size: 12px;
+  }
+  .snack > :global(svg) {
+    flex: 0 0 auto;
+    color: var(--accent);
+  }
+  .snack-text {
+    line-height: 1.35;
+  }
+  .snack-sub {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    font-family: var(--font-mono-retro);
+  }
+  .snack-x {
+    flex: 0 0 auto;
+    display: inline-grid;
+    place-items: center;
+    padding: 3px;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .snack-x:hover {
+    color: var(--accent);
   }
   .err {
     color: #ff4136;
