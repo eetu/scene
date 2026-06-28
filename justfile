@@ -100,6 +100,11 @@ package-party-data src slug tag:
       --exclude='cache' --exclude='.cache' \
       --exclude='*.db' --exclude='*.db-wal' --exclude='*.db-shm' \
       "{{src}}/{{slug}}" "$stage/"
+    # Normalize perms: the source tree (NAS) is often drwx------/-rwx------ root-only.
+    # The party backend runs as a NON-root UID, so make dirs world-traversable (0755)
+    # and files world-readable (0644) or it can't read the archive (indexes 0 files).
+    find "$stage/{{slug}}" -type d -exec chmod 0755 {} +
+    find "$stage/{{slug}}" -type f -exec chmod 0644 {} +
     printf 'FROM scratch\nCOPY %s /%s\n' '{{slug}}' '{{slug}}' > "$stage/Dockerfile"
     img="ghcr.io/eetu/scene-party-data-$(printf '%s' '{{slug}}' | tr '[:upper:]' '[:lower:]'):{{tag}}"
     # podman or docker (override with CONTAINER_ENGINE). A scratch + COPY image
