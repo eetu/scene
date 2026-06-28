@@ -300,8 +300,7 @@
                     >
                       <span class="rank">{p.rank ?? ""}</span>
                       <span class="name">
-                        {#if p.group}<b>{p.group}</b> —
-                        {/if}{p.title ?? "(untitled)"}
+                        {#if p.group}<b>{p.group}</b>&nbsp;—&nbsp;{/if}{p.title ?? "(untitled)"}
                       </span>
                       {#if p.points != null}
                         <span class="pts">{p.points}p</span>
