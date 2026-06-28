@@ -2,6 +2,7 @@
   // Landing: the list of scanned parties. Each card links to that party's
   // catalog. Polls /status while an initial scan is running.
   import { CalendarDays, MapPin, Music, RefreshCw } from "@lucide/svelte";
+  import { stop as stopPlayback } from "@scene/player";
   import { onMount } from "svelte";
 
   import { api, fileUrl, type Party, type StatusResponse } from "$lib/api";
@@ -42,6 +43,10 @@
   }
 
   onMount(() => {
+    // The landing has no transport bar, so stop any playback on arrival —
+    // otherwise music keeps playing with no visible controls (e.g. after
+    // clicking the party name to go home).
+    stopPlayback();
     load().catch((e) => (error = String(e)));
   });
 </script>
