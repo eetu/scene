@@ -1,13 +1,18 @@
 <script lang="ts">
-  // Canvas image viewer. Draws a (browser-native) image to a canvas at its
-  // native resolution with nearest-neighbour scaling, so pixel art stays crisp.
-  // Built on canvas (not <img>) so it can later render raw decoded pixels from
-  // the transcoder / a client-side LBM/PCX decoder. Clicking the image opens a
-  // full-screen overlay (same crisp scaling, fit to the viewport); Esc or a
+  // Canvas image viewer. Draws a (browser-native) image to a canvas at its native
+  // resolution with nearest-neighbour scaling, so pixel art stays crisp. Built on
+  // canvas (not <img>) so it can later render raw decoded pixels from the
+  // transcoder / a client-side LBM/PCX decoder. Clicking the image goes full
+  // screen: true OS fullscreen via the Fullscreen API where supported, else a
+  // fixed viewport overlay (iOS Safari blocks element fullscreen). Either way the
+  // image scales up to fill the screen (aspect-preserved, still crisp); Esc or a
   // click closes it.
+  import { tick } from "svelte";
+
   let { src, alt = "" }: { src: string; alt?: string } = $props();
 
   let canvas = $state<HTMLCanvasElement | null>(null);
+  let overlay = $state<HTMLDivElement | null>(null);
   let error = $state(false);
   let fs = $state(false);
 
@@ -34,8 +39,37 @@
     };
   });
 
+  // Leaving OS fullscreen by any means (Esc / F11 / system gesture) tears the
+  // overlay down too, so the two stay in sync.
+  $effect(() => {
+    const sync = () => {
+      if (fs && !document.fullscreenElement) fs = false;
+    };
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  });
+
+  async function openFs() {
+    fs = true;
+    await tick(); // let the overlay mount before requesting fullscreen on it
+    try {
+      // Throws / is absent on iOS Safari (no element fullscreen) → fall through to
+      // the fixed overlay, which already fills the viewport.
+      await overlay?.requestFullscreen();
+    } catch {
+      /* unsupported or denied — overlay covers the viewport instead */
+    }
+  }
+
+  function closeFs() {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    fs = false;
+  }
+
   function onKey(e: KeyboardEvent) {
-    if (fs && e.key === "Escape") fs = false;
+    // In OS fullscreen the browser handles Esc itself (→ the sync effect closes
+    // the overlay); only the fallback-overlay case needs handling here.
+    if (fs && e.key === "Escape" && !document.fullscreenElement) closeFs();
   }
 </script>
 
@@ -50,18 +84,18 @@
     role="button"
     tabindex="0"
     title="Click to view full screen"
-    onclick={() => (fs = true)}
+    onclick={openFs}
     onkeydown={(e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        fs = true;
+        void openFs();
       }
     }}
   ></canvas>
 {/if}
 
 {#if fs}
-  <div class="overlay" onclick={() => (fs = false)} role="presentation">
+  <div bind:this={overlay} class="overlay" onclick={closeFs} role="presentation">
     <img class="full" {src} {alt} />
     <span class="esc">Esc to close</span>
   </div>
@@ -85,14 +119,13 @@
     position: fixed;
     inset: 0;
     z-index: 60;
-    display: grid;
-    place-items: center;
-    background: rgba(0, 0, 0, 0.92);
+    background: #000;
     cursor: zoom-out;
   }
   .full {
-    max-width: 100vw;
-    max-height: 100vh;
+    display: block;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
     image-rendering: pixelated;
   }

@@ -199,6 +199,16 @@ multi-disk Amiga `.lha` sets — into one folder). What the trial ran into:
   author) → name the folder `NN - Group` with **no** title. Heads-up: the
   `rank-group-title` parser then reads that single field as the *title* (group ends
   up empty in the UI). Harmless for ranking; a cosmetic wart to be aware of.
+- **Apply fix/update releases FLAT, never in a `fix/` subfolder.** A bug-fix
+  archive (a patched `.exe`, a multi-disk re-release) must overwrite the originals
+  in the *same* folder. The scanner picks the **largest executable** as the
+  production's primary, and the js-dos bundle is rooted at *that exe's directory* —
+  so an exe in `fix/` orphans the data files (`.pak`/`.dat`) sitting in the parent,
+  and the demo fails to find them at runtime. Merge multi-disk Amiga sets the same
+  way (one folder per production).
+- **Amiga `mod.<name>` modules need no renaming.** Modules that lead with the
+  tracker type (`mod.song`, `med.foo`) instead of trailing it are classified as
+  music automatically (`scan.rs`), and libopenmpt opens them by content.
 
 ## Step 4 — Add results.txt
 
@@ -238,10 +248,15 @@ skip the join entirely (ranks still come from folder names).
 
 ## Step 5 — Author `<slug>.json`
 
-Create `apps/party/parties/<slug>.json` (the `slug` is the party folder name
-lowercased to alphanumerics — `Assembly95` → `assembly95`). This is the only
-hand-written metadata; it is **not** part of the data tree. Fields (structs:
-`PartyCfg` / `CategoryCfg` in `backend/src/party.rs`):
+Author `<slug>.json` (the `slug` is the party folder name lowercased to
+alphanumerics — `Assembly95` → `assembly95`). This is the only hand-written
+metadata. The backend reads configs from `PARTY_CONFIG_DIR`, which **defaults to
+`PARTY_ROOT`** — so the canonical home is the data root, next to the party folders
+(`<root>/assembly95.json`), keeping the archive volume self-contained;
+`package-party-data` bakes it into the data image. Keep a copy in
+`apps/party/parties/` and point `PARTY_CONFIG_DIR=../parties` for local dev if you
+prefer editing in the repo. Fields (structs: `PartyCfg` / `CategoryCfg` in
+`backend/src/party.rs`):
 
 ```jsonc
 {
@@ -275,7 +290,10 @@ Key rules:
   listed still get scanned — the backend falls back to heuristics in `scan.rs`
   (platform by file extension / folder name; medium by primary-file kind) — but
   listing them gives correct labels and the results join.
-- Copy `assembly95.json` as a starting template.
+- **The order you list categories is the compo display order in the SPA** (`Info`
+  and `Misc` are pinned first; unlisted folders fall to the end). Arrange the block
+  to taste — e.g. intros before demos, or cluster the music compos together.
+- Copy `assembly95.json` / `assembly96.json` as a starting template.
 
 ## Step 6 — Amiga AGA disk images (optional but recommended)
 
