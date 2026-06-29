@@ -105,20 +105,10 @@ package-party-data src slug tag:
     # and files world-readable (0644) or it can't read the archive (indexes 0 files).
     find "$stage/{{slug}}" -type d -exec chmod 0755 {} +
     find "$stage/{{slug}}" -type f -exec chmod 0644 {} +
-    # Bake the party's config JSON (<slug>.json, living in the data root next to the
-    # party folders) into the image root so the data image is self-contained: the
-    # backend defaults PARTY_CONFIG_DIR to PARTY_ROOT and finds it there.
-    lc="$(printf '%s' '{{slug}}' | tr '[:upper:]' '[:lower:]')"
-    cfg_copy=""
-    if [ -f "{{src}}/$lc.json" ]; then
-        cp "{{src}}/$lc.json" "$stage/$lc.json"
-        chmod 0644 "$stage/$lc.json"
-        cfg_copy="COPY $lc.json /$lc.json\n"
-    else
-        echo "WARN: no $lc.json in {{src}} — image won't carry its party config (compos/points fall back to defaults)"
-    fi
-    printf 'FROM scratch\nCOPY %s /%s\n%b' '{{slug}}' '{{slug}}' "$cfg_copy" > "$stage/Dockerfile"
-    img="ghcr.io/eetu/scene-party-data-$lc:{{tag}}"
+    # The party's `.party.json` lives inside its folder, so the COPY below carries
+    # it into the image automatically — the tree is self-contained.
+    printf 'FROM scratch\nCOPY %s /%s\n' '{{slug}}' '{{slug}}' > "$stage/Dockerfile"
+    img="ghcr.io/eetu/scene-party-data-$(printf '%s' '{{slug}}' | tr '[:upper:]' '[:lower:]'):{{tag}}"
     # podman or docker (override with CONTAINER_ENGINE). A scratch + COPY image
     # runs nothing, so --platform just stamps the amd64 manifest on any host (no
     # emulation, no buildx); plain build + push is portable across both engines.

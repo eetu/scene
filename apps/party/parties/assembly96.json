@@ -4,80 +4,848 @@
   "year": 1996,
   "location": "Helsinki, Finland",
   "organizer": "Assembly Organizing",
-  "results_file": "results.txt",
-  "results_format": "assembly_table",
   "folder_name": "rank-group-title",
   "categories": {
     "in64": {
       "compo": "PC 64K intro",
       "platform": "pc",
       "medium": "intro",
-      "results_title": "PC 64K intro competition"
+      "results": [
+        {
+          "rank": 1,
+          "points": 1366,
+          "group": "Eufrosyne",
+          "title": "Blind"
+        },
+        {
+          "rank": 2,
+          "points": 1196,
+          "group": "Complex",
+          "title": "Wego"
+        },
+        {
+          "rank": 3,
+          "points": 780,
+          "group": "Jamm",
+          "title": "Nation Zero 2"
+        },
+        {
+          "rank": 4,
+          "points": 506,
+          "group": "Moottori",
+          "title": "Palikka"
+        },
+        {
+          "rank": 5,
+          "points": 501,
+          "group": "Coral",
+          "title": "Neutral"
+        },
+        {
+          "rank": 6,
+          "points": 386,
+          "group": "Spirit New Style",
+          "title": "Water"
+        },
+        {
+          "rank": 7,
+          "points": 328,
+          "group": "Paragon",
+          "title": "Station Crawford"
+        },
+        {
+          "rank": 8,
+          "points": 321,
+          "group": "Halcyon",
+          "title": "Andalucia"
+        },
+        {
+          "rank": 9,
+          "points": 262,
+          "group": "The Black Lotus",
+          "title": "'69"
+        },
+        {
+          "rank": 10,
+          "points": 211,
+          "group": "ByTeam",
+          "title": "Pocsolya"
+        },
+        {
+          "rank": 11,
+          "points": 187,
+          "group": "Amorphous",
+          "title": "Prelude"
+        },
+        {
+          "rank": 12,
+          "points": 185,
+          "title": "Pallo"
+        },
+        {
+          "rank": 13,
+          "points": 163,
+          "group": "Cool Productions",
+          "title": "Power Rangers"
+        }
+      ]
     },
     "in4k": {
       "compo": "PC 4K intro",
       "platform": "pc",
       "medium": "intro",
-      "results_title": "PC 4K intro competition"
+      "results": [
+        {
+          "rank": 1,
+          "points": 1342,
+          "title": "Pure Spirit"
+        },
+        {
+          "rank": 2,
+          "points": 960,
+          "group": "Dave-ByTeam",
+          "title": "Countach"
+        },
+        {
+          "rank": 3,
+          "points": 895,
+          "title": "Mobilization"
+        },
+        {
+          "rank": 4,
+          "points": 388,
+          "group": "Ionic-AstroideA",
+          "title": "Stroke"
+        },
+        {
+          "rank": 5,
+          "points": 386,
+          "group": "TomCat-Abaddon",
+          "title": "Chrome 2"
+        },
+        {
+          "rank": 6,
+          "points": 380,
+          "title": "Shorty"
+        },
+        {
+          "rank": 7,
+          "points": 377,
+          "title": "Chaos Overflow"
+        },
+        {
+          "rank": 8,
+          "points": 269,
+          "title": "Mystical"
+        },
+        {
+          "rank": 9,
+          "points": 240,
+          "title": "Balls"
+        },
+        {
+          "rank": 10,
+          "points": 43,
+          "title": "Red Room"
+        }
+      ]
     },
     "demo": {
       "compo": "PC demo",
       "platform": "pc",
       "medium": "demo",
-      "results_title": "PC demo competition"
+      "results": [
+        {
+          "rank": 1,
+          "points": 1452,
+          "group": "Dubius",
+          "title": "Machines of Madness"
+        },
+        {
+          "rank": 2,
+          "points": 1418,
+          "group": "Cubic Team",
+          "title": "Toasted"
+        },
+        {
+          "rank": 3,
+          "points": 764,
+          "group": "Doomsday Productions",
+          "title": "Vivid Experience"
+        },
+        {
+          "rank": 4,
+          "points": 736,
+          "group": "Orange",
+          "title": "Super Television"
+        },
+        {
+          "rank": 5,
+          "points": 461,
+          "group": "Five Coders",
+          "title": "Sperm"
+        },
+        {
+          "rank": 6,
+          "points": 432,
+          "group": "Japotek",
+          "title": "Daydream"
+        },
+        {
+          "rank": 7,
+          "points": 355,
+          "group": "MFX",
+          "title": "Stream"
+        },
+        {
+          "rank": 8,
+          "points": 342,
+          "group": "Planet Artwork",
+          "title": "Proton"
+        },
+        {
+          "rank": 9,
+          "points": 299,
+          "group": "Happo",
+          "title": "Ages"
+        },
+        {
+          "rank": 10,
+          "points": 288,
+          "group": "Tplom",
+          "title": "Encore 2"
+        },
+        {
+          "rank": 11,
+          "points": 267,
+          "group": "Hyperopia",
+          "title": "Nutz"
+        },
+        {
+          "rank": 12,
+          "points": 266,
+          "group": "Recreation",
+          "title": "Sergei"
+        },
+        {
+          "rank": 13,
+          "points": 254,
+          "group": "Vandals",
+          "title": "Anxious"
+        },
+        {
+          "rank": 14,
+          "points": 215,
+          "group": "Borealis",
+          "title": "They will Pay"
+        },
+        {
+          "rank": 15,
+          "points": 210,
+          "group": "Dignity",
+          "title": "Pure dignity in a bottle"
+        }
+      ]
     },
     "grfx": {
       "compo": "Graphics",
       "platform": "pc",
       "medium": "graphics",
-      "results_title": "Graphics competition"
+      "results": [
+        {
+          "rank": 1,
+          "points": 1115,
+          "group": "Made-Bomb Software"
+        },
+        {
+          "rank": 2,
+          "points": 656,
+          "group": "Visualize-Jamm"
+        },
+        {
+          "rank": 3,
+          "points": 599,
+          "group": "Beast-Impulse",
+          "title": "Fish"
+        },
+        {
+          "rank": 4,
+          "points": 556,
+          "group": "Louie-The Black Lotus"
+        },
+        {
+          "rank": 5,
+          "points": 509,
+          "group": "Rodney-The Black Lotus"
+        },
+        {
+          "rank": 6,
+          "points": 432
+        },
+        {
+          "rank": 7,
+          "points": 423
+        },
+        {
+          "rank": 8,
+          "points": 374
+        },
+        {
+          "rank": 9,
+          "points": 351,
+          "group": "Rendall-AstroideA^Impulse",
+          "title": "Useless to run bitch..."
+        },
+        {
+          "rank": 10,
+          "points": 319
+        },
+        {
+          "rank": 11,
+          "points": 278
+        },
+        {
+          "rank": 12,
+          "points": 243,
+          "group": "Wolf-Wrath Designs"
+        },
+        {
+          "rank": 13,
+          "points": 231
+        },
+        {
+          "rank": 14,
+          "points": 173,
+          "group": "Eibon-Bombsquad"
+        },
+        {
+          "rank": 15,
+          "points": 144
+        }
+      ]
     },
     "grtc": {
       "compo": "Raytrace",
       "platform": "pc",
       "medium": "graphics",
-      "results_title": "Raytrace competition"
+      "results": [
+        {
+          "rank": 1,
+          "points": 984,
+          "group": "Sami-setä-Paskasoft Prods."
+        },
+        {
+          "rank": 2,
+          "points": 807,
+          "group": "Vaapukka-Mighty Muumies"
+        },
+        {
+          "rank": 3,
+          "points": 615,
+          "group": "Marvel-Future Crew"
+        },
+        {
+          "rank": 4,
+          "points": 446,
+          "group": "Frank-Orange"
+        },
+        {
+          "rank": 5,
+          "points": 438,
+          "group": "Serge"
+        },
+        {
+          "rank": 6,
+          "points": 409,
+          "group": "Delsion-Cascada"
+        },
+        {
+          "rank": 7,
+          "points": 401,
+          "group": "Reward-Complex"
+        },
+        {
+          "rank": 8,
+          "points": 379,
+          "group": "Maxwell-Melon Design"
+        },
+        {
+          "rank": 9,
+          "points": 314,
+          "group": "Wiggin-Nordic Vision"
+        },
+        {
+          "rank": 10,
+          "points": 277,
+          "group": "Tudor-The Black Lotus"
+        },
+        {
+          "rank": 11,
+          "points": 215,
+          "group": "Magna-VDC"
+        },
+        {
+          "rank": 12,
+          "points": 204,
+          "group": "MMB-Bombsquad"
+        },
+        {
+          "rank": 13,
+          "points": 193,
+          "group": "Thain-Sensible"
+        },
+        {
+          "rank": 14,
+          "points": 171,
+          "group": "Artifex-Complex"
+        },
+        {
+          "rank": 15,
+          "points": 144,
+          "group": "Slayer&Gonzo-Stetson Design"
+        }
+      ]
     },
     "anim": {
       "compo": "Animation",
       "platform": "video",
       "medium": "animation",
-      "results_title": "Animation competition"
+      "results": [
+        {
+          "rank": 1,
+          "points": 837,
+          "group": "Vaapukka",
+          "title": "Amis 5000"
+        },
+        {
+          "rank": 2,
+          "points": 683,
+          "group": "Timo Kinnunen",
+          "title": "In and out"
+        },
+        {
+          "rank": 3,
+          "points": 650,
+          "group": "Paskasoft",
+          "title": "Giant bunghole in outer s."
+        },
+        {
+          "rank": 4,
+          "points": 621,
+          "title": "Heroes"
+        },
+        {
+          "rank": 5,
+          "points": 520,
+          "group": "Innocent-Abaddon",
+          "title": "Green Peace"
+        },
+        {
+          "rank": 6,
+          "points": 452,
+          "group": "Slimy Devil-TDC",
+          "title": "Visitor"
+        },
+        {
+          "rank": 7,
+          "points": 415,
+          "group": "Inside",
+          "title": "Jolly Day"
+        },
+        {
+          "rank": 8,
+          "points": 318,
+          "group": "Grunt",
+          "title": "Overall"
+        },
+        {
+          "rank": 9,
+          "points": 310,
+          "title": "Delmar"
+        },
+        {
+          "rank": 10,
+          "points": 287,
+          "group": "ADM&JTP",
+          "title": "Bad Dream"
+        },
+        {
+          "rank": 11,
+          "points": 245,
+          "group": "Cascada",
+          "title": "Dragon Eye"
+        },
+        {
+          "rank": 12,
+          "points": 209,
+          "group": "Remorse",
+          "title": "Assault"
+        },
+        {
+          "rank": 13,
+          "points": 73,
+          "title": "Meriheli"
+        }
+      ]
     },
     "m4ch": {
       "compo": "4-channel music",
       "platform": "pc",
       "medium": "music",
-      "results_title": "4 channel music competition"
+      "results": [
+        {
+          "rank": 1,
+          "points": 725,
+          "group": "Major-Bombsquad"
+        },
+        {
+          "rank": 2,
+          "points": 680
+        },
+        {
+          "rank": 3,
+          "points": 606,
+          "group": "Azazel-The Black Lotus"
+        },
+        {
+          "rank": 4,
+          "points": 538,
+          "group": "Dizzy-CNCD"
+        },
+        {
+          "rank": 5,
+          "points": 528,
+          "group": "Sam and Roy"
+        },
+        {
+          "rank": 6,
+          "points": 499,
+          "group": "Illusion"
+        },
+        {
+          "rank": 7,
+          "points": 419,
+          "group": "Deck-Scoopex"
+        },
+        {
+          "rank": 8,
+          "points": 413,
+          "group": "Muffler"
+        },
+        {
+          "rank": 9,
+          "points": 396,
+          "group": "Bent Byte"
+        },
+        {
+          "rank": 10,
+          "points": 354,
+          "group": "Mayday"
+        },
+        {
+          "rank": 11,
+          "points": 343,
+          "group": "Substance"
+        },
+        {
+          "rank": 12,
+          "points": 309
+        },
+        {
+          "rank": 13,
+          "points": 273,
+          "group": "Andy-CNCD"
+        },
+        {
+          "rank": 14,
+          "points": 205,
+          "group": "Charlie"
+        },
+        {
+          "rank": 15,
+          "points": 155
+        }
+      ]
     },
     "mmul": {
       "compo": "Multichannel music",
       "platform": "pc",
       "medium": "music",
-      "results_title": "Multichannel music competition"
+      "results": [
+        {
+          "rank": 1,
+          "points": 994,
+          "group": "Crux-DCC",
+          "title": "Bag of Tricks"
+        },
+        {
+          "rank": 2,
+          "points": 646,
+          "group": "Prototype",
+          "title": "d-minor"
+        },
+        {
+          "rank": 3,
+          "points": 568,
+          "group": "Cube-DEE",
+          "title": "Inverted cosmos"
+        },
+        {
+          "rank": 4,
+          "points": 565,
+          "group": "Pauli Ramo",
+          "title": "Bananas"
+        },
+        {
+          "rank": 5,
+          "points": 507,
+          "group": "Toalnkor & Scarfman",
+          "title": "Beyond the stars"
+        },
+        {
+          "rank": 6,
+          "points": 463,
+          "group": "Yzi-FIT",
+          "title": "Amarillo"
+        },
+        {
+          "rank": 7,
+          "points": 441,
+          "group": "Turtle-Accession",
+          "title": "Prophecy"
+        },
+        {
+          "rank": 8,
+          "points": 436,
+          "group": "Zake-Kosmic Free Music Found",
+          "title": "Shiva Shanti"
+        },
+        {
+          "rank": 9,
+          "points": 408,
+          "group": "Breeze-Capacala"
+        },
+        {
+          "rank": 10,
+          "points": 398,
+          "group": "Zodiak-Five Musicians",
+          "title": "Replicator 0.3beta"
+        },
+        {
+          "rank": 11,
+          "points": 377
+        },
+        {
+          "rank": 12,
+          "points": 333
+        },
+        {
+          "rank": 13,
+          "points": 305,
+          "group": "Lizardking-Triton",
+          "title": "Doskpop Project"
+        },
+        {
+          "rank": 14,
+          "points": 288,
+          "group": "Alpha-Keen Like Frogs",
+          "title": "Simply Cool"
+        },
+        {
+          "rank": 15,
+          "points": 145,
+          "group": "Sulp-Orange"
+        }
+      ]
     },
     "amiga/in64": {
       "compo": "Amiga 64K intro",
       "platform": "amiga",
       "medium": "intro",
-      "results_title": "Amiga 64K intro competition"
+      "results": [
+        {
+          "rank": 1,
+          "points": 1207,
+          "group": "Sonik Clique",
+          "title": "Pure"
+        },
+        {
+          "rank": 2,
+          "points": 653,
+          "group": "Royal",
+          "title": "So What"
+        },
+        {
+          "rank": 3,
+          "points": 553,
+          "group": "Kanisteri",
+          "title": "Japani"
+        },
+        {
+          "rank": 4,
+          "points": 482,
+          "group": "Primary",
+          "title": "Click"
+        },
+        {
+          "rank": 5,
+          "points": 464,
+          "group": "C-lous",
+          "title": "Asm96"
+        },
+        {
+          "rank": 6,
+          "points": 459,
+          "group": "New Age",
+          "title": "Murr"
+        },
+        {
+          "rank": 7,
+          "points": 433,
+          "group": "Wunderbaum",
+          "title": "Kanda Bong Man"
+        },
+        {
+          "rank": 8,
+          "points": 398,
+          "group": "Extend",
+          "title": "Ifa"
+        },
+        {
+          "rank": 9,
+          "points": 351,
+          "group": "Subspace",
+          "title": "Übergirl"
+        },
+        {
+          "rank": 10,
+          "points": 250,
+          "group": "Zenon",
+          "title": "Nona"
+        },
+        {
+          "rank": 11,
+          "points": 240,
+          "group": "Sam&Roy",
+          "title": "Hit the fan"
+        }
+      ]
     },
     "amiga/demo": {
       "compo": "Amiga demo",
       "platform": "amiga",
       "medium": "demo",
-      "results_title": "Amiga demo competition"
+      "results": [
+        {
+          "rank": 1,
+          "points": 1674,
+          "group": "Virtual Dreams",
+          "title": "Sumea"
+        },
+        {
+          "rank": 2,
+          "points": 1041,
+          "group": "Mellow Chips",
+          "title": "Dim"
+        },
+        {
+          "rank": 3,
+          "points": 816,
+          "group": "The Black Lotus",
+          "title": "Goa"
+        },
+        {
+          "rank": 4,
+          "points": 600,
+          "group": "Mystic",
+          "title": "Traffic"
+        },
+        {
+          "rank": 5,
+          "points": 504,
+          "group": "Limited Edition",
+          "title": "Mindabuse"
+        },
+        {
+          "rank": 6,
+          "points": 456,
+          "group": "Scoopex-Bomb",
+          "title": "Cyberia"
+        },
+        {
+          "rank": 7,
+          "points": 450,
+          "group": "Extend",
+          "title": "Insane"
+        },
+        {
+          "rank": 8,
+          "points": 368,
+          "group": "Cirion",
+          "title": "Showstopper"
+        },
+        {
+          "rank": 9,
+          "points": 348,
+          "group": "Artificial People",
+          "title": "Cliches"
+        },
+        {
+          "rank": 10,
+          "points": 196,
+          "group": "Banal Projects",
+          "title": "Bold"
+        },
+        {
+          "rank": 11,
+          "points": 148,
+          "group": "Wrath",
+          "title": "Gyrate"
+        }
+      ]
     },
     "c64/demo": {
       "compo": "C64 demo",
       "platform": "c64",
       "medium": "demo",
-      "results_title": "C64 demo competition"
+      "results": [
+        {
+          "rank": 1,
+          "points": 2105,
+          "group": "Byterapers",
+          "title": "Follow the sign 3"
+        },
+        {
+          "rank": 2,
+          "points": 1289,
+          "group": "Beyond Force",
+          "title": "Nothing but code"
+        },
+        {
+          "rank": 3,
+          "points": 936,
+          "group": "Panic",
+          "title": "Fruits"
+        },
+        {
+          "rank": 4,
+          "points": 916,
+          "group": "Wrath Designs",
+          "title": "Stupidity 3"
+        },
+        {
+          "rank": 5,
+          "points": 634,
+          "group": "Reflex",
+          "title": "Drug sixtyfour"
+        }
+      ]
     },
     "c64/grfx_music": {
       "compo": "C64 graphics & music",
       "platform": "c64",
-      "medium": "graphics"
+      "medium": "graphics",
+      "results": []
     }
   }
 }

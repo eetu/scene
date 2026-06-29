@@ -147,7 +147,8 @@ fn looks_textual(path: &Path) -> bool {
 }
 
 fn is_junk(name: &str) -> bool {
-    name == ".DS_Store"
+    name == crate::party::CONFIG_FILE // .party.json — config, not a browsable file
+        || name == ".DS_Store"
         || name.starts_with("._")
         || name == ".Trashes"
         || name == ".Spotlight-V100"
@@ -713,14 +714,14 @@ pub fn scan_into(
     }
     tx.commit()?;
 
-    // 3) Join results.txt points per party (best-effort).
+    // 3) Join scraped results from each party's config (best-effort).
     let party_dirs: HashMap<String, String> = walked
         .iter()
         .map(|w| (w.party_slug.clone(), w.party_dir.clone()))
         .collect();
     for (slug, dir) in &party_dirs {
         let cfg = configs.for_dir(dir);
-        if let Err(e) = crate::results::apply(conn, root, slug, dir, &cfg) {
+        if let Err(e) = crate::results::apply(conn, slug, &cfg) {
             tracing::warn!(party = %slug, error = %e, "results join failed");
         }
     }
@@ -850,7 +851,7 @@ mod tests {
                 compo: "Amiga demo".into(),
                 platform: "amiga".into(),
                 medium: "demo".into(),
-                results_title: None,
+                results: Vec::new(),
             },
         );
 

@@ -210,53 +210,30 @@ multi-disk Amiga `.lha` sets — into one folder). What the trial ran into:
   tracker type (`mod.song`, `med.foo`) instead of trailing it are classified as
   music automatically (`scan.rs`), and libopenmpt opens them by content.
 
-## Step 4 — Add results.txt
+## Step 4 — Keep results.txt as a document, scrape it into the config
 
-Drop the party's results file at the party root as `results.txt`. Assembly-era
-files are **CP437-encoded** ASCII art — leave them as-is; the parser decodes CP437
-(`backend/src/results.rs`).
+Drop the party's `results.txt` at the party root (CP437 ASCII art — leave it). The
+app does **not** parse it at runtime: every party tended to have its own format
+(Assembly '95 `rank (NNN points) Group "Title"`; Assembly '96 a `Place Points S#
+Name Author` table; The Gathering '96 letter-spaced titles with `rank … points`
+rows), and a per-party runtime parser doesn't scale. Instead, the **placements are
+scraped into the config** (Step 5) once, and `results.txt` stays only as a
+browsable document.
 
-**The results layout is not the same every year — set `results_format` to match,
-and add a parser if it's new.** The join only ever uses *(section header, rank →
-points)*; group/title come from folder names, so a format parser just needs to find
-section headers (lines ending `:`) and pull rank + points from each row. Two formats
-ship today:
+So at scrape time, read `results.txt` (a throwaway script per format is fine) to
+get each compo's `rank → points` (+ group/title where the format makes it clean),
+and **cross-check against demozoo/pouët** — the original file is often partial
+(The Gathering '96 omitted graphics/music and mangled the fastintro order; demozoo
+had the full, correct list). Put the result into each category's `results` array.
 
-- **`assembly_classic`** (Assembly '95): `rank S# (NNN points) Group "Title"`
+## Step 5 — Author the party config (`.party.json`)
 
-  ```
-  	PC demo competition:
-
-      1    10 (3646 points)     Nooon "Stars : Wonders of the world"
-  ```
-
-- **`assembly_table`** (Assembly '96): a fixed table with a `Place Points S# Name
-  Author` header and a `----` ruler:
-
-  ```
-  	PC demo competition:
-
-      Place  Points  S#  Name                       Author
-      -----  ------  --  -------------------------  --------------------------
-        1.    1452    7  Machines of Madness        Dubius
-  ```
-
-If a new party uses neither, add a `parse_*` variant and wire it into the
-`match cfg.results_format` dispatch in `apply()` (`backend/src/results.rs`) — the
-`assembly_table` addition is a ~25-line template. Set `results_format: "none"` to
-skip the join entirely (ranks still come from folder names).
-
-## Step 5 — Author `<slug>.json`
-
-Author `<slug>.json` (the `slug` is the party folder name lowercased to
-alphanumerics — `Assembly95` → `assembly95`). This is the only hand-written
-metadata. The backend reads configs from `PARTY_CONFIG_DIR`, which **defaults to
-`PARTY_ROOT`** — so the canonical home is the data root, next to the party folders
-(`<root>/assembly95.json`), keeping the archive volume self-contained;
-`package-party-data` bakes it into the data image. Keep a copy in
-`apps/party/parties/` and point `PARTY_CONFIG_DIR=../parties` for local dev if you
-prefer editing in the repo. Fields (structs: `PartyCfg` / `CategoryCfg` in
-`backend/src/party.rs`):
+Each party folder carries its own config as **`.party.json`** at its root
+(`<root>/Assembly95/.party.json`) — self-contained, so it travels with the data
+and `package-party-data` bakes it into the image automatically; the scanner skips
+it, so it never shows as a browsable file. Keep an editable copy under
+`apps/party/parties/<slug>.json` in the repo and copy it into the folder. Fields
+(structs: `PartyCfg` / `CategoryCfg` / `ResultRow` in `backend/src/party.rs`):
 
 ```jsonc
 {
@@ -266,15 +243,16 @@ prefer editing in the repo. Fields (structs: `PartyCfg` / `CategoryCfg` in
   "location": "Helsinki, Finland",
   "organizer": "Assembly Organizing",
   "logo": "info/logo.lbm",          // optional: rel path to a key image (transcoded on demand)
-  "results_file": "results.txt",
-  "results_format": "assembly_classic",  // or "none"
   "folder_name": "rank-group-title",
   "categories": {
     "demo": {
       "compo": "PC demo",                 // human label
       "platform": "pc",                   // pc | amiga | c64 | video | na
       "medium": "demo",                   // demo | intro | music | graphics | animation | info
-      "results_title": "PC demo competition"  // EXACT results.txt section header
+      "results": [
+        { "rank": 1, "points": 3646, "group": "Nooon", "title": "Stars : Wonders of the world" },
+        { "rank": 2, "points": 1482, "group": "Juice", "title": "Psychic link" }
+      ]
     }
     // …one entry per folder, incl. two-level keys like "amiga/demo"
   }
@@ -283,9 +261,11 @@ prefer editing in the repo. Fields (structs: `PartyCfg` / `CategoryCfg` in
 
 Key rules:
 
-- **`results_title` must match the results.txt section header exactly** (modulo
-  the parser's whitespace/case normalization). That's how points join to
-  productions by `(section, rank)`. If a category has no results section, omit it.
+- **`results` is joined onto scanned productions by `(category, rank)`.** `points`
+  is applied always (tie-safe — tied entries share points); `group`/`title` only
+  when the rank is unique in the category, so a tie never stamps one entry's name
+  onto the other. `group`/`title` are optional — without them the folder name
+  (`NN - Group - Title`) supplies the display metadata.
 - The `categories` keys are the folder paths (one or two segments). Folders not
   listed still get scanned — the backend falls back to heuristics in `scan.rs`
   (platform by file extension / folder name; medium by primary-file kind) — but

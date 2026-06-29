@@ -18,9 +18,9 @@ apps/
   party/           multi-party demoparty archive player
     backend/         party-backend (cargo member)
     frontend/        SvelteKit SPA (yarn member, deps @scene/*)
-    parties/         per-party config JSONs (dev copies; backend defaults
-                     PARTY_CONFIG_DIR to the data root, so prod reads them
-                     from the volume / data image next to the party folders)
+    parties/         editable copies of per-party config (compos + scraped
+                     results); canonical home is each party folder's `.party.json`
+                     in the data tree, which the backend reads at runtime
 services/
   transcoder/      scene-transcoder — Rust axum ffmpeg sidecar for party media
                    (cargo member). Separate runtime; reached over loopback HTTP

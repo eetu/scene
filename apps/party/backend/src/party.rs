@@ -10,6 +10,28 @@ use std::path::Path;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
+/// Per-party config filename, living inside each party folder (so the tree is
+/// self-contained). The scanner skips it (see `scan::is_junk`) so it never shows
+/// as a browsable production file.
+pub const CONFIG_FILE: &str = ".party.json";
+
+/// One placement in a competition. Scraped from the party's original
+/// `results.txt` (and cross-checked against demozoo/pouët) into the config — the
+/// app does **not** parse `results.txt` at runtime, which kept needing a new
+/// per-party parser. Joined onto a scanned production by `(category, rank)`:
+/// `points` always (tie-safe — tied entries share points), and `group`/`title`
+/// only when the rank is unique in the category (avoids the tie ambiguity).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResultRow {
+    pub rank: i64,
+    #[serde(default)]
+    pub points: Option<i64>,
+    #[serde(default)]
+    pub group: Option<String>,
+    #[serde(default)]
+    pub title: Option<String>,
+}
+
 /// A competition folder's descriptor. Overrides the heuristics the scanner would
 /// otherwise derive from the folder name and the productions' file kinds.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,11 +42,9 @@ pub struct CategoryCfg {
     pub platform: String,
     /// `demo` | `intro` | `music` | `graphics` | `animation` | `info`.
     pub medium: String,
-    /// Exact results-file section header for this competition, so points join
-    /// precisely even when the display `compo` label differs (e.g. folder
-    /// `mmul` → "Multichannel musax competiton"). Optional; null skips the join.
+    /// Scraped competition placements (see [`ResultRow`]). Empty = no ranking.
     #[serde(default)]
-    pub results_title: Option<String>,
+    pub results: Vec<ResultRow>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,12 +61,6 @@ pub struct PartyCfg {
     /// landing card. Transcoded on demand if it isn't browser-native.
     #[serde(default)]
     pub logo: Option<String>,
-    /// Relative path to the results file to parse (e.g. `results.txt`).
-    #[serde(default)]
-    pub results_file: Option<String>,
-    /// Which results parser to use: `assembly_classic` | `none`.
-    #[serde(default = "default_results_format")]
-    pub results_format: String,
     /// Entry-folder naming convention. Currently only `rank-group-title`.
     #[serde(default = "default_folder_name")]
     pub folder_name: String,
@@ -58,9 +72,6 @@ pub struct PartyCfg {
     pub categories: IndexMap<String, CategoryCfg>,
 }
 
-fn default_results_format() -> String {
-    "none".into()
-}
 fn default_folder_name() -> String {
     "rank-group-title".into()
 }
@@ -78,8 +89,6 @@ impl PartyCfg {
             location: None,
             organizer: None,
             logo: None,
-            results_file: Some("results.txt".into()),
-            results_format: "assembly_classic".into(),
             folder_name: default_folder_name(),
             categories: IndexMap::new(),
         }
@@ -111,22 +120,26 @@ pub struct PartyConfigs {
 }
 
 impl PartyConfigs {
-    /// Read every `*.json` in `dir` (missing dir → empty set). Each file's
-    /// `slug` is the lookup key.
-    pub fn load(dir: &Path) -> Self {
+    /// Read each party folder's `.party.json` under `root` (one config per
+    /// party, living with its data — self-contained, baked into the data image).
+    /// Keyed by the folder's slug so `for_dir` matches regardless of the config's
+    /// own `slug` field. Folders without a config fall back to a humanized default.
+    pub fn load(root: &Path) -> Self {
         let mut by_slug = HashMap::new();
-        if let Ok(entries) = std::fs::read_dir(dir) {
+        if let Ok(entries) = std::fs::read_dir(root) {
             for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
                     continue;
                 }
-                match std::fs::read_to_string(&path)
-                    .map_err(|e| e.to_string())
-                    .and_then(|s| serde_json::from_str::<PartyCfg>(&s).map_err(|e| e.to_string()))
-                {
+                let path = entry.path().join(CONFIG_FILE);
+                let text = match std::fs::read_to_string(&path) {
+                    Ok(t) => t,
+                    Err(_) => continue, // party folder with no config → defaults
+                };
+                let slug = slugify(&entry.file_name().to_string_lossy());
+                match serde_json::from_str::<PartyCfg>(&text) {
                     Ok(cfg) => {
-                        by_slug.insert(cfg.slug.clone(), cfg);
+                        by_slug.insert(slug, cfg);
                     }
                     Err(e) => tracing::warn!(path = %path.display(), error = %e, "skipping bad party config"),
                 }
@@ -134,12 +147,13 @@ impl PartyConfigs {
         }
         if by_slug.is_empty() {
             tracing::warn!(
-                dir = %dir.display(),
+                root = %root.display(),
                 "no party configs loaded — productions fall back to humanized defaults \
-                 (no compo labels/points, categories not split). Check PARTY_CONFIG_DIR."
+                 (no compo labels/results, categories not split). Each party folder needs \
+                 a `.party.json`."
             );
         } else {
-            tracing::info!(count = by_slug.len(), dir = %dir.display(), "loaded party configs");
+            tracing::info!(count = by_slug.len(), root = %root.display(), "loaded party configs");
         }
         Self { by_slug }
     }
@@ -176,10 +190,9 @@ mod tests {
     }
 
     #[test]
-    fn default_config_parses_results() {
+    fn default_config_is_empty() {
         let c = PartyCfg::default_for("Assembly95");
         assert_eq!(c.slug, "assembly95");
-        assert_eq!(c.results_format, "assembly_classic");
         assert!(c.categories.is_empty());
     }
 
@@ -192,7 +205,7 @@ mod tests {
                 compo: "Amiga demo".into(),
                 platform: "amiga".into(),
                 medium: "demo".into(),
-                results_title: None,
+                results: Vec::new(),
             },
         );
         assert!(cfg.is_two_level("amiga"));
