@@ -54,7 +54,6 @@ mod tests {
             dev_auth,
             kiosk: false,
             root: PathBuf::new(),
-            config_dir: PathBuf::new(),
             cache_dir: PathBuf::new(),
             db_path: PathBuf::new(),
             static_dir: PathBuf::new(),

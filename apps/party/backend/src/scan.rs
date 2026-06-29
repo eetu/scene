@@ -147,7 +147,8 @@ fn looks_textual(path: &Path) -> bool {
 }
 
 fn is_junk(name: &str) -> bool {
-    name == ".DS_Store"
+    name == crate::party::CONFIG_FILE // .party.json — config, not a browsable file
+        || name == ".DS_Store"
         || name.starts_with("._")
         || name == ".Trashes"
         || name == ".Spotlight-V100"

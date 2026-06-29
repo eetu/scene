@@ -119,7 +119,7 @@ pub async fn run_server() -> anyhow::Result<()> {
     }
     std::fs::create_dir_all(&cfg.cache_dir).ok();
 
-    let parties = PartyConfigs::load(&cfg.config_dir);
+    let parties = PartyConfigs::load(&cfg.root);
 
     let db = Db::open(&cfg.db_path)
         .map_err(|e| anyhow::anyhow!("db {} unusable: {e}", cfg.db_path.display()))?;

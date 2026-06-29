@@ -10,6 +10,11 @@ use std::path::Path;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
+/// Per-party config filename, living inside each party folder (so the tree is
+/// self-contained). The scanner skips it (see `scan::is_junk`) so it never shows
+/// as a browsable production file.
+pub const CONFIG_FILE: &str = ".party.json";
+
 /// One placement in a competition. Scraped from the party's original
 /// `results.txt` (and cross-checked against demozoo/pouët) into the config — the
 /// app does **not** parse `results.txt` at runtime, which kept needing a new
@@ -115,22 +120,26 @@ pub struct PartyConfigs {
 }
 
 impl PartyConfigs {
-    /// Read every `*.json` in `dir` (missing dir → empty set). Each file's
-    /// `slug` is the lookup key.
-    pub fn load(dir: &Path) -> Self {
+    /// Read each party folder's `.party.json` under `root` (one config per
+    /// party, living with its data — self-contained, baked into the data image).
+    /// Keyed by the folder's slug so `for_dir` matches regardless of the config's
+    /// own `slug` field. Folders without a config fall back to a humanized default.
+    pub fn load(root: &Path) -> Self {
         let mut by_slug = HashMap::new();
-        if let Ok(entries) = std::fs::read_dir(dir) {
+        if let Ok(entries) = std::fs::read_dir(root) {
             for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
                     continue;
                 }
-                match std::fs::read_to_string(&path)
-                    .map_err(|e| e.to_string())
-                    .and_then(|s| serde_json::from_str::<PartyCfg>(&s).map_err(|e| e.to_string()))
-                {
+                let path = entry.path().join(CONFIG_FILE);
+                let text = match std::fs::read_to_string(&path) {
+                    Ok(t) => t,
+                    Err(_) => continue, // party folder with no config → defaults
+                };
+                let slug = slugify(&entry.file_name().to_string_lossy());
+                match serde_json::from_str::<PartyCfg>(&text) {
                     Ok(cfg) => {
-                        by_slug.insert(cfg.slug.clone(), cfg);
+                        by_slug.insert(slug, cfg);
                     }
                     Err(e) => tracing::warn!(path = %path.display(), error = %e, "skipping bad party config"),
                 }
@@ -138,12 +147,13 @@ impl PartyConfigs {
         }
         if by_slug.is_empty() {
             tracing::warn!(
-                dir = %dir.display(),
+                root = %root.display(),
                 "no party configs loaded — productions fall back to humanized defaults \
-                 (no compo labels/points, categories not split). Check PARTY_CONFIG_DIR."
+                 (no compo labels/results, categories not split). Each party folder needs \
+                 a `.party.json`."
             );
         } else {
-            tracing::info!(count = by_slug.len(), dir = %dir.display(), "loaded party configs");
+            tracing::info!(count = by_slug.len(), root = %root.display(), "loaded party configs");
         }
         Self { by_slug }
     }
