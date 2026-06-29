@@ -77,7 +77,17 @@
           "group": "Crusaders Girls",
           "title": "Hihi"
         }
-      ]
+      ],
+      "unranked": {
+        "fantazia": {
+          "group": "Nebula and Misc Design,",
+          "title": "demo"
+        },
+        "st_peter": {
+          "group": "*HA! KUMIMUNA*",
+          "title": "CODE"
+        }
+      }
     },
     "amiga/demo": {
       "compo": "Amiga demo",
@@ -228,7 +238,27 @@
           "group": "Hoaxers",
           "title": "Chunky Salsa!"
         }
-      ]
+      ],
+      "unranked": {
+        "cartoon": {
+          "group": "MiST",
+          "title": "Cartoon 64k intro"
+        },
+        "clxsperm": {
+          "group": "COMPLEX",
+          "title": "SUPERMAX PC"
+        },
+        "jungle": {
+          "group": "INDEX",
+          "title": "JUNGLE FEVER"
+        },
+        "klima": {
+          "title": "proximacredexoce64kintrothegathering96gussb"
+        },
+        "korso100": {
+          "title": "you am i you am the robot"
+        }
+      }
     },
     "in4k": {
       "compo": "PC 4K intro",
@@ -283,7 +313,12 @@
           "group": "Maak",
           "title": "I've Been Roached"
         }
-      ]
+      ],
+      "unranked": {
+        "digestiv": {
+          "title": "DIGESTIVE FLOUR"
+        }
+      }
     },
     "amiga/in40": {
       "compo": "Amiga 40K intro",
@@ -320,7 +355,12 @@
           "group": "Apathy",
           "title": "Disaster"
         }
-      ]
+      ],
+      "unranked": {
+        "tg96-40k": {
+          "title": "TG96: 40 kB intros"
+        }
+      }
     },
     "amiga/in4k": {
       "compo": "Amiga 4K intro",
@@ -369,7 +409,12 @@
           "group": "Hoaxers",
           "title": "Arrgh!"
         }
-      ]
+      ],
+      "unranked": {
+        "tg96-4k": {
+          "title": "All 4kb intros at TG'96"
+        }
+      }
     },
     "fastintro": {
       "compo": "Fast intro",
@@ -448,7 +493,13 @@
           "group": "The Imp",
           "title": "Fast"
         }
-      ]
+      ],
+      "unranked": {
+        "eli_rygg": {
+          "group": "Old Fashion ║",
+          "title": "║"
+        }
+      }
     },
     "grfx": {
       "compo": "Graphics",
@@ -505,19 +556,113 @@
           "points": 27,
           "title": "Genialt Bilde"
         }
-      ]
+      ],
+      "unranked": {
+        "louie_me": {
+          "title": "Graphic from"
+        },
+        "paradise": {
+          "title": "Graphic from"
+        },
+        "x-files2": {
+          "title": "║X-FILES picture / KJELL ARNE HAUGLAND║"
+        }
+      }
     },
     "m4ch": {
       "compo": "4-channel music",
       "platform": "pc",
       "medium": "music",
-      "results": []
+      "results": [],
+      "unranked": {
+        "after8": {
+          "group": "Dr.Death/Eltech^ATS",
+          "title": "After eight"
+        },
+        "allesamm": {
+          "group": "14iss",
+          "title": "Allesammen"
+        },
+        "arctic": {
+          "group": "Espen_R/Sapphire",
+          "title": "Arctic"
+        },
+        "barock": {
+          "group": "Pinocchio/Contraz^BDZ",
+          "title": "Ba'rock"
+        },
+        "brothern": {
+          "group": "Isak & Kristian",
+          "title": "Brother nature"
+        },
+        "buggin": {
+          "group": "CPS/EPH",
+          "title": "Bugging"
+        },
+        "bugnfunk": {
+          "group": "Pyrex",
+          "title": "Big'n funky"
+        },
+        "cappucin": {
+          "group": "Some1&Morrow",
+          "title": "Cappuccino"
+        },
+        "church": {
+          "group": "Don-cato & Kdkdokin/Talent",
+          "title": "Church of funk!"
+        },
+        "circle": {
+          "title": "The Gathering '96 release"
+        },
+        "dawnoanm": {
+          "group": "Chris Meland",
+          "title": "Dawn of a new man"
+        },
+        "evening": {
+          "group": "D0lby/!mage Dreams",
+          "title": "Eveningjazz"
+        },
+        "keys_to_": {
+          "group": "Jogeir Liljedahl",
+          "title": "Keys to Imagination"
+        },
+        "ocean_ta": {
+          "group": "Vinnie/Spaceballs",
+          "title": "Ocean_taffel_magic"
+        },
+        "river_vo": {
+          "group": "Jerry/Rebels",
+          "title": "River volga"
+        }
+      }
     },
     "mmul": {
       "compo": "Multichannel music",
       "platform": "pc",
       "medium": "music",
-      "results": []
+      "results": [],
+      "unranked": {
+        "declara": {
+          "title": "Declaration of war"
+        },
+        "ingrid_p": {
+          "title": "Ingrid Peters"
+        },
+        "k-t2tsht": {
+          "group": "KELTHAR/OG SYNDICACTE/DFN║",
+          "title": "║COMPSOED"
+        },
+        "p_stereo": {
+          "title": "Yr Stereo Pharmazeuth"
+        },
+        "scarydrm": {
+          "group": "X-PRADICA/SUBLEVEL 3 ║",
+          "title": "║ COMPOSED"
+        },
+        "timeswtc": {
+          "title": "Kezoomer / TLS"
+        }
+      }
     },
     "wild": {
       "compo": "Wild",

@@ -292,9 +292,12 @@
               <span class="catcount">{entries.length}</span>
             </button>
             {#if isOpen}
-              {@const ranked = entries.filter((e) => e.rank != null)}
+              {@const ranked = entries
+                .filter((e) => e.rank != null)
+                .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))}
               {@const rest = entries.filter((e) => e.rank == null)}
-              {@const list = q || showRest[compo] || ranked.length === 0 ? entries : ranked}
+              {@const list =
+                q || showRest[compo] || ranked.length === 0 ? [...ranked, ...rest] : ranked}
               <ul use:listKeys>
                 {#each list as p (p.id)}
                   <li>
