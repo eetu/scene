@@ -67,13 +67,21 @@ impl Config {
             .filter(|s| !s.is_empty())
             .map(PathBuf::from)
             .unwrap_or_else(|| root.join(".support"));
+        // Per-party config JSONs default to living in the data root alongside the
+        // party folders (so the tree is self-contained and `.env` only needs
+        // PARTY_ROOT). Set PARTY_CONFIG_DIR to override (e.g. a repo checkout).
+        let config_dir = env::var("PARTY_CONFIG_DIR")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| root.clone());
         Ok(Self {
             dev_auth,
             kiosk,
             bind: env::var("PARTY_BIND").unwrap_or_else(|_| "0.0.0.0:3020".into()),
             support_dir,
             root,
-            config_dir: env_path("PARTY_CONFIG_DIR", "./parties"),
+            config_dir,
             cache_dir: env_path("PARTY_CACHE_DIR", "./cache"),
             db_path: env_path("PARTY_DB_PATH", "party.db"),
             static_dir: env_path("STATIC_DIR", "./dist"),
