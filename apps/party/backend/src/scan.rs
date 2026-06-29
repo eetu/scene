@@ -70,6 +70,15 @@ pub fn classify(filename: &str, ext: &str) -> &'static str {
             return "text";
         }
     }
+    // Amiga "prefix" naming: `mod.songname`, `med.foo`, `s3m.bar` — the tracker
+    // type leads the filename instead of trailing it, so the (unrecognized)
+    // trailing `ext` missed it above. libopenmpt sniffs by content, so once it's
+    // classified as music the player opens it regardless of name.
+    if let Some((prefix, _)) = filename.split_once('.') {
+        if MODULE_EXTS.contains(&prefix.to_ascii_lowercase().as_str()) {
+            return "music";
+        }
+    }
     "data"
 }
 
@@ -797,6 +806,14 @@ mod tests {
         assert_eq!(classify("info.nfo", "nfo"), "text");
         assert_eq!(classify("README", ""), "text");
         assert_eq!(classify("BOOTY.DAT", "dat"), "data");
+        // Amiga prefix naming: `mod.<name>` / `MED.<name>` (ext is the trailing
+        // junk, so the prefix is what identifies the module).
+        assert_eq!(classify("mod.full of bloody shit", "full of bloody shit"), "music");
+        assert_eq!(classify("MED.intro", "intro"), "music");
+        // …but a leading word that merely looks module-ish with a real ext wins
+        // on the ext, and an unrelated prefix stays data.
+        assert_eq!(classify("mod.txt", "txt"), "text");
+        assert_eq!(classify("readme.dat", "dat"), "data");
     }
 
     #[test]
