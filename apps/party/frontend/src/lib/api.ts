@@ -29,6 +29,7 @@ export type Production = {
   primary_kind: string | null; // music | image | video | exe | diskimage | text | …
   primary_filename: string | null;
   n_files: number;
+  order: number | null; // position of this prod's category in the party JSON; sorts compos
 };
 
 export type ProductionFile = {

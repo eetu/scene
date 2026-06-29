@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 /// A competition folder's descriptor. Overrides the heuristics the scanner would
@@ -51,8 +52,10 @@ pub struct PartyCfg {
     pub folder_name: String,
     /// Folder (one or two path segments, e.g. `demo`, `amiga/demo`) →
     /// competition descriptor. Missing folders fall back to heuristics.
+    /// `IndexMap` so the JSON key order is preserved and drives the compo
+    /// display order in the SPA.
     #[serde(default)]
-    pub categories: HashMap<String, CategoryCfg>,
+    pub categories: IndexMap<String, CategoryCfg>,
 }
 
 fn default_results_format() -> String {
@@ -78,7 +81,7 @@ impl PartyCfg {
             results_file: Some("results.txt".into()),
             results_format: "assembly_classic".into(),
             folder_name: default_folder_name(),
-            categories: HashMap::new(),
+            categories: IndexMap::new(),
         }
     }
 
@@ -92,6 +95,12 @@ impl PartyCfg {
 
     pub fn category(&self, key: &str) -> Option<&CategoryCfg> {
         self.categories.get(key)
+    }
+
+    /// Position of a category in the JSON `categories` map — the SPA sorts compos
+    /// by this so the display order is whatever the author listed.
+    pub fn category_order(&self, key: &str) -> Option<usize> {
+        self.categories.get_index_of(key)
     }
 }
 
