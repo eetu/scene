@@ -30,6 +30,7 @@ export type Production = {
   primary_filename: string | null;
   n_files: number;
   order: number | null; // position of this prod's category in the party JSON; sorts compos
+  missing?: boolean; // ranked in the results but never archived (no files) — shown disabled
 };
 
 export type ProductionFile = {
