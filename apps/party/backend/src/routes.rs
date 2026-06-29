@@ -172,6 +172,11 @@ struct ProductionOut {
     /// Position of this prod's category in the party JSON's `categories` map;
     /// the SPA sorts compos by it. `None` for folders with no authored category.
     order: Option<i64>,
+    /// True for a ranked entry that's in the config results but was never archived
+    /// (no production folder). Synthesized so the SPA can show the full results;
+    /// it has no files and the SPA renders it disabled.
+    #[serde(default)]
+    missing: bool,
 }
 
 async fn api_productions(
@@ -211,6 +216,7 @@ async fn api_productions(
                     primary_filename: r.get(11)?,
                     n_files: r.get(12)?,
                     order: None,
+                    missing: false,
                 })
             })?;
             rows.collect::<rusqlite::Result<Vec<_>>>()
@@ -223,6 +229,63 @@ async fn api_productions(
     for p in &mut prods {
         p.order = cfg.category_order(&p.category).map(|i| i as i64);
     }
+
+    // Surface ranked entries that are in the config results but were never
+    // archived (no production folder — the upload was incomplete) as disabled
+    // "missing" rows, so the SPA shows the full competition results. Match a
+    // result to a present production by normalized title (or, for title-less
+    // compos like graphics, by group).
+    fn norm(s: &str) -> String {
+        s.chars()
+            .filter(|c| c.is_alphanumeric())
+            .flat_map(|c| c.to_lowercase())
+            .collect()
+    }
+    let mut present_titles: std::collections::HashSet<(String, String)> = Default::default();
+    let mut present_groups: std::collections::HashSet<(String, String)> = Default::default();
+    for p in &prods {
+        if let Some(t) = p.title.as_deref().filter(|s| !s.is_empty()) {
+            present_titles.insert((p.category.clone(), norm(t)));
+        } else if let Some(g) = p.group.as_deref().filter(|s| !s.is_empty()) {
+            present_groups.insert((p.category.clone(), norm(g)));
+        }
+    }
+    let mut missing = Vec::new();
+    for (cat, c) in &cfg.categories {
+        let order = cfg.category_order(cat).map(|i| i as i64);
+        for row in &c.results {
+            let has = match (row.title.as_deref(), row.group.as_deref()) {
+                (Some(t), _) if !t.is_empty() => {
+                    present_titles.contains(&(cat.clone(), norm(t)))
+                }
+                (_, Some(g)) if !g.is_empty() => {
+                    present_groups.contains(&(cat.clone(), norm(g)))
+                }
+                _ => true, // nothing to match on → don't synthesize
+            };
+            if has {
+                continue;
+            }
+            missing.push(ProductionOut {
+                id: format!("missing-{cat}-{}-{}", row.rank, norm(row.title.as_deref().or(row.group.as_deref()).unwrap_or(""))),
+                category: cat.clone(),
+                compo: c.compo.clone(),
+                platform: c.platform.clone(),
+                medium: c.medium.clone(),
+                rank: Some(row.rank),
+                group: row.group.clone(),
+                title: row.title.clone(),
+                points: row.points,
+                primary_hash: None,
+                primary_kind: None,
+                primary_filename: None,
+                n_files: 0,
+                order,
+                missing: true,
+            });
+        }
+    }
+    prods.extend(missing);
     // Shared Amiga Kickstart from the support dir (spans all parties), as a URL
     // the SPA hands to EJS_biosUrl. Named so PUAE's A1200 finds it.
     let kickstart_url = state

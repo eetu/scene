@@ -302,11 +302,17 @@
                       class:sel={selected?.id === p.id}
                       class:playing={p.primary_hash != null &&
                         p.primary_hash === playback.current?.hash}
+                      class:missing={p.missing}
+                      disabled={p.missing}
+                      title={p.missing
+                        ? "Not archived — entry placed in the compo but the file was never uploaded"
+                        : undefined}
                       onclick={() => select(p)}
                     >
                       <span class="rank">{p.rank ?? ""}</span>
                       <span class="name">
                         {#if p.group}<b>{p.group}</b>&nbsp;—&nbsp;{/if}{p.title ?? "(untitled)"}
+                        {#if p.missing}<span class="tag">not archived</span>{/if}
                       </span>
                       {#if p.points != null}
                         <span class="pts">{p.points}p</span>
@@ -610,6 +616,22 @@
     gap: 3px;
     color: var(--muted);
     font-size: 11px;
+  }
+  /* Ranked but never archived — shown for completeness, not playable. */
+  .catalog ul button.missing {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .tag {
+    margin-left: 6px;
+    padding: 0 5px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
   }
   .detail {
     overflow: hidden;
