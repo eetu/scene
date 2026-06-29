@@ -6,25 +6,25 @@
 // 'dark') is applied as `data-theme` on <html> by the layout (see
 // +layout.svelte), which the CSS tokens key off.
 
-export type ThemeMode = 'auto' | 'light' | 'dark';
+export type ThemeMode = "auto" | "light" | "dark";
 
-const KEY = 'scene:theme';
+const KEY = "scene:theme";
 
 function initialMode(): ThemeMode {
-	if (typeof localStorage === 'undefined') return 'dark';
-	const v = localStorage.getItem(KEY);
-	return v === 'light' || v === 'auto' || v === 'dark' ? v : 'dark';
+  if (typeof localStorage === "undefined") return "dark";
+  const v = localStorage.getItem(KEY);
+  return v === "light" || v === "auto" || v === "dark" ? v : "dark";
 }
 
 export const theme = $state<{ mode: ThemeMode }>({ mode: initialMode() });
 
 export function setTheme(mode: ThemeMode) {
-	theme.mode = mode;
-	if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, mode);
+  theme.mode = mode;
+  if (typeof localStorage !== "undefined") localStorage.setItem(KEY, mode);
 }
 
 // Cycle order for the single toolbar button: dark → light → auto → dark.
-const ORDER: ThemeMode[] = ['dark', 'light', 'auto'];
+const ORDER: ThemeMode[] = ["dark", "light", "auto"];
 export function cycleTheme() {
-	setTheme(ORDER[(ORDER.indexOf(theme.mode) + 1) % ORDER.length]);
+  setTheme(ORDER[(ORDER.indexOf(theme.mode) + 1) % ORDER.length]);
 }

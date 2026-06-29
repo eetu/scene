@@ -9,23 +9,38 @@ set -euo pipefail
 staged="$(git diff --cached --name-only --diff-filter=ACMR)"
 [ -n "$staged" ] || exit 0
 
-run_front=0
+run_fmt=0
+run_eslint=0
 run_rust=0
 while IFS= read -r f; do
+	# Prettier governs the WHOLE repo (root `format` = `prettier --check .`), so
+	# anything it formats — anywhere, including the shared packages and root config
+	# that no per-workspace script covers — gates on formatting. (Markdown is
+	# .prettierignore'd, so it isn't listed here.)
 	case "$f" in
-		apps/*/frontend/* | packages/* | package.json | yarn.lock | .yarnrc.yml) run_front=1 ;;
+		*.svelte | *.ts | *.tsx | *.js | *.jsx | *.cjs | *.mjs | *.json | *.css | *.scss | *.html | *.yaml | *.yml) run_fmt=1 ;;
+	esac
+	# ESLint is per-workspace and only the app frontends have it wired; the shared
+	# packages/* have no eslint config (Prettier-only), so don't route them here.
+	case "$f" in
+		apps/*/frontend/*) run_eslint=1 ;;
 	esac
 	case "$f" in
 		apps/*/backend/* | apps/*/e2e/* | services/transcoder/* | Cargo.toml | Cargo.lock) run_rust=1 ;;
 	esac
 done <<<"$staged"
 
-if [ "$run_front" = 1 ]; then
-	echo "pre-commit: frontends (lint + format)"
-	# Vendored yarn (no corepack), invoked via node — root scripts fan out across
-	# the workspace.
-	node .yarn/releases/yarn-*.cjs lint
-	node .yarn/releases/yarn-*.cjs format
+# Vendored yarn (no corepack), invoked via node.
+yarn() { node .yarn/releases/yarn-*.cjs "$@"; }
+
+if [ "$run_fmt" = 1 ]; then
+	echo "pre-commit: prettier (repo-wide format check)"
+	yarn format
+fi
+
+if [ "$run_eslint" = 1 ]; then
+	echo "pre-commit: frontends (eslint)"
+	yarn lint
 fi
 
 if [ "$run_rust" = 1 ]; then

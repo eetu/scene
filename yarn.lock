@@ -2308,6 +2308,10 @@ __metadata:
 "scene@workspace:.":
   version: 0.0.0-use.local
   resolution: "scene@workspace:."
+  dependencies:
+    prettier: "npm:^3.8.3"
+    prettier-plugin-svelte: "npm:^4.0.1"
+    svelte: "npm:^5.56.1"
   languageName: unknown
   linkType: soft
 
