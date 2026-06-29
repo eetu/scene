@@ -1,0 +1,30 @@
+# Repo-wide Prettier ignore — the single source of truth for the monorepo.
+# Prettier only auto-loads the .prettierignore in its CWD, so this root file
+# governs the repo-wide `yarn format` / `yarn format:fix` run from the root.
+
+# Dependencies & package-manager internals
+**/node_modules/
+.yarn/
+.pnp.*
+yarn.lock
+.yarnrc.yml
+
+# Build outputs
+**/dist/
+**/build/
+**/.svelte-kit/
+target/
+
+# Vendored third-party code (formatting it would fight upstream + local patches)
+**/vendor/
+
+# Hand-authored prose. Prettier trims whitespace inside inline code spans and
+# rewrites emphasis/bullet markers, which silently corrupts load-bearing content
+# in docs/runbooks (e.g. a `` ` - ` `` filename separator collapsing to `` `-` ``).
+# Markdown is left to the author; everything else (code, styles, JSON) is enforced.
+*.md
+
+# Local SQLite caches
+**/*.db
+**/*.db-shm
+**/*.db-wal

@@ -1,15 +1,21 @@
 {
-	"name": "scene",
-	"private": true,
-	"packageManager": "yarn@4.16.0",
-	"workspaces": [
-		"packages/*",
-		"apps/*/frontend"
-	],
-	"scripts": {
-		"lint": "yarn workspaces foreach -Apt run lint",
-		"format": "yarn workspaces foreach -Apt run format",
-		"typecheck": "yarn workspaces foreach -Apt run typecheck",
-		"build": "yarn workspaces foreach -Apt run build"
-	}
+  "name": "scene",
+  "private": true,
+  "packageManager": "yarn@4.16.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*/frontend"
+  ],
+  "scripts": {
+    "lint": "yarn workspaces foreach -Apt run lint",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
+    "typecheck": "yarn workspaces foreach -Apt run typecheck",
+    "build": "yarn workspaces foreach -Apt run build"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3",
+    "prettier-plugin-svelte": "^4.0.1",
+    "svelte": "^5.56.1"
+  }
 }

@@ -48,10 +48,7 @@
 
       if (w > 0 && h > 0) {
         // Light theme: a pale panel so the glossy bars read as colour on light.
-        g2.fillStyle =
-          document.documentElement.dataset.theme === "light"
-            ? "#e7e7ee"
-            : "#0a0a12";
+        g2.fillStyle = document.documentElement.dataset.theme === "light" ? "#e7e7ee" : "#0a0a12";
         g2.fillRect(0, 0, w, h);
         const barH = h * 0.12;
         const travel = (h - barH) * 0.5 * amp;
