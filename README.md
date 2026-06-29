@@ -78,6 +78,9 @@ just package-party-data /Volumes/scene/parties Assembly95 1995
 # → ghcr.io/eetu/scene-party-data-assembly95:1995
 ```
 
+Adding a new party (scrape from scene.org → lay out → index → package) is a
+runbook: [apps/party/parties/README.md](apps/party/parties/README.md).
+
 ## Licensing
 
 This repository's own code has no license declared (personal project). It

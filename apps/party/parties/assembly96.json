@@ -1,0 +1,83 @@
+{
+  "slug": "assembly96",
+  "name": "Assembly '96",
+  "year": 1996,
+  "location": "Helsinki, Finland",
+  "organizer": "Assembly Organizing",
+  "results_file": "results.txt",
+  "results_format": "assembly_table",
+  "folder_name": "rank-group-title",
+  "categories": {
+    "in64": {
+      "compo": "PC 64K intro",
+      "platform": "pc",
+      "medium": "intro",
+      "results_title": "PC 64K intro competition"
+    },
+    "in4k": {
+      "compo": "PC 4K intro",
+      "platform": "pc",
+      "medium": "intro",
+      "results_title": "PC 4K intro competition"
+    },
+    "demo": {
+      "compo": "PC demo",
+      "platform": "pc",
+      "medium": "demo",
+      "results_title": "PC demo competition"
+    },
+    "grfx": {
+      "compo": "Graphics",
+      "platform": "pc",
+      "medium": "graphics",
+      "results_title": "Graphics competition"
+    },
+    "grtc": {
+      "compo": "Raytrace",
+      "platform": "pc",
+      "medium": "graphics",
+      "results_title": "Raytrace competition"
+    },
+    "anim": {
+      "compo": "Animation",
+      "platform": "video",
+      "medium": "animation",
+      "results_title": "Animation competition"
+    },
+    "m4ch": {
+      "compo": "4-channel music",
+      "platform": "pc",
+      "medium": "music",
+      "results_title": "4 channel music competition"
+    },
+    "mmul": {
+      "compo": "Multichannel music",
+      "platform": "pc",
+      "medium": "music",
+      "results_title": "Multichannel music competition"
+    },
+    "amiga/in64": {
+      "compo": "Amiga 64K intro",
+      "platform": "amiga",
+      "medium": "intro",
+      "results_title": "Amiga 64K intro competition"
+    },
+    "amiga/demo": {
+      "compo": "Amiga demo",
+      "platform": "amiga",
+      "medium": "demo",
+      "results_title": "Amiga demo competition"
+    },
+    "c64/demo": {
+      "compo": "C64 demo",
+      "platform": "c64",
+      "medium": "demo",
+      "results_title": "C64 demo competition"
+    },
+    "c64/grfx_music": {
+      "compo": "C64 graphics & music",
+      "platform": "c64",
+      "medium": "graphics"
+    }
+  }
+}

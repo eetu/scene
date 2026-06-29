@@ -8,6 +8,18 @@
 //!     2     7 (1482 points)     Juice "Psychic link"
 //! ```
 //!
+//! The `assembly_table` format is the Assembly '96 `results.txt`: same
+//! per-competition sections, but rows are a fixed-width table with a `----`
+//! ruler line:
+//!
+//! ```text
+//!     PC demo competition:
+//!
+//!     Place  Points  S#  Name                       Author
+//!     -----  ------  --  -------------------------  --------------------------
+//!       1.    1452    7  Machines of Madness        Dubius
+//! ```
+//!
 //! Each section maps to a category via that category's configured
 //! `results_title`; rows are joined onto productions by (category, rank).
 
@@ -97,6 +109,52 @@ fn parse_row(line: &str) -> Option<Row> {
     })
 }
 
+/// Parse a single `assembly_table` row: `rank.  points  [S#]  [Name]  [Author]`.
+/// Only rank + points are needed for the points join, so we stop there — the
+/// Name/Author columns use ragged spacing and stray tabs, and the group/title a
+/// production carries come from its folder name, not this file.
+fn parse_table_row(line: &str) -> Option<Row> {
+    let (rank_str, rest) = line.trim_start().split_once('.')?;
+    if rank_str.is_empty() || !rank_str.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let rank = rank_str.parse::<i64>().ok()?;
+    let points = rest.split_whitespace().next()?.parse::<i64>().ok()?;
+    Some(Row {
+        rank,
+        points,
+        group: None,
+        title: None,
+    })
+}
+
+/// Parse an `assembly_table` results file (Assembly '96 style) into sections.
+/// Same section framing as [`parse`]; only the row shape differs.
+pub fn parse_table(text: &str) -> Vec<Section> {
+    let mut sections: Vec<Section> = Vec::new();
+    for raw in text.lines() {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some(row) = parse_table_row(raw) {
+            if let Some(sec) = sections.last_mut() {
+                sec.rows.push(row);
+            }
+            continue;
+        }
+        // A header is a non-row line ending in ':'.
+        if trimmed.ends_with(':') {
+            sections.push(Section {
+                title: trimmed.trim_end_matches(':').trim().to_string(),
+                rows: Vec::new(),
+            });
+        }
+    }
+    sections.retain(|s| !s.rows.is_empty());
+    sections
+}
+
 /// Parse the full results text into sections.
 pub fn parse(text: &str) -> Vec<Section> {
     let mut sections: Vec<Section> = Vec::new();
@@ -134,9 +192,11 @@ pub fn apply(
     party_dir: &str,
     cfg: &PartyCfg,
 ) -> anyhow::Result<()> {
-    if cfg.results_format != "assembly_classic" {
-        return Ok(());
-    }
+    let parse_fn: fn(&str) -> Vec<Section> = match cfg.results_format.as_str() {
+        "assembly_classic" => parse,
+        "assembly_table" => parse_table,
+        _ => return Ok(()),
+    };
     let Some(results_file) = &cfg.results_file else {
         return Ok(());
     };
@@ -146,7 +206,7 @@ pub fn apply(
         Err(_) => return Ok(()), // no results file for this party
     };
     let text = cp437::decode(&bytes);
-    let sections = parse(&text);
+    let sections = parse_fn(&text);
 
     // normalised results title → category key
     let mut title_to_cat: std::collections::HashMap<String, &str> = std::collections::HashMap::new();
@@ -225,6 +285,55 @@ mod tests {
         // "-" non-entry: no group/title, still has rank+points.
         assert_eq!(anim.rows[1].rank, 15);
         assert_eq!(anim.rows[1].group, None);
+    }
+
+    const SAMPLE_TABLE: &str = concat!(
+        "\t\t\tAlmost full results from the\n",
+        "\t\t\t\tAssembly'96\n\n",
+        "\t\tPC demo competition:\n\n",
+        "    Place  Points  S#  Name\t\t\t  Author\n",
+        "    -----  ------  --  -------------------------  --------------------------\n",
+        "      1.    1452    7  Machines of Madness        Dubius\n",
+        "      5.     386   10  Chrome 2\t                  TomCat/Abaddon\n\n",
+        "\t\tC64 music competition:\n\n",
+        "    Place  Points  S#  Name\t\t\t  Author\n",
+        "    -----  ------  --  -------------------------  --------------------------\n",
+        "      1.    1074                                  TBB/Side B&Extend\n",
+        "      6.     507    3\n",
+    );
+
+    #[test]
+    fn parses_table_sections_and_rows() {
+        let secs = parse_table(SAMPLE_TABLE);
+        // Decorative preamble is dropped (no rows).
+        assert_eq!(secs.len(), 2);
+        assert_eq!(secs[0].title, "PC demo competition");
+        assert_eq!(secs[0].rows.len(), 2);
+        // Only rank + points; Name/Author (incl. the stray tab row) are ignored.
+        assert_eq!(
+            secs[0].rows[0],
+            Row {
+                rank: 1,
+                points: 1452,
+                group: None,
+                title: None,
+            }
+        );
+        assert_eq!(secs[0].rows[1].rank, 5);
+        assert_eq!(secs[0].rows[1].points, 386);
+        let c64 = &secs[1];
+        assert_eq!(c64.title, "C64 music competition");
+        assert_eq!(c64.rows[0].points, 1074);
+        // A row with an S# but no Name/Author still yields rank + points.
+        assert_eq!(
+            c64.rows[1],
+            Row {
+                rank: 6,
+                points: 507,
+                group: None,
+                title: None,
+            }
+        );
     }
 
     #[test]

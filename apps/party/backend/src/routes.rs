@@ -169,6 +169,9 @@ struct ProductionOut {
     primary_kind: Option<String>,
     primary_filename: Option<String>,
     n_files: i64,
+    /// Position of this prod's category in the party JSON's `categories` map;
+    /// the SPA sorts compos by it. `None` for folders with no authored category.
+    order: Option<i64>,
 }
 
 async fn api_productions(
@@ -207,11 +210,19 @@ async fn api_productions(
                     primary_kind: r.get(10)?,
                     primary_filename: r.get(11)?,
                     n_files: r.get(12)?,
+                    order: None,
                 })
             })?;
             rows.collect::<rusqlite::Result<Vec<_>>>()
         })
         .await?;
+    // Tag each prod with its category's position in the party JSON so the SPA can
+    // present compos in authored order.
+    let mut prods = prods;
+    let cfg = state.parties.for_dir(&slug);
+    for p in &mut prods {
+        p.order = cfg.category_order(&p.category).map(|i| i as i64);
+    }
     // Shared Amiga Kickstart from the support dir (spans all parties), as a URL
     // the SPA hands to EJS_biosUrl. Named so PUAE's A1200 finds it.
     let kickstart_url = state

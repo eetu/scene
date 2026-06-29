@@ -147,8 +147,10 @@
   }
 
   // Group by compo. The party-info bits (Info, Misc) are surfaced first — handy
-  // as an overview — then the competitions alphabetically. Empty groups (none of
-  // whose entries match the active query) drop out.
+  // as an overview — then competitions in the order their categories are listed
+  // in the party JSON (`order`), so the author controls the layout (e.g. music
+  // compos together). Categories with no authored order fall to the end,
+  // alphabetically. Empty groups (none of whose entries match the query) drop out.
   const FIRST = ["Info", "Misc"];
   const groups = $derived.by(() => {
     // Plain Map: a throwaway grouping recomputed each run, not reactive state.
@@ -160,9 +162,13 @@
       if (arr) arr.push(p);
       else m.set(p.compo, [p]);
     }
-    const rank = (c: string) => (FIRST.includes(c) ? FIRST.indexOf(c) : FIRST.length);
+    const firstRank = (c: string) => (FIRST.includes(c) ? FIRST.indexOf(c) : FIRST.length);
+    const ord = (es: Production[]) => es[0]?.order ?? Number.MAX_SAFE_INTEGER;
     return [...m.entries()].sort(
-      ([a], [b]) => rank(a) - rank(b) || a.localeCompare(b, undefined, { numeric: true }),
+      ([a, ea], [b, eb]) =>
+        firstRank(a) - firstRank(b) ||
+        ord(ea) - ord(eb) ||
+        a.localeCompare(b, undefined, { numeric: true }),
     );
   });
 
