@@ -240,23 +240,9 @@
         }
       ],
       "unranked": {
-        "cartoon": {
-          "group": "MiST",
-          "title": "Cartoon 64k intro"
-        },
-        "clxsperm": {
-          "group": "COMPLEX",
-          "title": "SUPERMAX PC"
-        },
         "jungle": {
           "group": "INDEX",
           "title": "JUNGLE FEVER"
-        },
-        "klima": {
-          "title": "proximacredexoce64kintrothegathering96gussb"
-        },
-        "korso100": {
-          "title": "you am i you am the robot"
         }
       }
     },
@@ -558,11 +544,66 @@
         }
       ],
       "unranked": {
-        "louie_me": {
-          "title": "Graphic from"
+        "blues": {
+          "title": "TYPE: IFF PICTURE"
         },
-        "paradise": {
-          "title": "Graphic from"
+        "borninanarchy": {
+          "title": "Born In Anarchy - A IFF Picture by"
+        },
+        "defeatofdoubt": {
+          "title": "Defeat of Doubt\" a picture done by:"
+        },
+        "drill": {
+          "group": "DRAN/CTZ",
+          "title": "DRILL.IFF A PICTUR"
+        },
+        "fiskenfrode": {
+          "title": "TYPE: IFF PICTURE"
+        },
+        "hiddenfaces": {
+          "title": "type: picture/iff"
+        },
+        "inder": {
+          "title": "Type : Graphics"
+        },
+        "isolation": {
+          "title": "Type : Graphics"
+        },
+        "jagguhell": {
+          "title": "Type : ILBM graphics file"
+        },
+        "leguana": {
+          "title": "IFF image"
+        },
+        "manvsbeast": {
+          "title": "Man Vs Beast\" - A picture by:"
+        },
+        "meetingzeus": {
+          "group": "a book",
+          "title": "The face is more than inspired"
+        },
+        "ninetongues": {
+          "group": "Pix/Iris. Motive taken",
+          "title": "Description : A picture released at TG'96"
+        },
+        "passage": {
+          "title": "Type : Graphics"
+        },
+        "pulpfiction": {
+          "title": "TYPE: IFF PICTURE"
+        },
+        "soundwaves": {
+          "title": "Soundwaves\" - Picture drawn by:"
+        },
+        "sunchild": {
+          "group": "ATOM / Salmon Design",
+          "title": "A picture"
+        },
+        "sunface": {
+          "title": "Type : Graphics"
+        },
+        "uglyashell": {
+          "title": "TYPE: Graphic (IFF)"
         },
         "x-files2": {
           "title": "║X-FILES picture / KJELL ARNE HAUGLAND║"
