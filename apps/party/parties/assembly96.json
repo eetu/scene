@@ -88,7 +88,33 @@
           "group": "Cool Productions",
           "title": "Power Rangers"
         }
-      ]
+      ],
+      "unranked": {
+        "frendit": {
+          "title": "gasp inc..friends"
+        },
+        "g_rose": {
+          "title": "gasp inc. rose"
+        },
+        "haloo": {
+          "title": "ASM96∙HiRMU!∙PLÖ"
+        },
+        "kvitsa": {
+          "title": "Mikki presents:"
+        },
+        "little": {
+          "title": "┌[ relaxed environment ]────┐"
+        },
+        "skr_can": {
+          "title": "This is Skraappa Skruuppis"
+        },
+        "slx_arse": {
+          "title": "released at ass'96."
+        },
+        "tos": {
+          "title": "Tos, Domestic piece of"
+        }
+      }
     },
     "in4k": {
       "compo": "PC 4K intro",
@@ -148,7 +174,19 @@
           "points": 43,
           "title": "Red Room"
         }
-      ]
+      ],
+      "unranked": {
+        "4dosintr": {
+          "title": "!SKRAAPPASKRUUPPI!"
+        },
+        "4kilos": {
+          "group": "mak/rele",
+          "title": "created"
+        },
+        "skr!4din": {
+          "title": "!SKRAAPPASKRUUPPI!"
+        }
+      }
     },
     "demo": {
       "compo": "PC demo",
@@ -245,7 +283,56 @@
           "group": "Dignity",
           "title": "Pure dignity in a bottle"
         }
-      ]
+      ],
+      "unranked": {
+        "99": {
+          "group": "Incubator o.",
+          "title": ".o"
+        },
+        "anatomy": {
+          "group": "Gender 8 ------------│",
+          "title": "│\"Anatomy"
+        },
+        "atlantis": {
+          "title": "│ atlantis"
+        },
+        "babylon": {
+          "group": "the psychic monks",
+          "title": "a demo"
+        },
+        "biscui": {
+          "title": "biscui."
+        },
+        "comawasm": {
+          "title": "COMA"
+        },
+        "endeav": {
+          "group": "prominence Copyright",
+          "title": "a demo -"
+        },
+        "fd_hippy": {
+          "title": "Go Hippy!"
+        },
+        "k_float": {
+          "group": "Karva",
+          "title": "float"
+        },
+        "kosmos": {
+          "title": "kosmos.assembly96.kiireprodu."
+        },
+        "pong": {
+          "title": "Refinition presents:"
+        },
+        "text": {
+          "title": "The New Dimension Of Text from MOOTTORI."
+        },
+        "toucans": {
+          "title": "Coon Productions' Assembly '96 release:"
+        },
+        "voyage": {
+          "title": "| VOYAGE [1/1] |"
+        }
+      }
     },
     "grfx": {
       "compo": "Graphics",
@@ -565,7 +652,29 @@
           "rank": 15,
           "points": 155
         }
-      ]
+      ],
+      "unranked": {
+        "aug": {
+          "group": "Breeze & Spay / Capacala",
+          "title": "(MOD) Augmented"
+        },
+        "el-tango": {
+          "title": "ASSEMBLY '96 4-CHANNEL COMPO!"
+        },
+        "hulabalo": {
+          "title": "Hula Baloo"
+        },
+        "mytango": {
+          "title": "ASSEMBLY '96 4-CHANNEL COMPO!"
+        },
+        "twilbrai": {
+          "title": "Yes.."
+        },
+        "txsblues": {
+          "group": "Breeze & Spay / Capacala",
+          "title": "(MOD) Texas Blues"
+        }
+      }
     },
     "mmul": {
       "compo": "Multichannel music",
@@ -656,7 +765,97 @@
           "points": 145,
           "group": "Sulp-Orange"
         }
-      ]
+      ],
+      "unranked": {
+        "aliensex": {
+          "title": "Aliensex"
+        },
+        "cd-tranc": {
+          "title": "THiZ iZ NoT aN eLiTe FiLe_Id! :)"
+        },
+        "chosen": {
+          "group": "Mechanix..",
+          "title": "Samples are"
+        },
+        "dccbagot": {
+          "group": "CRUX / DCC.",
+          "title": "BAG OF TRICKS (xm)"
+        },
+        "dita4eve": {
+          "group": "Polestar",
+          "title": "Dita Forever"
+        },
+        "el-subco": {
+          "title": "ASSEMBLY '96 MULTiCHANNEL COMPO"
+        },
+        "falltime": {
+          "title": "Falltime\" music from Assembly'96"
+        },
+        "freelast": {
+          "title": "Topic: Free at last (compo-edit)"
+        },
+        "hydra": {
+          "title": "S*O*L*A*R C*R*I*S*I*S"
+        },
+        "jis-cjaz": {
+          "title": "..asm.96.mchannelcompo.."
+        },
+        "kukkiain": {
+          "group": "Bloody / Spirit New Style",
+          "title": "Composed"
+        },
+        "men_flut": {
+          "group": "Mental/DataKraft",
+          "title": "Rave to the flutes!"
+        },
+        "migrants": {
+          "title": "Migrants"
+        },
+        "miss_mix": {
+          "title": "miss - making love with sine mix"
+        },
+        "o_bts": {
+          "title": "Below the Surface"
+        },
+        "oblitera": {
+          "group": "WeirdO of PS productions",
+          "title": "Obliterator"
+        },
+        "oce_tdr": {
+          "title": "OcEAN / gasp inc."
+        },
+        "orbiting": {
+          "title": "Orbiting"
+        },
+        "ourworld": {
+          "group": "Jaffa / STC",
+          "title": "S3M: Our World"
+        },
+        "pink": {
+          "group": "using Cosmic Sequencing",
+          "title": "This track was originally composed"
+        },
+        "raccoon": {
+          "group": "Mikki/Epical",
+          "title": "contribution"
+        },
+        "radiatio": {
+          "title": "RADIATION"
+        },
+        "shadows": {
+          "title": "Shadows of the Distant Fairlight"
+        },
+        "sukkameh": {
+          "title": "Vidut..."
+        },
+        "taika": {
+          "title": "Name : Taikasauva"
+        },
+        "when": {
+          "group": "Kotivalo/Liquid Dreams",
+          "title": "When twilight comes"
+        }
+      }
     },
     "amiga/in64": {
       "compo": "Amiga 64K intro",
@@ -802,7 +1001,12 @@
           "group": "Wrath",
           "title": "Gyrate"
         }
-      ]
+      ],
+      "unranked": {
+        "a96k!nky": {
+          "title": "Assembly '96"
+        }
+      }
     },
     "c64/demo": {
       "compo": "C64 demo",
@@ -845,7 +1049,12 @@
       "compo": "C64 graphics & music",
       "platform": "c64",
       "medium": "graphics",
-      "results": []
+      "results": [],
+      "unranked": {
+        "c64asm96": {
+          "title": "[*** C64:NEW SIDS FROM THE ASSEMBLY 96 ***]"
+        }
+      }
     }
   }
 }

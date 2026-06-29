@@ -45,6 +45,20 @@ pub fn apply(conn: &Connection, party_slug: &str, cfg: &PartyCfg) -> anyhow::Res
                 }
             }
         }
+        // Unranked-entry metadata: keyed by the entry's fallback title (its
+        // folder/file stem), joined onto unranked productions so the `rest/` tail
+        // reads as names. Match by (category, rank IS NULL, title == stem).
+        for (stem, meta) in &c.unranked {
+            if meta.group.is_none() && meta.title.is_none() {
+                continue;
+            }
+            conn.execute(
+                "UPDATE productions
+                 SET grp = COALESCE(?1, grp), title = COALESCE(?2, title)
+                 WHERE party_slug = ?3 AND category = ?4 AND rank IS NULL AND title = ?5",
+                rusqlite::params![meta.group, meta.title, party_slug, category, stem],
+            )?;
+        }
     }
     tracing::info!(party = %party_slug, updated, "config results joined");
     Ok(())
@@ -80,6 +94,7 @@ mod tests {
                 platform: "pc".into(),
                 medium: "intro".into(),
                 results,
+                unranked: Default::default(),
             },
         );
         PartyCfg {

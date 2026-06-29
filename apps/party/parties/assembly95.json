@@ -101,7 +101,68 @@
           "group": "Simplicity",
           "title": "Elegant"
         }
-      ]
+      ],
+      "unranked": {
+        "alku": {
+          "group": "Vehje",
+          "title": "Alku - the beginning"
+        },
+        "amendino": {
+          "title": "A-MEN CONTRIBUTION TO"
+        },
+        "attack": {
+          "title": "FObia dESIGn is proud to present"
+        },
+        "beta": {
+          "title": "BETA! Digitize Design Group"
+        },
+        "dcc_sck": {
+          "group": "DCC.",
+          "title": "demo"
+        },
+        "deaparca": {
+          "title": "The Underworld Corporation"
+        },
+        "distance": {
+          "title": "▒ ■ ASM'95 demo competition entry ■ ▒"
+        },
+        "divinebo": {
+          "title": "* an Assembly '95 demo release *"
+        },
+        "ftj_love": {
+          "title": "* an Assembly '95 demo release *"
+        },
+        "jeriko": {
+          "title": "│ JERIKO"
+        },
+        "mfx_ds": {
+          "title": "│DIGITAL SONIC from MFX │"
+        },
+        "opera": {
+          "group": "Jolly Workers",
+          "title": "Opera"
+        },
+        "shock": {
+          "group": "DCC",
+          "title": "demo"
+        },
+        "syndrome": {
+          "title": "Syndrooma-äks"
+        },
+        "triangle": {
+          "group": "Trillian",
+          "title": "Triangle"
+        },
+        "tuc_dp20": {
+          "title": "The Underworld Corporation"
+        },
+        "vhjdmo": {
+          "title": "VHJDEMO from ASM'95"
+        },
+        "zoomeri": {
+          "title": "Assembly'95:n virallinen"
+        }
+      }
     },
     "in64": {
       "compo": "PC 64K intro",
@@ -198,7 +259,68 @@
           "group": "@",
           "title": "Byte me"
         }
-      ]
+      ],
+      "unranked": {
+        "democ": {
+          "group": "Epicon",
+          "title": "Democrators"
+        },
+        "fruity": {
+          "title": "a deus.."
+        },
+        "fruityfn": {
+          "title": "a deus.."
+        },
+        "go": {
+          "title": "Moi, ja tervetuloa meidän inter-"
+        },
+        "intttro": {
+          "title": "Tunnelblana - 64K shittro from ASM'95"
+        },
+        "mansikka": {
+          "group": "FIT ││",
+          "title": "│"
+        },
+        "motion": {
+          "title": "║ THE ZEALOTS PROUDLY PRESENT ║"
+        },
+        "net": {
+          "group": ": Jane & Le Fongus Jaune",
+          "title": "made"
+        },
+        "second": {
+          "group": "Onyx",
+          "title": "Second"
+        },
+        "slack": {
+          "title": "Slack - 64K intro from ASM'95"
+        },
+        "suga": {
+          "group": "Fit │",
+          "title": "│"
+        },
+        "thelastd": {
+          "group": ": The Dinamic Force",
+          "title": "made"
+        },
+        "toast": {
+          "group": "implant gus / no music │",
+          "title": "│"
+        },
+        "tunlbana": {
+          "title": "\u0001 Tunnelbana presents \u0001"
+        },
+        "ugly_mor": {
+          "title": "MORRARI: \"Ugly"
+        },
+        "vlc_don_": {
+          "group": "VELOCITY",
+          "title": "AN INTRODUCTION"
+        },
+        "vlc_dong": {
+          "title": "Dong - 64K intro from ASM'95"
+        }
+      }
     },
     "in4k": {
       "compo": "PC 4K intro",
@@ -295,7 +417,57 @@
           "group": "-",
           "title": "Shine"
         }
-      ]
+      ],
+      "unranked": {
+        "165plasm": {
+          "group": "Project/Fobia Design",
+          "title": "Coding"
+        },
+        "4kas95_3": {
+          "title": "- ORTNI -"
+        },
+        "4kg": {
+          "group": "LOPEZ & FIREHAWK =",
+          "title": "= CODED"
+        },
+        "aivopesu": {
+          "title": "Fucking documents to 4k intro called Aivopesu..."
+        },
+        "bbuumi": {
+          "title": "│ Rubicon's presentation: ║"
+        },
+        "fraction": {
+          "title": "│ Fraction │"
+        },
+        "hellfire": {
+          "title": "A totally amazing 4kb"
+        },
+        "naimapam": {
+          "title": "Åkesoftin päätä huimaava 4kb-"
+        },
+        "nunna": {
+          "title": "Åkesoftin panostus asm-95"
+        },
+        "ortni": {
+          "title": "- ORTNI -"
+        },
+        "pamppu": {
+          "title": "Åkesoftin päätä huimaava 4kb-"
+        },
+        "riuku": {
+          "title": "ASM'95-vitun-koko-perseen-peli-"
+        },
+        "smooth": {
+          "group": ": Pulp",
+          "title": "made"
+        },
+        "starlit": {
+          "title": "XoR / StarByte presents"
+        },
+        "wiswatch": {
+          "title": "Info File for the jury only"
+        }
+      }
     },
     "m4ch": {
       "compo": "4-channel music",
@@ -392,7 +564,500 @@
           "group": "Dj. Roberto",
           "title": "Blowing House"
         }
-      ]
+      ],
+      "unranked": {
+        "2much": {
+          "group": "Snipe/RelE",
+          "title": "Too Much Cornflakes"
+        },
+        "4chan": {
+          "group": "Pest/TranZe",
+          "title": "Joy Of Living"
+        },
+        "a95dr4ch": {
+          "group": "Sanctimonious",
+          "title": "Dream"
+        },
+        "aciidick": {
+          "group": "Naksahtaja/Jormas",
+          "title": "Aciidick"
+        },
+        "afterwar": {
+          "group": "Beholder/Diffusion",
+          "title": "Afterthewar"
+        },
+        "alcoholi": {
+          "group": "X-ta-C/Diffusion",
+          "title": "Alcoholic"
+        },
+        "andalus": {
+          "group": "FBY",
+          "title": "Andalusia"
+        },
+        "antuki": {
+          "group": "The Personal Surina",
+          "title": "Antiikintuulikihara antiikin tuulikihara"
+        },
+        "arock": {
+          "title": "Arock"
+        },
+        "art": {
+          "group": "Hexagon/Parasite",
+          "title": "Artifictional dream"
+        },
+        "battlecf": {
+          "group": "The Horny Trout",
+          "title": "Battle Of The Cornflakes"
+        },
+        "beautifu": {
+          "title": "Beautifulsong from ASM'95"
+        },
+        "begin": {
+          "title": "At the begining"
+        },
+        "bohemian": {
+          "group": "Antti Mustakallio",
+          "title": "Bohemian Contraband"
+        },
+        "broderja": {
+          "group": "Some1/Morrow/Zaddo",
+          "title": "Broder Jakob"
+        },
+        "carmibur": {
+          "group": "Lagers/Overflow",
+          "title": "Carmiva_burana"
+        },
+        "catsong": {
+          "group": "White Tiger/R&W Productions",
+          "title": "Catsong"
+        },
+        "coders": {
+          "group": "Ov/Intearmnia Och",
+          "title": "Coders"
+        },
+        "command": {
+          "title": "Dickinpussee"
+        },
+        "compobum": {
+          "group": "Prick/Mass",
+          "title": "Compo Street Bum"
+        },
+        "cosmicfq": {
+          "group": "Pattis",
+          "title": "Cosmic Frequency"
+        },
+        "costume": {
+          "group": "Flood/WFM",
+          "title": "Costume Party Go-Go"
+        },
+        "cyanide": {
+          "group": "Brainwave/Wartec",
+          "title": "Cyanide"
+        },
+        "cybdream": {
+          "group": "3c&Baldis/Damage",
+          "title": "Cybernetic dreams"
+        },
+        "daries01": {
+          "group": "Darie/A-men",
+          "title": "Jazz based song.."
+        },
+        "darkmnd3": {
+          "group": "Defaulter The Wolf",
+          "title": "Darkmind3"
+        },
+        "deentune": {
+          "group": "Dee/Asg^Axtc",
+          "title": "Kaikumatto-salaatti"
+        },
+        "desert": {
+          "group": "Asko Mantyranta",
+          "title": "Desert"
+        },
+        "dolphin": {
+          "group": "Qen/Honey",
+          "title": "Dolphin-Sea"
+        },
+        "drain": {
+          "group": "Screamager/Pure",
+          "title": "Drain"
+        },
+        "dreamlnd": {
+          "group": "Dr.K.Oss",
+          "title": "Dreamland"
+        },
+        "el-saoot": {
+          "group": "Elektro of CNA +─╡",
+          "title": "╞─+ Tracked"
+        },
+        "equake": {
+          "group": "Fiend 8",
+          "title": "Earthquake"
+        },
+        "eternia": {
+          "group": "Vinis/Deep",
+          "title": "Eternia"
+        },
+        "euphjung": {
+          "group": "Enthrone/Bombsquad",
+          "title": "Euphoric-jungle"
+        },
+        "evil": {
+          "group": "Zenu/Dimension",
+          "title": "Spear of the Evil"
+        },
+        "fellat": {
+          "group": "Edit/Kone",
+          "title": "Fellation..."
+        },
+        "followme": {
+          "group": "Shark",
+          "title": "Follow me"
+        },
+        "fukitech": {
+          "title": "Fukitechno"
+        },
+        "fury": {
+          "group": "Ferrie",
+          "title": "Fury Of The Ferrie"
+        },
+        "galaxy": {
+          "group": "Leslie/Murmidones",
+          "title": "Somewhere in the galaxy"
+        },
+        "gammacor": {
+          "group": "D-Mon",
+          "title": "Gamma Correction"
+        },
+        "gettingb": {
+          "group": "1in10/MFX",
+          "title": "Getting back"
+        },
+        "goldie": {
+          "group": "Galvados/Jamm",
+          "title": "Goldie"
+        },
+        "groovecn": {
+          "group": "Mccoy/Scoopex",
+          "title": "Groove Connexion"
+        },
+        "grveyard": {
+          "group": "Curve Pelvis",
+          "title": "Graveyardrock"
+        },
+        "guitar": {
+          "group": "Jucciz/Velocity",
+          "title": "Guitar..."
+        },
+        "gumbos": {
+          "group": "Nitro/Dee^Dubius",
+          "title": "Gumbo's corner"
+        },
+        "harbitf": {
+          "group": "Demuc",
+          "title": "Harbitflor"
+        },
+        "hate": {
+          "group": "Krasnaja",
+          "title": "Hate"
+        },
+        "health": {
+          "group": "Zenu/Dimension",
+          "title": "Health leisure"
+        },
+        "hedphone": {
+          "group": "Juho/Artificial People",
+          "title": "Hedphone"
+        },
+        "hevo": {
+          "title": "Hevo - MSX from ASM'95"
+        },
+        "heylisn": {
+          "group": "Masa/Electric Addictions",
+          "title": "Hey! Free beer and sex"
+        },
+        "hideout": {
+          "group": "Dead Man/Disease",
+          "title": "Hideout"
+        },
+        "hol": {
+          "group": "Massacre",
+          "title": "This sucks"
+        },
+        "homopunu": {
+          "title": "Homopunu"
+        },
+        "inane": {
+          "group": "Ravel/MST Production",
+          "title": "Inane"
+        },
+        "japowood": {
+          "group": "AsYntote/Japotek",
+          "title": "Japowood"
+        },
+        "junglflk": {
+          "title": "Junglefolk"
+        },
+        "kb": {
+          "title": "Kb"
+        },
+        "klmnahka": {
+          "group": "Legend/Parallax",
+          "title": "Kuoleman Nahka"
+        },
+        "knightvi": {
+          "group": "Benighted",
+          "title": "Knight Vision"
+        },
+        "konet": {
+          "group": "Hc_mylläri_95",
+          "title": "4x4 niose"
+        },
+        "lastcall": {
+          "group": "Juha Kauronen",
+          "title": "Last call for r&r"
+        },
+        "lehma": {
+          "group": "Lobotomy",
+          "title": "Lehmä!"
+        },
+        "liikenne": {
+          "group": "Walkduck",
+          "title": "Liikennevalot"
+        },
+        "liquite": {
+          "group": "Psyko/Bombsquad",
+          "title": "Liquite"
+        },
+        "lumi": {
+          "group": "Snowflake",
+          "title": "Lumilinna"
+        },
+        "mambo": {
+          "group": "WEC/TranZe",
+          "title": "MamboMama & MustangBoy"
+        },
+        "mayday": {
+          "group": "Mayday/Dimension",
+          "title": "The Mayday Nation"
+        },
+        "mayqueen": {
+          "group": "Stargazer/Sonic",
+          "title": "Mayqueen"
+        },
+        "mmd": {
+          "group": "Breeze&Spay/Capacala",
+          "title": "Memorizing My Dreams"
+        },
+        "mocha": {
+          "group": "Republic/NL",
+          "title": "Mocha"
+        },
+        "mosquito": {
+          "group": "Feenix/Epical",
+          "title": "Mosquito"
+        },
+        "multical": {
+          "group": "Chanel5/Jeskola!",
+          "title": "MultiTechnologicalla"
+        },
+        "nevermin": {
+          "group": "Mindfuck of Mentasm ▐",
+          "title": "▌ Nevermind!"
+        },
+        "newlife": {
+          "group": "Light/Bhang",
+          "title": "New Life"
+        },
+        "nitro": {
+          "group": "Major/Bombsquad",
+          "title": "Nitropower"
+        },
+        "notime": {
+          "group": "Dixan",
+          "title": "Notime"
+        },
+        "nutcrack": {
+          "group": "Awenger",
+          "title": "Nutcracker"
+        },
+        "ocsid": {
+          "title": "Ocsid"
+        },
+        "odyssey3": {
+          "group": "Hoplite",
+          "title": "Dance Odyssey_3min"
+        },
+        "opetust3": {
+          "group": "Longjam Productions",
+          "title": "Opetusta Kerrakseen"
+        },
+        "palanq": {
+          "group": "Bloody/Spirit",
+          "title": "Palanquin"
+        },
+        "parsalia": {
+          "group": "Spastic/AbuA",
+          "title": "Par Salian"
+        },
+        "phantom": {
+          "group": "Tin/Heretic",
+          "title": "Phantom"
+        },
+        "plastiks": {
+          "group": "Neurotic/A-bomb",
+          "title": "Plastik Soap"
+        },
+        "pluggdin": {
+          "group": "Tempo",
+          "title": "Plugged in"
+        },
+        "progrss5": {
+          "title": "Progress 5"
+        },
+        "propheti": {
+          "group": "Repe/RRR^SCX",
+          "title": "Prophetiare!"
+        },
+        "res-wave": {
+          "group": "Resound/TDC",
+          "title": "The Wave"
+        },
+        "rideonwa": {
+          "group": "Illusion/Bytegarden",
+          "title": "Riding on the waves"
+        },
+        "roughhc": {
+          "group": "Weirdo/Blackjack",
+          "title": "Rough-(HC-version)"
+        },
+        "science": {
+          "group": "Kure4kancer/hic!",
+          "title": "xtc_is_a_science"
+        },
+        "sforce": {
+          "group": "Tomi Laine",
+          "title": "Synthetic force"
+        },
+        "shredwit": {
+          "title": "Shred with me - MSX from ASM'95"
+        },
+        "shutle": {
+          "title": "Shutle"
+        },
+        "sinbanan": {
+          "group": "Bale/Exotic men",
+          "title": "Sininen Banaani"
+        },
+        "skydive": {
+          "group": "The Hooligan/Fanatic^Bonzai Brothers",
+          "title": "Sky diving"
+        },
+        "skylight": {
+          "title": "Skylight"
+        },
+        "smothazz": {
+          "title": "Smooth my azz\" Lenny Dee mix"
+        },
+        "sqnest": {
+          "group": "Sir Nick/Deck Blasters",
+          "title": "Squint-nest"
+        },
+        "stovpipe": {
+          "group": "Mice",
+          "title": "Stovepipe"
+        },
+        "stranger": {
+          "group": "Charon",
+          "title": "Stranger"
+        },
+        "strwatch": {
+          "group": "Chris D",
+          "title": "Starwatcher"
+        },
+        "sunrise": {
+          "group": "Substance/K!nky",
+          "title": "Sunrise_at_goa"
+        },
+        "sunstone": {
+          "group": "Buzzer/Zenon",
+          "title": "Sunstone"
+        },
+        "tandem": {
+          "group": "G.O.D./Bombsquad",
+          "title": "Tandem world"
+        },
+        "therapy": {
+          "group": "CodeHead/C.S.",
+          "title": "Therapy"
+        },
+        "time2mve": {
+          "group": "Slice/Mystic",
+          "title": "Time_to_move"
+        },
+        "toccata": {
+          "title": "Preludi ja toccata"
+        },
+        "tranquil": {
+          "group": "Fx/Blackout",
+          "title": "Tranquillizer"
+        },
+        "transfig": {
+          "group": "Yzi/Fit",
+          "title": "Transfiguration"
+        },
+        "triology": {
+          "group": "Pinocchio",
+          "title": "The theme triology"
+        },
+        "tsfa95": {
+          "group": "A.O.R",
+          "title": "Techno sound for A95"
+        },
+        "tuesday": {
+          "group": "Ziggy",
+          "title": "Testicletuesday"
+        },
+        "tumpoded": {
+          "title": "Tump 'o' Dead"
+        },
+        "tunkio": {
+          "group": "Cence/Pygmy Projects",
+          "title": "Tunkio"
+        },
+        "vicnova": {
+          "group": "Nutcase",
+          "title": "Victory'nova"
+        },
+        "waterall": {
+          "group": "?/Bomsquad",
+          "title": "Water Alley"
+        },
+        "wih": {
+          "group": "Lional/Heretic",
+          "title": "Waves in head"
+        },
+        "wildwig": {
+          "group": "Betelgeuze",
+          "title": "Wild Wig"
+        },
+        "wip": {
+          "group": "Janne Pollanen",
+          "title": "Where is paradise?"
+        },
+        "wreact": {
+          "group": "Tronix",
+          "title": "Wrong reaction"
+        },
+        "yolkuku": {
+          "group": "Yolk/Parallax",
+          "title": "Yolk & Uku^ Do Groo"
+        },
+        "yrttitee": {
+          "group": "Deetail",
+          "title": "Yrttitee"
+        }
+      }
     },
     "mmul": {
       "compo": "Multichannel music",
@@ -489,7 +1154,694 @@
           "group": "Edge",
           "title": "Farewell to Lyrics"
         }
-      ]
+      ],
+      "unranked": {
+        "1st_enc": {
+          "title": "First encounters"
+        },
+        "1stlove": {
+          "group": "Netron/reMal",
+          "title": "First love"
+        },
+        "2heads": {
+          "title": "Two heads talking"
+        },
+        "2muchtek": {
+          "title": "Too Much Technology"
+        },
+        "44": {
+          "group": "Soundwave/VV│",
+          "title": "▐█ █▌ │"
+        },
+        "5piggies": {
+          "group": "Röhönäepearsus",
+          "title": "Viisi pientä porsasta"
+        },
+        "abandon": {
+          "title": "Abandoned Building"
+        },
+        "againsto": {
+          "title": "Against the odds"
+        },
+        "agnosis": {
+          "group": "Vickey Saarinen",
+          "title": "Agnosis él Logos"
+        },
+        "allodds": {
+          "group": "Eye&LaFore",
+          "title": "Against All Odds"
+        },
+        "am-dawn": {
+          "group": "Amber",
+          "title": "Diving to dawn"
+        },
+        "amateur": {
+          "group": "tonic/Y",
+          "title": "║ AMATEUR·tune"
+        },
+        "anew": {
+          "group": "Brite-Lite",
+          "title": "A New Beginning"
+        },
+        "apocalyp": {
+          "group": "Breeze",
+          "title": "Apocalypse"
+        },
+        "as95crea": {
+          "title": "Creation"
+        },
+        "asy-wild": {
+          "group": "Asyntote",
+          "title": "Wild Virus"
+        },
+        "b_block": {
+          "group": "Breeze^Spay/Capacala",
+          "title": "B Block (BBB)"
+        },
+        "binary": {
+          "title": "Binary Bigpack"
+        },
+        "bjt-finp": {
+          "title": "Finnphone"
+        },
+        "blckstar": {
+          "title": "Black Star"
+        },
+        "boo": {
+          "group": "Kale/MG",
+          "title": "Raisu Ukko"
+        },
+        "boredom": {
+          "group": "Galvados/Jamm",
+          "title": "Boredom Rhapsody II"
+        },
+        "carneval": {
+          "group": "iSE/Apocalypse",
+          "title": "Él Carneval"
+        },
+        "cartoon": {
+          "title": "Cartoon"
+        },
+        "cepheus": {
+          "group": "Igor Plankt & Kortal",
+          "title": "Cepheus"
+        },
+        "chaos": {
+          "group": "Green old One/FireCross",
+          "title": "Chaotic Universe"
+        },
+        "chromium": {
+          "group": "S-tone",
+          "title": "16-chn S3M"
+        },
+        "cladv": {
+          "title": "Classical adventure Vol I"
+        },
+        "classic": {
+          "group": "Sanctimonious",
+          "title": "Endless Symphony"
+        },
+        "coffeine": {
+          "group": "Placid/Requiem",
+          "title": "Gimme some coffeine!"
+        },
+        "command": {
+          "group": "MVZ/Penguin Srickers",
+          "title": "Command"
+        },
+        "court": {
+          "title": "In the court of..."
+        },
+        "crapulen": {
+          "title": "Crapulence"
+        },
+        "crysalis": {
+          "group": "Tense",
+          "title": "Crysalis"
+        },
+        "cstrike": {
+          "group": "Ripple/Inside",
+          "title": "The Counterstrike"
+        },
+        "danceofd": {
+          "title": "Dance of Dawn"
+        },
+        "dberries": {
+          "group": "Silvery/Interamnia",
+          "title": "Dbreamberries"
+        },
+        "dbreath": {
+          "group": "Dragst/DKS",
+          "title": "Dragon's breath"
+        },
+        "dont": {
+          "group": "Hobbit/Neuron",
+          "title": "Don't"
+        },
+        "dorado": {
+          "group": "Andy",
+          "title": "El Zorro Dorado"
+        },
+        "drdestn": {
+          "group": "Chanel5 & Nop",
+          "title": "Doctor Destiny"
+        },
+        "el-lost": {
+          "group": "Elektro of CNA +─╡",
+          "title": "╞─+ Tracked"
+        },
+        "energy": {
+          "group": "Jonas Kukkonen",
+          "title": "Energy"
+        },
+        "enlight": {
+          "title": "Enlightment"
+        },
+        "entero2": {
+          "title": "Enteröbiasis ]["
+        },
+        "enzotwin": {
+          "group": "Ringfinger",
+          "title": "Enzo's twin"
+        },
+        "epicrace": {
+          "group": "Pest/Tranze",
+          "title": "The EpicRace"
+        },
+        "escape1": {
+          "group": "Cough & Splutter",
+          "title": "Escape from Sol III"
+        },
+        "eternity": {
+          "group": "Alert/Different!",
+          "title": "Eternity"
+        },
+        "expulsio": {
+          "group": "Atte Järvinen",
+          "title": "Expulsion"
+        },
+        "fabulous": {
+          "title": "Fabulous"
+        },
+        "fading": {
+          "group": "Dionysos",
+          "title": "Fading away"
+        },
+        "fastplgt": {
+          "group": "Stuga",
+          "title": "Fast plagiate"
+        },
+        "fenola1": {
+          "title": "Fenola (first part)"
+        },
+        "fightyou": {
+          "title": "Fight Yourself!"
+        },
+        "flow": {
+          "title": "FLOW by: Wave / D.F.G"
+        },
+        "flowasm4": {
+          "title": "FLOW by: Wave / D.F.G"
+        },
+        "forest2": {
+          "title": "A composong for"
+        },
+        "fountain": {
+          "group": "Nuerotik/A-bomb",
+          "title": "The Fountain of Healing"
+        },
+        "free3": {
+          "title": "Free (Short edit)"
+        },
+        "fuckthem": {
+          "title": "Fuck The Melody"
+        },
+        "funkad": {
+          "title": "Funkadelic"
+        },
+        "haltkole": {
+          "group": "Teukka/Tyrant",
+          "title": "Pepsodent"
+        },
+        "hardt": {
+          "group": "Dj Dope",
+          "title": "Hardtrance Vol.1"
+        },
+        "honey": {
+          "group": "The Riddler.",
+          "title": "Why honey?(s3m)"
+        },
+        "humancon": {
+          "title": "Human Conflicts"
+        },
+        "humppa": {
+          "group": "Attila/TMG",
+          "title": "Antti-sedän parempi humppa"
+        },
+        "ifyousee": {
+          "title": "If you see her"
+        },
+        "illegal": {
+          "group": "Tero/Improvers",
+          "title": "Entertaining violence"
+        },
+        "inclouds": {
+          "group": "The Mole",
+          "title": "In the Clouds"
+        },
+        "innocenc": {
+          "group": "Abstract/Anarchy",
+          "title": "The dream of innocence"
+        },
+        "int": {
+          "group": "Nobody/Wild Light",
+          "title": "Int oo hurry"
+        },
+        "intbleed": {
+          "group": "Implant",
+          "title": "Internal Bleeding"
+        },
+        "ionized": {
+          "group": "Linearic",
+          "title": "Ionized"
+        },
+        "isback": {
+          "group": "1in10/MFX",
+          "title": "Jeesus is back"
+        },
+        "itstime": {
+          "group": "OEA",
+          "title": "It is time"
+        },
+        "jac_dir": {
+          "title": "Direktori"
+        },
+        "japowood": {
+          "title": "Japowood - MSX from ASM'95"
+        },
+        "jdx-wave": {
+          "group": "Jadex/Imagination",
+          "title": "Waves & vibes"
+        },
+        "joemix": {
+          "title": "Cotton Eye Joe Mix - MSX from ASM'95"
+        },
+        "julli2": {
+          "title": "Julli2 - MSX from ASM'95"
+        },
+        "kevaari": {
+          "title": "Kevaari"
+        },
+        "keyhole": {
+          "title": "Keyhole in darkness"
+        },
+        "khirmu": {
+          "group": "Warrior/Tehdas",
+          "title": "Komppihirmu"
+        },
+        "kiire": {
+          "group": "Weed/Coral",
+          "title": "Jaako että kiirekkö?"
+        },
+        "kinetics": {
+          "title": "Kinetics of fluid"
+        },
+        "kingi": {
+          "group": "Bright Angel",
+          "title": "The king"
+        },
+        "lamp4": {
+          "group": "Jaakko Peltonen",
+          "title": "Watching the lamplight"
+        },
+        "lasttrai": {
+          "title": "LastTrainMagneticNth"
+        },
+        "laulahan": {
+          "title": "Laulahan"
+        },
+        "lemon": {
+          "title": "The Eternal Lemon"
+        },
+        "linger-1": {
+          "title": "Linger"
+        },
+        "look2the": {
+          "title": "Look 2 the future!"
+        },
+        "love": {
+          "group": "Mc Commander/Hypnotic Beat",
+          "title": "The Power Of Love"
+        },
+        "lu-angel": {
+          "group": "Lumen/@",
+          "title": "The Angel of Thunder"
+        },
+        "lumppu": {
+          "group": "WEC/TranZe",
+          "title": "Lumppu Imppi"
+        },
+        "magdust": {
+          "title": "Magnetic Dust - MSX from ASM'95"
+        },
+        "magnific": {
+          "group": "VIPER/Quasar",
+          "title": "Composed"
+        },
+        "marionet": {
+          "group": "Rainmaker",
+          "title": "Marionet"
+        },
+        "mdtwo": {
+          "group": "Euggie",
+          "title": "Two Chords"
+        },
+        "medulla": {
+          "title": "Medulla triumph"
+        },
+        "methan": {
+          "title": "Methan"
+        },
+        "mosquito": {
+          "title": "Russian mosquito"
+        },
+        "mosuri": {
+          "title": "Somewhere is a light"
+        },
+        "mouse": {
+          "group": "JD/Implant",
+          "title": "Mousetrap"
+        },
+        "msazklub": {
+          "group": "The Masrsipan Death/TMG",
+          "title": "The klubi musa"
+        },
+        "muppets": {
+          "title": "Donald Dick in Star Wars 1"
+        },
+        "mushroom": {
+          "title": "Mushroom"
+        },
+        "mylove": {
+          "title": "My Ultimate Love"
+        },
+        "mysilvia": {
+          "title": "My Silvia - MSX from ASM'95"
+        },
+        "natural": {
+          "title": "Natural high"
+        },
+        "nctrnl": {
+          "group": "Necrite/Tehdas",
+          "title": "Nocturnal"
+        },
+        "necro": {
+          "group": "Citadel/Salvation",
+          "title": "Necropolix"
+        },
+        "netch": {
+          "group": "Negative",
+          "title": "Netch boogie!!"
+        },
+        "never": {
+          "group": "Sir Nick/Deck Blasters",
+          "title": "Some things never change..."
+        },
+        "nghtfall": {
+          "group": "Manticore/Mewlers [XM]",
+          "title": "Nightfall"
+        },
+        "nolife": {
+          "title": "Nolife"
+        },
+        "ntrancer": {
+          "group": "Zydeco/Flexion",
+          "title": "Neurotrancer"
+        },
+        "oblivion": {
+          "group": "Zalian & Quasian",
+          "title": "■ Oblivion ■ Composed"
+        },
+        "ode2ccc": {
+          "title": "Vectorlike Boredom - MSX from ASM'95"
+        },
+        "omena": {
+          "group": "Salomon",
+          "title": "Omenavarkaus"
+        },
+        "oneafter": {
+          "group": "Flood/WFM",
+          "title": "One after 908"
+        },
+        "onmymind": {
+          "title": "On my mind"
+        },
+        "oolah2": {
+          "title": "Oolah"
+        },
+        "outofo": {
+          "group": "ziggy- │",
+          "title": "│ -"
+        },
+        "overlord": {
+          "group": "Virtue/DKS",
+          "title": "Overlords of destiny"
+        },
+        "pande": {
+          "group": "Flamer/FireCross",
+          "title": "Pandemonium madness"
+        },
+        "pb": {
+          "group": "Black Wolf/ACR",
+          "title": "Pamela Baywatch"
+        },
+        "phantsml": {
+          "group": "Magical Note/Seikkailupähkinä",
+          "title": "Phantasmal force"
+        },
+        "phoenix": {
+          "group": "E.T./Illusion",
+          "title": "Behing the phoenix"
+        },
+        "piisi": {
+          "group": "Mika Makela",
+          "title": "Piisi"
+        },
+        "plas_imi": {
+          "group": "The Plastic Imitation",
+          "title": "Project multichannel"
+        },
+        "pleasure": {
+          "title": "Pleasure + delight"
+        },
+        "pp": {
+          "title": "Playing piano"
+        },
+        "prominen": {
+          "group": "Mr.Nuke/Illuminate 303",
+          "title": "Prominent"
+        },
+        "punkkia": {
+          "group": "Tonedeaf/Extreme",
+          "title": "Rekkapunkkiassembly"
+        },
+        "pyramids": {
+          "title": "Pyramids - MSX from ASM'95"
+        },
+        "quarter": {
+          "title": "Quarter sounds"
+        },
+        "quick": {
+          "title": "Quick techno-blabber"
+        },
+        "radio": {
+          "group": "Iiro Harra",
+          "title": "Radio 10091"
+        },
+        "res-cotc": {
+          "group": "Resound/TDC",
+          "title": "City of trance"
+        },
+        "runner": {
+          "group": "Slaughter",
+          "title": "Runner unner"
+        },
+        "sadstrm": {
+          "group": "CodeHead",
+          "title": "The Stream of Sadness"
+        },
+        "salieri": {
+          "group": "Salieri",
+          "title": "Welcome Stranger"
+        },
+        "scrasher": {
+          "title": "Auto-duelling"
+        },
+        "scratch": {
+          "title": "Scratch of Humanity"
+        },
+        "sdklf": {
+          "group": "Pyöveli/HSR",
+          "title": "Pukki"
+        },
+        "sensory": {
+          "title": "Sensory nerves"
+        },
+        "settinsu": {
+          "title": "The setting sun - MSX from ASM'95"
+        },
+        "sfsg": {
+          "group": "Jucciz/Velocity",
+          "title": "So Far, So Good"
+        },
+        "shockwav": {
+          "group": "Bizzarre/SR",
+          "title": "Shockwave"
+        },
+        "some": {
+          "group": "Garwey/DNA",
+          "title": "Something real serious"
+        },
+        "song": {
+          "title": "Song"
+        },
+        "soulkill": {
+          "group": "MAP",
+          "title": "Soul killer"
+        },
+        "space01": {
+          "group": "DOJ",
+          "title": "Space 01"
+        },
+        "spirit": {
+          "title": "Low Spirit"
+        },
+        "spr": {
+          "title": "SPR+"
+        },
+        "ss3": {
+          "title": "└┘ also known as Satan Saves part ]I[ │"
+        },
+        "stdest": {
+          "title": "Destiny in your hand"
+        },
+        "stilborn": {
+          "group": "M-S-M/TranZe",
+          "title": "Still-born infant prodigy"
+        },
+        "suchislf": {
+          "group": "7th Avenue/Eden",
+          "title": "Such is life..."
+        },
+        "sunset": {
+          "group": "Exec/TET",
+          "title": "The Final Sunset"
+        },
+        "sweet": {
+          "group": "Azure / Prime",
+          "title": "Sweet Sensations"
+        },
+        "tal-regg": {
+          "title": "Da Lost Disco years"
+        },
+        "terrent": {
+          "group": "Swampman/Core Image",
+          "title": "Cestigia Terrent"
+        },
+        "thefirst": {
+          "group": "Smuggler",
+          "title": "The 1st move..."
+        },
+        "thoughts": {
+          "group": "Firestorm/Core Facility",
+          "title": "Thoughts fly away"
+        },
+        "transu": {
+          "group": "Astro/A-men",
+          "title": "T(r)anssi"
+        },
+        "trcfire": {
+          "title": "Traces of fire"
+        },
+        "truth": {
+          "group": "Pulsar/XES",
+          "title": "The truth"
+        },
+        "ukkospil": {
+          "title": "Janne"
+        },
+        "uncool": {
+          "title": "UnCool"
+        },
+        "underpon": {
+          "group": "Mirror/sYmptom",
+          "title": "Under pongo"
+        },
+        "underwld": {
+          "group": ": Kaiowa/sorrox",
+          "title": "composed"
+        },
+        "unsucces": {
+          "group": "Bloody/Spirit",
+          "title": "Unsuccesful day"
+        },
+        "vaikeaa": {
+          "title": "Niin vaikeaa..."
+        },
+        "veccu": {
+          "title": "Vecculi"
+        },
+        "violet": {
+          "title": "Violet odd stuff..."
+        },
+        "waitasec": {
+          "group": "BlueSun&Keyboarder",
+          "title": "Wait a second"
+        },
+        "whocares": {
+          "title": "Who cares (No one?)"
+        },
+        "winterni": {
+          "title": "Winternight"
+        },
+        "world": {
+          "group": "Frog/Psychic CountrySide",
+          "title": "What the world demands!"
+        },
+        "wrongtim": {
+          "title": "Wrong time"
+        },
+        "wtfly": {
+          "title": "Watch them fly..."
+        },
+        "x-form": {
+          "group": "Virus/Co-Bolt",
+          "title": "X-Formula"
+        },
+        "y5b": {
+          "title": "Yhdyslinkki 5 b - MSX from ASM'95"
+        },
+        "yodium7": {
+          "group": "Elusive/BTG",
+          "title": "Yodium7"
+        },
+        "yra": {
+          "title": "Y'ra at dawn"
+        },
+        "zerograv": {
+          "title": "Module for 32-chn music compo at asm'95."
+        },
+        "zgravity": {
+          "group": "Alpha/Interamnia",
+          "title": "Zero-Gravity"
+        },
+        "zodiac": {
+          "title": "The Zodiac"
+        },
+        "zxcvbnm": {
+          "title": "Eu te amo,baby!"
+        }
+      }
     },
     "grfx": {
       "compo": "Graphics",
@@ -586,7 +1938,52 @@
           "group": "Destop/CNCD",
           "title": "Wicked"
         }
-      ]
+      ],
+      "unranked": {
+        "asm95gfx": {
+          "group": "Minor of BaKaLITH...",
+          "title": "This little piccy was drawn"
+        },
+        "deespalf": {
+          "title": "Deespalf - GFX from ASM'95"
+        },
+        "dominat": {
+          "title": "Dominat - GFX from ASM'95"
+        },
+        "dragon": {
+          "title": "Dragon - GFX from ASM'95"
+        },
+        "hellview": {
+          "title": "Hellview - GFX from ASM'95"
+        },
+        "huma2": {
+          "title": "Huma2 - GFX from ASM'95"
+        },
+        "inga": {
+          "title": "Inga - GFX from ASM'95"
+        },
+        "j-orc": {
+          "title": "Orc - GFX from ASM'95"
+        },
+        "kidspool": {
+          "title": "Kid's Pool - GFX from ASM'95"
+        },
+        "ladywar2": {
+          "title": "Ladywar2 - GFX from ASM'95"
+        },
+        "loi-nuus": {
+          "title": "┌┘ asm'95 pic, not shown-│"
+        },
+        "on": {
+          "title": "On - GFX from ASM'95"
+        },
+        "rosie": {
+          "title": "Rosie - GFX from ASM'95"
+        },
+        "si-nrn": {
+          "title": "SI-NRN - GFX from ASM'95"
+        }
+      }
     },
     "grtc": {
       "compo": "Raytrace",
@@ -778,7 +2175,12 @@
           "rank": 15,
           "points": 6
         }
-      ]
+      ],
+      "unranked": {
+        "matter": {
+          "title": "Matter - FLI anim from ASM'95"
+        }
+      }
     },
     "amiga/demo": {
       "compo": "Amiga demo",

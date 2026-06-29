@@ -32,6 +32,17 @@ pub struct ResultRow {
     pub title: Option<String>,
 }
 
+/// Group/title for an unranked entry (one that didn't place / isn't in the
+/// results). Scraped from the prod's `FILE_ID.DIZ`/`.nfo` so the `rest/` tail
+/// reads as names instead of cryptic archive stems.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntryMeta {
+    #[serde(default)]
+    pub group: Option<String>,
+    #[serde(default)]
+    pub title: Option<String>,
+}
+
 /// A competition folder's descriptor. Overrides the heuristics the scanner would
 /// otherwise derive from the folder name and the productions' file kinds.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,6 +56,11 @@ pub struct CategoryCfg {
     /// Scraped competition placements (see [`ResultRow`]). Empty = no ranking.
     #[serde(default)]
     pub results: Vec<ResultRow>,
+    /// Metadata for unranked entries, keyed by the entry's folder/file stem (its
+    /// fallback title). Joined onto unranked productions so the `rest/` tail shows
+    /// real names. Optional and empty by default.
+    #[serde(default)]
+    pub unranked: IndexMap<String, EntryMeta>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -206,6 +222,7 @@ mod tests {
                 platform: "amiga".into(),
                 medium: "demo".into(),
                 results: Vec::new(),
+                unranked: Default::default(),
             },
         );
         assert!(cfg.is_two_level("amiga"));

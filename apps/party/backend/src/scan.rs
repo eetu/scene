@@ -852,6 +852,7 @@ mod tests {
                 platform: "amiga".into(),
                 medium: "demo".into(),
                 results: Vec::new(),
+                unranked: Default::default(),
             },
         );
 
