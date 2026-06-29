@@ -10,6 +10,23 @@ use std::path::Path;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
+/// One placement in a competition. Scraped from the party's original
+/// `results.txt` (and cross-checked against demozoo/pouët) into the config — the
+/// app does **not** parse `results.txt` at runtime, which kept needing a new
+/// per-party parser. Joined onto a scanned production by `(category, rank)`:
+/// `points` always (tie-safe — tied entries share points), and `group`/`title`
+/// only when the rank is unique in the category (avoids the tie ambiguity).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResultRow {
+    pub rank: i64,
+    #[serde(default)]
+    pub points: Option<i64>,
+    #[serde(default)]
+    pub group: Option<String>,
+    #[serde(default)]
+    pub title: Option<String>,
+}
+
 /// A competition folder's descriptor. Overrides the heuristics the scanner would
 /// otherwise derive from the folder name and the productions' file kinds.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,11 +37,9 @@ pub struct CategoryCfg {
     pub platform: String,
     /// `demo` | `intro` | `music` | `graphics` | `animation` | `info`.
     pub medium: String,
-    /// Exact results-file section header for this competition, so points join
-    /// precisely even when the display `compo` label differs (e.g. folder
-    /// `mmul` → "Multichannel musax competiton"). Optional; null skips the join.
+    /// Scraped competition placements (see [`ResultRow`]). Empty = no ranking.
     #[serde(default)]
-    pub results_title: Option<String>,
+    pub results: Vec<ResultRow>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,12 +56,6 @@ pub struct PartyCfg {
     /// landing card. Transcoded on demand if it isn't browser-native.
     #[serde(default)]
     pub logo: Option<String>,
-    /// Relative path to the results file to parse (e.g. `results.txt`).
-    #[serde(default)]
-    pub results_file: Option<String>,
-    /// Which results parser to use: `assembly_classic` | `none`.
-    #[serde(default = "default_results_format")]
-    pub results_format: String,
     /// Entry-folder naming convention. Currently only `rank-group-title`.
     #[serde(default = "default_folder_name")]
     pub folder_name: String,
@@ -58,9 +67,6 @@ pub struct PartyCfg {
     pub categories: IndexMap<String, CategoryCfg>,
 }
 
-fn default_results_format() -> String {
-    "none".into()
-}
 fn default_folder_name() -> String {
     "rank-group-title".into()
 }
@@ -78,8 +84,6 @@ impl PartyCfg {
             location: None,
             organizer: None,
             logo: None,
-            results_file: Some("results.txt".into()),
-            results_format: "assembly_classic".into(),
             folder_name: default_folder_name(),
             categories: IndexMap::new(),
         }
@@ -176,10 +180,9 @@ mod tests {
     }
 
     #[test]
-    fn default_config_parses_results() {
+    fn default_config_is_empty() {
         let c = PartyCfg::default_for("Assembly95");
         assert_eq!(c.slug, "assembly95");
-        assert_eq!(c.results_format, "assembly_classic");
         assert!(c.categories.is_empty());
     }
 
@@ -192,7 +195,7 @@ mod tests {
                 compo: "Amiga demo".into(),
                 platform: "amiga".into(),
                 medium: "demo".into(),
-                results_title: None,
+                results: Vec::new(),
             },
         );
         assert!(cfg.is_two_level("amiga"));

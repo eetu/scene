@@ -1,354 +1,144 @@
-//! Results-file parsing + points join. The `assembly_classic` format is the
-//! Assembly '95 `results.txt`: CP437, per-competition sections like
+//! Competition results join. Placements are scraped into each party's config
+//! (`CategoryCfg::results`, see [`crate::party`]) at ingest time and cross-checked
+//! against demozoo/pouët — the app does **not** parse `results.txt` at runtime
+//! (every party tended to need its own fragile parser). The original
+//! `results.txt` stays in the tree as a browsable document.
 //!
-//! ```text
-//!     PC demo competition:
-//!
-//!     1    10 (3646 points)     Nooon "Stars : Wonders of the world"
-//!     2     7 (1482 points)     Juice "Psychic link"
-//! ```
-//!
-//! The `assembly_table` format is the Assembly '96 `results.txt`: same
-//! per-competition sections, but rows are a fixed-width table with a `----`
-//! ruler line:
-//!
-//! ```text
-//!     PC demo competition:
-//!
-//!     Place  Points  S#  Name                       Author
-//!     -----  ------  --  -------------------------  --------------------------
-//!       1.    1452    7  Machines of Madness        Dubius
-//! ```
-//!
-//! Each section maps to a category via that category's configured
-//! `results_title`; rows are joined onto productions by (category, rank).
-
-use std::path::Path;
+//! [`apply`] writes the config placements onto the scanned productions by
+//! `(category, rank)`.
 
 use rusqlite::Connection;
 
-use crate::cp437;
 use crate::party::PartyCfg;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Row {
-    pub rank: i64,
-    pub points: i64,
-    pub group: Option<String>,
-    pub title: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Section {
-    pub title: String,
-    pub rows: Vec<Row>,
-}
-
-/// Normalise a section title for matching: lowercase, alphanumerics + single
-/// spaces only.
-fn norm(s: &str) -> String {
-    let mut out = String::new();
-    let mut prev_space = true;
-    for c in s.chars() {
-        if c.is_ascii_alphanumeric() {
-            out.push(c.to_ascii_lowercase());
-            prev_space = false;
-        } else if !prev_space {
-            out.push(' ');
-            prev_space = true;
-        }
-    }
-    out.trim().to_string()
-}
-
-/// Split a credit string into (group, title). Handles `Group "Title"`,
-/// `Title by Group` (animations), bare names, and `-`/`?` non-entries.
-fn split_credit(credit: &str) -> (Option<String>, Option<String>) {
-    let c = credit.trim();
-    if c.is_empty() || c == "-" || c == "?" {
-        return (None, None);
-    }
-    if let Some(q1) = c.find('"') {
-        let group = c[..q1].trim().trim_end_matches('/').trim();
-        let after = &c[q1 + 1..];
-        let title = after.find('"').map(|q2| after[..q2].trim().to_string());
-        let group = if group.is_empty() {
-            None
-        } else {
-            Some(group.to_string())
-        };
-        return (group, title);
-    }
-    if let Some((t, g)) = c.split_once(" by ") {
-        return (Some(g.trim().to_string()), Some(t.trim().to_string()));
-    }
-    (Some(c.trim_end_matches([' ', '?']).trim().to_string()), None)
-}
-
-/// Parse a single results row `rank entry (NNN points) credit`. Returns None for
-/// lines that aren't rows.
-fn parse_row(line: &str) -> Option<Row> {
-    let t = line.trim();
-    let op = t.find('(')?;
-    let cp = t.find(')')?;
-    if cp < op {
-        return None;
-    }
-    let head = &t[..op];
-    let inside = &t[op + 1..cp];
-    let credit = t[cp + 1..].trim();
-
-    let rank = head.split_whitespace().next()?.parse::<i64>().ok()?;
-    let points = inside.split_whitespace().next()?.parse::<i64>().ok()?;
-    let (group, title) = split_credit(credit);
-    Some(Row {
-        rank,
-        points,
-        group,
-        title,
-    })
-}
-
-/// Parse a single `assembly_table` row: `rank.  points  [S#]  [Name]  [Author]`.
-/// Only rank + points are needed for the points join, so we stop there — the
-/// Name/Author columns use ragged spacing and stray tabs, and the group/title a
-/// production carries come from its folder name, not this file.
-fn parse_table_row(line: &str) -> Option<Row> {
-    let (rank_str, rest) = line.trim_start().split_once('.')?;
-    if rank_str.is_empty() || !rank_str.bytes().all(|b| b.is_ascii_digit()) {
-        return None;
-    }
-    let rank = rank_str.parse::<i64>().ok()?;
-    let points = rest.split_whitespace().next()?.parse::<i64>().ok()?;
-    Some(Row {
-        rank,
-        points,
-        group: None,
-        title: None,
-    })
-}
-
-/// Parse an `assembly_table` results file (Assembly '96 style) into sections.
-/// Same section framing as [`parse`]; only the row shape differs.
-pub fn parse_table(text: &str) -> Vec<Section> {
-    let mut sections: Vec<Section> = Vec::new();
-    for raw in text.lines() {
-        let trimmed = raw.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        if let Some(row) = parse_table_row(raw) {
-            if let Some(sec) = sections.last_mut() {
-                sec.rows.push(row);
+/// Write the config's scraped placements onto productions. Best-effort: ranks
+/// with no matching production are skipped. `points` joins by `(category, rank)`
+/// unconditionally — safe for ties, since tied entries share the same points.
+/// `group`/`title` are applied only when exactly one production has that rank in
+/// the category, so a tie (two folders at the same rank) never gets one entry's
+/// name stamped onto the other; those keep their folder-derived metadata.
+pub fn apply(conn: &Connection, party_slug: &str, cfg: &PartyCfg) -> anyhow::Result<()> {
+    let mut updated = 0usize;
+    for (category, c) in &cfg.categories {
+        for row in &c.results {
+            if let Some(points) = row.points {
+                updated += conn.execute(
+                    "UPDATE productions SET points = ?1
+                     WHERE party_slug = ?2 AND category = ?3 AND rank = ?4",
+                    rusqlite::params![points, party_slug, category, row.rank],
+                )?;
             }
-            continue;
-        }
-        // A header is a non-row line ending in ':'.
-        if trimmed.ends_with(':') {
-            sections.push(Section {
-                title: trimmed.trim_end_matches(':').trim().to_string(),
-                rows: Vec::new(),
-            });
-        }
-    }
-    sections.retain(|s| !s.rows.is_empty());
-    sections
-}
-
-/// Parse the full results text into sections.
-pub fn parse(text: &str) -> Vec<Section> {
-    let mut sections: Vec<Section> = Vec::new();
-    for raw in text.lines() {
-        let line = raw.trim_end();
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        if let Some(row) = parse_row(line) {
-            if let Some(sec) = sections.last_mut() {
-                sec.rows.push(row);
+            if row.group.is_some() || row.title.is_some() {
+                let n: i64 = conn.query_row(
+                    "SELECT COUNT(*) FROM productions
+                     WHERE party_slug = ?1 AND category = ?2 AND rank = ?3",
+                    rusqlite::params![party_slug, category, row.rank],
+                    |r| r.get(0),
+                )?;
+                if n == 1 {
+                    conn.execute(
+                        "UPDATE productions
+                         SET grp = COALESCE(?1, grp), title = COALESCE(?2, title)
+                         WHERE party_slug = ?3 AND category = ?4 AND rank = ?5",
+                        rusqlite::params![row.group, row.title, party_slug, category, row.rank],
+                    )?;
+                }
             }
-            continue;
-        }
-        // A header is a non-row line ending in ':'.
-        if trimmed.ends_with(':') {
-            sections.push(Section {
-                title: trimmed.trim_end_matches(':').trim().to_string(),
-                rows: Vec::new(),
-            });
         }
     }
-    // Drop the decorative pre-amble (no rows) sections.
-    sections.retain(|s| !s.rows.is_empty());
-    sections
-}
-
-/// Read the party's results file, parse it, and write points onto matching
-/// productions. Best-effort: unmatched sections / ranks are skipped.
-pub fn apply(
-    conn: &Connection,
-    root: &Path,
-    party_slug: &str,
-    party_dir: &str,
-    cfg: &PartyCfg,
-) -> anyhow::Result<()> {
-    let parse_fn: fn(&str) -> Vec<Section> = match cfg.results_format.as_str() {
-        "assembly_classic" => parse,
-        "assembly_table" => parse_table,
-        _ => return Ok(()),
-    };
-    let Some(results_file) = &cfg.results_file else {
-        return Ok(());
-    };
-    let path = root.join(party_dir).join(results_file);
-    let bytes = match std::fs::read(&path) {
-        Ok(b) => b,
-        Err(_) => return Ok(()), // no results file for this party
-    };
-    let text = cp437::decode(&bytes);
-    let sections = parse_fn(&text);
-
-    // normalised results title → category key
-    let mut title_to_cat: std::collections::HashMap<String, &str> = std::collections::HashMap::new();
-    for (cat, c) in &cfg.categories {
-        if let Some(rt) = &c.results_title {
-            title_to_cat.insert(norm(rt), cat.as_str());
-        }
-    }
-
-    let mut matched = 0usize;
-    for sec in &sections {
-        let Some(category) = title_to_cat.get(&norm(&sec.title)) else {
-            continue;
-        };
-        for row in &sec.rows {
-            let n = conn.execute(
-                "UPDATE productions SET points = ?1
-                 WHERE party_slug = ?2 AND category = ?3 AND rank = ?4",
-                rusqlite::params![row.points, party_slug, category, row.rank],
-            )?;
-            matched += n;
-        }
-    }
-    tracing::info!(party = %party_slug, sections = sections.len(), updated = matched, "results joined");
+    tracing::info!(party = %party_slug, updated, "config results joined");
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::party::{CategoryCfg, PartyCfg, ResultRow};
+    use indexmap::IndexMap;
 
-    const SAMPLE: &str = concat!(
-        "\n\n",
-        "\t\tA S S E M B L Y  ' 9 5\n\n",
-        "\tPC demo competition:\n\n",
-        "    1    10 (3646 points)     Nooon \"Stars : Wonders of the world\"\n",
-        "    2     7 (1482 points)     Juice \"Psychic link\"\n",
-        "   11     4 (224 points)      Masque \"Mystery\"\n\n",
-        "\tAnimation competition:\n\n",
-        "    1     5 (2247 points)     Flow by Jaco\n",
-        "   15    15 (6 points)\t      -\n",
-    );
+    fn seed_db() -> Connection {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(
+            "CREATE TABLE productions (
+                 party_slug TEXT, category TEXT, rank INTEGER,
+                 grp TEXT, title TEXT, points INTEGER
+             );
+             INSERT INTO productions VALUES ('tg','in4k',1,'folderG','folderT',NULL);
+             INSERT INTO productions VALUES ('tg','in4k',3,'aG','aT',NULL);
+             INSERT INTO productions VALUES ('tg','in4k',3,'bG','bT',NULL);",
+        )
+        .unwrap();
+        c
+    }
+
+    fn cfg_with(results: Vec<ResultRow>) -> PartyCfg {
+        let mut categories = IndexMap::new();
+        categories.insert(
+            "in4k".into(),
+            CategoryCfg {
+                compo: "PC 4k".into(),
+                platform: "pc".into(),
+                medium: "intro".into(),
+                results,
+            },
+        );
+        PartyCfg {
+            slug: "tg".into(),
+            name: "TG".into(),
+            year: None,
+            location: None,
+            organizer: None,
+            logo: None,
+            folder_name: "rank-group-title".into(),
+            categories,
+        }
+    }
 
     #[test]
-    fn parses_sections_and_rows() {
-        let secs = parse(SAMPLE);
-        assert_eq!(secs.len(), 2);
-        assert_eq!(secs[0].title, "PC demo competition");
-        assert_eq!(secs[0].rows.len(), 3);
-        assert_eq!(
-            secs[0].rows[0],
-            Row {
+    fn joins_points_and_tie_safe_metadata() {
+        let conn = seed_db();
+        let cfg = cfg_with(vec![
+            ResultRow {
                 rank: 1,
-                points: 3646,
-                group: Some("Nooon".into()),
-                title: Some("Stars : Wonders of the world".into()),
-            }
-        );
-        assert_eq!(secs[0].rows[2].group.as_deref(), Some("Masque"));
-    }
+                points: Some(203),
+                group: Some("Scoop".into()),
+                title: Some("Waterworld".into()),
+            },
+            ResultRow {
+                rank: 3,
+                points: Some(102),
+                group: Some("ShouldNotApply".into()),
+                title: Some("ShouldNotApply".into()),
+            },
+        ]);
+        apply(&conn, "tg", &cfg).unwrap();
 
-    #[test]
-    fn parses_animation_by_form() {
-        let secs = parse(SAMPLE);
-        let anim = &secs[1];
-        assert_eq!(anim.title, "Animation competition");
-        assert_eq!(
-            anim.rows[0],
-            Row {
-                rank: 1,
-                points: 2247,
-                group: Some("Jaco".into()),
-                title: Some("Flow".into()),
-            }
-        );
-        // "-" non-entry: no group/title, still has rank+points.
-        assert_eq!(anim.rows[1].rank, 15);
-        assert_eq!(anim.rows[1].group, None);
-    }
+        // Unique rank 1 → points set and group/title overridden from config.
+        let (g, t, p): (String, String, i64) = conn
+            .query_row(
+                "SELECT grp, title, points FROM productions WHERE rank = 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!((g.as_str(), t.as_str(), p), ("Scoop", "Waterworld", 203));
 
-    const SAMPLE_TABLE: &str = concat!(
-        "\t\t\tAlmost full results from the\n",
-        "\t\t\t\tAssembly'96\n\n",
-        "\t\tPC demo competition:\n\n",
-        "    Place  Points  S#  Name\t\t\t  Author\n",
-        "    -----  ------  --  -------------------------  --------------------------\n",
-        "      1.    1452    7  Machines of Madness        Dubius\n",
-        "      5.     386   10  Chrome 2\t                  TomCat/Abaddon\n\n",
-        "\t\tC64 music competition:\n\n",
-        "    Place  Points  S#  Name\t\t\t  Author\n",
-        "    -----  ------  --  -------------------------  --------------------------\n",
-        "      1.    1074                                  TBB/Side B&Extend\n",
-        "      6.     507    3\n",
-    );
-
-    #[test]
-    fn parses_table_sections_and_rows() {
-        let secs = parse_table(SAMPLE_TABLE);
-        // Decorative preamble is dropped (no rows).
-        assert_eq!(secs.len(), 2);
-        assert_eq!(secs[0].title, "PC demo competition");
-        assert_eq!(secs[0].rows.len(), 2);
-        // Only rank + points; Name/Author (incl. the stray tab row) are ignored.
-        assert_eq!(
-            secs[0].rows[0],
-            Row {
-                rank: 1,
-                points: 1452,
-                group: None,
-                title: None,
-            }
-        );
-        assert_eq!(secs[0].rows[1].rank, 5);
-        assert_eq!(secs[0].rows[1].points, 386);
-        let c64 = &secs[1];
-        assert_eq!(c64.title, "C64 music competition");
-        assert_eq!(c64.rows[0].points, 1074);
-        // A row with an S# but no Name/Author still yields rank + points.
-        assert_eq!(
-            c64.rows[1],
-            Row {
-                rank: 6,
-                points: 507,
-                group: None,
-                title: None,
-            }
-        );
-    }
-
-    #[test]
-    fn norm_matches_despite_typo() {
-        assert_eq!(norm("Multichannel musax competiton:"), "multichannel musax competiton");
-        assert_eq!(norm("  PC  4K intro  "), "pc 4k intro");
-    }
-
-    #[test]
-    fn split_credit_forms() {
-        assert_eq!(
-            split_credit("Barti!/Nooon \"Heaven\""),
-            (Some("Barti!/Nooon".into()), Some("Heaven".into()))
-        );
-        assert_eq!(split_credit("-"), (None, None));
-        assert_eq!(split_credit("Black Lotus ?"), (Some("Black Lotus".into()), None));
+        // Tied rank 3 → BOTH get points, but neither's group/title is overwritten.
+        let with_points: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM productions WHERE rank = 3 AND points = 102",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(with_points, 2);
+        let untouched: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM productions WHERE rank = 3 AND grp IN ('aG','bG')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(untouched, 2);
     }
 }
