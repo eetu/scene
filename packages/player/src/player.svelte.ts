@@ -292,8 +292,9 @@ function wirePlatformIntegration() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible") return;
     if (playback.playing && !playback.paused) {
-      // iOS suspends Web Audio in the background — resume on return.
-      if (player?.context?.state !== "running") void player.context.resume().catch(() => {});
+      // iOS suspends Web Audio + stalls the routed element when hidden — revive
+      // both on return to the foreground.
+      void wakeAudio();
       void acquireWakeLock(); // the OS drops the lock when hidden
     }
   });
@@ -359,6 +360,31 @@ async function routeAudioToElement() {
   }
 }
 
+/** Revive the audio path on a user gesture (play / unpause / return-to-foreground).
+ *  iOS suspends an idle or interrupted AudioContext AND pauses an idle media
+ *  element after a while — and once output has been routed to the element, that
+ *  element is the worklet's ONLY sink (we disconnected context.destination). So a
+ *  long pause left playback dead: unpausing didn't resume the context, and even
+ *  switching tracks didn't help because routeAudioToElement() no-ops once routed,
+ *  so the stalled element was never replayed — only a page reload recovered. This
+ *  resumes the context and re-plays the element; play() on an already-playing
+ *  element resolves immediately, so it's safe to call on every gesture. */
+async function wakeAudio() {
+  if (!player) return;
+  try {
+    if (player.context.state !== "running") await player.context.resume();
+  } catch {
+    /* resume blocked/unsupported — recovers on the next gesture */
+  }
+  if (routedToElement && mediaEl) {
+    try {
+      await mediaEl.play();
+    } catch {
+      /* element won't replay — audible again after another gesture */
+    }
+  }
+}
+
 /** Load a track and play it from the start (audible unless muted). */
 export async function playTrack(track: Track) {
   // Stop the current module so the worklet drops it before we load the next.
@@ -376,11 +402,10 @@ export async function playTrack(track: Track) {
   resetBeat();
   const p = ensurePlayer();
   await p;
-  try {
-    await player.context.resume();
-  } catch {
-    /* already running */
-  }
+  // Resume a possibly iOS-suspended context and re-play a stalled background
+  // element (best-effort, inside the play gesture) — recovers a track-switch made
+  // after a long pause without a reload.
+  await wakeAudio();
   // Move output onto the media element (best-effort) so it survives the page
   // being backgrounded / the screen locking. Triggered from the play gesture.
   void routeAudioToElement();
@@ -481,6 +506,9 @@ export function togglePause() {
   if (!player || !playback.current || !playback.playing) return;
   player.togglePause();
   playback.paused = !playback.paused;
+  // Unpausing: iOS may have suspended the context and stalled the background
+  // <audio> element during the pause; nudge both back to life inside this tap.
+  if (!playback.paused) void wakeAudio();
   syncNowPlaying();
 }
 
