@@ -1080,7 +1080,10 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 14px;
+    /* Pad past the iOS status bar (translucent, overlays content under
+       viewport-fit=cover) + the landscape notch. env() is 0 where there's none. */
+    padding: calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 10px
+      calc(14px + env(safe-area-inset-left));
     background: var(--panel);
     border-bottom: 1px solid var(--border);
   }
@@ -1582,7 +1585,10 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 8px 12px;
+    /* The overlay is full-bleed (inset: 0), so its toolbar sits under the iOS
+       status bar without this inset (see the .bar note). */
+    padding: calc(8px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 8px
+      calc(12px + env(safe-area-inset-left));
     background: var(--surface-bar);
     border-bottom: 1px solid var(--surface-line-2);
   }
@@ -1717,6 +1723,10 @@
     right: 0;
     bottom: 0;
     z-index: 5;
+    /* Keep the controls clear of the iOS home indicator / landscape notch; the
+       dock's panel fill extends into the inset so the bar still meets the edge. */
+    padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    background: var(--panel);
   }
 
   /* Touch has no hover — always show the rename affordance there. */

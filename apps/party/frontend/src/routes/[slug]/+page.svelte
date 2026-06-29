@@ -378,7 +378,9 @@
   <!-- Global now-playing bar: spans both panes and stays visible whenever a
 	     track is loaded, so music keeps its controls even after you navigate to
 	     another production. The title jumps back to the playing entry. -->
-  <Transport onOpenView={openPlayingView} showPos={false} />
+  <div class="musicbar">
+    <Transport onOpenView={openPlayingView} showPos={false} />
+  </div>
 </main>
 
 <style>
@@ -386,7 +388,10 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 14px 20px;
+    /* Clear the iOS status bar (translucent, full-bleed under viewport-fit=cover)
+       + the landscape notch. env() is 0 where there's no inset. */
+    padding: calc(14px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 14px
+      calc(20px + env(safe-area-inset-left));
     border-bottom: 1px solid var(--border);
   }
   .navtoggle {
@@ -425,6 +430,13 @@
     padding: 0;
     /* Positioning context for the mobile catalog drawer (see @media below). */
     position: relative;
+  }
+  /* The now-playing bar is main's last child, i.e. the screen bottom — keep its
+     controls above the iOS home indicator; the panel fill spans the inset so the
+     bar still meets the edge. */
+  .musicbar {
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--panel);
   }
   .cols {
     display: grid;

@@ -124,7 +124,10 @@
     display: flex;
     align-items: baseline;
     gap: 12px;
-    padding: 16px 20px;
+    /* Clear the iOS status bar (translucent, full-bleed under viewport-fit=cover)
+       + the landscape notch. env() is 0 where there's no inset. */
+    padding: calc(16px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 16px
+      calc(20px + env(safe-area-inset-left));
     border-bottom: 1px solid var(--border);
   }
   h1 {
