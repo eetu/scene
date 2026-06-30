@@ -273,6 +273,16 @@ Key rules:
 - **The order you list categories is the compo display order in the SPA** (`Info`
   and `Misc` are pinned first; unlisted folders fall to the end). Arrange the block
   to taste — e.g. intros before demos, or cluster the music compos together.
+- **Name the unranked tail** (the `rest/` entries) via each category's optional
+  `unranked` map (`{ "<folder-stem>": { "group": …, "title": … } }`), joined onto
+  unranked productions so they read as names instead of cryptic archive stems.
+  Populate it at scrape time: a regex over `FILE_ID.DIZ` is a cheap first pass, but
+  the `.diz`/`.nfo` are wildly inconsistent (ANSI box-art, `X by Y` vs `composed
+  by`, banners) — so prefer an **LLM pass** that reads each item's `.diz`/`.nfo`
+  **and** the tracker module's embedded strings (`strings <mod> | head` — modules
+  carry the song title + sample-row credits, cleaner than the BBS art), emitting
+  `{group, title}` and **omitting rather than guessing** when a source is
+  unreadable. Music compos especially need it.
 - Copy `assembly95.json` / `assembly96.json` as a starting template.
 
 ## Step 6 — Amiga AGA disk images (optional but recommended)
