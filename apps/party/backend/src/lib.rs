@@ -127,20 +127,25 @@ pub async fn run_server() -> anyhow::Result<()> {
     let state = AppState::new(cfg, db, parties);
     let bind = state.cfg.bind.clone();
 
-    // Only scan automatically on first run (empty index). Use POST /api/rescan
-    // to pick up on-disk changes.
+    // Scan on startup when the index is empty — or always in kiosk mode. A kiosk
+    // serves an immutable data image that gets swapped for a new version on
+    // deploy, and it disables the manual rescan endpoint, so it must refresh
+    // itself on boot to pick up the new image. The hash cache (path+size+mtime →
+    // hash) keeps an unchanged rescan cheap. Non-kiosk (admin/dev) keeps the
+    // cached index and refreshes via POST /api/rescan.
     let file_count: i64 = state
         .db
         .with(|c| c.query_row("SELECT COUNT(*) FROM files", [], |r| r.get(0)))
         .await
         .unwrap_or(0);
-    if file_count == 0 {
+    if file_count == 0 || state.cfg.kiosk {
         let db = state.db.clone();
         let root = state.cfg.root.clone();
         let parties = state.parties.clone();
         let progress = state.scan.clone();
+        let reason = if file_count == 0 { "empty index" } else { "kiosk startup" };
         tokio::spawn(async move {
-            tracing::info!(root = %root.display(), "empty index — initial scan started");
+            tracing::info!(root = %root.display(), %reason, "scan started");
             match run_scan(db, root, parties, progress).await {
                 Ok(r) => tracing::info!(
                     indexed = r.indexed,
