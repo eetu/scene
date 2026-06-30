@@ -5,9 +5,11 @@ for the **party** app. This README is the runbook for turning a demoparty's
 scene.org archive into a tree the backend can serve.
 
 It was reconstructed by reverse-engineering the **Assembly '95** export (the
-first party ingested) — there was no written procedure, only the artifacts and
-the backend that consumes them. Use `assembly95.json` + the live
-`/Volumes/scene/parties/Assembly95` tree as the worked example throughout.
+first party ingested), then hardened ingesting **Assembly '96** and **The
+Gathering '96** — each surfaced new edge cases now folded in below. Use
+`assembly95.json` / `assembly96.json` / `gathering96.json` + their live
+`/Volumes/scene/parties/<Party>` trees as worked examples throughout; they
+bracket most of the variation seen so far.
 
 ## Mental model
 
@@ -36,6 +38,29 @@ scene.org archive  →  a laid-out party tree  →  backend scans & indexes  →
 
 You only ever arrange files + write JSON. The backend does the rest.
 
+## How generic is this, really?
+
+The **spine is universal**; the details are per-party. Treat the steps below as the
+reliable backbone and budget for a handful of party-specific surprises each time.
+
+- **Universal**: the pipeline (download → arrange → scan → serve), the folder
+  grammar (`NN - Group - Title`, `rest/`, one- vs two-level compos), the config
+  schema, the results-into-config join, the emulation/transcode-at-serve model.
+- **Varies every party**: the compo set + folder names; the `results.txt` format
+  (each party differs — *scrape, never parse at runtime*); which prods were actually
+  archived vs. lost; the long unranked music/graphics tail; per-prod quirks (split
+  executables, Amiga launch lines, a demo that needs sound setup).
+- **Rules of thumb we keep relearning**: scene.org is often **incomplete** (winners
+  missing entirely — Step 4½); the same prod sometimes lands in **both** a ranked
+  folder and `rest/`, so it lists twice (Step 5, dedup); auto-naming the tail with
+  an LLM is great but it **hallucinates** occasionally, so cross-check (Step 5); and
+  emulation has **non-obvious runtime knobs** (Amiga fast RAM, PC GUS setup) that
+  make a "correctly arranged" prod still fail — so actually **boot a few** before
+  declaring victory (Step 7½).
+
+When in doubt, diff the three worked examples (`assembly95.json`, `assembly96.json`,
+`gathering96.json`) — they bracket most of the variation seen so far.
+
 ## Prerequisites
 
 - A **downloader** that can mirror a subtree: `wget -r`, `lftp`, or `rsync`
@@ -46,6 +71,11 @@ You only ever arrange files + write JSON. The backend does the rest.
 - For Amiga AGA images (optional): **amitools** (`uv tool install amitools` →
   `xdftool`, `rdbtool` on your PATH; it is *not* a Homebrew formula) and a
   **Kickstart 3.1 (A1200)** ROM. See Step 6.
+- For verifying emulation (Step 7½): a native **Amiga** emulator (`brew install
+  fs-uae`) and **DOS** emulator (`brew install dosbox-x`; classic `dosbox` 0.74 is
+  too old to fullscreen on recent macOS). These let you boot a prod with the *same*
+  config the in-browser cores use and see/hear whether it actually runs — far faster
+  than round-tripping through the SPA.
 - macOS hygiene: the NAS/SMB volume sprinkles `._*` and `.DS_Store` files. Don't
   worry about them during ingest — `just package-party-data` strips them at the
   end, and the scanner skips dot-dirs.
@@ -226,6 +256,33 @@ and **cross-check against demozoo/pouët** — the original file is often partia
 (The Gathering '96 omitted graphics/music and mangled the fastintro order; demozoo
 had the full, correct list). Put the result into each category's `results` array.
 
+## Step 4½ — Recover entries scene.org is missing
+
+**scene.org's party tree is frequently incomplete** — ranked *winners* can be
+absent entirely (last-place entries especially, but not only). Once results are
+scraped, the backend will synthesize disabled "not archived" rows for any ranked
+entry with no folder (Step 7), which tells you exactly what's missing. Before
+accepting those as lost, hunt the other archives:
+
+- **demozoo** — the best source; per-prod pages link to a download (often on
+  `archive.scene.org/.../amigascne/`, aminet, or a scene.org mirror). Prods with no
+  link are usually tagged **`lost`** — that's authoritative, treat as gone.
+- **pouët** — sometimes a mirror link demozoo lacks.
+- **aminet** (`aminet.net`, Amiga), **Janeway/ExoticA** (Amiga; behind Cloudflare —
+  needs a real browser).
+- **Don't forget the tree you already pulled**: bundle/`rest` packs can contain a
+  missing prod (and watch the reverse — a pack may only *duplicate* already-ranked
+  prods, Step 5 dedup).
+
+Stage downloads outside the live tree, **verify each is the right prod** (read its
+`FILE_ID.DIZ`, or byte-compare if it claims to match an existing file — recovery
+agents do mislink), then drop into the proper `NN - Group - Title` folder.
+
+TG96 worked example: **46** ranked entries were missing from scene.org; **11** were
+recovered (8 Amiga demos + 2 wild + 1 fastintro, from demozoo→amigascne/scene.org),
+the other ~34 are demozoo-`lost` or Cloudflare-walled. Don't expect a clean sweep —
+log what stays missing so the disabled rows are understood, not mistaken for a bug.
+
 ## Step 5 — Author the party config (`.party.json`)
 
 Each party folder carries its own config as **`.party.json`** at its root
@@ -283,6 +340,20 @@ Key rules:
   carry the song title + sample-row credits, cleaner than the BBS art), emitting
   `{group, title}` and **omitting rather than guessing** when a source is
   unreadable. Music compos especially need it.
+- **De-duplicate ranked-vs-`rest`.** Ingests sometimes extract a winner into
+  **both** its `NN - Group - Title` folder **and** a copy under `rest/`, so the SPA
+  lists it twice (once ranked, once unranked). The backend does *not* dedupe these.
+  Catch them with a title check, then **confirm by the files**: for every `unranked`
+  entry whose title matches a *ranked* title in the same compo, compare bytes —
+  same prod → delete the `rest/` copy **and** its `unranked` entry; different files →
+  it's not a dup (a coincidence, or an LLM mislabel — next bullet). TG96 had three
+  (`digestiv`/`jungle`/`eli_rygg`), asm96 one (`dccbagot`, byte-identical `.xm`).
+- **LLM mislabels surface in the same check.** The naming pass can paste a *ranked*
+  title onto a distinct unranked prod: asm95 `grfx/rosie` (`ROSIE.GIF`) was named
+  "Wicked" — but that's the ranked #15 title (`wicked.iff`), a different picture.
+  When the title matches a ranked entry but the **files differ**, it's a mislabel:
+  fix the name (don't delete). A quick script comparing every `unranked` title to
+  the compo's `results` titles is the cheapest way to flag both cases at once.
 - Copy `assembly95.json` / `assembly96.json` as a starting template.
 
 ## Step 6 — Amiga AGA disk images (optional but recommended)
@@ -306,36 +377,55 @@ amiga/demo/01 - Parallax - ZIF/
 - The **`(AGA)`** (or `(A1200)`) substring in the filename makes the libretro
   **PUAE** core auto-select the A1200/AGA model.
 
-The validated `amitools` recipe (`xdftool pack` defaults to OFS and writes a
-standard bootblock that's byte-identical to the asm95 reference images):
+**First, the shortcut: if the prod already ships a disk image, you're done.** Some
+Amiga prods arrive as `.dms` / `.adf` (a real floppy dump) rather than loose files —
+drop that straight into the `NN - Group - Title` folder, no `.support/` build needed.
+The scanner classifies `.dms`/`.adf`/`.hdf` as `diskimage` and the player boots it.
+TG96's Black Lotus – Tint (six `tbl-tt0N.dms`) and the recovered D.U.M / Rap Demo
+(`.dms`) work this way. Only build an image when the prod is **loose files**.
+
+Identify the real executable first: Amiga executables are Hunk binaries — magic
+`0x000003F3` (`head -c4 file | xxd`). Pick the prod's actual launcher (the one with a
+`.info` icon, or the obvious name), **not** courier junk bundled by the upload group
+(`dO-xTREME.exe`, `*.CLASS`) and not a player/util. Watch for: **split executables**
+joined first (`cat foo.ex1 foo.ex2 > foo.exe`); **fix releases** (`na!murr-fix.exe`)
+as the launch target; data in a **subdir** that must be flattened to the volume root.
+
+Verified `amitools` recipe (current amitools — `pack` works for ADF but its `size=`
+errors on HDF geometry, so use explicit `create`/`format`/`write` for both):
 
 ```sh
-# stage the prod's files at the volume root + the launch command:
-mkdir -p stage/s && cp -a "<prod>"/* stage/ && printf 'demo.exe\n' > stage/s/startup-sequence
-# ADF (fits a floppy):
-xdftool "Title (AGA).adf" pack stage      && xdftool "Title (AGA).adf" boot install
-# HDF (bigger — size via the `size=` keyword; a positional size errors on geometry):
-xdftool "Title (AGA).hdf" pack stage size=5Mi && xdftool "Title (AGA).hdf" boot install
+# stage all the prod's files FLAT at the volume root + the launch command:
+mkdir -p stage/s && cp -a "<prod>"/* stage/        # flatten any subdir into stage/
+printf 'demo.exe\n' > stage/s/startup-sequence     # the exe you identified, by basename
+img="Title (AGA).hdf"                              # .adf if the staged files fit ~830 KB
+# size the image ~2× the data (min 2 MiB); a DD .adf needs no size=
+xdftool -f "$img" create size=4Mi
+xdftool "$img" format "NN - Group - Title" ofs     # OFS / DOS0, like the asm95 refs
+xdftool "$img" boot install                        # standard bootblock → bootable
+xdftool "$img" makedir s
+xdftool "$img" write stage/s/startup-sequence s/startup-sequence
+for f in stage/*; do [ -f "$f" ] && xdftool "$img" write "$f" "$(basename "$f")"; done
+xdftool "$img" boot show | grep bootable           # sanity: "bootable: True"
 ```
 
-`scratchpad/build-amiga-image.sh` from the asm96 trial wraps exactly this (auto
-ADF-vs-HDF by content size, `.support/` placement, `(AGA)` naming). Per-prod
-gotchas it hit: **split executables** must be joined first (`cat Mindabuse.ex1
-Mindabuse.ex2 > Mindabuse.exe`, same for `bold1`+`bold2`); **courier junk** bundled
-by the upload group (`dO-xTREME.exe`, `*.CLASS`) is *not* the prod — point the
-startup line at the real exe; **fix releases** (`na!murr-fix.exe`) are the version
-to launch.
+Startup-sequence tips: a bare exe name at the volume root runs (AmigaDOS searches the
+current dir). If the prod opens a library that ships alongside it (e.g.
+`replayer.library`), prepend `assign LIBS: SYS:` so `OpenLibrary` finds it at the
+root. Put the built image in the prod's `.support/<Title> (AGA).hdf` and leave the
+extracted originals in the folder (the scanner prefers the `adf`/`hdf` as primary, so
+the demo launches while the raw files stay browsable).
 
 - A **Kickstart 3.1 (A1200)** ROM is required at
   `<PARTY_ROOT>/.support/kick40068.A1200` (512 KB, v40.068). It's copyrighted and
   **not bundled** — supply it yourself. The backend serves it via
   `/api/support/kick40068.A1200` (see `backend/src/routes.rs`); `.support` is a
-  shared, unscanned dir (`PARTY_SUPPORT_DIR`, defaults to `<root>/.support`).
+  shared, unscanned dir (`PARTY_SUPPORT_DIR`, defaults to `<root>/.support`). Note a
+  per-prod `.support/` (depth ≥ 2) *is* scanned — only the shared root one is not.
 
-This is **best-effort** — images boot in the scanner sense (each becomes the prod's
-`primary_kind: diskimage`) but aren't verified in PUAE here; script-driven prods may
-need the launch line tweaked. See `Assembly95/amiga/AGA-images-README.md` in the
-export for additional per-prod caveats.
+**Don't trust "it built" — boot it (Step 7½).** A bootable image still drops to an
+AmigaDOS CLI or hangs if the launch line is wrong or the machine lacks RAM (see the
+fast-RAM quirk in 7½). `fs-uae` confirms in seconds whether it reaches the demo.
 
 ## Step 7 — Index & verify
 
@@ -350,8 +440,10 @@ just dev party        # backend (bacon) + frontend (vite) + transcoder sidecar
 
 The backend scans on startup; trigger a re-scan after changes with
 `POST /api/rescan` (non-kiosk instances only). Watch the startup log for the
-join — `results joined party=… sections=N updated=M` — `updated` is the number of
-productions that got points; `0` means a `results_format`/`results_title` mismatch.
+join — `config results joined party=… updated=M` — `updated` is the number of
+productions that got points; a surprisingly low number means the config `results`
+aren't matching scanned productions (wrong `categories` key, or ranks that don't
+line up with the `NN - …` folders).
 
 For a quick headless check (no SPA needed) run the backend straight at a scratch
 tree and hit the API:
@@ -378,6 +470,65 @@ Then browse the SPA (`just dev party`) and confirm:
 - Graphics and animations render (the transcoder must be configured —
   `PARTY_TRANSCODER_URL` — or image/video assets fall back to download).
 - `info/` and `misc/` extras appear.
+
+## Step 7½ — Verify emulation (and the quirks that bite)
+
+A prod can be arranged perfectly and still not run — emulation has runtime knobs
+the filesystem can't express. **Actually boot a sample** of each platform before
+shipping, using a native emulator configured like the in-browser core. This caught
+every issue below; none were visible from the file tree.
+
+```sh
+# Amiga — fs-uae, mirroring the EJS puae A1200 config (note fast_memory!):
+cat > t.fs-uae <<EOF
+[fs-uae]
+amiga_model = A1200
+kickstart_file = /Volumes/scene/parties/.support/kick40068.A1200
+fast_memory = 8192
+hard_drive_0 = /path/to/.support/Title (AGA).hdf   # or floppy_drive_0 = …adf
+fullscreen = 1
+EOF
+fs-uae t.fs-uae & sleep 18; screencapture -x shot.png; pkill -f fs-uae   # then look at shot.png
+
+# PC — dosbox-x, mirroring the bundle's dosbox.conf (GUS + SB + env):
+#   [gus] gus=true gusbase=240 irq1=5 dma1=3   [sblaster] sbbase=220 irq=7 dma=1
+#   autoexec: set ULTRASND=240,3,3,5,5 / set BLASTER=A220 I7 D1 H5 P330 T6 / <exe>
+dosbox-x -conf t.conf & sleep 16; screencapture -x shot.png; pkill -f dosbox
+```
+
+Capturing the window to a PNG and reading it back is the reliable way to tell
+"reached the demo" from "dropped to a CLI / setup menu" without a human watching.
+
+The quirks we hit (all now fixed in the app, but know them when a demo misbehaves):
+
+- **Amiga demos need fast RAM.** EmulatorJS forces `puae_model=A1200` — whose preset
+  is "2M Chip + **8M Fast**" — but it *also* writes the individual memory options at
+  the core's default (fast = 0), and those **override the model preset**. Result: any
+  sizable demo aborts the instant its loader runs —
+  `<exe>: not enough memory available / failed returncode 10`, dropping to the CLI.
+  Fix (in `frontend/src/lib/EjsEmulator.svelte`): force `puae_fastmem_size = "8"`.
+  This is the #1 reason a freshly-imaged Amiga demo "doesn't start."
+- **A few PC demos need sound setup — bake it, don't make users do it.** A demo that
+  ships a `SETUP.EXE` writing a `SOUND.CFG` hardcodes the *author's* card settings
+  (TG96 Inside: GUS at the original DMA 6 / IRQ 11). js-dos's GUS sits elsewhere
+  (port 240 / DMA 3 / IRQ 5), so GUS init fails → silent (or the demo drops to its
+  own sound menu). Fix: run the demo's setup once **against the bundle's GUS** (pick
+  Gravis UltraSound) so it rewrites `SOUND.CFG` to the bundle's IRQ/DMA, and bake
+  that file. It's **rare** — across all three parties only Inside has a `SETUP.EXE`;
+  every other `.CFG` either auto-detects (MIDAS, IRQ/DMA = `ffffffff` sentinels) or
+  uses the SoundBlaster defaults that already match. Scan for the pattern with
+  `find <pc-compos> -iname setup.exe -o -iname '*.cfg'`.
+- **js-dos caches bundles by URL.** The backend builds each `.jsdos` bundle *live
+  from disk*, so a fresh fetch always has the current files — but the browser caches
+  the zip. Change a bundled file (a corrected `SOUND.CFG`) and clients keep the stale
+  one. Bump `BUNDLE_CONF_VERSION` in `frontend/src/lib/api.ts` to bust it.
+- **Kiosk is immutable — fixes must be in the data, not in a user action.** The
+  public/kiosk instance serves a read-only data image. A visitor running `SETUP.EXE`
+  or changing an emulator setting only writes the *local* js-dos overlay /
+  `localStorage` — per-browser, gone on reload and never seen by the next visitor.
+  So every playability fix (corrected `SOUND.CFG`, AGA image, fast-RAM default) has
+  to land in the baked files / app build + a cache-bump. "Just run setup" is not a
+  fix here.
 
 ## Step 8 — Package & deploy
 
@@ -407,8 +558,25 @@ tree never changes there, so rescan is disabled. (See `justfile`,
   and animations only offer a download link. Nothing is pre-converted.
 - **Kickstart not bundled** — Amiga emulation needs `kick40068.A1200` in
   `.support/`, supplied separately (copyrighted).
-- **`results_title` mismatches** silently drop the points join — verify ranks
-  show up in the UI after a rescan (or via the `updated=` log line in Step 7).
+- **Results join is by `(category, rank)`** — a wrong `categories` key or a rank
+  that doesn't match the `NN - …` folder silently drops that entry's points. Verify
+  via the `updated=` log line (Step 7) and that ranks show in the UI after a rescan.
 - **fish shell** — moving entry folders with hidden files trips the classic fish
   gotcha: an unmatched glob like `mv rest/x/.[!.]* dst/` *errors* instead of
   passing through. Wrap such one-liners in `bash -c '…'`, or use `cp -a`/`rsync`.
+- **Double-listed prods** — a winner copied into both its ranked folder and `rest/`
+  shows twice; the backend won't dedupe. Title-match + byte-compare, then drop the
+  `rest/` copy + its `unranked` entry (Step 5).
+- **Amiga demo "not enough memory" / returncode 10** — emulated A1200 has no fast
+  RAM; it's the fast-RAM override quirk, fixed app-side (`puae_fastmem_size`, Step
+  7½), not a bad image.
+- **PC demo plays silent** — a `SETUP.EXE`/`SOUND.CFG` demo with the author's GUS
+  settings; correct the config to the bundle's GUS and bake it (rare — Step 7½).
+- **Kiosk doesn't reflect a fix** — the data image is immutable and user-side
+  emulator actions don't persist; rebuild the image + bump the bundle version. Don't
+  rely on a visitor running setup (Step 7½).
+- **LLM-named tail can be wrong** — the auto-namer occasionally pastes a ranked
+  title onto a different prod; cross-check unranked titles against `results` (Step 5).
+- **Don't mount the live archive read-write in an emulator** — a DOS/Amiga setup
+  tool will rewrite config files in place (it silently "fixed" a `SOUND.CFG` during
+  testing). Test on a copy; only deliberately bake the result back.
