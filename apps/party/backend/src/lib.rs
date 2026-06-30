@@ -10,7 +10,7 @@ pub mod scan;
 pub mod state;
 pub mod transcoder;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
@@ -104,6 +104,22 @@ pub async fn run_scan(
     joined?
 }
 
+/// Whether real party data is present under `root`. The mountpoint always
+/// exists, so `exists()` proves nothing; require at least one non-hidden,
+/// non-empty subdirectory (a party folder like `Assembly95`). A mounted-but-empty
+/// volume — a bad data-image build, or content not yet materialized — fails this,
+/// which keeps the startup (re)scan from clobbering a good index with an empty one.
+fn data_present(root: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return false;
+    };
+    entries.flatten().any(|e| {
+        e.file_type().is_ok_and(|t| t.is_dir())
+            && !e.file_name().to_string_lossy().starts_with('.')
+            && std::fs::read_dir(e.path()).is_ok_and(|mut it| it.next().is_some())
+    })
+}
+
 pub async fn run_server() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
     tracing_subscriber::fmt()
@@ -138,7 +154,23 @@ pub async fn run_server() -> anyhow::Result<()> {
         .with(|c| c.query_row("SELECT COUNT(*) FROM files", [], |r| r.get(0)))
         .await
         .unwrap_or(0);
-    if file_count == 0 || state.cfg.kiosk {
+    let want_scan = file_count == 0 || state.cfg.kiosk;
+    if want_scan && !data_present(&state.cfg.root) {
+        // PARTY_ROOT is the mountpoint and always exists, so existence proves
+        // nothing — real data means at least one non-empty party subdir (e.g.
+        // `Assembly95`). None here = a mounted-but-empty volume (a bad data-image
+        // build / wrong content) or a first boot with no archive. Do NOT rescan
+        // an empty tree: that would clobber the last-known-good `/data` index and
+        // (in kiosk) publish an empty library. Skip the scan, keep serving the
+        // existing index, and log loudly — better a visible misbuild than a
+        // crash-looped public endpoint.
+        tracing::error!(
+            root = %state.cfg.root.display(),
+            indexed = file_count,
+            "no party data under PARTY_ROOT (mounted-but-empty / bad data image?) — \
+             skipping startup scan, serving the existing index; check the data image build"
+        );
+    } else if want_scan {
         let db = state.db.clone();
         let root = state.cfg.root.clone();
         let parties = state.parties.clone();
@@ -202,6 +234,23 @@ pub async fn run_server() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn data_present_requires_nonempty_party_subdir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        assert!(!data_present(root), "empty mountpoint is not ready");
+        std::fs::create_dir(root.join("empty")).unwrap();
+        assert!(!data_present(root), "an empty subdir doesn't count");
+        std::fs::write(root.join("stray.txt"), b"x").unwrap();
+        assert!(!data_present(root), "a top-level file isn't a party folder");
+        std::fs::create_dir(root.join(".hidden")).unwrap();
+        std::fs::write(root.join(".hidden/x"), b"x").unwrap();
+        assert!(!data_present(root), "a hidden non-empty dir doesn't count");
+        std::fs::create_dir(root.join("Assembly95")).unwrap();
+        std::fs::write(root.join("Assembly95/results.txt"), b"x").unwrap();
+        assert!(data_present(root), "a non-empty party subdir → ready");
+    }
 
     #[test]
     fn hashes_inline_scripts_skips_external() {
