@@ -16,16 +16,20 @@
 
   const NATIVE_IMG = new Set(["gif", "jpg", "jpeg", "png"]);
 
-  // Thumbnail fallback glyph: initials from each word's first letter, skipping
-  // words that start with a digit or symbol ("The Gathering 1996" → "TG").
-  function initials(name: string): string {
-    const out = name
-      .split(/\s+/)
-      .map((w) => w[0])
-      .filter((c) => c && /[a-z]/i.test(c))
-      .join("")
-      .toUpperCase();
-    return out || "?";
+  // Thumbnail fallback glyph: each word's first letter (skipping words that
+  // start with a digit or symbol) + a scene-style 'YY year, so the same party
+  // across years stays distinct ("The Gathering 1996" → "TG'96").
+  function glyph(p: Party): string {
+    const ini =
+      p.name
+        .split(/\s+/)
+        .map((w) => w[0])
+        .filter((c) => c && /[a-z]/i.test(c))
+        .join("")
+        .toUpperCase() || "?";
+    if (p.year == null) return ini;
+    const yy = String(((p.year % 100) + 100) % 100).padStart(2, "0");
+    return `${ini}'${yy}`;
   }
 
   async function load() {
@@ -98,7 +102,7 @@
             {#if p.logo_hash && p.logo_kind && NATIVE_IMG.has(p.logo_kind === "image" ? "gif" : p.logo_kind)}
               <img src={fileUrl(p.logo_hash)} alt="" />
             {:else}
-              <span class="glyph">{initials(p.name)}</span>
+              <span class="glyph">{glyph(p)}</span>
             {/if}
           </div>
           <div class="meta">
@@ -242,10 +246,11 @@
   }
   .glyph {
     font-family: var(--font-retro);
-    font-size: 28px;
+    font-size: 19px;
     line-height: 1;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
     color: var(--accent);
+    white-space: nowrap;
   }
   .meta h2 {
     margin: 0 0 4px;
