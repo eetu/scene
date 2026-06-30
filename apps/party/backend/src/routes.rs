@@ -735,10 +735,18 @@ set ULTRADIR=C:\\
 /// Build a js-dos `.jsdos` bundle for a PC demo/intro: a zip of the primary
 /// executable's directory plus a `.jsdos/dosbox.conf` that mounts it as C: and
 /// autoruns the exe. The SPA hands the URL straight to `Dos(el, { url })`.
+#[derive(serde::Deserialize)]
+struct BundleQuery {
+    /// rel_path of the executable to autorun (a fix/v2 the user picked); falls
+    /// back to the production's primary when absent or not one of its files.
+    exe: Option<String>,
+}
+
 async fn api_bundle(
     _auth: Auth,
     State(state): State<AppState>,
     Path(file): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<BundleQuery>,
 ) -> AppResult<impl IntoResponse> {
     let prod_id = file.strip_suffix(".jsdos").ok_or(AppError::NotFound)?.to_string();
 
@@ -758,17 +766,6 @@ async fn api_bundle(
         .map_err(|_| AppError::NotFound)?;
     let primary_rel = primary_rel.ok_or(AppError::NotFound)?;
 
-    // Bundle root = the executable's directory; autorun its basename.
-    let root_prefix = match primary_rel.rfind('/') {
-        Some(i) => primary_rel[..i].to_string(),
-        None => String::new(),
-    };
-    let exe_name = primary_rel
-        .rsplit('/')
-        .next()
-        .unwrap_or(&primary_rel)
-        .to_string();
-
     let rels: Vec<String> = state
         .db
         .with({
@@ -780,6 +777,19 @@ async fn api_bundle(
             }
         })
         .await?;
+
+    // Which executable to autorun: the caller's ?exe (validated to be one of the
+    // prod's own files) lets the user pick a different build (a fix/v2); else the
+    // primary. Bundle root = that exe's directory; autorun its basename.
+    let run_rel = q
+        .exe
+        .filter(|e| rels.iter().any(|r| r == e))
+        .unwrap_or(primary_rel);
+    let root_prefix = match run_rel.rfind('/') {
+        Some(i) => run_rel[..i].to_string(),
+        None => String::new(),
+    };
+    let exe_name = run_rel.rsplit('/').next().unwrap_or(&run_rel).to_string();
 
     let canon_root = state
         .cfg

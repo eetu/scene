@@ -162,10 +162,15 @@
       {#if !selected}
         <p class="muted">No file selected.</p>
       {:else if selected.kind === "exe" && platform === "pc"}
-        <!-- DOS: js-dos mounts the whole production folder and autoruns the
-			     primary executable, so it's keyed on the production, not the file. -->
-        {#key prodId}
-          <Emulator bundleUrl={bundleUrl(prodId)} onKeyboard={() => (listOpen = false)} />
+        <!-- DOS: js-dos mounts the chosen exe's directory and autoruns it, so the
+			     user can pick a different build (a fix/v2) by selecting it in the list.
+			     Keyed on the rel_path so switching exe re-mounts a fresh emulator. -->
+        {#key selected.rel_path}
+          <Emulator
+            bundleUrl={bundleUrl(prodId, selected.rel_path)}
+            label={`Launch ${selected.filename}`}
+            onKeyboard={() => (listOpen = false)}
+          />
         {/key}
       {:else if selected.kind === "diskimage" && platform === "c64"}
         {#key selected.hash}

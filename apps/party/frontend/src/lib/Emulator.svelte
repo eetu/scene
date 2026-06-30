@@ -7,9 +7,13 @@
 
   let {
     bundleUrl,
+    label = "Launch",
     onKeyboard,
   }: {
     bundleUrl: string;
+    /** Launch-button label, e.g. "Launch CTSTOAST.EXE" when a specific build is
+     *  picked from the file list. */
+    label?: string;
     /** Fired when the mobile soft keyboard is raised, so the host can free up
      *  vertical space (e.g. collapse a list drawer) and keep the screen visible. */
     onKeyboard?: () => void;
@@ -209,7 +213,8 @@
 <div class="emu" class:fs={pseudoFs}>
   {#if !started}
     <button class="launch" onclick={launch}>
-      <Play size={20} /> Launch
+      <Play size={20} />
+      {label}
     </button>
     <p class="hint">Loads the emulator (~1.5 MB) on demand.</p>
   {/if}

@@ -164,6 +164,7 @@ export function assetUrl(hash: string, target: "png" | "mp4"): string {
  *  changes, so the browser + js-dos caches fetch the new bundle instead of a
  *  stale one. */
 const BUNDLE_CONF_VERSION = 2;
-export function bundleUrl(prodId: string): string {
-  return `/api/bundle/${prodId}.jsdos?v=${BUNDLE_CONF_VERSION}`;
+export function bundleUrl(prodId: string, exe?: string | null): string {
+  const e = exe ? `&exe=${encodeURIComponent(exe)}` : "";
+  return `/api/bundle/${prodId}.jsdos?v=${BUNDLE_CONF_VERSION}${e}`;
 }
