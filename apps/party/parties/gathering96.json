@@ -6,161 +6,65 @@
   "organizer": "KreativiTET",
   "folder_name": "rank-group-title",
   "categories": {
-    "demo": {
-      "compo": "PC demo",
+    "in4k": {
+      "compo": "PC 4K intro",
       "platform": "pc",
-      "medium": "demo",
+      "medium": "intro",
       "results": [
         {
           "rank": 1,
-          "points": 173,
-          "group": "CNCD",
-          "title": "Inside"
+          "points": 203,
+          "group": "Scoop",
+          "title": "Waterworld"
         },
         {
           "rank": 2,
-          "points": 69,
-          "group": "Coma",
-          "title": "The Control"
-        },
-        {
-          "rank": 2,
-          "points": 69,
-          "group": "Melon Dezign & Scoop",
-          "title": "Ninja II"
+          "points": 149,
+          "group": "Proxima",
+          "title": "Digestive Flour"
         },
         {
           "rank": 3,
-          "points": 38,
-          "group": "iNF",
-          "title": "Chunderchunk"
+          "points": 102,
+          "group": "Scoop",
+          "title": "Dimension X"
         },
         {
           "rank": 4,
-          "points": 35,
-          "group": "Sorrox",
-          "title": "Projection"
+          "points": 78,
+          "group": "Scoop",
+          "title": "Ascii Mania"
         },
         {
           "rank": 5,
-          "points": 24,
-          "group": "Sublogic",
-          "title": "Let There Be Light"
+          "points": 69,
+          "group": "Orchide",
+          "title": "Firek"
         },
         {
           "rank": 6,
-          "points": 21,
-          "group": "Excess",
-          "title": "Timeout"
+          "points": 53,
+          "group": "Bamboosh",
+          "title": "Hope"
         },
         {
           "rank": 7,
-          "points": 18,
-          "group": "Virtual Rage",
-          "title": "Worlds"
+          "points": 29,
+          "group": "Dr. Dyregod",
+          "title": "Scrolltext Forever"
         },
         {
           "rank": 8,
-          "points": 17,
-          "group": "The Lost Souls",
-          "title": "Mind Over Matter"
-        },
-        {
-          "rank": 9,
-          "points": 13,
-          "group": "Xenogenesis",
-          "title": "Mystic"
-        },
-        {
-          "rank": 10,
-          "points": 8,
-          "group": "Crusaders Girls",
-          "title": "Hihi"
+          "points": 28,
+          "group": "Maak",
+          "title": "I've Been Roached"
         }
       ],
       "unranked": {
-        "fantazia": {
-          "group": "Nebula and Misc Design,",
-          "title": "demo"
-        },
-        "st_peter": {
-          "group": "*HA! KUMIMUNA*",
-          "title": "CODE"
+        "digestiv": {
+          "title": "DIGESTIVE FLOUR"
         }
       }
-    },
-    "amiga/demo": {
-      "compo": "Amiga demo",
-      "platform": "amiga",
-      "medium": "demo",
-      "results": [
-        {
-          "rank": 1,
-          "points": 173,
-          "group": "The Black Lotus",
-          "title": "Tint"
-        },
-        {
-          "rank": 2,
-          "points": 125,
-          "group": "Triumph",
-          "title": "Dreamscape"
-        },
-        {
-          "rank": 3,
-          "points": 98,
-          "group": "Spaceballs",
-          "title": "Pinch"
-        },
-        {
-          "rank": 4,
-          "points": 53,
-          "group": "Contraz",
-          "title": "Mystiq"
-        },
-        {
-          "rank": 5,
-          "points": 34,
-          "group": "Bice Twice",
-          "title": "Sverige"
-        },
-        {
-          "rank": 6,
-          "points": 32,
-          "group": "Ward",
-          "title": "Once Upon A Time"
-        },
-        {
-          "rank": 7,
-          "points": 26,
-          "group": "Session",
-          "title": "Plump"
-        },
-        {
-          "rank": 8,
-          "points": 15,
-          "group": "Ephidrena",
-          "title": "Recycled"
-        },
-        {
-          "rank": 9,
-          "points": 7,
-          "group": "Ephidrena",
-          "title": "Kugalskap"
-        },
-        {
-          "rank": 10,
-          "points": 5,
-          "group": "Syntax",
-          "title": "D.U.M - Det Utrolige Mesterverk"
-        },
-        {
-          "rank": 11,
-          "points": 3,
-          "group": "Virus",
-          "title": "The Rap Demo"
-        }
-      ]
     },
     "in64": {
       "compo": "PC 64K intro",
@@ -246,159 +150,86 @@
         }
       }
     },
-    "in4k": {
-      "compo": "PC 4K intro",
+    "demo": {
+      "compo": "PC demo",
       "platform": "pc",
-      "medium": "intro",
+      "medium": "demo",
       "results": [
         {
           "rank": 1,
-          "points": 203,
-          "group": "Scoop",
-          "title": "Waterworld"
+          "points": 173,
+          "group": "CNCD",
+          "title": "Inside"
         },
         {
           "rank": 2,
-          "points": 149,
-          "group": "Proxima",
-          "title": "Digestive Flour"
+          "points": 69,
+          "group": "Coma",
+          "title": "The Control"
+        },
+        {
+          "rank": 2,
+          "points": 69,
+          "group": "Melon Dezign & Scoop",
+          "title": "Ninja II"
         },
         {
           "rank": 3,
-          "points": 102,
-          "group": "Scoop",
-          "title": "Dimension X"
+          "points": 38,
+          "group": "iNF",
+          "title": "Chunderchunk"
         },
         {
           "rank": 4,
-          "points": 78,
-          "group": "Scoop",
-          "title": "Ascii Mania"
+          "points": 35,
+          "group": "Sorrox",
+          "title": "Projection"
         },
         {
           "rank": 5,
-          "points": 69,
-          "group": "Orchide",
-          "title": "Firek"
+          "points": 24,
+          "group": "Sublogic",
+          "title": "Let There Be Light"
         },
         {
           "rank": 6,
-          "points": 53,
-          "group": "Bamboosh",
-          "title": "Hope"
+          "points": 21,
+          "group": "Excess",
+          "title": "Timeout"
         },
         {
           "rank": 7,
-          "points": 29,
-          "group": "Dr. Dyregod",
-          "title": "Scrolltext Forever"
+          "points": 18,
+          "group": "Virtual Rage",
+          "title": "Worlds"
         },
         {
           "rank": 8,
-          "points": 28,
-          "group": "Maak",
-          "title": "I've Been Roached"
+          "points": 17,
+          "group": "The Lost Souls",
+          "title": "Mind Over Matter"
+        },
+        {
+          "rank": 9,
+          "points": 13,
+          "group": "Xenogenesis",
+          "title": "Mystic"
+        },
+        {
+          "rank": 10,
+          "points": 8,
+          "group": "Crusaders Girls",
+          "title": "Hihi"
         }
       ],
       "unranked": {
-        "digestiv": {
-          "title": "DIGESTIVE FLOUR"
-        }
-      }
-    },
-    "amiga/in40": {
-      "compo": "Amiga 40K intro",
-      "platform": "amiga",
-      "medium": "intro",
-      "results": [
-        {
-          "rank": 1,
-          "points": 209,
-          "group": "Stellar",
-          "title": "Lights"
+        "fantazia": {
+          "group": "Nebula and Misc Design,",
+          "title": "demo"
         },
-        {
-          "rank": 2,
-          "points": 205,
-          "group": "Essence",
-          "title": "Brainbow"
-        },
-        {
-          "rank": 3,
-          "points": 140,
-          "group": "C-Lous",
-          "title": "Mixed Emotions"
-        },
-        {
-          "rank": 4,
-          "points": 69,
-          "group": "Stone Arts",
-          "title": "Heat"
-        },
-        {
-          "rank": 5,
-          "points": 52,
-          "group": "Apathy",
-          "title": "Disaster"
-        }
-      ],
-      "unranked": {
-        "tg96-40k": {
-          "title": "TG96: 40 kB intros"
-        }
-      }
-    },
-    "amiga/in4k": {
-      "compo": "Amiga 4K intro",
-      "platform": "amiga",
-      "medium": "intro",
-      "results": [
-        {
-          "rank": 1,
-          "points": 260,
-          "group": "The Black Lotus",
-          "title": "Gizmo 4Kb Intro"
-        },
-        {
-          "rank": 2,
-          "points": 218,
-          "group": "The Black Lotus",
-          "title": "EQ-4K"
-        },
-        {
-          "rank": 3,
-          "points": 102,
-          "group": "Rednex",
-          "title": "DMA Design"
-        },
-        {
-          "rank": 3,
-          "points": 102,
-          "group": "Depth",
-          "title": "Depth 4k"
-        },
-        {
-          "rank": 4,
-          "points": 72,
-          "group": "Contraz",
-          "title": "4k Intro"
-        },
-        {
-          "rank": 5,
-          "points": 67,
-          "group": "Giants",
-          "title": "Fade To Black"
-        },
-        {
-          "rank": 6,
-          "points": 62,
-          "group": "Hoaxers",
-          "title": "Arrgh!"
-        }
-      ],
-      "unranked": {
-        "tg96-4k": {
-          "title": "All 4kb intros at TG'96"
+        "st_peter": {
+          "group": "*HA! KUMIMUNA*",
+          "title": "CODE"
         }
       }
     },
@@ -487,223 +318,174 @@
         }
       }
     },
-    "grfx": {
-      "compo": "Graphics",
-      "platform": "pc",
-      "medium": "graphics",
+    "amiga/in4k": {
+      "compo": "Amiga 4K intro",
+      "platform": "amiga",
+      "medium": "intro",
       "results": [
         {
           "rank": 1,
-          "points": 114,
-          "title": "Me'n My Little Sister"
+          "points": 260,
+          "group": "The Black Lotus",
+          "title": "Gizmo 4Kb Intro"
         },
         {
           "rank": 2,
-          "points": 76,
-          "title": "Paradise"
+          "points": 218,
+          "group": "The Black Lotus",
+          "title": "EQ-4K"
         },
         {
           "rank": 3,
-          "points": 67,
-          "title": "Blitz"
+          "points": 102,
+          "group": "Rednex",
+          "title": "DMA Design"
+        },
+        {
+          "rank": 3,
+          "points": 102,
+          "group": "Depth",
+          "title": "Depth 4k"
         },
         {
           "rank": 4,
-          "points": 47,
-          "title": "Knock-Out"
+          "points": 72,
+          "group": "Contraz",
+          "title": "4k Intro"
         },
         {
           "rank": 5,
-          "points": 39,
-          "title": "Joachim"
+          "points": 67,
+          "group": "Giants",
+          "title": "Fade To Black"
         },
         {
           "rank": 6,
-          "points": 38,
-          "title": "Frankie"
-        },
-        {
-          "rank": 7,
-          "points": 34,
-          "title": "Vaeeel!"
-        },
-        {
-          "rank": 8,
-          "points": 29,
-          "title": "Scorupco"
-        },
-        {
-          "rank": 9,
-          "points": 28,
-          "title": "Ballerina"
-        },
-        {
-          "rank": 10,
-          "points": 27,
-          "title": "Genialt Bilde"
+          "points": 62,
+          "group": "Hoaxers",
+          "title": "Arrgh!"
         }
       ],
       "unranked": {
-        "blues": {
-          "title": "TYPE: IFF PICTURE"
-        },
-        "borninanarchy": {
-          "title": "Born In Anarchy - A IFF Picture by"
-        },
-        "defeatofdoubt": {
-          "title": "Defeat of Doubt\" a picture done by:"
-        },
-        "drill": {
-          "group": "DRAN/CTZ",
-          "title": "DRILL.IFF A PICTUR"
-        },
-        "fiskenfrode": {
-          "title": "TYPE: IFF PICTURE"
-        },
-        "hiddenfaces": {
-          "title": "type: picture/iff"
-        },
-        "inder": {
-          "title": "Type : Graphics"
-        },
-        "isolation": {
-          "title": "Type : Graphics"
-        },
-        "jagguhell": {
-          "title": "Type : ILBM graphics file"
-        },
-        "leguana": {
-          "title": "IFF image"
-        },
-        "manvsbeast": {
-          "title": "Man Vs Beast\" - A picture by:"
-        },
-        "meetingzeus": {
-          "group": "a book",
-          "title": "The face is more than inspired"
-        },
-        "ninetongues": {
-          "group": "Pix/Iris. Motive taken",
-          "title": "Description : A picture released at TG'96"
-        },
-        "passage": {
-          "title": "Type : Graphics"
-        },
-        "pulpfiction": {
-          "title": "TYPE: IFF PICTURE"
-        },
-        "soundwaves": {
-          "title": "Soundwaves\" - Picture drawn by:"
-        },
-        "sunchild": {
-          "group": "ATOM / Salmon Design",
-          "title": "A picture"
-        },
-        "sunface": {
-          "title": "Type : Graphics"
-        },
-        "uglyashell": {
-          "title": "TYPE: Graphic (IFF)"
-        },
-        "x-files2": {
-          "title": "║X-FILES picture / KJELL ARNE HAUGLAND║"
+        "tg96-4k": {
+          "title": "All 4kb intros at TG'96"
         }
       }
     },
-    "m4ch": {
-      "compo": "4-channel music",
-      "platform": "pc",
-      "medium": "music",
-      "results": [],
+    "amiga/in40": {
+      "compo": "Amiga 40K intro",
+      "platform": "amiga",
+      "medium": "intro",
+      "results": [
+        {
+          "rank": 1,
+          "points": 209,
+          "group": "Stellar",
+          "title": "Lights"
+        },
+        {
+          "rank": 2,
+          "points": 205,
+          "group": "Essence",
+          "title": "Brainbow"
+        },
+        {
+          "rank": 3,
+          "points": 140,
+          "group": "C-Lous",
+          "title": "Mixed Emotions"
+        },
+        {
+          "rank": 4,
+          "points": 69,
+          "group": "Stone Arts",
+          "title": "Heat"
+        },
+        {
+          "rank": 5,
+          "points": 52,
+          "group": "Apathy",
+          "title": "Disaster"
+        }
+      ],
       "unranked": {
-        "after8": {
-          "group": "Dr.Death/Eltech^ATS",
-          "title": "After eight"
-        },
-        "allesamm": {
-          "group": "14iss",
-          "title": "Allesammen"
-        },
-        "arctic": {
-          "group": "Espen_R/Sapphire",
-          "title": "Arctic"
-        },
-        "barock": {
-          "group": "Pinocchio/Contraz^BDZ",
-          "title": "Ba'rock"
-        },
-        "brothern": {
-          "group": "Isak & Kristian",
-          "title": "Brother nature"
-        },
-        "buggin": {
-          "group": "CPS/EPH",
-          "title": "Bugging"
-        },
-        "bugnfunk": {
-          "group": "Pyrex",
-          "title": "Big'n funky"
-        },
-        "cappucin": {
-          "group": "Some1&Morrow",
-          "title": "Cappuccino"
-        },
-        "church": {
-          "group": "Don-cato & Kdkdokin/Talent",
-          "title": "Church of funk!"
-        },
-        "circle": {
-          "title": "The Gathering '96 release"
-        },
-        "dawnoanm": {
-          "group": "Chris Meland",
-          "title": "Dawn of a new man"
-        },
-        "evening": {
-          "group": "D0lby/!mage Dreams",
-          "title": "Eveningjazz"
-        },
-        "keys_to_": {
-          "group": "Jogeir Liljedahl",
-          "title": "Keys to Imagination"
-        },
-        "ocean_ta": {
-          "group": "Vinnie/Spaceballs",
-          "title": "Ocean_taffel_magic"
-        },
-        "river_vo": {
-          "group": "Jerry/Rebels",
-          "title": "River volga"
+        "tg96-40k": {
+          "title": "TG96: 40 kB intros"
         }
       }
     },
-    "mmul": {
-      "compo": "Multichannel music",
-      "platform": "pc",
-      "medium": "music",
-      "results": [],
-      "unranked": {
-        "declara": {
-          "title": "Declaration of war"
+    "amiga/demo": {
+      "compo": "Amiga demo",
+      "platform": "amiga",
+      "medium": "demo",
+      "results": [
+        {
+          "rank": 1,
+          "points": 173,
+          "group": "The Black Lotus",
+          "title": "Tint"
         },
-        "ingrid_p": {
-          "title": "Ingrid Peters"
+        {
+          "rank": 2,
+          "points": 125,
+          "group": "Triumph",
+          "title": "Dreamscape"
         },
-        "k-t2tsht": {
-          "group": "KELTHAR/OG SYNDICACTE/DFN║",
-          "title": "║COMPSOED"
+        {
+          "rank": 3,
+          "points": 98,
+          "group": "Spaceballs",
+          "title": "Pinch"
         },
-        "p_stereo": {
-          "title": "Yr Stereo Pharmazeuth"
+        {
+          "rank": 4,
+          "points": 53,
+          "group": "Contraz",
+          "title": "Mystiq"
         },
-        "scarydrm": {
-          "group": "X-PRADICA/SUBLEVEL 3 ║",
-          "title": "║ COMPOSED"
+        {
+          "rank": 5,
+          "points": 34,
+          "group": "Bice Twice",
+          "title": "Sverige"
         },
-        "timeswtc": {
-          "title": "Kezoomer / TLS"
+        {
+          "rank": 6,
+          "points": 32,
+          "group": "Ward",
+          "title": "Once Upon A Time"
+        },
+        {
+          "rank": 7,
+          "points": 26,
+          "group": "Session",
+          "title": "Plump"
+        },
+        {
+          "rank": 8,
+          "points": 15,
+          "group": "Ephidrena",
+          "title": "Recycled"
+        },
+        {
+          "rank": 9,
+          "points": 7,
+          "group": "Ephidrena",
+          "title": "Kugalskap"
+        },
+        {
+          "rank": 10,
+          "points": 5,
+          "group": "Syntax",
+          "title": "D.U.M - Det Utrolige Mesterverk"
+        },
+        {
+          "rank": 11,
+          "points": 3,
+          "group": "Virus",
+          "title": "The Rap Demo"
         }
-      }
+      ]
     },
     "wild": {
       "compo": "Wild",
@@ -848,6 +630,224 @@
           "title": "Wild"
         }
       ]
+    },
+    "m4ch": {
+      "compo": "4-channel music",
+      "platform": "pc",
+      "medium": "music",
+      "results": [],
+      "unranked": {
+        "after8": {
+          "group": "Dr.Death/Eltech^ATS",
+          "title": "After eight"
+        },
+        "allesamm": {
+          "group": "14iss",
+          "title": "Allesammen"
+        },
+        "arctic": {
+          "group": "Espen_R/Sapphire",
+          "title": "Arctic"
+        },
+        "barock": {
+          "group": "Pinocchio/Contraz^BDZ",
+          "title": "Ba'rock"
+        },
+        "brothern": {
+          "group": "Isak & Kristian",
+          "title": "Brother nature"
+        },
+        "buggin": {
+          "group": "CPS/EPH",
+          "title": "Bugging"
+        },
+        "bugnfunk": {
+          "group": "Pyrex",
+          "title": "Big'n funky"
+        },
+        "cappucin": {
+          "group": "Some1&Morrow",
+          "title": "Cappuccino"
+        },
+        "church": {
+          "group": "Don-cato & Kdkdokin/Talent",
+          "title": "Church of funk!"
+        },
+        "circle": {
+          "title": "The Gathering '96 release"
+        },
+        "dawnoanm": {
+          "group": "Chris Meland",
+          "title": "Dawn of a new man"
+        },
+        "evening": {
+          "group": "D0lby/!mage Dreams",
+          "title": "Eveningjazz"
+        },
+        "keys_to_": {
+          "group": "Jogeir Liljedahl",
+          "title": "Keys to Imagination"
+        },
+        "ocean_ta": {
+          "group": "Vinnie/Spaceballs",
+          "title": "Ocean_taffel_magic"
+        },
+        "river_vo": {
+          "group": "Jerry/Rebels",
+          "title": "River volga"
+        }
+      }
+    },
+    "mmul": {
+      "compo": "Multichannel music",
+      "platform": "pc",
+      "medium": "music",
+      "results": [],
+      "unranked": {
+        "declara": {
+          "title": "Declaration of war"
+        },
+        "ingrid_p": {
+          "title": "Ingrid Peters"
+        },
+        "k-t2tsht": {
+          "group": "KELTHAR/OG SYNDICACTE/DFN║",
+          "title": "║COMPSOED"
+        },
+        "p_stereo": {
+          "title": "Yr Stereo Pharmazeuth"
+        },
+        "scarydrm": {
+          "group": "X-PRADICA/SUBLEVEL 3 ║",
+          "title": "║ COMPOSED"
+        },
+        "timeswtc": {
+          "title": "Kezoomer / TLS"
+        }
+      }
+    },
+    "grfx": {
+      "compo": "Graphics",
+      "platform": "pc",
+      "medium": "graphics",
+      "results": [
+        {
+          "rank": 1,
+          "points": 114,
+          "title": "Me'n My Little Sister"
+        },
+        {
+          "rank": 2,
+          "points": 76,
+          "title": "Paradise"
+        },
+        {
+          "rank": 3,
+          "points": 67,
+          "title": "Blitz"
+        },
+        {
+          "rank": 4,
+          "points": 47,
+          "title": "Knock-Out"
+        },
+        {
+          "rank": 5,
+          "points": 39,
+          "title": "Joachim"
+        },
+        {
+          "rank": 6,
+          "points": 38,
+          "title": "Frankie"
+        },
+        {
+          "rank": 7,
+          "points": 34,
+          "title": "Vaeeel!"
+        },
+        {
+          "rank": 8,
+          "points": 29,
+          "title": "Scorupco"
+        },
+        {
+          "rank": 9,
+          "points": 28,
+          "title": "Ballerina"
+        },
+        {
+          "rank": 10,
+          "points": 27,
+          "title": "Genialt Bilde"
+        }
+      ],
+      "unranked": {
+        "blues": {
+          "title": "TYPE: IFF PICTURE"
+        },
+        "borninanarchy": {
+          "title": "Born In Anarchy - A IFF Picture by"
+        },
+        "defeatofdoubt": {
+          "title": "Defeat of Doubt\" a picture done by:"
+        },
+        "drill": {
+          "group": "DRAN/CTZ",
+          "title": "DRILL.IFF A PICTUR"
+        },
+        "fiskenfrode": {
+          "title": "TYPE: IFF PICTURE"
+        },
+        "hiddenfaces": {
+          "title": "type: picture/iff"
+        },
+        "inder": {
+          "title": "Type : Graphics"
+        },
+        "isolation": {
+          "title": "Type : Graphics"
+        },
+        "jagguhell": {
+          "title": "Type : ILBM graphics file"
+        },
+        "leguana": {
+          "title": "IFF image"
+        },
+        "manvsbeast": {
+          "title": "Man Vs Beast\" - A picture by:"
+        },
+        "meetingzeus": {
+          "group": "a book",
+          "title": "The face is more than inspired"
+        },
+        "ninetongues": {
+          "group": "Pix/Iris. Motive taken",
+          "title": "Description : A picture released at TG'96"
+        },
+        "passage": {
+          "title": "Type : Graphics"
+        },
+        "pulpfiction": {
+          "title": "TYPE: IFF PICTURE"
+        },
+        "soundwaves": {
+          "title": "Soundwaves\" - Picture drawn by:"
+        },
+        "sunchild": {
+          "group": "ATOM / Salmon Design",
+          "title": "A picture"
+        },
+        "sunface": {
+          "title": "Type : Graphics"
+        },
+        "uglyashell": {
+          "title": "TYPE: Graphic (IFF)"
+        },
+        "x-files2": {
+          "title": "║X-FILES picture / KJELL ARNE HAUGLAND║"
+        }
+      }
     }
   }
 }

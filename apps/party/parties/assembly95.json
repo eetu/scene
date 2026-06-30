@@ -6,161 +6,150 @@
   "organizer": "Assembly Organizing",
   "folder_name": "rank-group-title",
   "categories": {
-    "demo": {
-      "compo": "PC demo",
+    "in4k": {
+      "compo": "PC 4K intro",
       "platform": "pc",
-      "medium": "demo",
+      "medium": "intro",
       "results": [
         {
           "rank": 1,
-          "points": 3646,
-          "group": "Nooon",
-          "title": "Stars : Wonders of the world"
+          "points": 2100,
+          "group": "Schwartz",
+          "title": "Animate"
         },
         {
           "rank": 2,
-          "points": 1482,
-          "group": "Juice",
-          "title": "Psychic link"
+          "points": 1729,
+          "group": "Barti!/Nooon",
+          "title": "Heaven"
         },
         {
           "rank": 3,
-          "points": 1204,
-          "group": "RealTech",
-          "title": "DX Project"
+          "points": 1008,
+          "group": "J-P/Rebels",
+          "title": "Crashtest"
         },
         {
           "rank": 4,
-          "points": 1039,
-          "group": "Capacala",
-          "title": "Zweilight Zone"
+          "points": 948,
+          "group": "TomCat/Abaddon",
+          "title": "Chrome"
         },
         {
           "rank": 5,
-          "points": 916,
-          "group": "Epical",
-          "title": "Rebel Mind"
+          "points": 836,
+          "group": "Vicious/Extreme",
+          "title": "Havoc"
         },
         {
           "rank": 6,
-          "points": 896,
-          "group": "Miracle",
-          "title": "Higher Desire"
+          "points": 801,
+          "group": "Codex/Paranoids",
+          "title": "Speed"
         },
         {
           "rank": 7,
-          "points": 799,
-          "group": "Orange",
-          "title": "Television"
+          "points": 696,
+          "group": "Blala/Byteam",
+          "title": "Complexity"
         },
         {
           "rank": 8,
-          "points": 587,
-          "group": "Dubius",
-          "title": "Optimal Torque"
+          "points": 608,
+          "group": "Tobias Glasmachers",
+          "title": "Dragon"
         },
         {
           "rank": 9,
-          "points": 541,
-          "group": "Kosmic",
-          "title": "Little Green Men"
+          "points": 559,
+          "group": "-",
+          "title": "Bit"
         },
         {
           "rank": 10,
-          "points": 372,
-          "group": "JapoTek",
-          "title": "Figthing for something"
+          "points": 430,
+          "group": "Pascal/Cubic Team",
+          "title": "Loop01"
         },
         {
           "rank": 11,
-          "points": 224,
-          "group": "Masque",
-          "title": "Mystery"
+          "points": 366,
+          "group": "-",
+          "title": "Ahrum"
         },
         {
           "rank": 12,
-          "points": 175,
-          "group": "tArzAn tuotanto",
-          "title": "Syllabization"
+          "points": 340,
+          "group": "Lunatic",
+          "title": "Only for few bytes"
         },
         {
           "rank": 13,
-          "points": 153,
-          "group": "Black Rain",
-          "title": "Overflow"
+          "points": 337,
+          "group": "Galvados/Jamm",
+          "title": "Redrum"
         },
         {
           "rank": 14,
-          "points": 143,
-          "group": "Deus ex Machina",
-          "title": "Fever"
+          "points": 326,
+          "group": "-",
+          "title": "Strictly 4kb"
         },
         {
           "rank": 15,
-          "points": 33,
-          "group": "Simplicity",
-          "title": "Elegant"
+          "points": 324,
+          "group": "-",
+          "title": "Shine"
         }
       ],
       "unranked": {
-        "alku": {
-          "group": "Vehje",
-          "title": "Alku - the beginning"
+        "165plasm": {
+          "group": "Project/Fobia Design",
+          "title": "Coding"
         },
-        "amendino": {
-          "title": "A-MEN CONTRIBUTION TO"
+        "4kas95_3": {
+          "title": "- ORTNI -"
         },
-        "attack": {
-          "title": "FObia dESIGn is proud to present"
+        "4kg": {
+          "group": "LOPEZ & FIREHAWK =",
+          "title": "= CODED"
         },
-        "beta": {
-          "title": "BETA! Digitize Design Group"
+        "aivopesu": {
+          "title": "Fucking documents to 4k intro called Aivopesu..."
         },
-        "dcc_sck": {
-          "group": "DCC.",
-          "title": "demo"
+        "bbuumi": {
+          "title": "│ Rubicon's presentation: ║"
         },
-        "deaparca": {
-          "title": "The Underworld Corporation"
+        "fraction": {
+          "title": "│ Fraction │"
         },
-        "distance": {
-          "title": "▒ ■ ASM'95 demo competition entry ■ ▒"
+        "hellfire": {
+          "title": "A totally amazing 4kb"
         },
-        "divinebo": {
-          "title": "* an Assembly '95 demo release *"
+        "naimapam": {
+          "title": "Åkesoftin päätä huimaava 4kb-"
         },
-        "ftj_love": {
-          "title": "* an Assembly '95 demo release *"
+        "nunna": {
+          "title": "Åkesoftin panostus asm-95"
         },
-        "jeriko": {
-          "title": "│ JERIKO"
+        "ortni": {
+          "title": "- ORTNI -"
         },
-        "mfx_ds": {
-          "title": "│DIGITAL SONIC from MFX │"
+        "pamppu": {
+          "title": "Åkesoftin päätä huimaava 4kb-"
         },
-        "opera": {
-          "group": "Jolly Workers",
-          "title": "Opera"
+        "riuku": {
+          "title": "ASM'95-vitun-koko-perseen-peli-"
         },
-        "shock": {
-          "group": "DCC",
-          "title": "demo"
+        "smooth": {
+          "group": ": Pulp",
+          "title": "made"
         },
-        "syndrome": {
-          "title": "Syndrooma-äks"
+        "starlit": {
+          "title": "XoR / StarByte presents"
         },
-        "triangle": {
-          "group": "Trillian",
-          "title": "Triangle"
-        },
-        "tuc_dp20": {
-          "title": "The Underworld Corporation"
-        },
-        "vhjdmo": {
-          "title": "VHJDEMO from ASM'95"
-        },
-        "zoomeri": {
-          "title": "Assembly'95:n virallinen"
+        "wiswatch": {
+          "title": "Info File for the jury only"
         }
       }
     },
@@ -322,152 +311,431 @@
         }
       }
     },
-    "in4k": {
-      "compo": "PC 4K intro",
+    "demo": {
+      "compo": "PC demo",
       "platform": "pc",
+      "medium": "demo",
+      "results": [
+        {
+          "rank": 1,
+          "points": 3646,
+          "group": "Nooon",
+          "title": "Stars : Wonders of the world"
+        },
+        {
+          "rank": 2,
+          "points": 1482,
+          "group": "Juice",
+          "title": "Psychic link"
+        },
+        {
+          "rank": 3,
+          "points": 1204,
+          "group": "RealTech",
+          "title": "DX Project"
+        },
+        {
+          "rank": 4,
+          "points": 1039,
+          "group": "Capacala",
+          "title": "Zweilight Zone"
+        },
+        {
+          "rank": 5,
+          "points": 916,
+          "group": "Epical",
+          "title": "Rebel Mind"
+        },
+        {
+          "rank": 6,
+          "points": 896,
+          "group": "Miracle",
+          "title": "Higher Desire"
+        },
+        {
+          "rank": 7,
+          "points": 799,
+          "group": "Orange",
+          "title": "Television"
+        },
+        {
+          "rank": 8,
+          "points": 587,
+          "group": "Dubius",
+          "title": "Optimal Torque"
+        },
+        {
+          "rank": 9,
+          "points": 541,
+          "group": "Kosmic",
+          "title": "Little Green Men"
+        },
+        {
+          "rank": 10,
+          "points": 372,
+          "group": "JapoTek",
+          "title": "Figthing for something"
+        },
+        {
+          "rank": 11,
+          "points": 224,
+          "group": "Masque",
+          "title": "Mystery"
+        },
+        {
+          "rank": 12,
+          "points": 175,
+          "group": "tArzAn tuotanto",
+          "title": "Syllabization"
+        },
+        {
+          "rank": 13,
+          "points": 153,
+          "group": "Black Rain",
+          "title": "Overflow"
+        },
+        {
+          "rank": 14,
+          "points": 143,
+          "group": "Deus ex Machina",
+          "title": "Fever"
+        },
+        {
+          "rank": 15,
+          "points": 33,
+          "group": "Simplicity",
+          "title": "Elegant"
+        }
+      ],
+      "unranked": {
+        "alku": {
+          "group": "Vehje",
+          "title": "Alku - the beginning"
+        },
+        "amendino": {
+          "title": "A-MEN CONTRIBUTION TO"
+        },
+        "attack": {
+          "title": "FObia dESIGn is proud to present"
+        },
+        "beta": {
+          "title": "BETA! Digitize Design Group"
+        },
+        "dcc_sck": {
+          "group": "DCC.",
+          "title": "demo"
+        },
+        "deaparca": {
+          "title": "The Underworld Corporation"
+        },
+        "distance": {
+          "title": "▒ ■ ASM'95 demo competition entry ■ ▒"
+        },
+        "divinebo": {
+          "title": "* an Assembly '95 demo release *"
+        },
+        "ftj_love": {
+          "title": "* an Assembly '95 demo release *"
+        },
+        "jeriko": {
+          "title": "│ JERIKO"
+        },
+        "mfx_ds": {
+          "title": "│DIGITAL SONIC from MFX │"
+        },
+        "opera": {
+          "group": "Jolly Workers",
+          "title": "Opera"
+        },
+        "shock": {
+          "group": "DCC",
+          "title": "demo"
+        },
+        "syndrome": {
+          "title": "Syndrooma-äks"
+        },
+        "triangle": {
+          "group": "Trillian",
+          "title": "Triangle"
+        },
+        "tuc_dp20": {
+          "title": "The Underworld Corporation"
+        },
+        "vhjdmo": {
+          "title": "VHJDEMO from ASM'95"
+        },
+        "zoomeri": {
+          "title": "Assembly'95:n virallinen"
+        }
+      }
+    },
+    "amiga/in40": {
+      "compo": "Amiga 40K intro",
+      "platform": "amiga",
       "medium": "intro",
       "results": [
         {
           "rank": 1,
-          "points": 2100,
-          "group": "Schwartz",
-          "title": "Animate"
+          "points": 2312,
+          "group": "Sonik",
+          "title": "FAD"
         },
         {
           "rank": 2,
-          "points": 1729,
-          "group": "Barti!/Nooon",
-          "title": "Heaven"
+          "points": 1933,
+          "group": "Hirmu",
+          "title": "Hauki"
         },
         {
           "rank": 3,
-          "points": 1008,
-          "group": "J-P/Rebels",
-          "title": "Crashtest"
+          "points": 1354,
+          "group": "Sonik",
+          "title": "Blur"
         },
         {
           "rank": 4,
-          "points": 948,
-          "group": "TomCat/Abaddon",
-          "title": "Chrome"
+          "points": 869,
+          "group": "Banal Projects",
+          "title": "Seasick"
         },
         {
           "rank": 5,
-          "points": 836,
-          "group": "Vicious/Extreme",
-          "title": "Havoc"
+          "points": 772,
+          "group": "C-Lous",
+          "title": "Assembly 95 40k Intro"
         },
         {
           "rank": 6,
-          "points": 801,
-          "group": "Codex/Paranoids",
-          "title": "Speed"
+          "points": 714,
+          "group": "Extend",
+          "title": "Sections"
         },
         {
           "rank": 7,
-          "points": 696,
-          "group": "Blala/Byteam",
-          "title": "Complexity"
+          "points": 648,
+          "group": "Yodel",
+          "title": "Oberon"
         },
         {
           "rank": 8,
-          "points": 608,
-          "group": "Tobias Glasmachers",
-          "title": "Dragon"
+          "points": 427,
+          "group": "RRR",
+          "title": "Cinderhatch"
         },
         {
           "rank": 9,
-          "points": 559,
-          "group": "-",
-          "title": "Bit"
+          "points": 340,
+          "group": "Bomb Squad",
+          "title": "Ultimate Stress"
         },
         {
           "rank": 10,
-          "points": 430,
-          "group": "Pascal/Cubic Team",
-          "title": "Loop01"
+          "points": 311,
+          "group": "Heretic",
+          "title": "Delirium"
         },
         {
           "rank": 11,
-          "points": 366,
-          "group": "-",
-          "title": "Ahrum"
+          "points": 272,
+          "group": "Royal",
+          "title": "Sauna!"
         },
         {
           "rank": 12,
-          "points": 340,
-          "group": "Lunatic",
-          "title": "Only for few bytes"
+          "points": 209,
+          "group": "Cirion",
+          "title": "Hope"
         },
         {
           "rank": 13,
-          "points": 337,
-          "group": "Galvados/Jamm",
-          "title": "Redrum"
+          "points": 206,
+          "group": "Kinky",
+          "title": "Sumu"
         },
         {
           "rank": 14,
-          "points": 326,
-          "group": "-",
-          "title": "Strictly 4kb"
+          "points": 188,
+          "group": "Amacon",
+          "title": "Mission Impossible"
         },
         {
           "rank": 15,
-          "points": 324,
-          "group": "-",
-          "title": "Shine"
+          "points": 108,
+          "group": "Diffusion",
+          "title": "Kintro"
         }
-      ],
-      "unranked": {
-        "165plasm": {
-          "group": "Project/Fobia Design",
-          "title": "Coding"
+      ]
+    },
+    "amiga/demo": {
+      "compo": "Amiga demo",
+      "platform": "amiga",
+      "medium": "demo",
+      "results": [
+        {
+          "rank": 1,
+          "points": 2917,
+          "group": "Parallax",
+          "title": "ZIF"
         },
-        "4kas95_3": {
-          "title": "- ORTNI -"
+        {
+          "rank": 2,
+          "points": 1950,
+          "group": "Pygmy Projects",
+          "title": "Logic"
         },
-        "4kg": {
-          "group": "LOPEZ & FIREHAWK =",
-          "title": "= CODED"
+        {
+          "rank": 3,
+          "points": 1366,
+          "group": "Stellar",
+          "title": "Miracles"
         },
-        "aivopesu": {
-          "title": "Fucking documents to 4k intro called Aivopesu..."
+        {
+          "rank": 4,
+          "points": 1224,
+          "group": "Silents",
+          "title": "Fruit Kitchen"
         },
-        "bbuumi": {
-          "title": "│ Rubicon's presentation: ║"
+        {
+          "rank": 5,
+          "points": 980,
+          "group": "Juliet and Case",
+          "title": "C42"
         },
-        "fraction": {
-          "title": "│ Fraction │"
+        {
+          "rank": 6,
+          "points": 902,
+          "group": "Complex",
+          "title": "Dive"
         },
-        "hellfire": {
-          "title": "A totally amazing 4kb"
+        {
+          "rank": 7,
+          "points": 457,
+          "group": "Fanatic",
+          "title": "Hate 2"
         },
-        "naimapam": {
-          "title": "Åkesoftin päätä huimaava 4kb-"
+        {
+          "rank": 8,
+          "points": 356,
+          "group": "Balance",
+          "title": "Embryo"
         },
-        "nunna": {
-          "title": "Åkesoftin panostus asm-95"
+        {
+          "rank": 9,
+          "points": 317,
+          "group": "Zymosis",
+          "title": "Wc goes to wc"
         },
-        "ortni": {
-          "title": "- ORTNI -"
+        {
+          "rank": 10,
+          "points": 281,
+          "group": "Embassy",
+          "title": "Thrilled"
         },
-        "pamppu": {
-          "title": "Åkesoftin päätä huimaava 4kb-"
+        {
+          "rank": 11,
+          "points": 235,
+          "group": "Abyss",
+          "title": "High Anxiety"
         },
-        "riuku": {
-          "title": "ASM'95-vitun-koko-perseen-peli-"
+        {
+          "rank": 12,
+          "points": 217,
+          "group": "Black Lotus"
         },
-        "smooth": {
-          "group": ": Pulp",
-          "title": "made"
+        {
+          "rank": 13,
+          "points": 115,
+          "group": "Domination",
+          "title": "Domination's Dentro"
         },
-        "starlit": {
-          "title": "XoR / StarByte presents"
+        {
+          "rank": 14,
+          "points": 27
         },
-        "wiswatch": {
-          "title": "Info File for the jury only"
+        {
+          "rank": 15,
+          "points": 26
         }
-      }
+      ]
+    },
+    "c64/demo": {
+      "compo": "C64 demo",
+      "platform": "c64",
+      "medium": "demo",
+      "results": [
+        {
+          "rank": 1,
+          "points": 3874,
+          "group": "Byterapers Inc.",
+          "title": "Extremes"
+        },
+        {
+          "rank": 2,
+          "points": 2227,
+          "group": "Panic",
+          "title": "Break Through II"
+        },
+        {
+          "rank": 3,
+          "points": 2212,
+          "group": "Beyond Force",
+          "title": "7 Years"
+        },
+        {
+          "rank": 4,
+          "points": 1132,
+          "group": "Crest",
+          "title": "It's comming"
+        },
+        {
+          "rank": 5,
+          "points": 1012,
+          "group": "Symptom C64 Section",
+          "title": "Bizarre"
+        },
+        {
+          "rank": 6,
+          "points": 647,
+          "group": "Chaos C64 Division",
+          "title": "Tribute to Albert Hofmann"
+        },
+        {
+          "rank": 7,
+          "points": 107
+        },
+        {
+          "rank": 8,
+          "points": 25
+        },
+        {
+          "rank": 9,
+          "points": 23
+        },
+        {
+          "rank": 10,
+          "points": 18
+        },
+        {
+          "rank": 11,
+          "points": 14
+        },
+        {
+          "rank": 12,
+          "points": 6
+        },
+        {
+          "rank": 13,
+          "points": 5
+        },
+        {
+          "rank": 14,
+          "points": 3
+        },
+        {
+          "rank": 15,
+          "points": 2
+        }
+      ]
     },
     "m4ch": {
       "compo": "4-channel music",
@@ -2181,274 +2449,6 @@
           "title": "Matter - FLI anim from ASM'95"
         }
       }
-    },
-    "amiga/demo": {
-      "compo": "Amiga demo",
-      "platform": "amiga",
-      "medium": "demo",
-      "results": [
-        {
-          "rank": 1,
-          "points": 2917,
-          "group": "Parallax",
-          "title": "ZIF"
-        },
-        {
-          "rank": 2,
-          "points": 1950,
-          "group": "Pygmy Projects",
-          "title": "Logic"
-        },
-        {
-          "rank": 3,
-          "points": 1366,
-          "group": "Stellar",
-          "title": "Miracles"
-        },
-        {
-          "rank": 4,
-          "points": 1224,
-          "group": "Silents",
-          "title": "Fruit Kitchen"
-        },
-        {
-          "rank": 5,
-          "points": 980,
-          "group": "Juliet and Case",
-          "title": "C42"
-        },
-        {
-          "rank": 6,
-          "points": 902,
-          "group": "Complex",
-          "title": "Dive"
-        },
-        {
-          "rank": 7,
-          "points": 457,
-          "group": "Fanatic",
-          "title": "Hate 2"
-        },
-        {
-          "rank": 8,
-          "points": 356,
-          "group": "Balance",
-          "title": "Embryo"
-        },
-        {
-          "rank": 9,
-          "points": 317,
-          "group": "Zymosis",
-          "title": "Wc goes to wc"
-        },
-        {
-          "rank": 10,
-          "points": 281,
-          "group": "Embassy",
-          "title": "Thrilled"
-        },
-        {
-          "rank": 11,
-          "points": 235,
-          "group": "Abyss",
-          "title": "High Anxiety"
-        },
-        {
-          "rank": 12,
-          "points": 217,
-          "group": "Black Lotus"
-        },
-        {
-          "rank": 13,
-          "points": 115,
-          "group": "Domination",
-          "title": "Domination's Dentro"
-        },
-        {
-          "rank": 14,
-          "points": 27
-        },
-        {
-          "rank": 15,
-          "points": 26
-        }
-      ]
-    },
-    "amiga/in40": {
-      "compo": "Amiga 40K intro",
-      "platform": "amiga",
-      "medium": "intro",
-      "results": [
-        {
-          "rank": 1,
-          "points": 2312,
-          "group": "Sonik",
-          "title": "FAD"
-        },
-        {
-          "rank": 2,
-          "points": 1933,
-          "group": "Hirmu",
-          "title": "Hauki"
-        },
-        {
-          "rank": 3,
-          "points": 1354,
-          "group": "Sonik",
-          "title": "Blur"
-        },
-        {
-          "rank": 4,
-          "points": 869,
-          "group": "Banal Projects",
-          "title": "Seasick"
-        },
-        {
-          "rank": 5,
-          "points": 772,
-          "group": "C-Lous",
-          "title": "Assembly 95 40k Intro"
-        },
-        {
-          "rank": 6,
-          "points": 714,
-          "group": "Extend",
-          "title": "Sections"
-        },
-        {
-          "rank": 7,
-          "points": 648,
-          "group": "Yodel",
-          "title": "Oberon"
-        },
-        {
-          "rank": 8,
-          "points": 427,
-          "group": "RRR",
-          "title": "Cinderhatch"
-        },
-        {
-          "rank": 9,
-          "points": 340,
-          "group": "Bomb Squad",
-          "title": "Ultimate Stress"
-        },
-        {
-          "rank": 10,
-          "points": 311,
-          "group": "Heretic",
-          "title": "Delirium"
-        },
-        {
-          "rank": 11,
-          "points": 272,
-          "group": "Royal",
-          "title": "Sauna!"
-        },
-        {
-          "rank": 12,
-          "points": 209,
-          "group": "Cirion",
-          "title": "Hope"
-        },
-        {
-          "rank": 13,
-          "points": 206,
-          "group": "Kinky",
-          "title": "Sumu"
-        },
-        {
-          "rank": 14,
-          "points": 188,
-          "group": "Amacon",
-          "title": "Mission Impossible"
-        },
-        {
-          "rank": 15,
-          "points": 108,
-          "group": "Diffusion",
-          "title": "Kintro"
-        }
-      ]
-    },
-    "c64/demo": {
-      "compo": "C64 demo",
-      "platform": "c64",
-      "medium": "demo",
-      "results": [
-        {
-          "rank": 1,
-          "points": 3874,
-          "group": "Byterapers Inc.",
-          "title": "Extremes"
-        },
-        {
-          "rank": 2,
-          "points": 2227,
-          "group": "Panic",
-          "title": "Break Through II"
-        },
-        {
-          "rank": 3,
-          "points": 2212,
-          "group": "Beyond Force",
-          "title": "7 Years"
-        },
-        {
-          "rank": 4,
-          "points": 1132,
-          "group": "Crest",
-          "title": "It's comming"
-        },
-        {
-          "rank": 5,
-          "points": 1012,
-          "group": "Symptom C64 Section",
-          "title": "Bizarre"
-        },
-        {
-          "rank": 6,
-          "points": 647,
-          "group": "Chaos C64 Division",
-          "title": "Tribute to Albert Hofmann"
-        },
-        {
-          "rank": 7,
-          "points": 107
-        },
-        {
-          "rank": 8,
-          "points": 25
-        },
-        {
-          "rank": 9,
-          "points": 23
-        },
-        {
-          "rank": 10,
-          "points": 18
-        },
-        {
-          "rank": 11,
-          "points": 14
-        },
-        {
-          "rank": 12,
-          "points": 6
-        },
-        {
-          "rank": 13,
-          "points": 5
-        },
-        {
-          "rank": 14,
-          "points": 3
-        },
-        {
-          "rank": 15,
-          "points": 2
-        }
-      ]
     },
     "c64/graphics_music": {
       "compo": "C64 graphics & music",
