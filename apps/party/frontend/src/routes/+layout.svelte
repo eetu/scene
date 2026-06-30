@@ -26,6 +26,24 @@
       return () => mq.removeEventListener("change", apply);
     }
   });
+
+  // iOS standalone caches a stale value for the CSS viewport units (100dvh/100vh)
+  // at launch — the shell shows a band until the first viewport change (a manual
+  // rotate fixes it). window.innerHeight stays reliable, so mirror it into a CSS
+  // var and keep it current; the shell then fills the screen without a rotate.
+  $effect(() => {
+    const setH = () =>
+      document.documentElement.style.setProperty("--app-height", `${window.innerHeight}px`);
+    setH();
+    const raf = requestAnimationFrame(setH);
+    window.addEventListener("resize", setH);
+    window.addEventListener("orientationchange", setH);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", setH);
+      window.removeEventListener("orientationchange", setH);
+    };
+  });
 </script>
 
 {@render children()}
@@ -92,14 +110,15 @@
 	   itself never scrolls — no phantom page scrollbar behind the player overlay. */
   :global(html),
   :global(body) {
-    /* 100dvh, not 100%: in an iOS standalone (home-screen) app, height:100%
-       resolves to the *safe-area* height and anchors content at the top — that
-       slid the header under the status bar and dumped the inset space as a dead
-       band at the bottom. The dynamic viewport unit fills the real screen; the
-       env() insets then pad content off the notch + home indicator. (100% is
-       kept first as the fallback for engines without dvh.) */
+    /* Fill the real screen in an iOS standalone app, where height:100% resolves
+       to the *safe-area* box and anchors content at the top (header under the
+       status bar, dead band at the bottom). --app-height is set from
+       window.innerHeight by the layout — reliable even when iOS caches stale
+       100dvh/100vh at launch; 100dvh/100% are the pre-JS + no-dvh fallbacks. The
+       env() insets then pad content off the notch + home indicator. */
     height: 100%;
     height: 100dvh;
+    height: var(--app-height, 100dvh);
   }
   :global(body) {
     margin: 0;
