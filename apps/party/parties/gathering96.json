@@ -60,12 +60,7 @@
           "title": "I've Been Roached"
         }
       ],
-      "unranked": {
-        "digestiv": {
-          "group": "Proxima",
-          "title": "Digestive Flour"
-        }
-      }
+      "unranked": {}
     },
     "in64": {
       "compo": "PC 64K intro",
@@ -144,12 +139,7 @@
           "title": "Chunky Salsa!"
         }
       ],
-      "unranked": {
-        "jungle": {
-          "group": "Index",
-          "title": "Jungle Fever"
-        }
-      }
+      "unranked": {}
     },
     "demo": {
       "compo": "PC demo",
@@ -312,12 +302,7 @@
           "title": "Fast"
         }
       ],
-      "unranked": {
-        "eli_rygg": {
-          "group": "Old Fashion",
-          "title": "Trekant med Eli Rygg"
-        }
-      }
+      "unranked": {}
     },
     "amiga/in4k": {
       "compo": "Amiga 4K intro",
