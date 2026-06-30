@@ -16,6 +16,18 @@
 
   const NATIVE_IMG = new Set(["gif", "jpg", "jpeg", "png"]);
 
+  // Thumbnail fallback glyph: initials from each word's first letter, skipping
+  // words that start with a digit or symbol ("The Gathering 1996" → "TG").
+  function initials(name: string): string {
+    const out = name
+      .split(/\s+/)
+      .map((w) => w[0])
+      .filter((c) => c && /[a-z]/i.test(c))
+      .join("")
+      .toUpperCase();
+    return out || "?";
+  }
+
   async function load() {
     status = await api.status();
     if (status.scanning) {
@@ -86,7 +98,7 @@
             {#if p.logo_hash && p.logo_kind && NATIVE_IMG.has(p.logo_kind === "image" ? "gif" : p.logo_kind)}
               <img src={fileUrl(p.logo_hash)} alt="" />
             {:else}
-              <span class="glyph">{(p.name[0] ?? "?").toUpperCase()}</span>
+              <span class="glyph">{initials(p.name)}</span>
             {/if}
           </div>
           <div class="meta">
@@ -230,7 +242,9 @@
   }
   .glyph {
     font-family: var(--font-retro);
-    font-size: 32px;
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: 1px;
     color: var(--accent);
   }
   .meta h2 {
