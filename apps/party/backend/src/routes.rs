@@ -253,7 +253,7 @@ async fn api_productions(
     let mut missing = Vec::new();
     for (cat, c) in &cfg.categories {
         let order = cfg.category_order(cat).map(|i| i as i64);
-        for row in &c.results {
+        for (i, row) in c.results.iter().enumerate() {
             let has = match (row.title.as_deref(), row.group.as_deref()) {
                 (Some(t), _) if !t.is_empty() => {
                     present_titles.contains(&(cat.clone(), norm(t)))
@@ -266,8 +266,13 @@ async fn api_productions(
             if has {
                 continue;
             }
+            // The result's position (`i`) makes the id unique even when two
+            // entries tie at the same rank with the same title (e.g. TG96 fast
+            // intro #11 "Fast" by both Efface and The Imp) — without it both
+            // would collide on `missing-{cat}-{rank}-{title}` and the SPA's
+            // keyed {#each} would throw, leaving the whole compo unopenable.
             missing.push(ProductionOut {
-                id: format!("missing-{cat}-{}-{}", row.rank, norm(row.title.as_deref().or(row.group.as_deref()).unwrap_or(""))),
+                id: format!("missing-{cat}-{}-{i}-{}", row.rank, norm(row.title.as_deref().or(row.group.as_deref()).unwrap_or(""))),
                 category: cat.clone(),
                 compo: c.compo.clone(),
                 platform: c.platform.clone(),

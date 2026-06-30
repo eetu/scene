@@ -80,6 +80,12 @@
     const opts: Record<string, string> = { "virtual-gamepad": "disabled" };
     if (core === "amiga") {
       opts.puae_model = "A1200"; // force AGA — our Amiga content is AGA demos
+      // The A1200 preset is "2M Chip + 8M Fast", but the individual memory
+      // options override the model preset, and EmulatorJS writes them all at the
+      // core's default (fast = 0). With no fast RAM, any sizable demo aborts on
+      // launch with "not enough memory available / returncode 10" (verified in
+      // UAE). Force 8 MB Zorro-II fast back on so the demos actually load.
+      opts.puae_fastmem_size = "8";
       opts.puae_cpu_compatibility = "exact"; // demo-accurate (heaviest) timing
       opts.puae_collision_level = "none"; // demos don't need collision — saves CPU
     } else if (core === "c64") {

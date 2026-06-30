@@ -225,21 +225,27 @@
       <button onclick={sendEsc} disabled={!ci} title="Send ESC to the demo">ESC</button>
       {#if coarse}
         <button onclick={raiseKeyboard} disabled={!ci} title="Show keyboard" aria-label="Keyboard">
-          <Keyboard size={16} /> Keys
+          <Keyboard size={16} /><span class="lbl">Keys</span>
         </button>
       {/if}
       <button
         onclick={() => (showSound = !showSound)}
         class:active={showSound}
         title="Sound card settings"
+        aria-label="Sound card settings"
       >
-        <Volume2 size={16} /> Sound
+        <Volume2 size={16} /><span class="lbl">Sound</span>
       </button>
       <button onclick={fullscreen} title="Fullscreen" aria-label="Fullscreen">
-        <Maximize size={16} /> Fullscreen
+        <Maximize size={16} /><span class="lbl">Fullscreen</span>
       </button>
-      <button class="exit" onclick={exitEmu} title="Stop the emulator">
-        <Power size={16} /> Exit
+      <button
+        class="exit"
+        onclick={exitEmu}
+        title="Stop the emulator"
+        aria-label="Stop the emulator"
+      >
+        <Power size={16} /><span class="lbl">Exit</span>
       </button>
     </div>
   {/if}
@@ -250,8 +256,11 @@
     <div class="snack" role="status">
       <Volume2 size={16} />
       <div class="snack-text">
-        <b>Sound card?</b> Pick <b>Gravis UltraSound</b> — Port 240 · IRQ 5 · DMA 3.
-        <span class="snack-sub">Sound Blaster 16 also set: 220 · IRQ 7 · DMA 1/5</span>
+        <b>Sound card?</b> Pick <b>Gravis&nbsp;UltraSound</b> — Port&nbsp;240 · IRQ&nbsp;5 ·
+        DMA&nbsp;3.
+        <span class="snack-sub"
+          >Sound&nbsp;Blaster&nbsp;16 also set: 220 · IRQ&nbsp;7 · DMA&nbsp;1/5</span
+        >
       </div>
       <button class="snack-x" onclick={() => (showSound = false)} aria-label="Dismiss hint">
         <X size={14} />
@@ -356,17 +365,34 @@
     border-color: var(--accent);
     color: var(--accent);
   }
-  /* Sound-card hint snackbar — floats over the bottom of the screen. */
+  /* On phones the labelled buttons overflow the row (worse once the touch-only
+     Keys button joins), so collapse them to icons. ESC has no icon, so its text
+     stays; the rest keep their aria-label for accessibility. */
+  @media (max-width: 640px) {
+    .bar button .lbl {
+      display: none;
+    }
+    .bar button {
+      padding: 7px 9px;
+    }
+  }
+  /* Sound-card hint snackbar — floats over the bottom of the screen. Anchor both
+     edges (not left:50% + translateX, which caps an auto-width absolute box at
+     half the container and forced cramped wrapping); margin-inline:auto then
+     centres it, so it fills the width on mobile and only caps at 460px on wide. */
   .snack {
     position: absolute;
-    left: 50%;
+    left: 12px;
+    right: 12px;
     bottom: 14px;
-    transform: translateX(-50%);
+    margin-inline: auto;
     z-index: 6;
     display: flex;
-    align-items: center;
+    /* Top-align so the icon + ✕ stay next to the heading when the text wraps to
+       several lines on narrow screens (centering floated them to the middle). */
+    align-items: flex-start;
     gap: 10px;
-    max-width: min(460px, calc(100% - 24px));
+    max-width: 460px;
     padding: 8px 8px 8px 12px;
     background: var(--panel);
     border: 1px solid var(--border);
