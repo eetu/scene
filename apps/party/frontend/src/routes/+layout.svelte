@@ -92,7 +92,14 @@
 	   itself never scrolls — no phantom page scrollbar behind the player overlay. */
   :global(html),
   :global(body) {
+    /* 100dvh, not 100%: in an iOS standalone (home-screen) app, height:100%
+       resolves to the *safe-area* height and anchors content at the top — that
+       slid the header under the status bar and dumped the inset space as a dead
+       band at the bottom. The dynamic viewport unit fills the real screen; the
+       env() insets then pad content off the notch + home indicator. (100% is
+       kept first as the fallback for engines without dvh.) */
     height: 100%;
+    height: 100dvh;
   }
   :global(body) {
     margin: 0;
