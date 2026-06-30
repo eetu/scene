@@ -67,14 +67,46 @@
       ],
       "unranked": {
         "4dosintr": {
-          "title": "!SKRAAPPASKRUUPPI!"
+          "group": "SkraappaSkruuppi",
+          "title": "4DOS intro"
         },
         "4kilos": {
-          "group": "mak/rele",
-          "title": "created"
+          "group": "rele",
+          "title": "4kilos"
+        },
+        "dasboom": {
+          "group": "bc!",
+          "title": "das boOm!"
+        },
+        "isuck": {
+          "group": "Braindead Software",
+          "title": "I suck"
+        },
+        "luminary": {
+          "group": "mips Mango",
+          "title": "Luminary"
+        },
+        "mania": {
+          "group": "PDG",
+          "title": "Mania"
+        },
+        "panaani": {
+          "title": "Panaani"
         },
         "skr!4din": {
-          "title": "!SKRAAPPASKRUUPPI!"
+          "group": "SkraappaSkruuppi",
+          "title": "4DOS intro"
+        },
+        "win96": {
+          "title": "Windows '96"
+        },
+        "zhallu": {
+          "group": "Ikiliekki",
+          "title": "Hallucinations In A Toolbox"
+        },
+        "zmega": {
+          "group": "PDG",
+          "title": "z.mega"
         }
       }
     },
@@ -163,28 +195,36 @@
       ],
       "unranked": {
         "frendit": {
-          "title": "gasp inc..friends"
+          "group": "gasp inc.",
+          "title": "friends"
         },
         "g_rose": {
-          "title": "gasp inc. rose"
+          "group": "gasp inc.",
+          "title": "rose"
         },
         "haloo": {
-          "title": "ASM96∙HiRMU!∙PLÖ"
+          "group": "hirmu",
+          "title": "haloo!"
         },
         "kvitsa": {
-          "title": "Mikki presents:"
+          "group": "Mikki",
+          "title": "Konevitsa"
         },
         "little": {
-          "title": "┌[ relaxed environment ]────┐"
+          "group": "relaxed environment",
+          "title": "little man"
         },
         "skr_can": {
-          "title": "This is Skraappa Skruuppis"
+          "group": "Skraappa Skruuppis",
+          "title": "Open The Can If You Are Thirsty"
         },
         "slx_arse": {
-          "title": "released at ass'96."
+          "group": "simplex",
+          "title": "bill g's arse"
         },
         "tos": {
-          "title": "Tos, Domestic piece of"
+          "group": "brainlez coders!",
+          "title": "Tos (Toki On Sauna)"
         }
       }
     },
@@ -286,31 +326,35 @@
       ],
       "unranked": {
         "99": {
-          "group": "Incubator o.",
-          "title": ".o"
+          "group": "Incubator",
+          "title": "99 Percent"
         },
         "anatomy": {
-          "group": "Gender 8 ------------│",
-          "title": "│\"Anatomy"
+          "group": "Gender 8",
+          "title": "Anatomy"
         },
         "atlantis": {
-          "title": "│ atlantis"
+          "group": "mooze",
+          "title": "Atlantis"
         },
         "babylon": {
-          "group": "the psychic monks",
-          "title": "a demo"
+          "group": "The Psychic Monks",
+          "title": "Babylon"
         },
         "biscui": {
-          "title": "biscui."
+          "group": "brainlez coders!",
+          "title": "biscui"
         },
         "comawasm": {
-          "title": "COMA"
+          "group": "COMA",
+          "title": "Washing Machine"
         },
         "endeav": {
-          "group": "prominence Copyright",
-          "title": "a demo -"
+          "group": "Prominence",
+          "title": "Endeavour"
         },
         "fd_hippy": {
+          "group": "Fobia Design",
           "title": "Go Hippy!"
         },
         "k_float": {
@@ -318,19 +362,38 @@
           "title": "float"
         },
         "kosmos": {
-          "title": "kosmos.assembly96.kiireprodu."
+          "title": "kosmos"
+        },
+        "nct-sex": {
+          "group": "NiCOTEAM",
+          "title": "Sexuality"
+        },
+        "peris": {
+          "title": "peris"
         },
         "pong": {
-          "title": "Refinition presents:"
+          "group": "Refinition",
+          "title": "Pong"
         },
         "text": {
-          "title": "The New Dimension Of Text from MOOTTORI."
+          "group": "Moottori",
+          "title": "The New Dimension Of Text"
+        },
+        "time": {
+          "group": "Wizardry",
+          "title": "Timescape"
         },
         "toucans": {
-          "title": "Coon Productions' Assembly '96 release:"
+          "group": "Coon Productions",
+          "title": "Toucans"
         },
         "voyage": {
-          "title": "| VOYAGE [1/1] |"
+          "group": "Bad Attitude",
+          "title": "Voyage"
+        },
+        "vt": {
+          "group": "Regeneration",
+          "title": "Virtual Tribulation"
         }
       }
     },
@@ -481,7 +544,16 @@
       ],
       "unranked": {
         "a96k!nky": {
-          "title": "Assembly '96"
+          "group": "K!nky",
+          "title": "Optikal"
+        },
+        "deep": {
+          "group": "Destruction",
+          "title": "Deep"
+        },
+        "spalva": {
+          "group": "RrR",
+          "title": "SpaceAlienVampire"
         }
       }
     },
@@ -601,25 +673,321 @@
         }
       ],
       "unranked": {
+        "00320": {
+          "group": "Static",
+          "title": "00320 Helsinki"
+        },
+        "1stlast": {
+          "group": "IRD",
+          "title": "1st and last..."
+        },
+        "afrozone": {
+          "group": "DRNR",
+          "title": "Afro Zone"
+        },
+        "alien": {
+          "group": "IDK",
+          "title": "Alien Invasion"
+        },
+        "alku": {
+          "title": "Alku"
+        },
+        "anaestho": {
+          "group": "Nerve Axis",
+          "title": "Anaesthetized"
+        },
+        "ashofmb": {
+          "group": "Trilogy",
+          "title": "Ash of My Body"
+        },
+        "athought": {
+          "group": "TPD",
+          "title": "A Thought"
+        },
         "aug": {
-          "group": "Breeze & Spay / Capacala",
-          "title": "(MOD) Augmented"
+          "group": "Capacala",
+          "title": "Augmented"
+        },
+        "baila": {
+          "group": "Llame Llama",
+          "title": "Kayoun Marshes"
+        },
+        "barkhone": {
+          "group": "Mass",
+          "title": "Bark Honey Bark"
+        },
+        "basstune": {
+          "group": "Galaxian",
+          "title": "Basstune"
+        },
+        "berbervi": {
+          "group": "Mellow Chips",
+          "title": "Berber Vibe"
+        },
+        "bolsadem": {
+          "group": "kure4kancer",
+          "title": "Bolsa de Mareo"
+        },
+        "byjungle": {
+          "group": "New Age",
+          "title": "By The Jungleside"
+        },
+        "citylook": {
+          "group": "Ural 13",
+          "title": "CityLook"
+        },
+        "coma": {
+          "group": "Vajrayana",
+          "title": "Coma"
+        },
+        "combtune": {
+          "group": "Sulpu",
+          "title": "Pulsation"
+        },
+        "compozed": {
+          "group": "Bytes of Prey",
+          "title": "Compo Zed"
+        },
+        "dark": {
+          "group": "Zenon",
+          "title": "Dark"
+        },
+        "dawn": {
+          "group": "Horde & Diverse",
+          "title": "Dawn"
+        },
+        "dayoff": {
+          "group": "OI",
+          "title": "Day Off"
+        },
+        "depress": {
+          "group": "PDG",
+          "title": "Depression"
+        },
+        "dollari": {
+          "group": "Some1",
+          "title": "Terrible Noise"
         },
         "el-tango": {
-          "title": "ASSEMBLY '96 4-CHANNEL COMPO!"
+          "group": "Elektro",
+          "title": "My Tango"
+        },
+        "fistful": {
+          "group": "Vajrayana",
+          "title": "A Fistful of Clouds"
+        },
+        "fstdream": {
+          "group": "Realtech",
+          "title": "Forest Dream"
+        },
+        "funny": {
+          "group": "R&W Productions",
+          "title": "Simply Funny"
+        },
+        "gf": {
+          "group": "Zporx1n65",
+          "title": "Ganja Float"
+        },
+        "gravity": {
+          "group": "DBX",
+          "title": "Lost in Gravity"
+        },
+        "happy": {
+          "group": "Kyyl",
+          "title": "Happy Ravin' Family"
+        },
+        "headache": {
+          "group": "RNO",
+          "title": "My Headache"
+        },
+        "highway": {
+          "group": "Wishbone",
+          "title": "Highway"
         },
         "hulabalo": {
+          "group": "Kaiowa",
           "title": "Hula Baloo"
         },
+        "inedible": {
+          "group": "Pontus",
+          "title": "Inedible"
+        },
+        "jekku3": {
+          "group": "Oxylon",
+          "title": "Jekku3"
+        },
+        "kormyka": {
+          "group": "Trilogy",
+          "title": "Körmykkä"
+        },
+        "kyosti96": {
+          "group": "Lobotomy",
+          "title": "Kyösti"
+        },
+        "lentoken": {
+          "group": "Bandwagon",
+          "title": "The Airport"
+        },
+        "lifeform": {
+          "group": "RRR",
+          "title": "Lifeforms"
+        },
+        "lnc-dead": {
+          "group": "BadCRC/Vandals",
+          "title": "Dead Angle"
+        },
+        "lokomo": {
+          "group": "TPD",
+          "title": "Lokomotyva"
+        },
+        "lowland": {
+          "group": "Trilogy",
+          "title": "Lowland"
+        },
+        "metamorf": {
+          "title": "Metamorphosis"
+        },
+        "mjes": {
+          "group": "Ruma",
+          "title": "Mies, jolla ei seiso"
+        },
         "mytango": {
-          "title": "ASSEMBLY '96 4-CHANNEL COMPO!"
+          "group": "Elektro",
+          "title": "My Tango"
+        },
+        "nallepuh": {
+          "title": "NallePuh"
+        },
+        "oldston": {
+          "group": "Diffusion",
+          "title": "Old Stoned Cape"
+        },
+        "organic": {
+          "group": "The Modal Nodes",
+          "title": "Organic Poetry"
+        },
+        "outstrip": {
+          "group": "Sensible",
+          "title": "Outstrip"
+        },
+        "paradime": {
+          "group": "IDK",
+          "title": "Parallel Dimension"
+        },
+        "pelimann": {
+          "group": "Zymosis",
+          "title": "Pelimanni From Hell"
+        },
+        "popchip": {
+          "title": "Pop Chip"
+        },
+        "primal": {
+          "title": "Primal Destruction"
+        },
+        "ptertha": {
+          "group": "Hippopotamus Design",
+          "title": "Ptertha Attack"
+        },
+        "raincast": {
+          "title": "Rain Caster"
+        },
+        "realms": {
+          "group": "SuLPu",
+          "title": "Realms Of Grief"
+        },
+        "ridden": {
+          "group": "United Force",
+          "title": "Ridden Race"
+        },
+        "rttc": {
+          "group": "Bombsquad",
+          "title": "Road To The City"
+        },
+        "saturnwa": {
+          "title": "Saturnwake"
+        },
+        "sikaouto": {
+          "title": "Sika Outo Olo"
+        },
+        "silence": {
+          "title": "What Happened To The Silence"
+        },
+        "sinestic": {
+          "title": "Sinest1c"
+        },
+        "techque": {
+          "group": "Solar Crisis",
+          "title": "Technique"
+        },
+        "tecnos4": {
+          "group": "SuLPu",
+          "title": "Tecno Dream"
+        },
+        "tekno": {
+          "title": "Teknoforever"
+        },
+        "themood": {
+          "group": "Bombsquad",
+          "title": "The Mood"
+        },
+        "throat": {
+          "group": "Bandwagon",
+          "title": "Go For The Throat"
+        },
+        "tt": {
+          "group": "M.A.D",
+          "title": "L's TechnoTime"
+        },
+        "tuturne": {
+          "group": "Syndrome",
+          "title": "Tuturne Land!"
         },
         "twilbrai": {
-          "title": "Yes.."
+          "title": "Twilight In My Brain"
         },
         "txsblues": {
-          "group": "Breeze & Spay / Capacala",
-          "title": "(MOD) Texas Blues"
+          "group": "Capacala",
+          "title": "Texas Blues"
+        },
+        "ump_sun": {
+          "group": "UmP",
+          "title": "Sunset At Ganymedes"
+        },
+        "un": {
+          "title": "Un'derhand"
+        },
+        "unrereal": {
+          "group": "Boolean",
+          "title": "Unreal Reality"
+        },
+        "vesubymi": {
+          "title": "Vesubymie"
+        },
+        "vir": {
+          "group": "Oxylon",
+          "title": "Virstop"
+        },
+        "waiting4": {
+          "title": "Waiting 4 Weekend"
+        },
+        "will_pow": {
+          "group": "Avance",
+          "title": "Will Power"
+        },
+        "wizards": {
+          "group": "Gen.-U.",
+          "title": "Wizards From Past"
+        },
+        "woodpeck": {
+          "group": "Orange",
+          "title": "Woodpecker Groove"
+        },
+        "zebra": {
+          "title": "The Zebra Crossing"
+        },
+        "zucks": {
+          "group": "M.A.D",
+          "title": "ZuckS"
         }
       }
     },
@@ -714,93 +1082,734 @@
         }
       ],
       "unranked": {
+        "4ever": {
+          "group": "FireCross",
+          "title": "Stay forever"
+        },
+        "a2b2": {
+          "title": "A2 = B7"
+        },
+        "aaaargh": {
+          "group": "IRD",
+          "title": "Aaaargh!"
+        },
+        "acidity": {
+          "title": "a-cid-i-ty"
+        },
+        "aha": {
+          "title": "Anti-Hero-Anthology"
+        },
+        "ale_dncr": {
+          "group": "DiFFERENT!",
+          "title": "Another dancer"
+        },
         "aliensex": {
+          "group": "Kaiowa",
           "title": "Aliensex"
         },
+        "atopera": {
+          "group": "Dubius",
+          "title": "A Tramstop of Opera"
+        },
+        "believe": {
+          "group": "TranZe",
+          "title": "One Believe"
+        },
+        "beyond": {
+          "group": "Bad Karma",
+          "title": "Beyond"
+        },
+        "birdcage": {
+          "group": "EKG",
+          "title": "birdcage"
+        },
+        "blast": {
+          "title": "Blast from the Future"
+        },
+        "blueshit": {
+          "title": "BlueShit"
+        },
+        "canthelp": {
+          "group": "Adapting Pulsations",
+          "title": "Can't Help (I Love You!)"
+        },
         "cd-tranc": {
-          "title": "THiZ iZ NoT aN eLiTe FiLe_Id! :)"
+          "group": "Controlled Dreams",
+          "title": "Trance is our Future!"
+        },
+        "centerof": {
+          "group": "Bandwagon",
+          "title": "Center of your life"
+        },
+        "chaos": {
+          "title": ".:cHAOS.in.hELSINKi:."
+        },
+        "children": {
+          "title": "The Children of Neo"
         },
         "chosen": {
-          "group": "Mechanix..",
-          "title": "Samples are"
+          "group": "Protean",
+          "title": "The Chosen Ones"
+        },
+        "cleveque": {
+          "group": "Fobia Digital",
+          "title": "Cleveland - Quebec"
+        },
+        "cloud99": {
+          "group": "Jormas",
+          "title": "Cloud 99"
+        },
+        "clouds": {
+          "group": "M-Grape",
+          "title": "Clouds"
+        },
+        "complex": {
+          "title": "CompleX"
+        },
+        "compo1": {
+          "title": "satis-factory"
+        },
+        "composti": {
+          "title": "Jammin' in a composti"
+        },
+        "control": {
+          "group": "Sin Spreaders",
+          "title": "Flow Control"
+        },
+        "cosmosw": {
+          "group": "Sonik Clique",
+          "title": "cosmos whiteline"
+        },
+        "crc": {
+          "group": "Nearly Gods",
+          "title": "CRC"
+        },
+        "dahuippa": {
+          "group": "Bytes of Prey",
+          "title": "da huippa!"
+        },
+        "dance": {
+          "group": "R&W Prod.",
+          "title": "Dance with the devil"
+        },
+        "darkan": {
+          "title": "Return of Dark Angel ReMix"
+        },
+        "daydream": {
+          "title": "Daydreamer"
         },
         "dccbagot": {
-          "group": "CRUX / DCC.",
-          "title": "BAG OF TRICKS (xm)"
+          "group": "DCC",
+          "title": "Bag of Tricks"
+        },
+        "dembrace": {
+          "group": "iDM/STR",
+          "title": "Dark Embrace"
+        },
+        "destruc": {
+          "title": "destructa"
+        },
+        "distant": {
+          "group": "Cosmic Division",
+          "title": "Distant Vision"
         },
         "dita4eve": {
           "group": "Polestar",
           "title": "Dita Forever"
         },
+        "dlaugh": {
+          "group": "Ural 13",
+          "title": "Don't laugh (tingimix)"
+        },
+        "drnrdrp": {
+          "group": "Droidnoise Records",
+          "title": "waterdrop"
+        },
+        "dust": {
+          "group": "Reality Benders",
+          "title": "Dust in the wind"
+        },
+        "dustbin": {
+          "group": "Critical",
+          "title": "Down to Dustbin"
+        },
+        "eagle": {
+          "group": "Stonecutters",
+          "title": "As The Eagle Flies"
+        },
+        "ecorder": {
+          "group": "N.G.",
+          "title": "the E-corder"
+        },
+        "ehka1b": {
+          "group": "Trilogy",
+          "title": "1 baari liikaa?"
+        },
+        "eightbit": {
+          "group": "Mass",
+          "title": "Eight Bit Human"
+        },
+        "ej_mindf": {
+          "title": "deep-blue mindflow"
+        },
         "el-subco": {
-          "title": "ASSEMBLY '96 MULTiCHANNEL COMPO"
+          "group": "Elektro",
+          "title": "subconsciousness"
+        },
+        "extrad": {
+          "title": "extrad music for children"
+        },
+        "facefell": {
+          "group": "iDM/VGL",
+          "title": "Her Face Fell"
+        },
+        "faerytl": {
+          "title": "Faery Tale"
         },
         "falltime": {
-          "title": "Falltime\" music from Assembly'96"
+          "title": "Falltime"
+        },
+        "featasy": {
+          "group": "Stream Wave",
+          "title": "The Feat of Valor"
+        },
+        "fov_lki2": {
+          "group": "Glacier / FoV",
+          "title": "Little Kingdom in Mind"
+        },
+        "fov_saj": {
+          "group": "TDC / FoV",
+          "title": "Say All Is Jolly And"
+        },
+        "freedom": {
+          "title": "Freedom"
         },
         "freelast": {
-          "title": "Topic: Free at last (compo-edit)"
+          "title": "Free at last (compo-edit)"
+        },
+        "frozenaq": {
+          "title": "Frozen Aquavite"
+        },
+        "frust": {
+          "group": "Culture Shock",
+          "title": "Frustration"
+        },
+        "galaxies": {
+          "group": "Reveal",
+          "title": "Galaxies"
+        },
+        "galaxy": {
+          "group": "GigaMess & HardWired",
+          "title": "The Lost Galaxy"
+        },
+        "gbrmix3": {
+          "title": "IDGrasshopperS GB rmix rmix"
+        },
+        "headache": {
+          "title": "Headache"
+        },
+        "hiroshim": {
+          "title": "Hiroshima"
+        },
+        "hod": {
+          "title": "Heart of Darkness"
+        },
+        "hollowc": {
+          "group": "Spice",
+          "title": "Hollow call"
+        },
+        "hollowf": {
+          "title": "hollowfibre"
         },
         "hydra": {
-          "title": "S*O*L*A*R C*R*I*S*I*S"
+          "group": "Solar Crisis",
+          "title": "Hydra"
+        },
+        "incpnc": {
+          "group": "cast",
+          "title": "incipience"
+        },
+        "jam": {
+          "title": "Urban Jungle"
+        },
+        "jamit": {
+          "title": "koulun orkesterin jamit"
+        },
+        "jareth": {
+          "title": "Jareth's Nightmare"
+        },
+        "jazzf": {
+          "group": "Toolbox",
+          "title": "Jazz-files"
         },
         "jis-cjaz": {
-          "title": "..asm.96.mchannelcompo.."
+          "group": "Maak",
+          "title": "Candyjazz"
+        },
+        "jmo_vt": {
+          "group": "ReGeneration",
+          "title": "Virtual Tribulation"
+        },
+        "jruir": {
+          "title": "avaruuskissalupaus"
+        },
+        "jungle": {
+          "title": "Jungle (Compo Mix)"
+        },
+        "jungling": {
+          "group": "Longjam",
+          "title": "keep jungling"
+        },
+        "justkidd": {
+          "group": "Insufficient Insomnia",
+          "title": "Just kidding!"
+        },
+        "kabbala": {
+          "group": "CNCD",
+          "title": "stone"
+        },
+        "kielten": {
+          "group": "Diffusion",
+          "title": "kieltenvaihtokesken?"
+        },
+        "kirisikka": {
+          "title": "KIRSIkkani"
+        },
+        "knew": {
+          "group": "JapoTek M.S",
+          "title": "No one knew"
+        },
+        "kukka": {
+          "title": "Omena.kukka.hedelma.seos."
         },
         "kukkiain": {
-          "group": "Bloody / Spirit New Style",
-          "title": "Composed"
+          "group": "Spirit New Style",
+          "title": "Kukkaisten tanssi"
+        },
+        "lavista": {
+          "group": "Gender 8",
+          "title": "La Vista"
+        },
+        "levels": {
+          "title": "Higher Levels"
+        },
+        "lion": {
+          "title": "The Lionhunt"
+        },
+        "magic": {
+          "title": "Magic Conjunction"
+        },
+        "mansikki": {
+          "title": "trip to kaalimaa"
+        },
+        "memories": {
+          "group": "Original",
+          "title": "Memories"
         },
         "men_flut": {
-          "group": "Mental/DataKraft",
+          "group": "DataKraft",
           "title": "Rave to the flutes!"
         },
+        "menflas": {
+          "group": "Realities",
+          "title": "Rave to the Flutes!"
+        },
+        "mentlcon": {
+          "title": "Mental confusion"
+        },
         "migrants": {
+          "group": "Liquid Dreams",
           "title": "Migrants"
         },
+        "mil_time": {
+          "title": "Too little time"
+        },
+        "milesasm": {
+          "group": "Cute",
+          "title": "miles ahead"
+        },
+        "mindless": {
+          "title": "mindless"
+        },
+        "mirror": {
+          "group": "BadCRC",
+          "title": "Mirror of Souls"
+        },
         "miss_mix": {
+          "group": "Obsess",
           "title": "miss - making love with sine mix"
         },
+        "mod": {
+          "title": "Messenger of Doom"
+        },
+        "mushy": {
+          "group": "Symptom",
+          "title": "Mushy"
+        },
+        "mw_betwn": {
+          "title": "Between"
+        },
+        "myblues": {
+          "title": "My Blues"
+        },
+        "mznm": {
+          "title": "Mozart Nightmare"
+        },
+        "n_state": {
+          "group": "Aggression",
+          "title": "Neurostate"
+        },
+        "nature": {
+          "title": "the nature"
+        },
+        "nazox": {
+          "group": "Linecide",
+          "title": "NaZoKsiA"
+        },
+        "nino32ch": {
+          "title": "Unknown Grounds"
+        },
+        "no_sleep": {
+          "title": "Dont go 2 work today"
+        },
+        "none": {
+          "title": "Nonexistent"
+        },
         "o_bts": {
+          "group": "Liquid Dreams",
           "title": "Below the Surface"
         },
         "oblitera": {
-          "group": "WeirdO of PS productions",
+          "group": "PS Productions",
           "title": "Obliterator"
         },
+        "obscured": {
+          "title": "Obscured Heaven"
+        },
         "oce_tdr": {
-          "title": "OcEAN / gasp inc."
+          "group": "gasp inc.",
+          "title": "The Dark Room"
+        },
+        "ocemind": {
+          "group": "gasp inc.",
+          "title": "MiND"
+        },
+        "ooacid": {
+          "title": "Oceans of acid"
+        },
+        "openmind": {
+          "title": "Open your mind."
         },
         "orbiting": {
+          "group": "Fobia Design",
           "title": "Orbiting"
         },
+        "orion": {
+          "title": "Orion"
+        },
+        "ornolaul": {
+          "title": "ornoLaulu ja Peella!"
+        },
         "ourworld": {
-          "group": "Jaffa / STC",
-          "title": "S3M: Our World"
+          "group": "Static",
+          "title": "Our World"
+        },
+        "outward": {
+          "group": "StreamWave",
+          "title": "Outward"
+        },
+        "ovrchrge": {
+          "title": "Overcharge"
+        },
+        "paharoun": {
+          "group": "Liquid Dreams",
+          "title": "Around the Corner"
+        },
+        "perbeats": {
+          "title": "Perpetual Beats"
+        },
+        "pese": {
+          "group": "Ryhmayhdistys",
+          "title": "pese aivosi"
+        },
+        "phunk": {
+          "title": "Funk's turning me insideout"
+        },
+        "pianolov": {
+          "group": "Kuoro!",
+          "title": "Pianolove"
+        },
+        "pigmarch": {
+          "title": "March of the Little Pigs"
         },
         "pink": {
-          "group": "using Cosmic Sequencing",
-          "title": "This track was originally composed"
+          "title": "Pink Bobbles"
+        },
+        "plastik": {
+          "title": "the plastik babe"
+        },
+        "pnc_dab": {
+          "title": "Daylight Abduction"
+        },
+        "porush": {
+          "title": "Piece of Rush"
+        },
+        "pre_rein": {
+          "title": "reinforced vibrations"
+        },
+        "probe": {
+          "title": "The Probe"
+        },
+        "psv_trip": {
+          "group": "Passive",
+          "title": "Kahvitrippi"
         },
         "raccoon": {
-          "group": "Mikki/Epical",
-          "title": "contribution"
+          "group": "Epical",
+          "title": "Racy Raccoon"
         },
         "radiatio": {
-          "title": "RADIATION"
+          "title": "Radiatio"
+        },
+        "rainm": {
+          "group": "TranZe",
+          "title": "Rain Music"
+        },
+        "ravedime": {
+          "group": "Reveal",
+          "title": "Rave Dimension"
+        },
+        "rebel": {
+          "group": "Spice",
+          "title": "Rebellife"
+        },
+        "recover": {
+          "title": "Recoverance"
+        },
+        "redemptn": {
+          "group": "Protean",
+          "title": "Redemption"
+        },
+        "reincar": {
+          "title": "ReIncarnation"
+        },
+        "replicnt": {
+          "group": "Scoopex",
+          "title": "Replicant"
+        },
+        "repuls": {
+          "group": "idm",
+          "title": "Repulsion"
+        },
+        "rplgamma": {
+          "title": "gamma encounter (a96 edit)"
+        },
+        "run": {
+          "group": "TrT",
+          "title": "Running out of time"
+        },
+        "runaway": {
+          "group": "Pontus",
+          "title": "Runaway"
+        },
+        "sainmiks": {
+          "title": "Shine REMIX"
+        },
+        "salainen": {
+          "title": "Secret Weapon"
+        },
+        "sappikiv": {
+          "group": "krutz",
+          "title": "sappikivi"
+        },
+        "sarsipp": {
+          "title": "sarsippius' ark"
+        },
+        "sd": {
+          "title": "Slightly dark"
+        },
+        "se": {
+          "group": "Velvet",
+          "title": "se"
+        },
+        "seasonom": {
+          "group": "EMF",
+          "title": "Season of Mists"
+        },
+        "serious": {
+          "title": "Serious"
         },
         "shadows": {
+          "group": "TranZe",
           "title": "Shadows of the Distant Fairlight"
         },
+        "sheepwlf": {
+          "group": "Incubator",
+          "title": "Sheepwolf"
+        },
+        "sicky": {
+          "group": "M.A.D",
+          "title": "Sickening Stuff"
+        },
+        "sideway": {
+          "group": "Lcd",
+          "title": "SideWay"
+        },
+        "siglife": {
+          "group": "Pyrotech",
+          "title": "Significant life"
+        },
+        "simples": {
+          "group": "RnO",
+          "title": "Simple 'Sembly"
+        },
+        "sircus": {
+          "group": "HSR"
+        },
+        "skitso": {
+          "title": "Schizophrenia"
+        },
+        "smoke": {
+          "title": "Magic Smoke"
+        },
+        "snow": {
+          "title": "Black Snow"
+        },
+        "somehow": {
+          "group": "Code Facility",
+          "title": "Somehow I know"
+        },
+        "source": {
+          "title": "source"
+        },
+        "souvenir": {
+          "title": "souvenir from mars"
+        },
+        "spctravl": {
+          "title": "SpaceTraveller"
+        },
+        "starfool": {
+          "group": "Never Named",
+          "title": "StarFool"
+        },
+        "starrys": {
+          "title": "starry sometimes"
+        },
+        "steel": {
+          "title": "Discipline Of Steel"
+        },
+        "sub": {
+          "title": "Subterranean"
+        },
+        "subcons": {
+          "title": "subconsciousness"
+        },
         "sukkameh": {
-          "title": "Vidut..."
+          "title": "Sukkamehu 1996"
+        },
+        "sumpt": {
+          "group": "Mango",
+          "title": "Sumptuousness"
+        },
+        "sweet": {
+          "group": "The Clan",
+          "title": "Sweet Baby"
         },
         "taika": {
-          "title": "Name : Taikasauva"
+          "group": "haZe",
+          "title": "Taikasauva"
+        },
+        "taped": {
+          "group": "Lcd",
+          "title": "Taped Wall"
+        },
+        "tecocomp": {
+          "title": "Tecocalu rulez! Compoversio"
+        },
+        "tectec17": {
+          "group": "Critical"
+        },
+        "tfos": {
+          "title": "The Fountain Of Silence"
+        },
+        "theascen": {
+          "title": "The Ascension"
+        },
+        "thefel": {
+          "group": "brainlez coders!",
+          "title": "the final end of love"
+        },
+        "theravex": {
+          "title": "The Rave Experience"
+        },
+        "thybells": {
+          "group": "MyVoice",
+          "title": "Thybells"
+        },
+        "told": {
+          "group": "Oxylon",
+          "title": "As I told to you.."
+        },
+        "trial": {
+          "title": "Trial by fire"
+        },
+        "tripnaut": {
+          "title": "Triponaut's Daydream"
+        },
+        "truefeel": {
+          "title": "True Feelings"
+        },
+        "tvofwar": {
+          "group": "Imagination",
+          "title": "The Victims of War"
+        },
+        "ump_liqw": {
+          "group": "ump",
+          "title": "liquid walls"
+        },
+        "vanha": {
+          "title": "Bänditreenit"
+        },
+        "vara": {
+          "title": "vastaisuuden vara"
+        },
+        "vertical": {
+          "group": "Mono",
+          "title": "Vertical Lines"
+        },
+        "virus": {
+          "group": "JÄMÄ",
+          "title": "Viruses Deep in Africa"
+        },
+        "vis4s": {
+          "title": "V IV - A Message From Space"
+        },
+        "vunivrs": {
+          "group": "Tehdas",
+          "title": "Universal"
+        },
+        "w": {
+          "group": "Interactive Ducks",
+          "title": "without"
+        },
+        "w_of_liz": {
+          "group": "reMal",
+          "title": "world of lizards"
+        },
+        "wdvuff": {
+          "group": "CRi",
+          "title": "Vulnerable to fire"
+        },
+        "wfn2": {
+          "title": "War for NobleStones (TM) II"
         },
         "when": {
-          "group": "Kotivalo/Liquid Dreams",
+          "group": "Liquid Dreams",
           "title": "When twilight comes"
+        },
+        "windflow": {
+          "group": "Cameo",
+          "title": "WindFlow"
         }
       }
     },
@@ -961,7 +1970,13 @@
           "points": 144,
           "group": "Slayer&Gonzo-Stetson Design"
         }
-      ]
+      ],
+      "unranked": {
+        "barfly": {
+          "group": "Domino",
+          "title": "Bar fly"
+        }
+      }
     },
     "anim": {
       "compo": "Animation",
