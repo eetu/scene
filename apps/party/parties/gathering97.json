@@ -1,0 +1,287 @@
+{
+  "slug": "gathering97",
+  "name": "The Gathering 1997",
+  "year": 1997,
+  "location": "Hamar, Norway",
+  "organizer": "KreativiTET",
+  "folder_name": "rank-group-title",
+  "categories": {
+    "demo": {
+      "compo": "PC demo",
+      "platform": "pc",
+      "medium": "demo",
+      "results": [
+        { "rank": 1, "points": 983, "group": "CNCD & Orange", "title": "CNCD vs. Orange" },
+        { "rank": 2, "points": 725, "group": "Rage", "title": "Robotnik" },
+        { "rank": 3, "points": 705, "group": "The Black Lotus", "title": "Astral Blur" },
+        { "rank": 4, "points": 431, "group": "Melon", "title": "Outside" },
+        { "rank": 5, "points": 429, "group": "Sublogic", "title": "Outcast" },
+        { "rank": 6, "points": 378, "group": "Rectum Cauda", "title": "Sand 4" },
+        { "rank": 7, "points": 328, "group": "Recreation", "title": "M.A.3" },
+        { "rank": 8, "points": 322, "group": "Aurum", "title": "Petrol" },
+        { "rank": 9, "points": 312, "group": "fudGe", "title": "Jakoob" },
+        { "rank": 10, "points": 297, "group": "Kajania", "title": "What TG Did To KajAnia" },
+        { "rank": 11, "points": 187, "group": "Sorrox", "title": "Delirium" },
+        { "rank": 12, "points": 170, "group": "Chaotic Order", "title": "The Search For Steve" },
+        { "rank": 13, "points": 144, "group": "Session", "title": "Hot Hoff" },
+        { "rank": 14, "points": 107, "group": "Sublevel 3", "title": "Twisted" },
+        { "rank": 15, "points": 68, "group": "Phoenix", "title": "Freewear" }
+      ],
+      "unranked": {
+        "nine": { "group": "Xenogenesis", "title": "Nine" }
+      }
+    },
+    "in64": {
+      "compo": "PC/Amiga 64K intro",
+      "platform": "pc",
+      "medium": "intro",
+      "results": [
+        { "rank": 1, "points": 711, "group": "fudGe", "title": "Gene" },
+        { "rank": 2, "points": 574, "group": "TPOLM", "title": "Arabi From Da Bronx" },
+        { "rank": 3, "points": 565, "group": "Jello", "title": "Face It" },
+        { "rank": 4, "points": 497, "group": "Rectum Cauda", "title": "Ocean" },
+        { "rank": 5, "points": 372, "group": "Rectum Cauda", "title": "sKOGEN" },
+        { "rank": 6, "points": 343, "group": "Da Jormas", "title": "Amiga 64k Intro" },
+        { "rank": 7, "points": 341, "group": "Bandwagon", "title": "Prove You Wrong" },
+        { "rank": 8, "points": 331, "group": "Yodel", "title": "Onion" },
+        { "rank": 9, "points": 326, "group": "Nocturnal", "title": "More Or Less" },
+        { "rank": 10, "points": 215, "group": "Mist", "title": "Dalt" },
+        { "rank": 11, "points": 200, "group": "Subspace", "title": "Dual 4kb!" },
+        {
+          "rank": 12,
+          "points": 190,
+          "group": "Tundra",
+          "title": "Monochrome Life In The Nineties"
+        },
+        { "rank": 13, "points": 190, "group": "Giants", "title": "Nocturne" },
+        { "rank": 14, "points": 133, "group": "Extatic", "title": "Quick Lunch" },
+        { "rank": 15, "points": 104, "title": "RoBo" },
+        { "rank": 16, "points": 103, "group": "Vector", "title": "Ability" },
+        { "rank": 17, "points": 97, "group": "Lekman, Tentacle & Dr. Death", "title": "DoorMat" }
+      ]
+    },
+    "in4k": {
+      "compo": "PC 4K intro",
+      "platform": "pc",
+      "medium": "intro",
+      "results": [
+        { "rank": 1, "points": 605, "group": "Cortex", "title": "Bubble" },
+        { "rank": 2, "points": 489, "group": "Piffi & Rectum Cauda", "title": "Humle" },
+        { "rank": 3, "points": 395, "group": "Zien", "title": "Fade" },
+        { "rank": 4, "points": 361, "group": "Sunday & Proxima", "title": "Bumptro" },
+        { "rank": 5, "points": 325, "group": "Bizarre & Anakata", "title": "Born Fat" },
+        { "rank": 6, "points": 294, "group": "Malkavian & Pooh", "title": "pOOHWER" },
+        { "rank": 7, "points": 283, "group": "The Lost Souls", "title": "PGP" },
+        { "rank": 8, "points": 274, "group": "Bizarre & Anakata", "title": "Float" },
+        { "rank": 9, "points": 187, "group": "Bizarre & Anakata", "title": "A" }
+      ]
+    },
+    "fastintro": {
+      "compo": "PC/Amiga Fast intro",
+      "platform": "pc",
+      "medium": "intro",
+      "results": [
+        { "rank": 1, "points": 900, "group": "Sorrox", "title": "Trekant Med Eli Rygg. Igjen." },
+        { "rank": 2, "points": 604, "group": "Rectum Cauda", "title": "Kameruun Norgesnack!" },
+        { "rank": 3, "points": 427, "group": "Rectum Cauda", "title": "FoodYoyo" },
+        {
+          "rank": 4,
+          "points": 381,
+          "group": "Portablephun",
+          "title": "Lutefisk .. Loff Til Ole 2"
+        },
+        { "rank": 5, "points": 266, "title": "Mat" },
+        { "rank": 6, "points": 237, "title": "Food" },
+        { "rank": 7, "points": 210, "group": "Dureks", "title": "Norge & Mat" },
+        { "rank": 8, "points": 204, "group": "Darklite", "title": "Food Anarchy" },
+        { "rank": 9, "points": 195, "group": "Beam", "title": "Mat" },
+        { "rank": 10, "points": 165, "group": "Braindead", "title": "Norje" },
+        { "rank": 11, "points": 128, "title": "FastDemo" }
+      ]
+    },
+    "textdemo": {
+      "compo": "PC textdemo",
+      "platform": "pc",
+      "medium": "demo",
+      "results": [
+        { "rank": 1, "points": 978, "group": "TEC", "title": "Textatic" },
+        { "rank": 2, "points": 969, "group": "Recreation", "title": "M.A.3" },
+        { "rank": 3, "points": 887, "group": "Gollum & Neon, Speznatz", "title": "Text" },
+        { "rank": 4, "points": 647, "group": "Bamboosh", "title": "Bambino" },
+        { "rank": 5, "points": 563, "group": "p!n", "title": "Kube?" },
+        { "rank": 6, "points": 324, "group": "Acid Rain", "title": "Iku Seven" }
+      ]
+    },
+    "grfx": {
+      "compo": "Graphics",
+      "platform": "pc",
+      "medium": "graphics",
+      "results": [
+        { "rank": 1, "points": 795, "group": "The Black Lotus", "title": "Angelic Particles" },
+        { "rank": 2, "points": 591, "group": "INF", "title": "Sweet And Sour" },
+        { "rank": 3, "points": 546, "group": "The Black Lotus", "title": "Katka" },
+        { "rank": 4, "points": 442, "group": "Gods", "title": "Triceratops" },
+        { "rank": 5, "points": 406, "group": "Darklite", "title": "Cybergirl" },
+        { "rank": 6, "points": 366, "group": "Byterapers", "title": "saaolla" },
+        { "rank": 7, "points": 364, "group": "Proxima", "title": "Tjo Bing Beng" },
+        { "rank": 8, "points": 356, "title": "Heavenly Creature" },
+        { "rank": 9, "points": 273, "group": "Ephidrena", "title": "Cosmo" },
+        { "rank": 10, "points": 268, "group": "Limited Edition", "title": "Ace Stanley" },
+        { "rank": 11, "points": 236, "title": "Hashrami" },
+        { "rank": 12, "points": 200, "title": "Smerte" },
+        { "rank": 13, "points": 197, "group": "Subspace", "title": "The Dreaming" },
+        { "rank": 14, "points": 174, "group": "Ephidrena & DNF", "title": "Fantasy Flower" },
+        { "rank": 15, "points": 165, "group": "Yodel", "title": "Philterfrog" },
+        { "rank": 16, "points": 160, "group": "fudGe", "title": "Jakoob" },
+        { "rank": 17, "points": 154, "group": "Talent", "title": "Nightowl.gif" },
+        { "rank": 18, "points": 145, "title": "Troett" },
+        { "rank": 19, "points": 127, "group": "Rebels", "title": "Steel" },
+        { "rank": 20, "points": 83, "group": "Loop", "title": "Glory" }
+      ]
+    },
+    "raytrace": {
+      "compo": "Raytraced graphics",
+      "platform": "pc",
+      "medium": "graphics",
+      "results": [{ "rank": 1, "group": "Remi Jakobsen", "title": "Minolta" }]
+    },
+    "mmul": {
+      "compo": "Music",
+      "platform": "pc",
+      "medium": "music",
+      "results": [
+        { "rank": 1, "points": 655, "group": "Proxima & TPOLM", "title": "Plastic Nudity" },
+        { "rank": 2, "points": 629, "group": "SOTU", "title": "Sunset In Africa" },
+        { "rank": 3, "points": 342, "group": "Acid Rain", "title": "Im Coming" },
+        { "rank": 4, "points": 337, "group": "The Fried Chickens", "title": "Its A Dream" },
+        { "rank": 5, "points": 314, "group": "DNA", "title": "Clean Air" },
+        { "rank": 6, "points": 279, "group": "TEC & CC", "title": "Virtual Reality" },
+        { "rank": 7, "points": 278, "group": "Spaceballs", "title": "Carbondioxide 7-11" },
+        { "rank": 8, "points": 273, "group": "Yodel", "title": "Im Not Bad..." },
+        { "rank": 9, "points": 265, "group": "TGA", "title": "Frozen Dreams" },
+        { "rank": 10, "points": 265, "group": "IDX, Maak, TPOLM, Pimp", "title": "Blue Bay Bar" },
+        { "rank": 11, "points": 243, "group": "Loop", "title": "Tolkien" },
+        { "rank": 12, "points": 233, "group": "Goto10", "title": "Westcoastdaria" },
+        { "rank": 13, "points": 221, "group": "Laban", "title": "Infront Reality" },
+        { "rank": 14, "points": 219, "group": "Spaceballs", "title": "Stativ" },
+        { "rank": 15, "points": 213, "group": "Pooh", "title": "Stoned" },
+        { "rank": 16, "points": 177, "title": "Persian Angel" },
+        { "rank": 17, "points": 176, "group": "Talent", "title": "Korean Fantasies" },
+        { "rank": 18, "points": 174, "group": "Limited Edition", "title": "Heard It Before" },
+        { "rank": 19, "points": 167, "group": "Limited Edition", "title": "Rivendell" },
+        {
+          "rank": 20,
+          "points": 167,
+          "group": "Net Gen., Tundra, Subkult",
+          "title": "Dream Access"
+        },
+        { "rank": 21, "points": 160, "title": "The Experience" },
+        { "rank": 22, "points": 151, "group": "Session", "title": "Physical Attraction" },
+        { "rank": 23, "points": 135, "group": "Image Dreams", "title": "Gettin Groovy" },
+        { "rank": 24, "points": 133, "group": "Crusaders", "title": "Wit_Down" },
+        { "rank": 25, "points": 126, "group": "Spin", "title": "Optimize" },
+        { "rank": 26, "points": 121, "group": "CNCD", "title": "Norlyn" },
+        { "rank": 27, "points": 120, "group": "Massive", "title": "Highlander" },
+        { "rank": 28, "points": 42, "group": "The Lost Souls", "title": "The Horserace!" }
+      ]
+    },
+    "wild": {
+      "compo": "Wild",
+      "platform": "na",
+      "medium": "demo",
+      "results": [
+        {
+          "rank": 1,
+          "points": 1557,
+          "group": "Limited Edition",
+          "title": "Intel Outside v.1.01.875.1RC2 Build 1351"
+        },
+        { "rank": 2, "points": 642, "group": "Triumph", "title": "The Wobblers" },
+        { "rank": 3, "points": 467, "group": "Procyon", "title": "Firestarter" },
+        { "rank": 4, "points": 373, "group": "Coma", "title": "Apparatus" },
+        { "rank": 5, "points": 318, "group": "Softology", "title": "Razta-Man" },
+        { "rank": 6, "points": 270, "group": "TPOLM", "title": "Con-Fuused" },
+        { "rank": 7, "points": 249, "group": "Coma", "title": "Mild Chill" },
+        { "rank": 8, "points": 229, "group": "Contraz", "title": "Das A-Team" },
+        { "rank": 9, "points": 221, "group": "Fascination", "title": "Lobodance" },
+        { "rank": 10, "points": 212, "group": "TPF", "title": "Motorsagaen" },
+        { "rank": 11, "points": 166, "group": "Phobic", "title": "Baeae" },
+        { "rank": 12, "points": 163, "group": "Rectum Cauda", "title": "Totalt Hindu" },
+        {
+          "rank": 13,
+          "points": 162,
+          "group": "The Lost Souls",
+          "title": "Kontraster 2 - En Ny Giv"
+        },
+        { "rank": 14, "points": 151, "group": "Vision 3", "title": "Give Me Motion" },
+        {
+          "rank": 15,
+          "points": 149,
+          "group": "Intellus",
+          "title": "Hamar Domkirke I Middelalderen"
+        },
+        { "rank": 16, "points": 121, "group": "TRSI & Fairlight", "title": "World Of Wodka" },
+        { "rank": 17, "points": 119, "title": "Toytrain" },
+        { "rank": 18, "points": 118, "title": "Twisted Minds" },
+        { "rank": 19, "points": 118, "group": "Vision 3", "title": "Time Wave" },
+        { "rank": 20, "points": 112, "group": "Trinity & ATC", "title": "Ship & Gill" },
+        { "rank": 21, "points": 106, "group": "XCene, TPF & Maak", "title": "Txt2Dir Converter!" },
+        { "rank": 22, "points": 103, "group": "Probity", "title": "Kill Gates" },
+        { "rank": 23, "points": 98, "group": "Massive", "title": "Hale-Bopp" },
+        { "rank": 24, "points": 96, "group": "Tundra", "title": "rOACHING" },
+        { "rank": 25, "points": 83, "group": "Talent", "title": "Super TutTut" },
+        { "rank": 26, "points": 79, "title": "Pure BASIC" },
+        { "rank": 27, "points": 76, "group": "ELQ", "title": "It Came From Pluto" },
+        { "rank": 28, "points": 54, "group": "Isabella", "title": "Nettverk & Nettherk" },
+        {
+          "rank": 29,
+          "points": 51,
+          "group": "Apt, e!, ist, msv, rpe",
+          "title": "cHRIZ iN dA hOOD"
+        },
+        { "rank": 30, "points": 50, "group": "cmy, sys-x32", "title": "Wild 3d!!" },
+        { "rank": 31, "points": 48, "group": "Ephidrena", "title": "The Revenge" },
+        { "rank": 32, "points": 48, "group": "Peachnut Dev.", "title": "m o n d i a l" },
+        { "rank": 33, "points": 39, "title": "TG97 Mainlogo" },
+        { "rank": 34, "points": 35, "group": "Ephidrena", "title": "Odd Gunnar" },
+        { "rank": 35, "points": 34, "group": "Team Giraff", "title": "Giraffdemo" },
+        { "rank": 36, "points": 32, "group": "Essex", "title": "VTUN RAiSiO CiTY" },
+        { "rank": 37, "points": 27, "group": "Coma", "title": "Broken" },
+        { "rank": 38, "points": 26, "group": "EMS-Design", "title": "Shit Happens" },
+        { "rank": 39, "points": 25, "title": "Hippleifhurapleif" },
+        { "rank": 40, "points": 23, "group": "Tracktoe", "title": "16 Fingers" },
+        { "rank": 41, "points": 22, "group": "EMS-Design", "title": "JFK" },
+        { "rank": 42, "points": 14, "group": "p!n Productions", "title": "The Demo" },
+        { "rank": 43, "points": 7, "title": "MultiStudio" },
+        { "rank": 44, "points": 0, "group": "Darklite", "title": "Another TRY" }
+      ]
+    },
+    "amiga/demo": {
+      "compo": "Amiga demo",
+      "platform": "amiga",
+      "medium": "demo",
+      "results": [
+        { "rank": 1, "points": 1752, "group": "The Black Lotus", "title": "Captured Dreams" },
+        { "rank": 2, "points": 652, "group": "C-Lous & Artwork", "title": "Exit Planet Dust" },
+        { "rank": 3, "points": 364, "group": "Limited Edition", "title": "Deus Ex Machina" },
+        { "rank": 4, "points": 349, "group": "Triumph", "title": "Eclipse" },
+        { "rank": 5, "points": 307, "group": "Gods", "title": "Energy" },
+        { "rank": 6, "points": 247, "group": "Ward", "title": "Black Hair Tounge Disease" },
+        { "rank": 7, "points": 221, "group": "Ephidrena", "title": "Abiotic" },
+        { "rank": 8, "points": 220, "group": "Massive & Rape", "title": "Needle Freak" },
+        { "rank": 9, "points": 220, "group": "Apathy", "title": "Assfart" },
+        { "rank": 10, "points": 214, "group": "Spaceballs", "title": "Snack" },
+        { "rank": 11, "points": 209, "group": "Orange", "title": "Espen Bredesen" },
+        { "rank": 12, "points": 176, "group": "Contraz", "title": ".plong" },
+        { "rank": 13, "points": 117, "group": "Procyon", "title": "PowerDeath" },
+        { "rank": 14, "points": 115, "group": "Elefantklubben", "title": "Hale-bop-p" },
+        { "rank": 15, "points": 105, "group": "Procyon", "title": "PcPuke!" },
+        { "rank": 16, "points": 65, "group": "Donut Fetish", "title": "Magic Milktunnel" },
+        { "rank": 17, "points": 64, "group": "TRSI & Fairlight", "title": "Find Yourself" }
+      ],
+      "unranked": {
+        "smellon-come_a": { "group": "Smellon", "title": "Come" }
+      }
+    }
+  }
+}

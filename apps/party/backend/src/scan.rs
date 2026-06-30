@@ -325,6 +325,25 @@ fn medium_from_kind(kind: &str) -> &'static str {
 /// A production's files as (rel_path, kind, ext, size).
 type ProdFile = (String, &'static str, String, i64);
 
+/// DOS extenders / runtime stubs that ship alongside a demo but aren't the
+/// demo — picking the largest .exe otherwise selects these (e.g. TG97 textdemo
+/// "Textatic" ships DEMO5.EXE + DOS4GW.EXE, and DOS4GW would win on size).
+fn is_dos_helper(rel: &str) -> bool {
+    let stem = rel
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(rel)
+        .rsplit_once('.')
+        .map(|(s, _)| s)
+        .unwrap_or(rel)
+        .to_ascii_lowercase();
+    matches!(
+        stem.as_str(),
+        "dos4gw" | "dos32a" | "dos4g" | "4gwpro" | "cwsdpmi" | "pmodew" | "pmode"
+            | "wdosx" | "rtm" | "dpmi16bi" | "dpmi32vm" | "x32" | "x32vm"
+    )
+}
+
 /// Pick the main playable file for a production given its platform and an
 /// optional medium hint from config.
 fn pick_primary<'a>(
@@ -336,6 +355,8 @@ fn pick_primary<'a>(
         files
             .iter()
             .filter(|f| f.1 == k)
+            // never let a DOS extender stub win the executable slot
+            .filter(|f| !(k == "exe" && is_dos_helper(&f.0)))
             .max_by_key(|f| f.3)
     };
     // Runnable: ext groups in priority order per platform.
@@ -349,6 +370,7 @@ fn pick_primary<'a>(
             if let Some(f) = files
                 .iter()
                 .filter(|f| grp.contains(&f.2.as_str()))
+                .filter(|f| !(matches!(f.2.as_str(), "exe" | "com") && is_dos_helper(&f.0)))
                 .max_by_key(|f| f.3)
             {
                 return Some(f);
@@ -363,7 +385,12 @@ fn pick_primary<'a>(
         Some("animation") => largest_of("video"),
         Some("demo") | Some("intro") => runnable()
             .or_else(|| largest_of("diskimage"))
-            .or_else(|| largest_of("exe")),
+            .or_else(|| largest_of("exe"))
+            // Wild/demo compos mix runnable prods with captured-to-video
+            // entries (e.g. TG97 wild #3 "Firestarter" ships only a .mpg).
+            // Fall back to the video so it still plays instead of showing no
+            // primary at all.
+            .or_else(|| largest_of("video")),
         _ => runnable()
             .or_else(|| largest_of("diskimage"))
             .or_else(|| largest_of("music"))

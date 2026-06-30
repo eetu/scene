@@ -5,9 +5,11 @@ for the **party** app. This README is the runbook for turning a demoparty's
 scene.org archive into a tree the backend can serve.
 
 It was reconstructed by reverse-engineering the **Assembly '95** export (the
-first party ingested), then hardened ingesting **Assembly '96** and **The
-Gathering '96** — each surfaced new edge cases now folded in below. Use
-`assembly95.json` / `assembly96.json` / `gathering96.json` + their live
+first party ingested), then hardened ingesting **Assembly '96**, **The
+Gathering '96**, and **The Gathering '97** — each surfaced new edge cases now
+folded in below (TG97, the sparsest tree yet, drove the demozoo-API recovery
+recipe in Step 4½). Use `assembly95.json` / `assembly96.json` /
+`gathering96.json` / `gathering97.json` + their live
 `/Volumes/scene/parties/<Party>` trees as worked examples throughout; they
 bracket most of the variation seen so far.
 
@@ -51,15 +53,29 @@ reliable backbone and budget for a handful of party-specific surprises each time
   archived vs. lost; the long unranked music/graphics tail; per-prod quirks (split
   executables, Amiga launch lines, a demo that needs sound setup).
 - **Rules of thumb we keep relearning**: scene.org is often **incomplete** (winners
-  missing entirely — Step 4½); the same prod sometimes lands in **both** a ranked
+  missing entirely — Step 4½; TG97 was only **66/167** ranked entries on the mirror,
+  demozoo got it to 121); the same prod sometimes lands in **both** a ranked
   folder and `rest/`, so it lists twice (Step 5, dedup); auto-naming the tail with
   an LLM is great but it **hallucinates** occasionally, so cross-check (Step 5); and
   emulation has **non-obvious runtime knobs** (Amiga fast RAM, PC GUS setup) that
   make a "correctly arranged" prod still fail — so actually **boot a few** before
   declaring victory (Step 7½).
+- **Folder↔compo is not 1:1.** A single compo can be split across two scene.org
+  dirs (TG97 stored one Graphics compo across `grfx/` **and** `grtc/`, with one pic
+  duplicated in both) — merge them under one category key. And a dir's name lies:
+  TG97's `grtc` is *not* raytrace (the raytrace compo had its own single entry,
+  absent from the tree). Map dirs by their **contents vs the results**, not the name.
+- **`results.txt` can omit whole compos.** TG97's file had no raytraced-graphics
+  section at all — only demozoo revealed the compo existed. Always reconcile the
+  compo *list* against demozoo, not just the placings (Step 4).
+- **Ranks are the results' line order, ties included** — not points-deduped. Two
+  entries on the same points each consume a rank (TG97 amiga #8/#9 both 220 pts).
+  The `FILE_ID.DIZ` is the oracle: many state "Place 11th" / "#13 in the … compo",
+  which catches off-by-one rank slips (Step 5).
 
-When in doubt, diff the three worked examples (`assembly95.json`, `assembly96.json`,
-`gathering96.json`) — they bracket most of the variation seen so far.
+When in doubt, diff the four worked examples (`assembly95.json`, `assembly96.json`,
+`gathering96.json`, `gathering97.json`) — they bracket most of the variation seen
+so far.
 
 ## Prerequisites
 
@@ -68,6 +84,10 @@ When in doubt, diff the three worked examples (`assembly95.json`, `assembly96.js
 - **Archive extractors**: `unzip`, `lha` (LZH/LHA, common for Amiga), `unarj`.
   Older parties mix all three. On macOS only `unzip` is stock — `brew install lha`
   (`arj`/`unarj` from brew too); not having them silently skips those archives.
+  **`.lzx` is a different format** — `lha` does **not** read it and fails *silently*
+  (empty folder, no error). Use **The Unarchiver**: `brew install unar` → `lsar` to
+  list, `unar` to extract; it groks Amiga LZX where `lha`/`bsdtar`/`7z` don't (and is
+  a good universal fallback for odd scene archives generally).
 - For Amiga AGA images (optional): **amitools** (`uv tool install amitools` →
   `xdftool`, `rdbtool` on your PATH; it is *not* a Homebrew formula) and a
   **Kickstart 3.1 (A1200)** ROM. See Step 6.
@@ -264,9 +284,11 @@ scraped, the backend will synthesize disabled "not archived" rows for any ranked
 entry with no folder (Step 7), which tells you exactly what's missing. Before
 accepting those as lost, hunt the other archives:
 
-- **demozoo** — the best source; per-prod pages link to a download (often on
-  `archive.scene.org/.../amigascne/`, aminet, or a scene.org mirror). Prods with no
-  link are usually tagged **`lost`** — that's authoritative, treat as gone.
+- **demozoo** — the best source, and it has a **REST API** that makes recovery
+  systematic (recipe below). Per-prod pages link to a download (often on
+  `archive.scene.org/.../amigascne/`, aminet, modland, hornet, or a scene.org
+  mirror). Prods with no link are usually tagged **`lost`** — that's authoritative,
+  treat as gone.
 - **pouët** — sometimes a mirror link demozoo lacks.
 - **aminet** (`aminet.net`, Amiga), **Janeway/ExoticA** (Amiga; behind Cloudflare —
   needs a real browser).
@@ -274,14 +296,46 @@ accepting those as lost, hunt the other archives:
   missing prod (and watch the reverse — a pack may only *duplicate* already-ranked
   prods, Step 5 dedup).
 
+**The demozoo-API recipe (drives bulk recovery):**
+
+1. `GET https://demozoo.org/api/v1/parties/<id>/` → `competitions[].results[]`, each
+   with `position`, `score`, and a `production` (its demozoo `id`, title, author_nicks).
+   This is also where you catch compos `results.txt` omitted (Step 4).
+2. Match each *missing* `(category, rank)` to a production id by `position` (fall back
+   to a normalized title compare). Map demozoo compo names → your category keys.
+3. `GET …/api/v1/productions/<id>/` → `download_links[]`. **No links ⇒ lost** (don't
+   fight it). Be polite: fetch serially or `xargs -P 4` — demozoo rate-limits and
+   returns empty bodies under heavy parallelism (retry the blanks).
+4. Download, **then place** into the right `NN - Group - Title` folder.
+
+Download pitfalls that silently corrupt recovery (all hit on TG97):
+
+- **`files.scene.org/view/…` is a landing page, not the file** — rewrite `/view/` →
+  `/get/` for a direct download. Links often arrive already `%`-encoded (`%20`/`%27`)
+  — **don't re-encode** them.
+- **Validate it's the binary, not HTML.** A non-empty response is not success:
+  `amp.dascene.net` links may be a `detail.php` page (HTML) rather than the module,
+  and dead mirrors return a tiny 404 page. `file` the result; if it's HTML, try the
+  *next* `download_link` (prods list several — modland/hornet were reliable fallbacks).
+- **Modules come misnamed / gzipped** — a download saved as `downmod.php` was a
+  gzipped `.xm`; `gunzip` + rename to the real extension or the scanner won't
+  classify it as music.
+- **Joiner packs** — one demozoo download can be a multi-pic pack shared by *several*
+  graphics prods (TG97 linked Tjo Bing Beng, Hashrami and Nightowl to the same zip).
+  Each prod's folder then gets *all* the images; keep only the matching one per folder
+  (Step 5 dedup logic applies).
+
 Stage downloads outside the live tree, **verify each is the right prod** (read its
 `FILE_ID.DIZ`, or byte-compare if it claims to match an existing file — recovery
-agents do mislink), then drop into the proper `NN - Group - Title` folder.
+links do mislink), then drop into the proper `NN - Group - Title` folder.
 
-TG96 worked example: **46** ranked entries were missing from scene.org; **11** were
-recovered (8 Amiga demos + 2 wild + 1 fastintro, from demozoo→amigascne/scene.org),
-the other ~34 are demozoo-`lost` or Cloudflare-walled. Don't expect a clean sweep —
-log what stays missing so the disabled rows are understood, not mistaken for a bug.
+TG96: **46** missing, **11** recovered, rest `lost`/Cloudflare-walled. TG97 worked
+example (API-driven): **102** ranked entries missing from scene.org; **55**
+recovered (music +24, graphics +11, fastintro +9, demo +3, …) bringing it to
+**121/167**; of the rest, 45 were demozoo-`lost`, 1 had no demozoo record, 1 a dead
+link — and **39 of those 47 are the Wild compo** (wild is chronically unarchived).
+Don't expect a clean sweep — log what stays missing so the disabled rows are
+understood, not mistaken for a bug.
 
 ## Step 5 — Author the party config (`.party.json`)
 
@@ -323,6 +377,15 @@ Key rules:
   when the rank is unique in the category, so a tie never stamps one entry's name
   onto the other. `group`/`title` are optional — without them the folder name
   (`NN - Group - Title`) supplies the display metadata.
+- **Rank = the results' line order (ties consume a number each), not a points
+  dedupe.** Number sequentially down the file even when points repeat. Sanity-check
+  against `FILE_ID.DIZ`, which often states the placing outright ("Place 11th") — that
+  caught two off-by-one slips on TG97 (Dalt was #10 not #12; Korean Fantasies #17 not
+  #16) after a tie shifted everything below it.
+- **When `results.txt` and the `.diz` disagree on group/title, the `.diz` usually
+  wins** (it's the prod's own claim). TG97 results said Dual 4kb! was "tbl" and PGP
+  "zimmerman??", but the dizzes said Subspace and TLS — use the diz, optionally
+  confirm on demozoo.
 - The `categories` keys are the folder paths (one or two segments). Folders not
   listed still get scanned — the backend falls back to heuristics in `scan.rs`
   (platform by file extension / folder name; medium by primary-file kind) — but
@@ -387,9 +450,15 @@ TG96's Black Lotus – Tint (six `tbl-tt0N.dms`) and the recovered D.U.M / Rap D
 Identify the real executable first: Amiga executables are Hunk binaries — magic
 `0x000003F3` (`head -c4 file | xxd`). Pick the prod's actual launcher (the one with a
 `.info` icon, or the obvious name), **not** courier junk bundled by the upload group
-(`dO-xTREME.exe`, `*.CLASS`) and not a player/util. Watch for: **split executables**
-joined first (`cat foo.ex1 foo.ex2 > foo.exe`); **fix releases** (`na!murr-fix.exe`)
-as the launch target; data in a **subdir** that must be flattened to the volume root.
+(`dO-xTREME.exe`, `*.CLASS`, `GOT58CJJD.exe`-style garbled names) and not a
+player/util. Watch for: **split executables** joined first
+(`cat foo.ex1 foo.ex2 > foo.exe`); **fix releases** (`na!murr-fix.exe`) as the launch
+target; a **launcher buried one level down** (TG97 Assfart's exe was in `assfart/`)
+that you flatten up; and a **`dust_runme`-style boot script** — if the prod ships one,
+its lines *are* your startup-sequence (TG97 Exit Planet Dust runs `tomate` then
+`gurke`). **Preserve real data subdirs** (`data/`, the prod's own folders) — only
+flatten a subdir that merely *wraps* the launcher, or you break the exe's relative
+paths.
 
 Verified `amitools` recipe (current amitools — `pack` works for ADF but its `size=`
 errors on HDF geometry, so use explicit `create`/`format`/`write` for both):
@@ -411,10 +480,20 @@ xdftool "$img" boot show | grep bootable           # sanity: "bootable: True"
 
 Startup-sequence tips: a bare exe name at the volume root runs (AmigaDOS searches the
 current dir). If the prod opens a library that ships alongside it (e.g.
-`replayer.library`), prepend `assign LIBS: SYS:` so `OpenLibrary` finds it at the
-root. Put the built image in the prod's `.support/<Title> (AGA).hdf` and leave the
-extracted originals in the folder (the scanner prefers the `adf`/`hdf` as primary, so
-the demo launches while the raw files stay browsable).
+`replayer.library`, `xpkmaster.library`), prepend `assign LIBS: SYS:` so
+`OpenLibrary` finds it at the root. Put the built image in the prod's
+`.support/<Title> (AGA).hdf` and leave the extracted originals in the folder (the
+scanner prefers the `adf`/`hdf` as primary, so the demo launches while the raw files
+stay browsable).
+
+Two macOS traps when scripting the build:
+
+- **Case-insensitive FS.** Flattening a subdir whose name case-insensitively matches a
+  file inside it collides (TG97 `assfart/` dir vs the `aSSFARt` exe — `mv`/`cp`
+  "already exists"). Rename the subdir to a temp name first, then move its contents up.
+- **Leading-dot prod titles** (TG97 Contraz `.plong`) yield a hidden image filename
+  `.plong (AGA).hdf`. The scanner indexes it fine, but globs (`ls *.hdf`) and any junk
+  filter miss leading-dot files — check it survives `package-party-data`.
 
 - A **Kickstart 3.1 (A1200)** ROM is required at
   `<PARTY_ROOT>/.support/kick40068.A1200` (512 KB, v40.068). It's copyrighted and
@@ -501,6 +580,16 @@ Capturing the window to a PNG and reading it back is the reliable way to tell
 
 The quirks we hit (all now fixed in the app, but know them when a demo misbehaves):
 
+- **A wild "demo" that's only a captured video showed no Play button.** `pick_primary`
+  (`scan.rs`) resolved `medium: demo/intro` to runnable→diskimage→exe and stopped, so a
+  wild entry shipping only an `.mpg` (TG97 #3 Firestarter) got *no* primary. Fixed:
+  it now falls back to the largest video. Wild compos mix runnable prods and videos —
+  expect both.
+- **The DOS extender got picked as the primary exe.** Scanner takes the largest `.exe`;
+  for a prod shipping `DOS4GW.EXE`/`CWSDPMI.EXE` alongside the real (smaller) demo exe,
+  the extender won and the js-dos bundle ran a do-nothing stub (TG97 Textatic →
+  `DOS4GW.EXE` instead of `DEMO5.EXE`). Fixed: `scan.rs` now excludes a denylist of
+  known extenders/stubs from the exe slot.
 - **Amiga demos need fast RAM.** EmulatorJS forces `puae_model=A1200` — whose preset
   is "2M Chip + **8M Fast**" — but it *also* writes the individual memory options at
   the core's default (fast = 0), and those **override the model preset**. Result: any
@@ -564,6 +653,15 @@ tree never changes there, so rescan is disabled. (See `justfile`,
 - **fish shell** — moving entry folders with hidden files trips the classic fish
   gotcha: an unmatched glob like `mv rest/x/.[!.]* dst/` *errors* instead of
   passing through. Wrap such one-liners in `bash -c '…'`, or use `cp -a`/`rsync`.
+- **`unzip` hangs a script on junk filenames** — CP437 archives carry files with
+  control-byte names that `unzip` can't create; it then *prompts* ("write error;
+  Continue? y/n") and a non-interactive run blocks forever (or dies on EOF). Run it
+  `</dev/null` and tolerate a non-zero exit; the junk file is unimportant.
+- **`.lzx` ≠ `.lha`** — `lha` silently makes an empty folder for an LZX archive (no
+  error). Extract it with `unar` (The Unarchiver, `brew install unar` — Prerequisites).
+- **A compo split across two dirs / a misnamed dir** — one Graphics compo can live in
+  two scene.org folders (merge under one key); a `grtc`-named dir may not be raytrace.
+  Map by contents-vs-results, and reconcile the compo *list* against demozoo (Step 4).
 - **Double-listed prods** — a winner copied into both its ranked folder and `rest/`
   shows twice; the backend won't dedupe. Title-match + byte-compare, then drop the
   `rest/` copy + its `unranked` entry (Step 5).
