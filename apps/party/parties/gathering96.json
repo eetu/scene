@@ -62,7 +62,8 @@
       ],
       "unranked": {
         "digestiv": {
-          "title": "DIGESTIVE FLOUR"
+          "group": "Proxima",
+          "title": "Digestive Flour"
         }
       }
     },
@@ -145,8 +146,8 @@
       ],
       "unranked": {
         "jungle": {
-          "group": "INDEX",
-          "title": "JUNGLE FEVER"
+          "group": "Index",
+          "title": "Jungle Fever"
         }
       }
     },
@@ -224,12 +225,12 @@
       ],
       "unranked": {
         "fantazia": {
-          "group": "Nebula and Misc Design,",
-          "title": "demo"
+          "group": "Nebula and Misc Design",
+          "title": "Fantazia"
         },
         "st_peter": {
-          "group": "*HA! KUMIMUNA*",
-          "title": "CODE"
+          "group": "The Planet of Leather Moomins",
+          "title": "Great Lovemachine Pope"
         }
       }
     },
@@ -313,8 +314,8 @@
       ],
       "unranked": {
         "eli_rygg": {
-          "group": "Old Fashion ║",
-          "title": "║"
+          "group": "Old Fashion",
+          "title": "Trekant med Eli Rygg"
         }
       }
     },
@@ -365,12 +366,7 @@
           "group": "Hoaxers",
           "title": "Arrgh!"
         }
-      ],
-      "unranked": {
-        "tg96-4k": {
-          "title": "All 4kb intros at TG'96"
-        }
-      }
+      ]
     },
     "amiga/in40": {
       "compo": "Amiga 40K intro",
@@ -407,12 +403,7 @@
           "group": "Apathy",
           "title": "Disaster"
         }
-      ],
-      "unranked": {
-        "tg96-40k": {
-          "title": "TG96: 40 kB intros"
-        }
-      }
+      ]
     },
     "amiga/demo": {
       "compo": "Amiga demo",
@@ -638,8 +629,8 @@
       "results": [],
       "unranked": {
         "after8": {
-          "group": "Dr.Death/Eltech^ATS",
-          "title": "After eight"
+          "group": "Dr.Death/Eltech",
+          "title": "After Eight"
         },
         "allesamm": {
           "group": "14iss",
@@ -650,38 +641,39 @@
           "title": "Arctic"
         },
         "barock": {
-          "group": "Pinocchio/Contraz^BDZ",
+          "group": "Pinocchio/Contraz",
           "title": "Ba'rock"
         },
         "brothern": {
-          "group": "Isak & Kristian",
-          "title": "Brother nature"
+          "group": "Isak & Kristian Gjertsen",
+          "title": "Brother Nature"
         },
         "buggin": {
-          "group": "CPS/EPH",
+          "group": "CBS/EPH",
           "title": "Bugging"
         },
         "bugnfunk": {
           "group": "Pyrex",
-          "title": "Big'n funky"
+          "title": "Big'n Funky"
         },
         "cappucin": {
-          "group": "Some1&Morrow",
+          "group": "Some1 & Morrow",
           "title": "Cappuccino"
         },
         "church": {
           "group": "Don-cato & Kdkdokin/Talent",
-          "title": "Church of funk!"
+          "title": "Church of Funk!"
         },
         "circle": {
-          "title": "The Gathering '96 release"
+          "group": "Superted/Grotesticle",
+          "title": "Circle"
         },
         "dawnoanm": {
           "group": "Chris Meland",
-          "title": "Dawn of a new man"
+          "title": "Dawn of a New Man"
         },
         "evening": {
-          "group": "D0lby/!mage Dreams",
+          "group": "D0lby/Image Dreams",
           "title": "Eveningjazz"
         },
         "keys_to_": {
@@ -690,11 +682,11 @@
         },
         "ocean_ta": {
           "group": "Vinnie/Spaceballs",
-          "title": "Ocean_taffel_magic"
+          "title": "Ocean Taffel Magic"
         },
         "river_vo": {
           "group": "Jerry/Rebels",
-          "title": "River volga"
+          "title": "River Volga"
         }
       }
     },
@@ -705,24 +697,28 @@
       "results": [],
       "unranked": {
         "declara": {
-          "title": "Declaration of war"
+          "group": "Sikamikanico/Foolish & Sunday/Mistery",
+          "title": "Declaration of War"
         },
         "ingrid_p": {
+          "group": "Silencer/Prospect/SOTU",
           "title": "Ingrid Peters"
         },
         "k-t2tsht": {
-          "group": "KELTHAR/OG SYNDICACTE/DFN║",
-          "title": "║COMPSOED"
+          "group": "Kelthar/OG Syndicate/DFN/OverDoze",
+          "title": "Trip to Trance"
         },
         "p_stereo": {
+          "group": "Pothead Pixie",
           "title": "Yr Stereo Pharmazeuth"
         },
         "scarydrm": {
-          "group": "X-PRADICA/SUBLEVEL 3 ║",
-          "title": "║ COMPOSED"
+          "group": "X-Prodica/Sublevel 3",
+          "title": "Scary Dreams"
         },
         "timeswtc": {
-          "title": "Kezoomer / TLS"
+          "group": "Kezoomer/The Lost Souls",
+          "title": "The TimeSwitch"
         }
       }
     },
@@ -784,68 +780,92 @@
       ],
       "unranked": {
         "blues": {
-          "title": "TYPE: IFF PICTURE"
+          "group": "NOT",
+          "title": "Blues"
         },
         "borninanarchy": {
-          "title": "Born In Anarchy - A IFF Picture by"
+          "group": "PSyChO/Digital",
+          "title": "Born In Anarchy"
         },
         "defeatofdoubt": {
-          "title": "Defeat of Doubt\" a picture done by:"
+          "group": "Vic",
+          "title": "Defeat of Doubt"
         },
         "drill": {
-          "group": "DRAN/CTZ",
-          "title": "DRILL.IFF A PICTUR"
+          "group": "Dran/CTZ",
+          "title": "Drill"
         },
         "fiskenfrode": {
-          "title": "TYPE: IFF PICTURE"
+          "group": "Cheetah/Ephidrena",
+          "title": "Fisken Frode"
         },
         "hiddenfaces": {
-          "title": "type: picture/iff"
+          "group": "Mr. Phoenix",
+          "title": "Hidden Faces"
+        },
+        "ideal_attribut_by_frame": {
+          "group": "Frame",
+          "title": "Ideal Attribut"
         },
         "inder": {
-          "title": "Type : Graphics"
+          "group": "Jogeir/Pornos",
+          "title": "Inder"
         },
         "isolation": {
-          "title": "Type : Graphics"
+          "group": "Superted/Grotesticle",
+          "title": "Isolation"
         },
         "jagguhell": {
-          "title": "Type : ILBM graphics file"
+          "group": "Loaderror/Ephidrena",
+          "title": "Jaggu Hell"
         },
         "leguana": {
-          "title": "IFF image"
+          "group": "Bridgeclaw/GODS",
+          "title": "Leguana"
         },
         "manvsbeast": {
-          "title": "Man Vs Beast\" - A picture by:"
+          "group": "Dr. Zulu/Giga Productions",
+          "title": "Man Vs Beast"
         },
         "meetingzeus": {
-          "group": "a book",
-          "title": "The face is more than inspired"
+          "group": "Cytron/Homo Sapiens",
+          "title": "Meeting Zeus"
+        },
+        "miika_tysonen_by_zack": {
+          "group": "Zack",
+          "title": "Miika Tysonen"
         },
         "ninetongues": {
-          "group": "Pix/Iris. Motive taken",
-          "title": "Description : A picture released at TG'96"
+          "group": "Pix/Iris",
+          "title": "Nine Tongues"
         },
         "passage": {
-          "title": "Type : Graphics"
+          "group": "Phase/Spaceballs",
+          "title": "Passage"
         },
         "pulpfiction": {
-          "title": "TYPE: IFF PICTURE"
+          "group": "Wad/Ephidrena",
+          "title": "Pulp Fiction"
         },
         "soundwaves": {
-          "title": "Soundwaves\" - Picture drawn by:"
+          "group": "Isaac/Banana Dezign",
+          "title": "Soundwaves"
         },
         "sunchild": {
-          "group": "ATOM / Salmon Design",
-          "title": "A picture"
+          "group": "Atom/Salmon Design",
+          "title": "Sunchild"
         },
         "sunface": {
-          "title": "Type : Graphics"
+          "group": "Nirvana/Contraz",
+          "title": "SunFace"
         },
         "uglyashell": {
-          "title": "TYPE: Graphic (IFF)"
+          "group": "Klaus Arne Kuhr/Cpt.Chaos",
+          "title": "Ugly As Hell"
         },
         "x-files2": {
-          "title": "║X-FILES picture / KJELL ARNE HAUGLAND║"
+          "group": "Kjelke/Sensation",
+          "title": "X-Files"
         }
       }
     }
