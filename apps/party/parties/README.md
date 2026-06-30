@@ -85,9 +85,9 @@ so far.
   Older parties mix all three. On macOS only `unzip` is stock — `brew install lha`
   (`arj`/`unarj` from brew too); not having them silently skips those archives.
   **`.lzx` is a different format** — `lha` does **not** read it and fails *silently*
-  (you get an empty folder, no error). There's no easy macOS tool (`brew` has none,
-  `bsdtar`/`7z` don't grok Amiga LZX); either build `unlzx` from source or stage the
-  raw `.lzx` as a download-only entry (TG97 wild #29 went this route).
+  (empty folder, no error). Use **The Unarchiver**: `brew install unar` → `lsar` to
+  list, `unar` to extract; it groks Amiga LZX where `lha`/`bsdtar`/`7z` don't (and is
+  a good universal fallback for odd scene archives generally).
 - For Amiga AGA images (optional): **amitools** (`uv tool install amitools` →
   `xdftool`, `rdbtool` on your PATH; it is *not* a Homebrew formula) and a
   **Kickstart 3.1 (A1200)** ROM. See Step 6.
@@ -658,7 +658,7 @@ tree never changes there, so rescan is disabled. (See `justfile`,
   Continue? y/n") and a non-interactive run blocks forever (or dies on EOF). Run it
   `</dev/null` and tolerate a non-zero exit; the junk file is unimportant.
 - **`.lzx` ≠ `.lha`** — `lha` silently makes an empty folder for an LZX archive (no
-  error). Stage the raw `.lzx` as download-only or build `unlzx` (Prerequisites).
+  error). Extract it with `unar` (The Unarchiver, `brew install unar` — Prerequisites).
 - **A compo split across two dirs / a misnamed dir** — one Graphics compo can live in
   two scene.org folders (merge under one key); a `grtc`-named dir may not be raytrace.
   Map by contents-vs-results, and reconcile the compo *list* against demozoo (Step 4).
