@@ -12,9 +12,10 @@
   let host = $state<HTMLDivElement | null>(null);
   let error = $state<string | null>(null);
   let fpsOn = $state(false);
-  // Amiga only: trade timing accuracy for speed at runtime (cycle-exact ↔ a
-  // lighter CPU mode) for AGA demos that are too heavy. Defaults to accurate.
-  let perfMode = $state(false);
+  // Amiga only: default is an accelerated 68030 (smooth for heavy AGA demos, as
+  // on the target hardware / capture videos). This toggle switches to authentic
+  // stock-A1200 cycle-exact 68020 timing for the few demos that require it.
+  let accurateMode = $state(false);
   // iOS Safari has no Fullscreen API on a <div>, so the real button no-ops; fall
   // back to a CSS "pseudo fullscreen" (fixed overlay), as the DOS surface does.
   let pseudoFs = $state(false);
@@ -59,14 +60,14 @@
     g.EJS_backgroundColor = cssVar("--bg", "#0f0f0f");
     // Core option defaults (the INITIAL value; once the user changes an option
     // in the settings menu their choice persists in localStorage and wins):
-    // - Amiga: force the A1200 (AGA) model + cycle-exact CPU. The AGA demos
-    //   rely on exact 68020/copper/blitter timing. Cycle-exact is the heaviest
-    //   PUAE mode and is CPU-bound for AGA — note that in this mode PUAE ignores
-    //   the cpu_throttle / immediate_blits / frameskip levers, so the one perf
-    //   option that still applies is collision detection, which demos don't use,
-    //   so we turn it off. If a demo is too slow, drop CPU Compatibility from
-    //   'Cycle-exact' to 'memory'/'compatible' in the settings menu (faster, at
-    //   some timing accuracy). See libretro PUAE core options.
+    // - Amiga: A1200 (AGA) model, but accelerated to a 68030 (like an A1200 with
+    //   a Blizzard 1230) so heavy AGA demos hit full framerate the way they do on
+    //   the target hardware / capture videos. A stock cycle-exact 68020 is pinned
+    //   to real-A1200 speed and chugs on demanding demos — the "Accurate" toggle
+    //   offers that for the few that need exact 020/copper/blitter timing.
+    //   `compatible` (not cycle-exact) is required for the 030 to run at speed;
+    //   immediate blits + no collision (demos don't use it) save more CPU.
+    //   See libretro PUAE core options.
     // - C64: drive-sound emulation off by default. VICE models the 1541's
     //   motor/stepper noise faithfully, and many demos keep the drive spinning,
     //   so the sound runs on under the demo (unlike Amiga, whose floppy noise
@@ -80,13 +81,15 @@
     const opts: Record<string, string> = { "virtual-gamepad": "disabled" };
     if (core === "amiga") {
       opts.puae_model = "A1200"; // force AGA — our Amiga content is AGA demos
+      opts.puae_cpu_model = "68030"; // accelerate (Blizzard-1230-style) for speed
+      opts.puae_cpu_compatibility = "compatible"; // 030 runs at speed (not exact)
+      opts.puae_immediate_blits = "immediate"; // instant blitter — saves CPU
       // The A1200 preset is "2M Chip + 8M Fast", but the individual memory
       // options override the model preset, and EmulatorJS writes them all at the
       // core's default (fast = 0). With no fast RAM, any sizable demo aborts on
       // launch with "not enough memory available / returncode 10" (verified in
       // UAE). Force 8 MB Zorro-II fast back on so the demos actually load.
       opts.puae_fastmem_size = "8";
-      opts.puae_cpu_compatibility = "exact"; // demo-accurate (heaviest) timing
       opts.puae_collision_level = "none"; // demos don't need collision — saves CPU
     } else if (core === "c64") {
       opts.vice_drive_sound_emulation = "disabled";
@@ -145,11 +148,11 @@
     fpsOn = next === "show";
   }
 
-  // Amiga: flip CPU emulation between cycle-exact (accurate, heavy) and a
-  // lighter mode, then reset the machine so PUAE re-reads the variables. Each
-  // option change pushes to the core via setVariable; restart() re-applies them
-  // without re-downloading the core.
-  function togglePerf() {
+  // Amiga: flip between the accelerated 68030 default and authentic stock-A1200
+  // cycle-exact 68020 timing, then reset the machine so PUAE re-reads the
+  // variables. Each change pushes to the core via setVariable; restart()
+  // re-applies them without re-downloading the core.
+  function toggleAccurate() {
     const ci = w().EJS_emulator as
       | {
           changeSettingOption?: (k: string, v: string) => void;
@@ -157,9 +160,10 @@
         }
       | undefined;
     if (!ci?.changeSettingOption) return;
-    perfMode = !perfMode;
-    ci.changeSettingOption("puae_cpu_compatibility", perfMode ? "compatible" : "exact");
-    ci.changeSettingOption("puae_immediate_blits", perfMode ? "immediate" : "waiting");
+    accurateMode = !accurateMode;
+    ci.changeSettingOption("puae_cpu_model", accurateMode ? "68020" : "68030");
+    ci.changeSettingOption("puae_cpu_compatibility", accurateMode ? "exact" : "compatible");
+    ci.changeSettingOption("puae_immediate_blits", accurateMode ? "waiting" : "immediate");
     ci.gameManager?.restart?.();
   }
 
@@ -180,11 +184,11 @@
   <div class="bar">
     {#if core === "amiga"}
       <button
-        class:on={perfMode}
-        onclick={togglePerf}
-        title="Performance mode: trade cycle-exact timing for speed (restarts the demo)"
+        class:on={accurateMode}
+        onclick={toggleAccurate}
+        title="Accurate timing: authentic stock A1200 (cycle-exact 68020) — slower, for demos that need exact timing (restarts the demo)"
       >
-        Perf
+        Accurate
       </button>
     {/if}
     <button class:on={fpsOn} onclick={toggleFps} title="Toggle FPS counter">FPS</button>
