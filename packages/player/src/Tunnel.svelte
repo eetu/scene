@@ -235,17 +235,6 @@
         float fog = exp(-hitZ * 0.055); // gentle: the tube recedes into depth, not a void
         col *= fog * (0.55 + uGlow * 0.9);
         col += col * uPulse * 0.9; // beat bloom kick (theme-agnostic)
-
-        // Pulsing beacon we're chasing, on the tube axis ahead. Push it deep on
-        // straight runs (a distant light at the vanishing point, not a ghost
-        // mid-tunnel); pull it closer where the tube bends so its glow spills
-        // around the curve while the source stays hidden behind it.
-        float lead = mix(50.0, 18.0, smoothstep(0.5, 2.0, length(center(35.0))));
-        vec2 hitXY = center(hitZ) + R * vec2(cos(hitAng), sin(hitAng));
-        vec3 beacon = vec3(center(lead), lead);
-        float dl = length(vec3(hitXY, hitZ) - beacon);
-        vec3 lightCol = mix(vec3(0.5, 0.8, 1.0), vec3(1.0, 0.7, 0.35), 0.5 + 0.5 * sin(uTime * 0.4));
-        col += lightCol * (0.5 + uPulse * 2.2) / (1.0 + dl * dl * 0.12);
       }
       // Vanishing-point core glow — fills the deep centre so it reads as a lit
       // tunnel receding, not a black hole.
