@@ -30,7 +30,8 @@ pub const MODULE_EXTS: &[&str] = &[
 ];
 
 const IMAGE_EXTS: &[&str] = &[
-    "lbm", "iff", "ilbm", "ham", "pcx", "tif", "tiff", "gif", "jpg", "jpeg", "png", "tga", "bmp",
+    "lbm", "iff", "ilbm", "ham", "pic", "pcx", "tif", "tiff", "gif", "jpg", "jpeg", "png", "tga",
+    "bmp",
 ];
 const VIDEO_EXTS: &[&str] = &["mpg", "mpeg", "avi", "fli", "flc", "mp4", "mov", "webm", "m2v"];
 const EXE_EXTS: &[&str] = &["exe", "com", "run", "bat"];
@@ -95,7 +96,9 @@ pub fn mime_for(ext: &str, filename: &str) -> &'static str {
         "png" => "image/png",
         "bmp" => "image/bmp",
         "tif" | "tiff" => "image/tiff",
-        "lbm" | "iff" | "ilbm" | "ham" => "image/x-ilbm",
+        // `.pic` at parties is usually IFF ILBM (e.g. Gathering'96 grfx); ffmpeg
+        // content-sniffs on transcode, so the label is just a viewer hint.
+        "lbm" | "iff" | "ilbm" | "ham" | "pic" => "image/x-ilbm",
         "pcx" => "image/x-pcx",
         "tga" => "image/x-tga",
         "mpg" | "mpeg" | "m2v" => "video/mpeg",
@@ -828,6 +831,7 @@ mod tests {
     fn classify_by_ext() {
         assert_eq!(classify("song.mod", "mod"), "music");
         assert_eq!(classify("PIC.LBM", "lbm"), "image");
+        assert_eq!(classify("JOACHIM.PIC", "pic"), "image"); // IFF ILBM w/ .pic ext
         assert_eq!(classify("flow.mpg", "mpg"), "video");
         assert_eq!(classify("DEMO.EXE", "exe"), "exe");
         assert_eq!(classify("disk.d64", "d64"), "diskimage");
