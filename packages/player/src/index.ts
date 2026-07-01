@@ -11,6 +11,7 @@ export { default as GlowWave } from "./GlowWave.svelte";
 export { default as PatternView } from "./PatternView.svelte";
 export { default as Plasma } from "./Plasma.svelte";
 export { default as Starfield } from "./Starfield.svelte";
+export { default as Tunnel } from "./Tunnel.svelte";
 export { default as VuMeters } from "./VuMeters.svelte";
 export { default as PlayerStage } from "./PlayerStage.svelte";
 export { default as Scope } from "./Scope.svelte";
