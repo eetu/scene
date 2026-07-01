@@ -35,7 +35,6 @@
     const float FAR = 62.0;       // max march distance (deep enough to hide the void)
     const float RING_FREQ = 1.15; // ring lines per world unit of travel
     const float RAIL_FREQ = 16.0; // rails around the tube
-    const float LEAD = 20.0;      // how far ahead the chased beacon sits
     const float TAU = 6.2831853;  // angular terms use integer×TAU to wrap seamlessly
 
     // Course "terrain": a slow field along the tube that alternates long straights
@@ -105,17 +104,20 @@
       vec3 gridCol = mix(vec3(1.0, 0.2, 0.8), vec3(0.25, 0.9, 1.0), grad);
       return mix(vec3(0.16, 0.03, 0.22), vec3(0.35, 0.08, 0.3), grad) * 0.35 + gridCol * grid;
     }
-    // Rust: corroded steel — grainy iron-oxide patches with vertical rust runs
-    // over a grey steel base. Higher-freq mottle (grain, not organic blobs) plus
-    // streaks; iron-oxide reds, not tan. All angular terms integer×TAU (seamless).
-    vec3 themeRust(float z, float a, float t) {
-      float m = (0.5 + 0.5 * sin(z * 6.0 + a * TAU * 3.0)) * 0.5 +
-                (0.5 + 0.5 * sin(z * 15.0 - a * TAU * 7.0)) * 0.3 +
-                (0.5 + 0.5 * sin(z * 31.0 + a * TAU * 13.0)) * 0.2;
-      float streak = 0.5 + 0.5 * sin(a * TAU * 40.0 + sin(z * 0.6) * 2.5); // rust runs
-      m *= 0.75 + 0.25 * streak;
-      vec3 iron = mix(vec3(0.28, 0.11, 0.04), vec3(0.5, 0.24, 0.08), m);
-      return mix(vec3(0.13, 0.14, 0.15), iron, smoothstep(0.42, 0.72, m));
+    // Circuit board: dark-green FR-4 with a copper trace grid + solder pads; a
+    // random subset of nodes is "energized" and glows green, flowing along z like
+    // data. Grid is 24 traces around (integer → seamless).
+    vec3 themeCircuit(float z, float a, float t) {
+      float gz = z * 3.0, ga = a * 24.0;
+      float traces = max(neon(gz, 0.03), neon(ga, 0.025));
+      vec2 cell = fract(vec2(gz, ga)) - 0.5;
+      float pad = smoothstep(0.16, 0.1, length(cell)); // round pads at nodes
+      float r = fract(sin(floor(gz) * 12.9 + floor(ga) * 78.2 + uSeed) * 43758.5);
+      float flow = step(0.62, r) * (0.4 + 0.6 * (0.5 + 0.5 * sin(gz * 2.0 - t * 4.0 + r * 6.0)));
+      vec3 board = vec3(0.02, 0.11, 0.05);
+      vec3 copper = vec3(0.75, 0.5, 0.2);
+      vec3 glow = vec3(0.3, 1.0, 0.6);
+      return board + copper * (traces + pad) * 0.6 + glow * (traces + pad * 1.5) * flow;
     }
     // Rainbow: soft pastel spectrum spiralling around + down the tube (hue is
     // cyclic, so a*1.0 = one seamless spectrum around). Low saturation + a lift
@@ -161,7 +163,7 @@
       if (id < 2.5) return themeHyper(z, a, t);
       if (id < 3.5) return themeGiger(z, a, t);
       if (id < 4.5) return themeVapor(z, a, t);
-      if (id < 5.5) return themeRust(z, a, t);
+      if (id < 5.5) return themeCircuit(z, a, t);
       if (id < 6.5) return themeRainbow(z, a, t);
       if (id < 7.5) return themeBW(z, a, t);
       if (id < 8.5) return themeStarwars(z, a, t);
@@ -234,11 +236,13 @@
         col *= fog * (0.55 + uGlow * 0.9);
         col += col * uPulse * 0.9; // beat bloom kick (theme-agnostic)
 
-        // Pulsing beacon we're chasing: on the axis a fixed lead ahead (just past
-        // the next bend). Light the wall by proximity so the glow spills around the
-        // corner while the source itself stays hidden behind the bend.
+        // Pulsing beacon we're chasing, on the tube axis ahead. Push it deep on
+        // straight runs (a distant light at the vanishing point, not a ghost
+        // mid-tunnel); pull it closer where the tube bends so its glow spills
+        // around the curve while the source stays hidden behind it.
+        float lead = mix(50.0, 18.0, smoothstep(0.5, 2.0, length(center(35.0))));
         vec2 hitXY = center(hitZ) + R * vec2(cos(hitAng), sin(hitAng));
-        vec3 beacon = vec3(center(LEAD), LEAD);
+        vec3 beacon = vec3(center(lead), lead);
         float dl = length(vec3(hitXY, hitZ) - beacon);
         vec3 lightCol = mix(vec3(0.5, 0.8, 1.0), vec3(1.0, 0.7, 0.35), 0.5 + 0.5 * sin(uTime * 0.4));
         col += lightCol * (0.5 + uPulse * 2.2) / (1.0 + dl * dl * 0.12);
