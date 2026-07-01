@@ -105,22 +105,24 @@
       vec3 gridCol = mix(vec3(1.0, 0.2, 0.8), vec3(0.25, 0.9, 1.0), grad);
       return mix(vec3(0.16, 0.03, 0.22), vec3(0.35, 0.08, 0.3), grad) * 0.35 + gridCol * grid;
     }
-    // Rust: weathered corroded metal — mottled orange-brown over dark steel.
-    // Multi-octave mottle, all angular terms integer×TAU (seamless).
+    // Rust: corroded steel — grainy iron-oxide patches with vertical rust runs
+    // over a grey steel base. Higher-freq mottle (grain, not organic blobs) plus
+    // streaks; iron-oxide reds, not tan. All angular terms integer×TAU (seamless).
     vec3 themeRust(float z, float a, float t) {
-      float m = (0.5 + 0.5 * sin(z * 3.0 + a * TAU * 2.0)) +
-                (0.5 + 0.5 * sin(z * 7.3 - a * TAU * 5.0)) +
-                (0.5 + 0.5 * sin(z * 13.1 + a * TAU * 3.0));
-      m /= 3.0;
-      vec3 rust = mix(vec3(0.35, 0.14, 0.05), vec3(0.62, 0.33, 0.11), m);
-      return mix(vec3(0.1, 0.09, 0.08), rust, smoothstep(0.35, 0.8, m));
+      float m = (0.5 + 0.5 * sin(z * 6.0 + a * TAU * 3.0)) * 0.5 +
+                (0.5 + 0.5 * sin(z * 15.0 - a * TAU * 7.0)) * 0.3 +
+                (0.5 + 0.5 * sin(z * 31.0 + a * TAU * 13.0)) * 0.2;
+      float streak = 0.5 + 0.5 * sin(a * TAU * 40.0 + sin(z * 0.6) * 2.5); // rust runs
+      m *= 0.75 + 0.25 * streak;
+      vec3 iron = mix(vec3(0.28, 0.11, 0.04), vec3(0.5, 0.24, 0.08), m);
+      return mix(vec3(0.13, 0.14, 0.15), iron, smoothstep(0.42, 0.72, m));
     }
-    // Rainbow: full-spectrum hue flowing around + down the tube (hue is cyclic, so
-    // a*1.0 = one seamless spectrum around), with a gentle ring shimmer along z.
+    // Rainbow: soft pastel spectrum spiralling around + down the tube (hue is
+    // cyclic, so a*1.0 = one seamless spectrum around). Low saturation + a lift
+    // toward white keeps it pastel; no brightness bands, so no dark spiral line.
     vec3 themeRainbow(float z, float a, float t) {
-      float hue = fract(a * 1.0 + z * 0.08 - t * 0.1);
-      float bands = 0.6 + 0.4 * sin(z * RING_FREQ * TAU + t * 2.0);
-      return hsv2rgb(vec3(hue, 0.95, 1.0)) * bands;
+      float hue = fract(a * 1.0 + z * 0.06 - t * 0.08);
+      return mix(hsv2rgb(vec3(hue, 0.5, 1.0)), vec3(1.0), 0.15);
     }
     // Black & white CRT: monochrome phosphor grid, white on black.
     vec3 themeBW(float z, float a, float t) {
