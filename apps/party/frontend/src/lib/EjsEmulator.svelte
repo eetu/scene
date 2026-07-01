@@ -81,16 +81,28 @@
     //   the screen with nothing useful. Still re-enableable in the settings menu.
     const opts: Record<string, string> = { "virtual-gamepad": "disabled" };
     if (core === "amiga") {
-      opts.puae_model = "A1200"; // force AGA — our Amiga content is AGA demos
-      opts.puae_cpu_model = "68030"; // accelerate (Blizzard-1230-style) for speed
-      opts.puae_cpu_compatibility = "normal"; // lightest CPU path (no JIT in WASM)
-      opts.puae_immediate_blits = "immediate"; // instant blitter — saves CPU
-      // The A1200 preset is "2M Chip + 8M Fast", but the individual memory
-      // options override the model preset, and EmulatorJS writes them all at the
-      // core's default (fast = 0). With no fast RAM, any sizable demo aborts on
-      // launch with "not enough memory available / returncode 10" (verified in
-      // UAE). Force 8 MB Zorro-II fast back on so the demos actually load.
-      opts.puae_fastmem_size = "8";
+      // Model by filename tag: AGA demos (68020/AGA chipset) run on an A1200;
+      // OCS/ECS demos (State of the Art, Desert Dream, Enigma…) need a 68000 +
+      // original chipset — a 68020/AGA A1200 runs them too fast or glitches. Tag
+      // the disk `… (A500).adf` (or (OCS)/(ECS)) for the classic path, else A1200.
+      const ocs = /\((?:a500|ocs|ecs)\)/i.test(gameUrl);
+      if (ocs) {
+        opts.puae_model = "A500"; // OCS, 68000, original chipset
+        opts.puae_cpu_compatibility = "exact"; // 68000-accurate timing (demos need it)
+        opts.puae_fastmem_size = "0"; // an A500 has no fast RAM
+        opts.puae_bogomem_size = "2"; // + 512K slow RAM → 1 MB, what most 1990–93 OCS demos want
+      } else {
+        opts.puae_model = "A1200"; // force AGA — our Amiga content is AGA demos
+        opts.puae_cpu_model = "68030"; // accelerate (Blizzard-1230-style) for speed
+        opts.puae_cpu_compatibility = "normal"; // lightest CPU path (no JIT in WASM)
+        opts.puae_immediate_blits = "immediate"; // instant blitter — saves CPU
+        // The A1200 preset is "2M Chip + 8M Fast", but the individual memory
+        // options override the model preset, and EmulatorJS writes them all at the
+        // core's default (fast = 0). With no fast RAM, any sizable demo aborts on
+        // launch with "not enough memory available / returncode 10" (verified in
+        // UAE). Force 8 MB Zorro-II fast back on so the demos actually load.
+        opts.puae_fastmem_size = "8";
+      }
       opts.puae_collision_level = "none"; // demos don't need collision — saves CPU
     } else if (core === "c64") {
       opts.vice_drive_sound_emulation = "disabled";

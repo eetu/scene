@@ -60,7 +60,7 @@
         }
       ]
     },
-    "amiga": {
+    "amiga/demo": {
       "compo": "Amiga demos",
       "platform": "amiga",
       "medium": "demo",
