@@ -107,7 +107,7 @@ fn hash_file(path: &Path) -> std::io::Result<(String, String)> {
         sha.update(&buf[..n]);
         md5.consume(&buf[..n]);
     }
-    Ok((hex::encode(sha.finalize()), format!("{:x}", md5.compute())))
+    Ok((hex::encode(sha.finalize()), format!("{:x}", md5.finalize())))
 }
 
 /// SHA-256 + MD5 (both lowercase hex) of an in-memory buffer, using the same
