@@ -225,7 +225,7 @@ async fn api_productions(
     // Tag each prod with its category's position in the party JSON so the SPA can
     // present compos in authored order.
     let mut prods = prods;
-    let cfg = state.parties.for_dir(&slug);
+    let cfg = state.parties().for_dir(&slug);
     for p in &mut prods {
         p.order = cfg.category_order(&p.category).map(|i| i as i64);
     }
@@ -880,10 +880,11 @@ async fn api_rescan(_auth: Auth, State(state): State<AppState>) -> AppResult<Jso
     if state.cfg.kiosk {
         return Err(AppError::Forbidden);
     }
+    state.reload_parties(); // pick up any .party.json edits without a restart
     let result = crate::run_scan(
         state.db.clone(),
         state.cfg.root.clone(),
-        state.parties.clone(),
+        state.parties(),
         state.scan.clone(),
     )
     .await

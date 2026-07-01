@@ -173,7 +173,7 @@ pub async fn run_server() -> anyhow::Result<()> {
     } else if want_scan {
         let db = state.db.clone();
         let root = state.cfg.root.clone();
-        let parties = state.parties.clone();
+        let parties = state.parties();
         let progress = state.scan.clone();
         let reason = if file_count == 0 { "empty index" } else { "kiosk startup" };
         tokio::spawn(async move {
