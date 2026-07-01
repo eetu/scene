@@ -8,10 +8,13 @@
   // straight into the emulator and a graphics entry into the image — one
   // consistent layout for every production type.
   import {
+    ChevronDown,
+    ChevronRight,
     Download,
     File,
     FileText,
     Film,
+    Folder,
     Image as ImageIcon,
     Monitor,
     Music,
@@ -57,6 +60,68 @@
     return f.rel_path.split("/").some((seg) => seg.startsWith("."));
   }
   const visible = $derived(files.filter((f) => !hidden(f)));
+
+  // --- Folder tree ---------------------------------------------------------
+  // Files carry their full rel_path (from PARTY_ROOT). Strip the shared prod-root
+  // prefix so the tree shows only the production's own directory structure
+  // (e.g. GFX/ANIM/FRAK001.GIF), then group into a collapsible tree.
+  type TNode = {
+    name: string;
+    path: string; // prod-relative
+    dir: boolean;
+    file?: ProductionFile;
+    children: TNode[];
+  };
+  const drop = $derived.by(() => {
+    if (visible.length === 0) return 0;
+    const parts = visible.map((f) => f.rel_path.split("/"));
+    const first = parts[0];
+    let n = 0;
+    for (let i = 0; i < first.length - 1; i++) {
+      if (parts.every((p) => p[i] === first[i])) n = i + 1;
+      else break;
+    }
+    return n;
+  });
+  const tree = $derived.by(() => {
+    const root: TNode = { name: "", path: "", dir: true, children: [] };
+    for (const f of visible) {
+      const segs = f.rel_path.split("/").slice(drop);
+      let cur = root;
+      segs.forEach((name, i) => {
+        const isFile = i === segs.length - 1;
+        const path = cur.path ? `${cur.path}/${name}` : name;
+        let child = cur.children.find((c) => c.name === name && c.dir === !isFile);
+        if (!child) {
+          child = { name, path, dir: !isFile, file: isFile ? f : undefined, children: [] };
+          cur.children.push(child);
+        }
+        cur = child;
+      });
+    }
+    const sort = (n: TNode) => {
+      n.children.sort((a, b) => (a.dir === b.dir ? a.name.localeCompare(b.name) : a.dir ? -1 : 1));
+      n.children.forEach(sort);
+    };
+    sort(root);
+    return root;
+  });
+  // Collapsed directories (by prod-relative path). Empty = fully expanded.
+  let collapsed = $state<Record<string, boolean>>({});
+  const rows = $derived.by(() => {
+    const out: { node: TNode; depth: number }[] = [];
+    const walk = (n: TNode, depth: number) => {
+      for (const c of n.children) {
+        out.push({ node: c, depth });
+        if (c.dir && !collapsed[c.path]) walk(c, depth + 1);
+      }
+    };
+    walk(tree, 0);
+    return out;
+  });
+  function toggleDir(path: string) {
+    collapsed[path] = !collapsed[path];
+  }
 
   // Runnable in-browser: a PC executable (DOS) or a C64/Amiga disk image.
   function runnable(f: ProductionFile): boolean {
@@ -139,20 +204,38 @@
   <div class="panes" class:list-hidden={!listOpen}>
     <div class="listpane">
       <ul class="list" use:listKeys>
-        {#each visible as f (f.rel_path)}
+        {#each rows as { node, depth } (node.path)}
           <li>
-            <button
-              class:sel={f.rel_path === selectedPath}
-              onclick={() => pick(f.rel_path)}
-              onfocus={() => pick(f.rel_path)}
-            >
-              {#key f.hash}
-                {@const Icon = iconFor(f)}
-                <Icon size={14} />
-              {/key}
-              <span class="fn">{f.filename}</span>
-              <span class="fs">{fmtBytes(f.size)}</span>
-            </button>
+            {#if node.dir}
+              <button
+                class="dir"
+                style="padding-left: {6 + depth * 13}px"
+                onclick={() => toggleDir(node.path)}
+                aria-expanded={!collapsed[node.path]}
+                title={node.name}
+              >
+                {#if collapsed[node.path]}<ChevronRight size={13} />{:else}<ChevronDown
+                    size={13}
+                  />{/if}
+                <Folder size={14} />
+                <span class="fn">{node.name}</span>
+              </button>
+            {:else}
+              {@const f = node.file!}
+              <button
+                class:sel={f.rel_path === selectedPath}
+                style="padding-left: {6 + depth * 13}px"
+                onclick={() => pick(f.rel_path)}
+                onfocus={() => pick(f.rel_path)}
+              >
+                {#key f.hash}
+                  {@const Icon = iconFor(f)}
+                  <Icon size={14} />
+                {/key}
+                <span class="fn">{node.name}</span>
+                <span class="fs">{fmtBytes(f.size)}</span>
+              </button>
+            {/if}
           </li>
         {/each}
       </ul>
@@ -322,6 +405,13 @@
   }
   .list button.sel {
     background: var(--accent-dim);
+  }
+  /* Folder rows: the chevron + folder glyph, muted so files read as the leaves. */
+  .list button.dir {
+    color: var(--muted);
+  }
+  .list button.dir :global(svg:first-child) {
+    flex: 0 0 auto;
   }
   .fn {
     flex: 1;
