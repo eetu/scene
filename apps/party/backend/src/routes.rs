@@ -838,6 +838,21 @@ async fn api_bundle(
         let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::<u8>::new()));
         let opts = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated);
+        // js-dos's bundle extractor does NOT create intermediate directories, so
+        // a nested file entry (e.g. GFX/ANIM/FRAK001.GIF) aborts extraction with
+        // "GFX/ANIM: No such file or directory". Emit explicit directory entries
+        // for every ancestor path first — a BTreeSet yields them parent-before-child.
+        let mut dirs = std::collections::BTreeSet::<String>::new();
+        for (name, _) in &entries {
+            for (i, b) in name.bytes().enumerate() {
+                if b == b'/' {
+                    dirs.insert(name[..i].to_string());
+                }
+            }
+        }
+        for d in dirs {
+            zip.add_directory(d, opts)?;
+        }
         for (name, bytes) in entries {
             zip.start_file(name, opts)?;
             zip.write_all(&bytes)?;
