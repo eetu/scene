@@ -35,6 +35,7 @@
     platform = "na",
     prodId,
     kickstart = null,
+    kickstartA500 = null,
     initialFile = null,
     onfile,
   }: {
@@ -43,6 +44,7 @@
     platform?: string;
     prodId: string;
     kickstart?: string | null;
+    kickstartA500?: string | null;
     /** rel_path to pre-select (from the URL ?f param); used on load/restore. */
     initialFile?: string | null;
     /** Called when the user picks a file, so the URL can reflect it. */
@@ -272,6 +274,7 @@
             core="amiga"
             gameUrl={diskUrl(selected.hash, selected.filename)}
             biosUrl={kickstart ?? undefined}
+            biosA500Url={kickstartA500 ?? undefined}
           />
         {/key}
       {:else if selected.kind === "music"}

@@ -11,12 +11,36 @@
       "platform": "pc",
       "medium": "demo",
       "results": [
-        { "rank": 1, "group": "Future Crew", "title": "Second Reality" },
-        { "rank": 2, "group": "Future Crew", "title": "Unreal" },
-        { "rank": 3, "group": "Triton", "title": "Crystal Dream II" },
-        { "rank": 4, "group": "EMF", "title": "Verses" },
-        { "rank": 5, "group": "Complex", "title": "Dope" },
-        { "rank": 6, "group": "Plant & EMF", "title": "Caero" }
+        {
+          "rank": 1,
+          "group": "Future Crew",
+          "title": "Second Reality"
+        },
+        {
+          "rank": 2,
+          "group": "Future Crew",
+          "title": "Unreal"
+        },
+        {
+          "rank": 3,
+          "group": "Triton",
+          "title": "Crystal Dream II"
+        },
+        {
+          "rank": 4,
+          "group": "EMF",
+          "title": "Verses"
+        },
+        {
+          "rank": 5,
+          "group": "Complex",
+          "title": "Dope"
+        },
+        {
+          "rank": 6,
+          "group": "Plant & EMF",
+          "title": "Caero"
+        }
       ]
     },
     "in64": {
@@ -24,20 +48,70 @@
       "platform": "pc",
       "medium": "intro",
       "results": [
-        { "rank": 1, "group": "NoooN", "title": "Paper" },
-        { "rank": 2, "group": "Halcyon", "title": "Empty" }
+        {
+          "rank": 1,
+          "group": "Psychic Link & Acme",
+          "title": "Paper"
+        },
+        {
+          "rank": 2,
+          "group": "Halcyon",
+          "title": "Empty"
+        }
       ]
     },
-    "amiga": {
+    "amiga/demo": {
       "compo": "Amiga demos",
       "platform": "amiga",
       "medium": "demo",
       "results": [
-        { "rank": 1, "group": "Phenomena", "title": "Enigma" },
-        { "rank": 2, "group": "Spaceballs", "title": "State Of The Art" },
-        { "rank": 3, "group": "Kefrens", "title": "Desert Dream" },
-        { "rank": 4, "group": "Spaceballs", "title": "9 Fingers" },
-        { "rank": 5, "group": "The Black Lotus", "title": "Tint" }
+        {
+          "rank": 1,
+          "group": "Phenomena",
+          "title": "Enigma"
+        },
+        {
+          "rank": 2,
+          "group": "Spaceballs",
+          "title": "State Of The Art"
+        },
+        {
+          "rank": 3,
+          "group": "Kefrens",
+          "title": "Desert Dream"
+        },
+        {
+          "rank": 4,
+          "group": "Spaceballs",
+          "title": "9 Fingers"
+        },
+        {
+          "rank": 5,
+          "group": "The Black Lotus",
+          "title": "Tint"
+        }
+      ]
+    },
+    "amiga/intro": {
+      "compo": "Amiga intros",
+      "platform": "amiga",
+      "medium": "intro",
+      "results": [
+        {
+          "rank": 1,
+          "group": "Rebels",
+          "title": "Introduction To Seduction"
+        },
+        {
+          "rank": 2,
+          "group": "Sanity",
+          "title": "Interference"
+        },
+        {
+          "rank": 3,
+          "group": "Stellar",
+          "title": "Peverly Hills"
+        }
       ]
     },
     "c64": {
@@ -45,25 +119,55 @@
       "platform": "c64",
       "medium": "demo",
       "results": [
-        { "rank": 1, "group": "Censor Design", "title": "Dutch Breeze" },
-        { "rank": 2, "group": "Oxyron", "title": "Coma Light 13" }
+        {
+          "rank": 1,
+          "group": "Black Mail",
+          "title": "Dutch Breeze"
+        },
+        {
+          "rank": 2,
+          "group": "Oxyron",
+          "title": "Coma Light 13"
+        }
       ]
     },
     "gfx": {
       "compo": "Graphics",
       "platform": "pc",
       "medium": "graphics",
-      "results": [{ "rank": 1, "group": "Marvel", "title": "Ice Kingdom" }]
+      "results": [
+        {
+          "rank": 1,
+          "group": "Marvel",
+          "title": "Ice Kingdom"
+        }
+      ]
     },
     "music": {
       "compo": "Tracker music",
       "platform": "pc",
       "medium": "music",
       "results": [
-        { "rank": 1, "group": "Skaven", "title": "2nd Reality" },
-        { "rank": 2, "group": "Purple Motion", "title": "Satellite One" },
-        { "rank": 3, "group": "Necros", "title": "Point Of Departure" },
-        { "rank": 4, "group": "Jogeir Liljedahl", "title": "Guitar Slinger" }
+        {
+          "rank": 1,
+          "group": "Skaven",
+          "title": "2nd Reality"
+        },
+        {
+          "rank": 2,
+          "group": "Purple Motion",
+          "title": "Satellite One"
+        },
+        {
+          "rank": 3,
+          "group": "Necros",
+          "title": "Point Of Departure"
+        },
+        {
+          "rank": 4,
+          "group": "Jogeir Liljedahl",
+          "title": "Guitar Slinger"
+        }
       ]
     }
   }
