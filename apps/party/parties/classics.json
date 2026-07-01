@@ -40,6 +40,16 @@
         { "rank": 5, "group": "The Black Lotus", "title": "Tint" }
       ]
     },
+    "amiga/intro": {
+      "compo": "Amiga intros",
+      "platform": "amiga",
+      "medium": "intro",
+      "results": [
+        { "rank": 1, "group": "Rebels", "title": "Introduction To Seduction" },
+        { "rank": 2, "group": "Sanity", "title": "Interference" },
+        { "rank": 3, "group": "Stellar", "title": "Peverly Hills" }
+      ]
+    },
     "c64": {
       "compo": "C64 demos",
       "platform": "c64",
