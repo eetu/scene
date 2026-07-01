@@ -51,6 +51,11 @@
 
   const NATIVE_IMG = new Set(["image/gif", "image/jpeg", "image/png", "image/bmp"]);
   const NATIVE_VIDEO = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+  // The text viewer loads the whole file into the DOM. A binary misclassified as
+  // text/plain (an oddly-named exe) would then crash the tab, so cap it and fall
+  // back to the download card — no real scene doc is anywhere near this big.
+  const MAX_TEXT_BYTES = 2 * 1024 * 1024;
+  const asText = (f: ProductionFile) => f.mime.startsWith("text/") && f.size <= MAX_TEXT_BYTES;
 
   // Files under a `.support` dir (e.g. a custom-packaged Amiga disk image that
   // sits alongside the scraped scene.org originals) are hidden from the list:
@@ -271,7 +276,7 @@
         {/key}
       {:else if selected.kind === "music"}
         <MusicPlayer {platform} />
-      {:else if selected.mime.startsWith("text/")}
+      {:else if asText(selected)}
         <NfoView hash={selected.hash} />
       {:else if selected.mime.startsWith("image/")}
         <!-- Native formats stream raw; others are transcoded to PNG on demand. -->
