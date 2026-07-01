@@ -6,8 +6,22 @@
   import { Maximize, Power } from "@lucide/svelte";
   import { onDestroy, onMount, tick } from "svelte";
 
-  let { core, gameUrl, biosUrl }: { core: "c64" | "amiga"; gameUrl: string; biosUrl?: string } =
-    $props();
+  let {
+    core,
+    gameUrl,
+    biosUrl,
+    biosA500Url,
+  }: {
+    core: "c64" | "amiga";
+    gameUrl: string;
+    biosUrl?: string;
+    /** A500 Kickstart 1.3 ROM — used instead of biosUrl for OCS/ECS disks. */
+    biosA500Url?: string;
+  } = $props();
+
+  // Amiga disks tagged (A500)/(OCS)/(ECS) boot a 68000 + original chipset (see
+  // the model block below); PUAE then needs the KS1.3 ROM, not the A1200 KS3.1.
+  const amigaA500 = () => core === "amiga" && /\((?:a500|ocs|ecs)\)/i.test(gameUrl);
 
   let host = $state<HTMLDivElement | null>(null);
   let error = $state<string | null>(null);
@@ -45,7 +59,8 @@
     g.EJS_pathtodata = "/vendor/emulatorjs/";
     g.EJS_core = core;
     g.EJS_gameUrl = gameUrl;
-    g.EJS_biosUrl = biosUrl ?? undefined; // overwrite any stale value
+    // A500 disks need the KS1.3 ROM; everything else the A1200 KS3.1.
+    g.EJS_biosUrl = (amigaA500() ? biosA500Url : biosUrl) ?? undefined;
     g.EJS_startOnLoaded = false; // its Start Game click is the audio gesture
     g.EJS_startButtonName = "Launch"; // override the default "Start Game"
     g.EJS_language = "en"; // vendored locales don't include fi
@@ -81,12 +96,11 @@
     //   the screen with nothing useful. Still re-enableable in the settings menu.
     const opts: Record<string, string> = { "virtual-gamepad": "disabled" };
     if (core === "amiga") {
-      // Model by filename tag: AGA demos (68020/AGA chipset) run on an A1200;
-      // OCS/ECS demos (State of the Art, Desert Dream, Enigma…) need a 68000 +
-      // original chipset — a 68020/AGA A1200 runs them too fast or glitches. Tag
-      // the disk `… (A500).adf` (or (OCS)/(ECS)) for the classic path, else A1200.
-      const ocs = /\((?:a500|ocs|ecs)\)/i.test(gameUrl);
-      if (ocs) {
+      // Model by filename tag (amigaA500 above): AGA demos (68020/AGA) run on an
+      // A1200; OCS/ECS demos (State of the Art, Desert Dream, Enigma…) need a
+      // 68000 + original chipset — a 68020/AGA A1200 runs them too fast or
+      // glitches. `… (A500).adf` (or (OCS)/(ECS)) picks the classic path.
+      if (amigaA500()) {
         opts.puae_model = "A500"; // OCS, 68000, original chipset
         opts.puae_cpu_compatibility = "exact"; // 68000-accurate timing (demos need it)
         opts.puae_fastmem_size = "0"; // an A500 has no fast RAM

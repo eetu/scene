@@ -129,9 +129,11 @@ export const api = {
   status: () => request<StatusResponse>("/status"),
   parties: () => request<{ parties: Party[] }>("/api/parties").then((r) => r.parties),
   productions: (slug: string) =>
-    request<{ productions: Production[]; kickstart_url: string | null }>(
-      `/api/parties/${slug}/productions`,
-    ),
+    request<{
+      productions: Production[];
+      kickstart_url: string | null;
+      kickstart_a500_url: string | null;
+    }>(`/api/parties/${slug}/productions`),
   production: (id: string) => request<ProductionDetail>(`/api/production/${id}`),
   text: (hash: string) => fetch(`/api/text/${hash}`).then((r) => r.text()),
   rescan: () => request<RescanResult>("/api/rescan", { method: "POST" }),

@@ -33,6 +33,7 @@
   const slug = $derived(page.params.slug ?? "");
   let prods = $state<Production[]>([]);
   let kickstart = $state<string | null>(null);
+  let kickstartA500 = $state<string | null>(null);
   let error = $state<string | null>(null);
   let selected = $state<Production | null>(null);
   let detail = $state<ProductionDetail | null>(null);
@@ -74,6 +75,7 @@
       .then((r) => {
         prods = r.productions;
         kickstart = r.kickstart_url;
+        kickstartA500 = r.kickstart_a500_url;
       })
       .catch((e) => (error = String(e)));
   });
@@ -376,6 +378,7 @@
             platform={prod.platform}
             prodId={prod.id}
             {kickstart}
+            {kickstartA500}
             initialFile={fileParam}
             onfile={(relPath) => nav({ f: relPath })}
           />

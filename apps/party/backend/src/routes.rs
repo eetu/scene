@@ -291,14 +291,20 @@ async fn api_productions(
         }
     }
     prods.extend(missing);
-    // Shared Amiga Kickstart from the support dir (spans all parties), as a URL
-    // the SPA hands to EJS_biosUrl. Named so PUAE's A1200 finds it.
-    let kickstart_url = state
-        .cfg
-        .support_dir
-        .join("kick40068.A1200")
-        .is_file()
-        .then(|| "/api/support/kick40068.A1200".to_string());
+    // Shared Amiga Kickstarts from the support dir (span all parties), as URLs
+    // the SPA hands to EJS_biosUrl. Filenames matter: PUAE looks up the ROM by
+    // the model's expected name, so A1200 (AGA) demos need kick40068.A1200 and
+    // OCS/ECS demos on an emulated A500 need kick34005.A500 (KS 1.3).
+    let ks = |name: &str| {
+        state
+            .cfg
+            .support_dir
+            .join(name)
+            .is_file()
+            .then(|| format!("/api/support/{name}"))
+    };
+    let kickstart_url = ks("kick40068.A1200");
+    let kickstart_a500_url = ks("kick34005.A500");
 
     if prods.is_empty() {
         // Distinguish unknown party from an empty one.
@@ -313,7 +319,11 @@ async fn api_productions(
             return Err(AppError::NotFound);
         }
     }
-    Ok(Json(json!({ "productions": prods, "kickstart_url": kickstart_url })))
+    Ok(Json(json!({
+        "productions": prods,
+        "kickstart_url": kickstart_url,
+        "kickstart_a500_url": kickstart_a500_url,
+    })))
 }
 
 #[derive(Serialize)]
