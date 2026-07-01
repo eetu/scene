@@ -105,9 +105,12 @@ package-party-data src slug tag:
     # and files world-readable (0644) or it can't read the archive (indexes 0 files).
     find "$stage/{{slug}}" -type d -exec chmod 0755 {} +
     find "$stage/{{slug}}" -type f -exec chmod 0644 {} +
-    # The party's `.party.json` lives inside its folder, so the COPY below carries
-    # it into the image automatically — the tree is self-contained.
-    printf 'FROM scratch\nCOPY %s /%s\n' '{{slug}}' '{{slug}}' > "$stage/Dockerfile"
+    # Content-at-root: COPY the party's *contents* (trailing slash) to /, NOT the
+    # `<Party>/` dir itself. Each party ships as its own image mounted at
+    # /srv/parties/<Party>, so the files (incl. `.party.json`) must sit at the image
+    # root — nesting would double up as /srv/parties/<Party>/<Party>. The tree stays
+    # self-contained because `.party.json` lives inside the folder we copy.
+    printf 'FROM scratch\nCOPY %s/ /\n' '{{slug}}' > "$stage/Dockerfile"
     img="ghcr.io/eetu/scene-party-data-$(printf '%s' '{{slug}}' | tr '[:upper:]' '[:lower:]'):{{tag}}"
     # podman or docker (override with CONTAINER_ENGINE). A scratch + COPY image
     # runs nothing, so --platform just stamps the amd64 manifest on any host (no
