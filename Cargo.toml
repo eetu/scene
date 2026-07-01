@@ -17,6 +17,8 @@ version = "0.1.0"
 axum = { version = "0.8", features = ["macros", "tokio", "tracing"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
 walkdir = "2"
+# Parallel per-file I/O in the scanner (stat/hash/sniff) to hide NAS latency.
+rayon = "1"
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.7", features = ["trace", "fs", "set-header"] }
 serde = { version = "1", features = ["derive"] }

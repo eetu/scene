@@ -10,10 +10,11 @@
 
 use std::collections::HashMap;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::time::UNIX_EPOCH;
 
+use rayon::prelude::*;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use walkdir::{DirEntry, WalkDir};
@@ -229,6 +230,22 @@ struct Cached {
     size: i64,
     mtime: i64,
     hash: String,
+    kind: String,
+}
+
+/// Map a stored `kind` string back to the canonical `&'static str`. Only used to
+/// reuse a prior content-sniff decision (text vs data) for unchanged files.
+fn intern_kind(k: &str) -> &'static str {
+    match k {
+        "music" => "music",
+        "image" => "image",
+        "video" => "video",
+        "exe" => "exe",
+        "diskimage" => "diskimage",
+        "text" => "text",
+        "archive" => "archive",
+        _ => "data",
+    }
 }
 
 /// A file as walked, with everything needed to index it and assign it to a
@@ -430,7 +447,8 @@ pub fn scan_into(
     // Reuse cached hashes for unchanged files.
     let mut cache: HashMap<String, Cached> = HashMap::new();
     {
-        let mut stmt = conn.prepare("SELECT rel_path, size, mtime, content_hash FROM files")?;
+        let mut stmt =
+            conn.prepare("SELECT rel_path, size, mtime, content_hash, kind FROM files")?;
         let rows = stmt.query_map([], |r| {
             Ok((
                 r.get::<_, String>(0)?,
@@ -438,6 +456,7 @@ pub fn scan_into(
                     size: r.get(1)?,
                     mtime: r.get(2)?,
                     hash: r.get(3)?,
+                    kind: r.get(4)?,
                 },
             ))
         })?;
@@ -448,8 +467,8 @@ pub fn scan_into(
     }
     progress.total.store(cache.len(), Ordering::Relaxed);
 
-    // 1) Walk and collect.
-    let mut walked: Vec<Walked> = Vec::new();
+    // 1) Walk (sequential directory traversal) and collect candidate file paths.
+    let mut entries: Vec<(PathBuf, String, String)> = Vec::new(); // (path, rel_path, name)
     let walker = WalkDir::new(root)
         .follow_links(false)
         .into_iter()
@@ -475,73 +494,116 @@ pub fn scan_into(
             continue;
         };
         let rel_path = rel.to_string_lossy().replace('\\', "/");
-        let segs: Vec<&str> = rel_path.split('/').collect();
-        if segs.len() < 2 {
+        if rel_path.split('/').count() < 2 {
             // File directly under PARTY_ROOT (not inside any party) — skip.
             continue;
         }
-        progress.processed.fetch_add(1, Ordering::Relaxed);
+        entries.push((path.to_path_buf(), rel_path, name));
+    }
 
-        let meta = match entry.metadata() {
-            Ok(m) => m,
-            Err(e) => {
-                tracing::warn!(path = %rel_path, error = %e, "stat failed; skipping");
-                continue;
-            }
-        };
-        let size = meta.len() as i64;
-        let mtime = meta
-            .modified()
-            .ok()
-            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
-
-        let hash = match cache.get(&rel_path) {
-            Some(c) if c.size == size && c.mtime == mtime => c.hash.clone(),
-            _ => match hash_file(path) {
-                Ok(h) => {
-                    progress.hashed.fetch_add(1, Ordering::Relaxed);
-                    h
-                }
+    // 2) Resolve each file's metadata + hash + kind in parallel. This is the
+    // network-heavy part (a stat each, plus hashing/sniffing new-or-changed
+    // files), so spreading it across rayon threads overlaps the per-file NAS
+    // round-trips. Only the shared read-only `cache` and the atomic progress
+    // counters are touched here (no DB), so it's safe. Unchanged files (size +
+    // mtime match) reuse the cached hash AND the cached content-sniff (text vs
+    // data) — no open/read at all; the cheap extension classify still runs every
+    // scan, so classification fixes take effect on rescan without a re-sniff.
+    struct Resolved {
+        rel_path: String,
+        name: String,
+        ext: String,
+        kind: &'static str,
+        size: i64,
+        mtime: i64,
+        hash: String,
+    }
+    let resolved: Vec<Resolved> = entries
+        .par_iter()
+        .filter_map(|(path, rel_path, name)| {
+            progress.processed.fetch_add(1, Ordering::Relaxed);
+            let meta = match std::fs::metadata(path) {
+                Ok(m) => m,
                 Err(e) => {
-                    tracing::warn!(path = %rel_path, error = %e, "hash failed; skipping");
-                    continue;
+                    tracing::warn!(path = %rel_path, error = %e, "stat failed; skipping");
+                    return None;
                 }
-            },
-        };
+            };
+            let size = meta.len() as i64;
+            let mtime = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
 
+            let cached = cache.get(rel_path).filter(|c| c.size == size && c.mtime == mtime);
+            let hash = match cached {
+                Some(c) => c.hash.clone(),
+                None => match hash_file(path) {
+                    Ok(h) => {
+                        progress.hashed.fetch_add(1, Ordering::Relaxed);
+                        h
+                    }
+                    Err(e) => {
+                        tracing::warn!(path = %rel_path, error = %e, "hash failed; skipping");
+                        return None;
+                    }
+                },
+            };
+
+            let ext = ext_of(name);
+            // Extension-based first (cheap — always run so fixes apply). For unknown
+            // ("data") files, sniffing needs a read, so reuse the cached decision
+            // when the file is unchanged; only new/changed ones open + read.
+            let kind = match classify(name, &ext) {
+                "data" => match cached {
+                    Some(c) => intern_kind(&c.kind),
+                    None if looks_textual(path) => "text",
+                    None => "data",
+                },
+                k => k,
+            };
+
+            Some(Resolved {
+                rel_path: rel_path.clone(),
+                name: name.clone(),
+                ext,
+                kind,
+                size,
+                mtime,
+                hash,
+            })
+        })
+        .collect();
+
+    // 3) Assign each resolved file to a production (cheap, pure — kept sequential
+    // so the per-party config lookup stays simple).
+    let mut walked: Vec<Walked> = Vec::with_capacity(resolved.len());
+    for r in resolved {
+        let segs: Vec<&str> = r.rel_path.split('/').collect();
         let party_dir = segs[0].to_string();
         let party_slug = slugify(&party_dir);
         let cfg = configs.for_dir(&party_dir);
         let within = &segs[1..];
-        let ext = ext_of(&name);
-        // Extension-based first; for unknown ("data") files, sniff the content so
-        // oddly-named scene docs (.AS, .ME, …) still render as text.
-        let kind = match classify(&name, &ext) {
-            "data" if looks_textual(path) => "text",
-            k => k,
-        };
-
         // Determine category (1 or 2 segments) and the production this file
         // belongs to.
-        let (category, prod_dir, entry_name, is_file_entry) =
-            decompose(&party_dir, within, &cfg);
+        let (category, prod_dir, entry_name, is_file_entry) = decompose(&party_dir, within, &cfg);
 
         walked.push(Walked {
-            rel_path,
+            rel_path: r.rel_path,
             party_slug,
             party_dir,
             category,
             prod_dir,
             entry_name,
             is_file_entry,
-            filename: name,
-            ext,
-            kind,
-            size,
-            mtime,
-            hash,
+            filename: r.name,
+            ext: r.ext,
+            kind: r.kind,
+            size: r.size,
+            mtime: r.mtime,
+            hash: r.hash,
         });
     }
 
