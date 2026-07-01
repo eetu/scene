@@ -13,10 +13,12 @@
   import Plasma from "./Plasma.svelte";
   import Scope from "./Scope.svelte";
   import Starfield from "./Starfield.svelte";
+  import Tunnel from "./Tunnel.svelte";
   import VuMeters from "./VuMeters.svelte";
 
-  type VizMode = "vu" | "bars" | "wave" | "stars" | "copper" | "plasma" | "ball";
-  const VIZ: VizMode[] = ["vu", "bars", "wave", "stars", "copper", "plasma", "ball"];
+  // Party's enabled visualizers (its own set — the tracker keeps a separate list).
+  type VizMode = "vu" | "bars" | "wave" | "stars" | "copper" | "plasma" | "tunnel" | "ball";
+  const VIZ: VizMode[] = ["vu", "bars", "wave", "stars", "copper", "plasma", "tunnel", "ball"];
 
   let { tab = $bindable<"pattern" | "samples" | "viz">("pattern") } = $props();
   // Which visualizer the "viz" tab shows. Persists across tab switches.
@@ -64,6 +66,8 @@
             <CopperBars active={playing} />
           {:else if vizMode === "plasma"}
             <Plasma active={playing} />
+          {:else if vizMode === "tunnel"}
+            <Tunnel active={playing} />
           {:else}
             <BoingBall energy={playing ? energy : 0} live={playing} react {format} />
           {/if}

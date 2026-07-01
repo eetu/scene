@@ -163,7 +163,7 @@ export function assetUrl(hash: string, target: "png" | "mp4"): string {
  *  bundle revision — bump it whenever the backend's generated config OR the
  *  bundled demo files change (e.g. a corrected SOUND.CFG), so the browser +
  *  js-dos caches fetch the new bundle instead of a stale one. */
-const BUNDLE_CONF_VERSION = 3;
+const BUNDLE_CONF_VERSION = 4;
 export function bundleUrl(prodId: string, exe?: string | null): string {
   const e = exe ? `&exe=${encodeURIComponent(exe)}` : "";
   return `/api/bundle/${prodId}.jsdos?v=${BUNDLE_CONF_VERSION}${e}`;

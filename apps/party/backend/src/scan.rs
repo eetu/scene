@@ -122,7 +122,19 @@ pub fn mime_for(ext: &str, filename: &str) -> &'static str {
 /// high bytes (0x80–0xFF) freely, so we can't reject those; instead reject any
 /// NUL and bail if too many stray control bytes appear (binaries are riddled
 /// with both). Tab/newlines/CR/FF/EOF(0x1A)/ESC(0x1B, ANSI) are allowed.
+///
+/// Only the first 8 KB is sampled, so a binary with a text-looking header (e.g.
+/// an Amiga exe named `foo.ekse`) can pass. Cap at 1 MiB: real scene docs are
+/// KB, and a multi-MB "text" file is always a false positive — one served to the
+/// text viewer would load its whole self into the DOM and crash the tab.
+const MAX_TEXT_SNIFF_BYTES: u64 = 1 << 20;
+
 fn looks_textual(path: &Path) -> bool {
+    match std::fs::metadata(path) {
+        Ok(m) if m.len() > MAX_TEXT_SNIFF_BYTES => return false,
+        Ok(_) => {}
+        Err(_) => return false,
+    }
     let Ok(mut f) = std::fs::File::open(path) else {
         return false;
     };

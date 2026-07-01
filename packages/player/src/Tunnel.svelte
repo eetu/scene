@@ -35,7 +35,6 @@
     const float FAR = 62.0;       // max march distance (deep enough to hide the void)
     const float RING_FREQ = 1.15; // ring lines per world unit of travel
     const float RAIL_FREQ = 16.0; // rails around the tube
-    const float LEAD = 14.0;      // how far ahead the chased beacon sits
     const float TAU = 6.2831853;  // angular terms use integer×TAU to wrap seamlessly
 
     // Course "terrain": a slow field along the tube that alternates long straights
@@ -84,14 +83,6 @@
       float striations = 0.55 + 0.45 * sin((z * 0.7 - t * 2.5) * TAU + a * TAU * 6.0);
       return hsv2rgb(vec3(hue, 0.9, 1.0)) * striations * 1.3;
     }
-    // Dystopian sewer: grimy dark pipe, tile grid, wet green-brown streaks.
-    vec3 themeSewer(float z, float a, float t) {
-      float tiles = max(neon(z * RING_FREQ * 1.5, 0.13), neon(a * 20.0, 0.11));
-      float grime = 0.5 + 0.5 * sin(z * 4.3 + a * TAU * 3.0) * sin(z * 1.7 - a * TAU * 2.0);
-      vec3 base = mix(vec3(0.05, 0.08, 0.05), vec3(0.15, 0.14, 0.07), grime);
-      float drips = smoothstep(0.92, 1.0, 0.5 + 0.5 * sin(a * TAU * 15.0)) * (0.5 + 0.5 * sin(z * 0.5 - t));
-      return base + vec3(0.08, 0.12, 0.07) * tiles + vec3(0.06, 0.09, 0.08) * drips;
-    }
     // Hyperspace: sparse bright star-streaks whipping past along the tube.
     vec3 themeHyper(float z, float a, float t) {
       float lane = floor(a * 48.0);
@@ -113,43 +104,75 @@
       vec3 gridCol = mix(vec3(1.0, 0.2, 0.8), vec3(0.25, 0.9, 1.0), grad);
       return mix(vec3(0.16, 0.03, 0.22), vec3(0.35, 0.08, 0.3), grad) * 0.35 + gridCol * grid;
     }
-    // Rust: weathered corroded metal — mottled orange-brown over dark steel, with
-    // darker panel grooves. Multi-octave mottle, all angular terms integer×TAU.
-    vec3 themeRust(float z, float a, float t) {
-      float m = (0.5 + 0.5 * sin(z * 3.0 + a * TAU * 2.0)) +
-                (0.5 + 0.5 * sin(z * 7.3 - a * TAU * 5.0)) +
-                (0.5 + 0.5 * sin(z * 13.1 + a * TAU * 3.0));
-      m /= 3.0;
-      vec3 rust = mix(vec3(0.35, 0.14, 0.05), vec3(0.62, 0.33, 0.11), m);
-      vec3 col = mix(vec3(0.1, 0.09, 0.08), rust, smoothstep(0.35, 0.8, m));
-      float grooves = max(neon(z * 0.5, 0.06), neon(a * 8.0, 0.05));
-      return col * (1.0 - 0.4 * grooves);
+    // Circuit board: dark-green FR-4 with a copper trace grid + solder pads; a
+    // random subset of nodes is "energized" and glows green, flowing along z like
+    // data. Grid is 24 traces around (integer → seamless).
+    vec3 themeCircuit(float z, float a, float t) {
+      float gz = z * 3.0, ga = a * 24.0;
+      float traces = max(neon(gz, 0.03), neon(ga, 0.025));
+      vec2 cell = fract(vec2(gz, ga)) - 0.5;
+      float pad = smoothstep(0.16, 0.1, length(cell)); // round pads at nodes
+      float r = fract(sin(floor(gz) * 12.9 + floor(ga) * 78.2 + uSeed) * 43758.5);
+      float flow = step(0.62, r) * (0.4 + 0.6 * (0.5 + 0.5 * sin(gz * 2.0 - t * 4.0 + r * 6.0)));
+      vec3 board = vec3(0.02, 0.11, 0.05);
+      vec3 copper = vec3(0.75, 0.5, 0.2);
+      vec3 glow = vec3(0.3, 1.0, 0.6);
+      return board + copper * (traces + pad) * 0.6 + glow * (traces + pad * 1.5) * flow;
     }
-    // Rainbow: full-spectrum hue flowing around + down the tube (hue is cyclic, so
-    // a*1.0 = one seamless spectrum around), with a gentle ring shimmer along z.
+    // Rainbow: soft pastel spectrum spiralling around + down the tube (hue is
+    // cyclic, so a*1.0 = one seamless spectrum around). Low saturation + a lift
+    // toward white keeps it pastel; no brightness bands, so no dark spiral line.
     vec3 themeRainbow(float z, float a, float t) {
-      float hue = fract(a * 1.0 + z * 0.08 - t * 0.1);
-      float bands = 0.6 + 0.4 * sin(z * RING_FREQ * TAU + t * 2.0);
-      return hsv2rgb(vec3(hue, 0.95, 1.0)) * bands;
+      float hue = fract(a * 1.0 + z * 0.06 - t * 0.08);
+      return mix(hsv2rgb(vec3(hue, 0.5, 1.0)), vec3(1.0), 0.15);
     }
     // Black & white CRT: monochrome phosphor grid, white on black.
     vec3 themeBW(float z, float a, float t) {
       return vec3(max(neon(z * RING_FREQ, 0.05), neon(a * RAIL_FREQ, 0.04)));
     }
+    // Star Wars hyperspace: deep blue field with dense blue-white streaks stretched
+    // along the tube, whipping past fast — the jump-to-lightspeed look.
+    vec3 themeStarwars(float z, float a, float t) {
+      float lane = floor(a * 96.0);
+      float r = fract(sin(lane * 78.233 + uSeed) * 43758.5453);
+      float streak = smoothstep(0.9, 1.0, 0.5 + 0.5 * sin(z * 1.2 + t * (30.0 + r * 40.0) + r * 20.0));
+      return vec3(0.06, 0.12, 0.4) + mix(vec3(0.3, 0.5, 1.0), vec3(1.0), r) * streak * 2.6;
+    }
+    // Purple voxel tunnel: blocky cells (per-cell purple shade) with dark grout
+    // borders, so the wall reads as extruded voxels.
+    vec3 themeVoxel(float z, float a, float t) {
+      float cz = z * 2.0, ca = a * 24.0; // 24 cells around, integer → seamless
+      float r = fract(sin(floor(cz) * 12.9 + floor(ca) * 78.2 + uSeed) * 43758.5);
+      vec3 body = mix(vec3(0.18, 0.04, 0.3), vec3(0.65, 0.25, 0.95), r);
+      vec2 f = abs(fract(vec2(cz, ca)) - 0.5) * 2.0; // 0 at cell centre → 1 at border
+      float lit = 1.0 - smoothstep(0.7, 1.0, max(f.x, f.y)) * 0.85;
+      return body * lit;
+    }
+    // Spaceship corridor: grey metal panels + rib rings, with cyan light strips
+    // running the length of the hall.
+    vec3 themeCorridor(float z, float a, float t) {
+      float panels = max(neon(z * 1.0, 0.06), neon(a * 12.0, 0.05));
+      vec3 col = vec3(0.16, 0.17, 0.2) * (1.0 - 0.5 * panels); // seams darker
+      col += vec3(0.08, 0.09, 0.11) * neon(z * 0.5, 0.05);      // structural ribs
+      float strip = neon(a * 2.0, 0.02);                        // two opposed rails
+      return col + vec3(0.2, 0.7, 1.0) * strip * (0.7 + 0.3 * sin(z * 2.0 - t * 3.0));
+    }
     vec3 themeById(float id, float z, float a, float t) {
       if (id < 0.5) return themeTron(z, a, t);
       if (id < 1.5) return themeWormhole(z, a, t);
-      if (id < 2.5) return themeSewer(z, a, t);
-      if (id < 3.5) return themeHyper(z, a, t);
-      if (id < 4.5) return themeGiger(z, a, t);
-      if (id < 5.5) return themeVapor(z, a, t);
-      if (id < 6.5) return themeRust(z, a, t);
-      if (id < 7.5) return themeRainbow(z, a, t);
-      return themeBW(z, a, t);
+      if (id < 2.5) return themeHyper(z, a, t);
+      if (id < 3.5) return themeGiger(z, a, t);
+      if (id < 4.5) return themeVapor(z, a, t);
+      if (id < 5.5) return themeCircuit(z, a, t);
+      if (id < 6.5) return themeRainbow(z, a, t);
+      if (id < 7.5) return themeBW(z, a, t);
+      if (id < 8.5) return themeStarwars(z, a, t);
+      if (id < 9.5) return themeVoxel(z, a, t);
+      return themeCorridor(z, a, t);
     }
     // Deterministic random theme for cycle slot n (per-track via uSeed).
     float hash1(float n) { return fract(sin(n * 127.1 + uSeed * 311.7) * 43758.5453); }
-    float themeSlot(float n) { return floor(hash1(n) * 9.0); }
+    float themeSlot(float n) { return floor(hash1(n) * 11.0); }
 
     void main() {
       vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
@@ -206,21 +229,12 @@
         float n = floor(tp);
         float idA = themeSlot(n);
         float idB = themeSlot(n + 1.0);
-        if (abs(idA - idB) < 0.5) idB = mod(idB + 1.0, 9.0);
+        if (abs(idA - idB) < 0.5) idB = mod(idB + 1.0, 11.0);
         float k = smoothstep(0.82, 1.0, fract(tp));
         col = mix(themeById(idA, z, a, uTime), themeById(idB, z, a, uTime), k);
         float fog = exp(-hitZ * 0.055); // gentle: the tube recedes into depth, not a void
         col *= fog * (0.55 + uGlow * 0.9);
         col += col * uPulse * 0.9; // beat bloom kick (theme-agnostic)
-
-        // Pulsing beacon we're chasing: on the axis a fixed lead ahead (just past
-        // the next bend). Light the wall by proximity so the glow spills around the
-        // corner while the source itself stays hidden behind the bend.
-        vec2 hitXY = center(hitZ) + R * vec2(cos(hitAng), sin(hitAng));
-        vec3 beacon = vec3(center(LEAD), LEAD);
-        float dl = length(vec3(hitXY, hitZ) - beacon);
-        vec3 lightCol = mix(vec3(0.5, 0.8, 1.0), vec3(1.0, 0.7, 0.35), 0.5 + 0.5 * sin(uTime * 0.4));
-        col += lightCol * (0.5 + uPulse * 2.2) / (1.0 + dl * dl * 0.12);
       }
       // Vanishing-point core glow — fills the deep centre so it reads as a lit
       // tunnel receding, not a black hole.
