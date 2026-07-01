@@ -65,7 +65,7 @@
           {:else if vizMode === "plasma"}
             <Plasma active={playing} />
           {:else}
-            <BoingBall energy={playing ? energy : 0} {format} />
+            <BoingBall energy={playing ? energy : 0} live={playing} react {format} />
           {/if}
         </div>
       </div>
