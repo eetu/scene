@@ -65,9 +65,10 @@
     //   the target hardware / capture videos. A stock cycle-exact 68020 is pinned
     //   to real-A1200 speed and chugs on demanding demos — the "Accurate" toggle
     //   offers that for the few that need exact 020/copper/blitter timing.
-    //   `compatible` (not cycle-exact) is required for the 030 to run at speed;
-    //   immediate blits + no collision (demos don't use it) save more CPU.
-    //   See libretro PUAE core options.
+    //   CPU compatibility is 'normal' (the lightest interpreter path — the WASM
+    //   PUAE core has no 68k JIT, so this is the main speed lever); immediate
+    //   blits + no collision (demos don't use it) save more CPU. See libretro
+    //   PUAE core options.
     // - C64: drive-sound emulation off by default. VICE models the 1541's
     //   motor/stepper noise faithfully, and many demos keep the drive spinning,
     //   so the sound runs on under the demo (unlike Amiga, whose floppy noise
@@ -82,7 +83,7 @@
     if (core === "amiga") {
       opts.puae_model = "A1200"; // force AGA — our Amiga content is AGA demos
       opts.puae_cpu_model = "68030"; // accelerate (Blizzard-1230-style) for speed
-      opts.puae_cpu_compatibility = "compatible"; // 030 runs at speed (not exact)
+      opts.puae_cpu_compatibility = "normal"; // lightest CPU path (no JIT in WASM)
       opts.puae_immediate_blits = "immediate"; // instant blitter — saves CPU
       // The A1200 preset is "2M Chip + 8M Fast", but the individual memory
       // options override the model preset, and EmulatorJS writes them all at the
@@ -162,7 +163,7 @@
     if (!ci?.changeSettingOption) return;
     accurateMode = !accurateMode;
     ci.changeSettingOption("puae_cpu_model", accurateMode ? "68020" : "68030");
-    ci.changeSettingOption("puae_cpu_compatibility", accurateMode ? "exact" : "compatible");
+    ci.changeSettingOption("puae_cpu_compatibility", accurateMode ? "exact" : "normal");
     ci.changeSettingOption("puae_immediate_blits", accurateMode ? "waiting" : "immediate");
     ci.gameManager?.restart?.();
   }
