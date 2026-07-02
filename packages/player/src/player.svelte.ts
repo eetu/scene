@@ -87,6 +87,27 @@ export function readSpectrum(buf: Uint8Array<ArrayBuffer>): boolean {
   return true;
 }
 
+// Reused across sampleBands() calls so a per-frame viz doesn't allocate.
+const bandBuf = new Uint8Array(SPECTRUM_SIZE);
+
+/** Current output energy split into three bands (bass / mid / treble), each
+ *  roughly 0–1, from the analyser's frequency magnitudes averaged over fixed Hz
+ *  ranges. Zeros until the audio graph exists. Lets visualizers react per-band
+ *  (e.g. bass → pulse, treble → sparkle) instead of to one overall level. */
+export function sampleBands(): { bass: number; mid: number; treble: number } {
+  if (!analyser) return { bass: 0, mid: 0, treble: 0 };
+  analyser.getByteFrequencyData(bandBuf);
+  const hzPerBin = analyser.context.sampleRate / 2 / bandBuf.length;
+  const avg = (loHz: number, hiHz: number) => {
+    const lo = Math.max(0, Math.floor(loHz / hzPerBin));
+    const hi = Math.min(bandBuf.length, Math.ceil(hiHz / hzPerBin));
+    let sum = 0;
+    for (let i = lo; i < hi; i++) sum += bandBuf[i];
+    return hi > lo ? sum / (hi - lo) / 255 : 0;
+  };
+  return { bass: avg(20, 200), mid: avg(200, 2000), treble: avg(2000, 8000) };
+}
+
 // --- Beat tracking (module row/tempo) ---------------------------------------
 // In tracker music the pattern rows are the beat grid; a musical beat is the
 // conventional every-4th-row. We watch the row advance in onProgress (which the
