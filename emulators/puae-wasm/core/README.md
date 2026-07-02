@@ -8,11 +8,24 @@ what's ours here.
 
 ```text
 core/
-  README.md      this file
-  .gitignore     ignores external/ clones + wasm/data build outputs
-  external/      (gitignored) upstream clones: libretro-uae, EmulatorJS build
+  README.md       this file
+  .gitignore      ignores external/ clones + wasm/data build outputs
+  Containerfile   amd64 Debian + emsdk 3.1.74 (EmulatorJS's pinned toolchain)
+  build-core.sh   podman build of ONLY the puae core → external/build/output/
+  external/       (gitignored) upstream clones: EmulatorJS/build, libretro-uae, RetroArch
   (later) patches/   our diffs against upstream (e.g. -sALLOW_TABLE_GROWTH, JIT hooks)
-  (later) build.sh   reproducible core build → puae-wasm.data
+```
+
+## Build
+
+We're on arm64 macOS; EmulatorJS pins emsdk 3.1.74 and warns native ARM won't
+compile some cores, so the build runs in an amd64 Debian container under **podman**
+(the repo's container tool). puae's source is EmulatorJS's fork
+(`EmulatorJS/libretro-uae`, per `external/build/cores.json`).
+
+```sh
+./build-core.sh          # image (cached) + build puae → external/build/output/
+./build-core.sh --shell  # debug shell in the build container
 ```
 
 ## Goal (Phase 1)
