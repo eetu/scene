@@ -24,9 +24,21 @@ compile some cores, so the build runs in an amd64 Debian container under **podma
 (`EmulatorJS/libretro-uae`, per `external/build/cores.json`).
 
 ```sh
-./build-core.sh          # image (cached) + build puae → external/build/output/
-./build-core.sh --shell  # debug shell in the build container
+./build-core.sh                # full clean build, all 4 variants (~40 min emulated)
+./build-core.sh --incremental  # normal variant only, reuse .o (fast reruns)
+./build-core.sh --shell        # debug shell in the build container
 ```
+
+**Incremental builds.** `build.sh` runs `make clean` before each of its 4
+variants (normal/threads/legacy/legacyThreads) — whose objects differ by
+compile flags — so it trashes `compile/puae/build/libretro/*.o` every run.
+`--incremental` applies `patches/incremental.sed` (to a throwaway copy of
+`build.sh`) to skip `clean` and build **only the normal variant**, so `make`
+reuses the objects and recompiles just what changed. Use it for every rebuild
+after the first — essential once we start patching the core for the JIT (Phase
+2), where 40-min clean rebuilds per change would be untenable. The normal
+(unthreaded) variant is enough to validate the toolchain and iterate on the JIT;
+the threaded/legacy variants come back via a full build for release parity.
 
 ## Goal (Phase 1)
 
