@@ -15,6 +15,24 @@
 
   let canvas: HTMLCanvasElement | null = $state(null);
 
+  // Human-readable theme names (order matches the shader's themeById ids) — shown
+  // briefly as a label when the wall theme changes (or on the 'n' key).
+  const THEMES = [
+    "Tron",
+    "Wormhole",
+    "Hyperspace",
+    "Giger",
+    "Vaporwave",
+    "Circuit",
+    "Rainbow",
+    "B&W CRT",
+    "Star Wars",
+    "Voxel",
+    "Corridor",
+    "Death Star",
+  ];
+  let themeName = $state<string | null>(null);
+
   const VERT = `
     attribute vec2 a_pos;
     void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
@@ -34,6 +52,11 @@
     uniform float uSpin;   // continuous barrel-roll angle (radians)
     uniform float uBass;   // eased bass level 0..1
     uniform float uTreble; // eased treble level 0..1
+    uniform float uIdA;    // current wall theme id (chosen in JS)
+    uniform float uIdB;    // next wall theme id
+    uniform float uK;      // theme crossfade 0→1 (A→B)
+    uniform float uSteps;  // adaptive raymarch step cap (perf)
+    uniform float uBurst;  // drop flash 0..1 (big energy jump)
 
     const float R = 1.0;          // tube radius (world units)
     const float FAR = 62.0;       // max march distance (deep enough to hide the void)
@@ -193,10 +216,6 @@
     vec3 wall2(float idA, float idB, float k, float z, float a) {
       return mix(themeById(idA, z, a, uTime), themeById(idB, z, a, uTime), k);
     }
-    // Deterministic random theme for cycle slot n (per-track via uSeed).
-    float hash1(float n) { return fract(sin(n * 127.1 + uSeed * 311.7) * 43758.5453); }
-    float themeSlot(float n) { return floor(hash1(n) * 12.0); }
-
     // Tube cross-section per theme: 0=circle, 1=square, 2=hexagon, 3=star. Returned
     // as the "radius" the marcher compares to R, so the tube's silhouette differs
     // by theme; circle/square/hex are exact perpendicular distances (no marching
@@ -219,41 +238,8 @@
       return 0.0;                           // everything else → circle
     }
 
+    // Small per-cell hash (used by the voxel wall displacement).
     float rnd1(float n) { return fract(sin(n * 45.233) * 43758.5453); }
-    // Green plasma bolts flying up the tube toward the camera: each has a real
-    // depth (bz) travelling far → past the viewpoint, projected like the walls
-    // (lateral × focal / depth) and following the tube's bend via center(bz). So a
-    // bolt starts as a tiny dot at the vanishing point, then accelerates outward
-    // and grows (1/bz) as it nears, streaking past the edge. sp = unrolled screen.
-    vec3 plasma(vec2 sp, float t) {
-      vec3 acc = vec3(0.0);
-      for (int i = 0; i < 4; i++) {
-        float fi = float(i);
-        float x = t * (0.4 + rnd1(fi) * 0.25) + rnd1(fi + 5.0); // sparse firing (~1.6–2.5s apart)
-        float ph = fract(x);
-        float cyc = floor(x);
-        float ang = rnd1(cyc * 3.7 + fi * 11.0) * 6.2831853;
-        float rho = 0.3 + rnd1(cyc * 7.3 + fi) * 0.5; // offset from the tube axis
-        vec2 off = rho * vec2(cos(ang), sin(ang));
-        // The fly-by spans a moderate slice of the cycle so you can watch it
-        // approach and pass, then the bolt is gone until it re-fires.
-        float p = clamp(ph / 0.32, 0.0, 1.0);
-        float bz = mix(20.0, 0.28, p);                   // depth: far → near/past
-        vec2 sc = (center(bz) + off) * (uFov / bz);      // perspective, bend-following
-        vec2 d = sp - sc;
-        vec2 rdir = sc / (length(sc) + 1e-4);            // screen travel dir (outward)
-        float along = dot(d, rdir), perp = dot(d, vec2(-rdir.y, rdir.x));
-        float size = 0.02 + 0.5 / bz;                    // dot when far → long streak when near
-        float wth = 0.015 + 0.05 / bz;                   // and thickens as it nears
-        float head = exp(-(along * along) / (size * size)) * exp(-(perp * perp) / (wth * wth));
-        float tail = exp(min(along, 0.0) * 7.0 / size) * exp(-(perp * perp) / (wth * wth * 2.0));
-        // Atmospheric depth cue: faint when deep in the tube, brightening as it nears.
-        float depth = 0.25 + 0.85 * smoothstep(18.0, 2.0, bz);
-        float life = smoothstep(0.0, 0.05, p) * smoothstep(1.0, 0.8, p);
-        acc += mix(vec3(0.15, 1.0, 0.3), vec3(0.85, 1.0, 0.9), head) * (head + tail * 0.5) * life * depth;
-      }
-      return acc;
-    }
 
     void main() {
       vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
@@ -263,16 +249,15 @@
       float cr = cos(roll), sr = sin(roll);
       uv = mat2(cr, -sr, sr, cr) * uv;
 
-      // Which wall theme is showing (+ crossfade k) — computed up front so the
-      // tube's cross-section can morph with it. Hold a randomly-picked theme ~22s,
-      // then crossfade to the next (never the same one back-to-back).
-      float tp = uTime / 22.0;
-      float n = floor(tp);
-      float idA = themeSlot(n);
-      float idB = themeSlot(n + 1.0);
-      if (abs(idA - idB) < 0.5) idB = mod(idB + 1.0, 12.0);
-      float k = smoothstep(0.82, 1.0, fract(tp));
+      // Which wall theme is showing (+ crossfade k) — chosen in JS (so the on-
+      // screen theme label can't drift from what's drawn) and fed in as uniforms.
+      float idA = uIdA, idB = uIdB, k = uK;
       float shapeA = shapeOf(idA), shapeB = shapeOf(idB);
+      // Voxel theme (id 9): how much it's showing → displace the wall per cell so
+      // some blocks rise inward toward the viewer and others recede.
+      float voxAmp = ((idA > 8.5 && idA < 9.5) ? (1.0 - k) : 0.0) +
+                     ((idB > 8.5 && idB < 9.5) ? k : 0.0);
+      voxAmp *= 0.22;
 
       // March the ray through the (curved) tube until it crosses the wall. The
       // cross-section radius (morphed A→B) as slack is a valid step, so open space
@@ -287,9 +272,17 @@
       bool hit = false;
       float hitZ = 0.0, hitAng = 0.0;
       for (int i = 0; i < 104; i++) {
+        if (float(i) >= uSteps) break; // adaptive step cap (perf)
         vec3 pos = rd * t;
         vec2 rel = pos.xy - center(pos.z);
-        float slack = R - mix(shapeRadius(rel, shapeA), shapeRadius(rel, shapeB), k); // >0 inside
+        float wallR = R;
+        if (voxAmp > 0.0) {
+          float a01 = atan(rel.y, rel.x) * 0.15915494 + 0.5;
+          float cz = mod(floor((uCamZ + pos.z) * 2.0), 1024.0);
+          float h = rnd1(cz * 31.0 + floor(a01 * 24.0) * 7.0) - 0.5; // −0.5..0.5 per cell
+          wallR -= h * 2.0 * voxAmp; // raise (inward) / lower (outward) blocks
+        }
+        float slack = wallR - mix(shapeRadius(rel, shapeA), shapeRadius(rel, shapeB), k); // >0 inside
         if (slack < 0.003) {
           hit = true;
           hitZ = pos.z;
@@ -349,12 +342,8 @@
       // Speed vignette: energetic passages darken the edges for a tunnel-vision rush.
       col *= 1.0 - smoothstep(0.45, 1.0, length(uv)) * uGlow * 0.35;
 
-      // Green plasma blasts — only during the combat themes (corridor / Death Star),
-      // fading in/out with their crossfade so they don't clutter the others.
-      float combat = (idA > 9.5 ? 1.0 - k : 0.0) + (idB > 9.5 ? k : 0.0);
-      if (combat > 0.001) {
-        col += plasma((gl_FragCoord.xy - 0.5 * uRes) / uRes.y, uTime) * combat;
-      }
+      // Drop burst: a brief cool-white bloom flash on a big energy jump.
+      col += vec3(0.7, 0.85, 1.0) * uBurst * 0.45;
 
       col = 1.0 - exp(-col); // exponential tonemap → soft neon bloom rolloff
 
@@ -428,6 +417,11 @@
     const uSpin = gl.getUniformLocation(prog, "uSpin");
     const uBass = gl.getUniformLocation(prog, "uBass");
     const uTreble = gl.getUniformLocation(prog, "uTreble");
+    const uIdA = gl.getUniformLocation(prog, "uIdA");
+    const uIdB = gl.getUniformLocation(prog, "uIdB");
+    const uK = gl.getUniformLocation(prog, "uK");
+    const uSteps = gl.getUniformLocation(prog, "uSteps");
+    const uBurst = gl.getUniformLocation(prog, "uBurst");
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const ro = new ResizeObserver(() => {
@@ -439,16 +433,19 @@
     ro.observe(el);
 
     // Keys, scoped to this component (only while the tunnel viz is on screen;
-    // ignored while typing): 's' toggles CRT scanlines, 'n' jumps to the next
-    // wall theme (nudges the ~22s theme clock forward by one period).
-    let clock = 0; // seconds elapsed, for theme morph + wall animation
+    // ignored while typing): 's' toggles CRT scanlines, 'n' jumps to the next wall
+    // theme, 'l' locks/unlocks the theme rotation.
+    let clock = 0; // seconds elapsed, for wall animation (uTime)
+    let themeTime = 0; // theme-selection clock (frozen while locked)
+    let locked = false; // 'l' freezes the theme rotation
     let scanOn = true; // CRT scanlines on by default
     const onKey = (e: KeyboardEvent) => {
       const ae = document.activeElement;
       const typing = !!ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA");
       if (typing) return;
       if (e.key === "s" || e.key === "S") scanOn = !scanOn;
-      else if (e.key === "n" || e.key === "N") clock += 22;
+      else if (e.key === "n" || e.key === "N") themeTime = (Math.floor(themeTime / 22) + 1) * 22;
+      else if (e.key === "l" || e.key === "L") locked = !locked;
     };
     window.addEventListener("keydown", onKey);
 
@@ -477,10 +474,48 @@
     let prev = performance.now();
     const TAU = Math.PI * 2;
 
+    // Accessibility: honour prefers-reduced-motion by damping the camera motion
+    // (bend, barrel roll, beat punch) to a calm fraction. Read once at mount.
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0.35 : 1.0;
+
+    // Adaptive quality: scale the raymarch step cap by measured frame rate so weak
+    // clients (phones / the Pi-served build) stay smooth.
+    let steps = 104;
+    let fpsAcc = 0;
+    let fpsN = 0;
+
+    // JS-authoritative theme rotation (mirrored out of the shader so the on-screen
+    // label matches exactly): a seeded per-slot random, held ~22s then crossfaded.
+    let lastPrimary = -1;
+    // Drop detection state: slow energy floor + last-jump timers.
+    let energyBase = 0;
+    let prevEnergy = 0;
+    let lastDrop = -1e9;
+    let lastThemeJump = -1e9;
+    let burst = 0; // drop flash, decays
+    const smooth01 = (e0: number, e1: number, x: number) => {
+      const s = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+      return s * s * (3 - 2 * s);
+    };
+    const themeSlot = (slot: number) => {
+      const s = Math.sin(slot * 127.1 + seedVal * 311.7) * 43758.5453;
+      return Math.floor((s - Math.floor(s)) * THEMES.length);
+    };
+
     function frame(now: number) {
       const dt = Math.min(0.05, (now - prev) / 1000);
       prev = now;
       clock += dt;
+
+      // Adaptive step cap from a 30-frame FPS window (with hysteresis).
+      fpsAcc += dt;
+      if (++fpsN >= 30) {
+        const avg = fpsAcc / fpsN;
+        if (avg > 1 / 48 && steps > 48) steps -= 12;
+        else if (avg < 1 / 58 && steps < 104) steps += 12;
+        fpsAcc = 0;
+        fpsN = 0;
+      }
 
       const key = playback.current?.filename ?? "";
       if (key !== pathKey) {
@@ -489,6 +524,39 @@
       }
 
       const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
+      // Drop detection: a big jump above the slow energy floor fires a burst
+      // (screen flash) and, spaced out, a theme switch — synced to musical drops.
+      energyBase += ((active ? energy : 0) - energyBase) * 0.02;
+      if (
+        active &&
+        energy > energyBase + 0.3 &&
+        energy > prevEnergy + 0.18 &&
+        now - lastDrop > 1200
+      ) {
+        lastDrop = now;
+        burst = 1;
+        if (!locked && now - lastThemeJump > 5000) {
+          themeTime = (Math.floor(themeTime / 22) + 1) * 22;
+          lastThemeJump = now;
+        }
+      }
+      prevEnergy = energy;
+      burst *= Math.exp(-dt / 0.45);
+
+      // Pick the wall theme (+ crossfade) in JS; show its name on change.
+      if (!locked) themeTime += dt;
+      const tp = themeTime / 22;
+      const nSlot = Math.floor(tp);
+      let idA = themeSlot(nSlot);
+      let idB = themeSlot(nSlot + 1);
+      if (idA === idB) idB = (idB + 1) % THEMES.length;
+      const kk = smooth01(0.82, 1.0, tp - nSlot);
+      const primary = kk < 0.5 ? idA : idB;
+      if (primary !== lastPrimary) {
+        lastPrimary = primary;
+        themeName = THEMES[primary];
+      }
+
       glow += ((active ? energy : 0) - glow) * 0.1;
       // Per-band levels (bass drives the beat punch/pulse, treble the sparkle).
       const b = active ? sampleBands() : { bass: 0, treble: 0 };
@@ -500,15 +568,16 @@
       const targetSpeed = active ? 3 + energy * 8 : 0.3;
       speed += (targetSpeed - speed) * 0.05;
       // Beat punch nudges forward briefly; slow barrel roll drifts with energy.
+      // Both damped by `motion` for prefers-reduced-motion.
       camZ += speed * (1 + punch * 0.4) * dt;
-      spin = (spin + dt * (0.05 + glow * 0.15)) % TAU;
+      spin = (spin + dt * (0.05 + glow * 0.15) * motion) % TAU;
 
       if (lastBeat < 0)
         lastBeat = playback.beat; // first frame: adopt, don't flash/punch
       else if (playback.beat !== lastBeat) {
         lastBeat = playback.beat;
         pulse = 1;
-        punch = 0.3 + bass * 0.3; // bassier beats kick a little harder
+        punch = (0.3 + bass * 0.3) * motion; // bassier beats kick a little harder
       }
       pulse *= Math.exp(-dt / 0.22);
       punch *= Math.exp(-dt / 0.4); // slow decay → smooth push, not a jolt
@@ -518,7 +587,7 @@
       gl.uniform1f(uSeed, seedVal);
       gl.uniform1f(uPulse, pulse);
       gl.uniform1f(uGlow, glow);
-      gl.uniform1f(uBend, 0.6 + bendEnv * 0.9);
+      gl.uniform1f(uBend, (0.6 + bendEnv * 0.9) * motion); // straighter under reduced-motion
       gl.uniform1f(uTime, clock);
       gl.uniform1f(uScan, scanOn ? 1 : 0);
       gl.uniform1f(uFov, 1.35 + punch * 0.14); // gentle zoom-push on the beat
@@ -526,6 +595,11 @@
       gl.uniform1f(uSpin, spin);
       gl.uniform1f(uBass, bass);
       gl.uniform1f(uTreble, treble);
+      gl.uniform1f(uIdA, idA);
+      gl.uniform1f(uIdB, idB);
+      gl.uniform1f(uK, kk);
+      gl.uniform1f(uSteps, steps);
+      gl.uniform1f(uBurst, burst);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
       raf = requestAnimationFrame(frame);
@@ -545,12 +619,53 @@
   });
 </script>
 
-<canvas bind:this={canvas}></canvas>
+<div class="tunnel">
+  <canvas bind:this={canvas}></canvas>
+  {#if themeName}
+    {#key themeName}
+      <div class="label">{themeName}</div>
+    {/key}
+  {/if}
+</div>
 
 <style>
+  .tunnel {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
   canvas {
     display: block;
     width: 100%;
     height: 100%;
+  }
+  /* Theme name, shown briefly on change (re-keyed → the fade replays each time). */
+  .label {
+    position: absolute;
+    left: 12px;
+    bottom: 10px;
+    font-family: var(--font-retro, ui-monospace, monospace);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 0 6px rgba(0, 0, 0, 0.85);
+    pointer-events: none;
+    animation: tunnel-label 2.6s forwards;
+  }
+  @keyframes tunnel-label {
+    0%,
+    55% {
+      opacity: 0.92;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .label {
+      animation: none;
+      opacity: 0.6;
+    }
   }
 </style>
