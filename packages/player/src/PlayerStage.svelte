@@ -6,6 +6,7 @@
   // container's height. Pair it with <Transport/>. Shared by tracker + party.
   import BoingBall from "./BoingBall.svelte";
   import CopperBars from "./CopperBars.svelte";
+  import DiscoBall from "./DiscoBall.svelte";
   import Equalizer from "./Equalizer.svelte";
   import GlowWave from "./GlowWave.svelte";
   import PatternView from "./PatternView.svelte";
@@ -17,8 +18,27 @@
   import VuMeters from "./VuMeters.svelte";
 
   // Party's enabled visualizers (its own set — the tracker keeps a separate list).
-  type VizMode = "vu" | "bars" | "wave" | "stars" | "copper" | "plasma" | "tunnel" | "ball";
-  const VIZ: VizMode[] = ["vu", "bars", "wave", "stars", "copper", "plasma", "tunnel", "ball"];
+  type VizMode =
+    | "vu"
+    | "bars"
+    | "wave"
+    | "stars"
+    | "copper"
+    | "plasma"
+    | "tunnel"
+    | "disco"
+    | "ball";
+  const VIZ: VizMode[] = [
+    "vu",
+    "bars",
+    "wave",
+    "stars",
+    "copper",
+    "plasma",
+    "tunnel",
+    "disco",
+    "ball",
+  ];
 
   let { tab = $bindable<"pattern" | "samples" | "viz">("pattern") } = $props();
   // Which visualizer the "viz" tab shows. Persists across tab switches.
@@ -68,6 +88,8 @@
             <Plasma active={playing} />
           {:else if vizMode === "tunnel"}
             <Tunnel active={playing} />
+          {:else if vizMode === "disco"}
+            <DiscoBall active={playing} />
           {:else}
             <BoingBall energy={playing ? energy : 0} live={playing} react {format} />
           {/if}

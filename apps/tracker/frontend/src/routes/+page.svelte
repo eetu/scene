@@ -16,6 +16,7 @@
   import {
     BoingBall,
     CopperBars,
+    DiscoBall,
     Equalizer,
     GlowWave,
     parseModule,
@@ -62,8 +63,27 @@
   let showSettings = $state(false);
   let pvTab = $state<"pattern" | "samples" | "viz">("pattern");
   // Which visualizer the "viz" tab shows. Persists across tab switches.
-  type VizMode = "vu" | "bars" | "wave" | "stars" | "copper" | "plasma" | "tunnel" | "ball";
-  const VIZ: VizMode[] = ["vu", "bars", "wave", "stars", "copper", "plasma", "tunnel", "ball"];
+  type VizMode =
+    | "vu"
+    | "bars"
+    | "wave"
+    | "stars"
+    | "copper"
+    | "plasma"
+    | "tunnel"
+    | "disco"
+    | "ball";
+  const VIZ: VizMode[] = [
+    "vu",
+    "bars",
+    "wave",
+    "stars",
+    "copper",
+    "plasma",
+    "tunnel",
+    "disco",
+    "ball",
+  ];
   let pvVizMode = $state<VizMode>("vu");
   // Pattern view style: 'locked' = fixed centerline + vertical VU; 'scroll' =
   // free-scrolling rows + header VU. Persisted across sessions; set in Settings.
@@ -1040,6 +1060,8 @@
               <Plasma active={vizActive} />
             {:else if pvVizMode === "tunnel"}
               <Tunnel active={vizActive} />
+            {:else if pvVizMode === "disco"}
+              <DiscoBall active={vizActive} />
             {:else}
               <BoingBall energy={vizActive ? vuEnergy : 0} live={vizActive} react />
             {/if}
