@@ -37,14 +37,20 @@ Two facts shrink "general Amiga JIT" to something buildable:
 
 ## Phases (with a hard go/no-go gate)
 
-- **Phase 0 — Baseline + integration spike (the gate).**
-  - `bench/` — a harness that boots a real heavy demo (ZIF) with our exact
-    accelerated AGA config and reports **emulated FPS** (`getFrameNum` Δ over
-    wall-clock; PAL target 50). Establishes the number a JIT must beat. **← we
-    are here.**
-  - Then: prove the Emscripten integration only — hand-write one trivial WASM
-    side-module, instantiate it at runtime, grow the core's function table,
-    `call_indirect` into it and return. **If that isn't clean, stop.**
+- **Phase 0 — Baseline + integration spike (the gate). ✅ DONE — GO.**
+  - `bench/` — harness that boots a real heavy AGA demo with our exact
+    accelerated config and reports **effective fps** (distinct rendered frames;
+    the vblank counter alone reads ~50 while a demo stutters). Baseline:
+    Dreamscape (TG'96) opening effect ~1.5–2 fps, vblank ~33 (66% realtime);
+    Thrilled a steady 38.9. CPU model 020→040 moves neither → host/interpreter
+    bound. **The number a JIT must beat is set.**
+  - `spike/` — proves the runtime-JIT substrate on V8: emit a WASM module at
+    runtime, share the core's linear memory, install its export into a growable
+    funcref table, `call_indirect` into it, shared-memory writes coherent both
+    ways. **Passes.** `emit.mjs` is the seed of the codegen backend.
+  - Residual risk carried into Phase 1: the *Emscripten* PUAE ABI (growable
+    `__indirect_function_table`, memory import, fn-pointer==table-index). Needs
+    `emcc` to confirm — first Phase-1 task.
 - **Phase 1 — Reproducible core build.** Fork libretro-uae + the EmulatorJS
   core-build (Emscripten + RetroArch `dist-scripts`); rebuild an *unmodified*
   `puae-wasm.data` that boots our demos identically. De-risks the toolchain.
