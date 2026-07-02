@@ -9,7 +9,7 @@
   // seeded per track), evaluated per-depth inside the shader. Rings + rails form
   // the neon grid; walls flash/breathe on each musical beat; brightness + flight
   // speed track the music's energy. CSP-safe (GLSL compiles on the GPU, not eval).
-  import { playback } from "./player.svelte";
+  import { beatPhase, playback, sampleBands } from "./player.svelte";
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -29,9 +29,13 @@
     uniform float uBend;   // eased energy → how hard the tube bends
     uniform float uTime;   // seconds, for wall-theme morph + animation
     uniform float uScan;   // 0/1 CRT scanline + vignette overlay ('s' toggles)
+    uniform float uFov;    // field of view — punches in on the beat
+    uniform float uWave;   // beat pulse-wave phase 0→1 (a ring rushing down the tube)
+    uniform float uSpin;   // continuous barrel-roll angle (radians)
+    uniform float uBass;   // eased bass level 0..1
+    uniform float uTreble; // eased treble level 0..1
 
     const float R = 1.0;          // tube radius (world units)
-    const float FOV = 1.35;       // larger = narrower field of view
     const float FAR = 62.0;       // max march distance (deep enough to hide the void)
     const float RING_FREQ = 1.15; // ring lines per world unit of travel
     const float RAIL_FREQ = 16.0; // rails around the tube
@@ -176,16 +180,16 @@
 
     void main() {
       vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
-      // Rollercoaster orientation: lean hard into turns, banking off the track's
-      // lateral drift a little way ahead so the roll anticipates the bend.
-      float roll = clamp(-center(3.0).x * 0.5, -0.8, 0.8);
+      // Rollercoaster orientation: lean hard into turns (lateral drift ahead) plus
+      // a slow, energy-driven barrel roll (uSpin) for continuous motion.
+      float roll = clamp(-center(3.0).x * 0.5, -0.8, 0.8) + uSpin;
       float cr = cos(roll), sr = sin(roll);
       uv = mat2(cr, -sr, sr, cr) * uv;
 
       // March the ray through the (curved) tube until it crosses the wall. The
       // cylinder slack (R - dist-to-axis) is a valid step, so open space is
-      // covered fast and we creep as we near the wall.
-      vec3 rd = normalize(vec3(uv, FOV));
+      // covered fast and we creep as we near the wall. uFov punches in on beats.
+      vec3 rd = normalize(vec3(uv, uFov));
       // ...and pitch over hills from the vertical drift ahead: climbing tilts the
       // view up, cresting tilts it down so the far side drops out of sight.
       float pitch = clamp(center(3.0).y * 0.34, -0.55, 0.55);
@@ -235,10 +239,19 @@
         float fog = exp(-hitZ * 0.055); // gentle: the tube recedes into depth, not a void
         col *= fog * (0.55 + uGlow * 0.9);
         col += col * uPulse * 0.9; // beat bloom kick (theme-agnostic)
+
+        // Beat pulse-wave: a bright ring rushing away down the tube each beat,
+        // fading as it travels; punchier on bass-heavy beats.
+        float wave = smoothstep(2.5, 0.0, abs(hitZ - uWave * 24.0)) * (1.0 - uWave);
+        col += mix(vec3(0.4, 0.7, 1.0), vec3(1.0, 0.85, 0.5), uBass) * wave * (0.5 + uBass * 1.6);
+        // Treble → fine moving sparkle on the walls (high-frequency shimmer).
+        col += vec3(1.0) * uTreble * 0.5 * neon(a * RAIL_FREQ * 3.0 + z * 5.0, 0.015);
+        // Louder passages read more vivid: boost saturation around luma with energy.
+        col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, 1.0 + uGlow * 0.35);
       }
       // Vanishing-point core glow — fills the deep centre so it reads as a lit
-      // tunnel receding, not a black hole.
-      col += vec3(0.5, 0.7, 1.0) * 0.16 * smoothstep(0.4, 0.0, length(uv)) * (0.6 + uPulse);
+      // tunnel receding, not a black hole; lifts a touch with beat + treble.
+      col += vec3(0.5, 0.7, 1.0) * 0.16 * smoothstep(0.4, 0.0, length(uv)) * (0.6 + uPulse + uTreble * 0.4);
 
       col = 1.0 - exp(-col); // exponential tonemap → soft neon bloom rolloff
 
@@ -307,6 +320,11 @@
     const uBend = gl.getUniformLocation(prog, "uBend");
     const uTime = gl.getUniformLocation(prog, "uTime");
     const uScan = gl.getUniformLocation(prog, "uScan");
+    const uFov = gl.getUniformLocation(prog, "uFov");
+    const uWave = gl.getUniformLocation(prog, "uWave");
+    const uSpin = gl.getUniformLocation(prog, "uSpin");
+    const uBass = gl.getUniformLocation(prog, "uBass");
+    const uTreble = gl.getUniformLocation(prog, "uTreble");
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const ro = new ResizeObserver(() => {
@@ -343,10 +361,15 @@
     let glow = 0; // eased energy
     let bendEnv = 0; // slow energy envelope → bend amount
     let pulse = 0; // beat flash, decays
+    let punch = 0; // beat camera kick (FOV + speed burst), decays
+    let spin = 0; // continuous barrel-roll angle (wrapped to TAU)
+    let bass = 0; // eased bass level
+    let treble = 0; // eased treble level
     let seedVal = 0;
     let pathKey = "";
     let lastBeat = -1;
     let prev = performance.now();
+    const TAU = Math.PI * 2;
 
     function frame(now: number) {
       const dt = Math.min(0.05, (now - prev) / 1000);
@@ -361,20 +384,28 @@
 
       const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
       glow += ((active ? energy : 0) - glow) * 0.1;
+      // Per-band levels (bass drives the beat punch/pulse, treble the sparkle).
+      const b = active ? sampleBands() : { bass: 0, treble: 0 };
+      bass += (b.bass - bass) * 0.2;
+      treble += (b.treble - treble) * 0.2;
       // Slower envelope so the tube's bendiness breathes with the music rather
       // than twitching per frame; gentle baseline so it's never dead straight.
       bendEnv += ((active ? energy : 0) - bendEnv) * 0.03;
       const targetSpeed = active ? 3 + energy * 8 : 0.3;
       speed += (targetSpeed - speed) * 0.05;
-      camZ += speed * dt;
+      // Beat punch surges forward briefly; gentle barrel roll speeds up with energy.
+      camZ += speed * (1 + punch * 1.2) * dt;
+      spin = (spin + dt * (0.12 + glow * 0.4)) % TAU;
 
       if (lastBeat < 0)
-        lastBeat = playback.beat; // first frame: adopt, don't flash
+        lastBeat = playback.beat; // first frame: adopt, don't flash/punch
       else if (playback.beat !== lastBeat) {
         lastBeat = playback.beat;
         pulse = 1;
+        punch = 0.6 + bass * 0.6; // bassier beats kick harder
       }
       pulse *= Math.exp(-dt / 0.18);
+      punch *= Math.exp(-dt / 0.15);
 
       gl.uniform2f(uRes, el.width, el.height);
       gl.uniform1f(uCamZ, camZ);
@@ -384,6 +415,11 @@
       gl.uniform1f(uBend, 0.6 + bendEnv * 0.9);
       gl.uniform1f(uTime, clock);
       gl.uniform1f(uScan, scanOn ? 1 : 0);
+      gl.uniform1f(uFov, 1.35 + punch * 0.45); // zoom-punch on the beat
+      gl.uniform1f(uWave, active ? beatPhase(now) : 1); // 1 = no wave when idle
+      gl.uniform1f(uSpin, spin);
+      gl.uniform1f(uBass, bass);
+      gl.uniform1f(uTreble, treble);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
       raf = requestAnimationFrame(frame);
