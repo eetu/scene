@@ -51,9 +51,15 @@ Two facts shrink "general Amiga JIT" to something buildable:
   - Residual risk carried into Phase 1: the *Emscripten* PUAE ABI (growable
     `__indirect_function_table`, memory import, fn-pointer==table-index). Needs
     `emcc` to confirm — first Phase-1 task.
-- **Phase 1 — Reproducible core build.** Fork libretro-uae + the EmulatorJS
-  core-build (Emscripten + RetroArch `dist-scripts`); rebuild an *unmodified*
-  `puae-wasm.data` that boots our demos identically. De-risks the toolchain.
+- **Phase 1 — Reproducible core build.**
+  - `phase1-abi/` — **✅ DONE.** Validated the three Emscripten hooks against a
+    real emcc-compiled core: growable `__indirect_function_table`, a runtime
+    block importing the core's `memory`, and fn-pointer==table-index C dispatch.
+    The residual Phase-0 risk is retired — the JIT substrate is proven end-to-end.
+  - Next: fork libretro-uae + the EmulatorJS core-build (Emscripten + RetroArch
+    `dist-scripts`); rebuild an *unmodified* `puae-wasm.data` (with
+    `-sALLOW_TABLE_GROWTH`) that boots our demos identically. De-risks the
+    toolchain.
 - **Phase 2 — Recompiler MVP.** 68020 decoder → IR → WASM codegen for the common
   integer/addressing subset; interpreter fallback for the rest; inline chip/fast
   RAM access, helper calls for custom-chip/IO regions. Validate against
