@@ -161,6 +161,19 @@
       float strip = neon(a * 2.0, 0.02);                        // two opposed rails
       return col + vec3(0.2, 0.7, 1.0) * strip * (0.7 + 0.3 * sin(z * 2.0 - t * 3.0));
     }
+    // Death Star trench: greebled grey metal — fine panel seams + big structural
+    // ribs down the trench, dense static per-cell tone variation (greebles), and a
+    // sparse scatter of steady warm/cool running lights. Wears the square shape.
+    vec3 themeDeathstar(float z, float a, float t) {
+      float panels = max(neon(z * 2.5, 0.02), neon(a * 40.0, 0.02));
+      float ribs = neon(z * 0.5, 0.05);
+      float ga = floor(a * 64.0);
+      float g = fract(sin(floor(z * 8.0) * 12.9 + ga * 78.2 + uSeed) * 43758.5);
+      vec3 metal = mix(vec3(0.1, 0.11, 0.12), vec3(0.24, 0.25, 0.27), g * 0.7);
+      vec3 col = metal * (1.0 - 0.45 * panels) + vec3(0.06) * ribs;
+      float lit = step(0.94, g); // ~6% of cells are running lights
+      return col + mix(vec3(1.0, 0.8, 0.5), vec3(0.6, 0.85, 1.0), fract(ga * 0.37)) * lit * 0.7;
+    }
     vec3 themeById(float id, float z, float a, float t) {
       if (id < 0.5) return themeTron(z, a, t);
       if (id < 1.5) return themeWormhole(z, a, t);
@@ -172,11 +185,75 @@
       if (id < 7.5) return themeBW(z, a, t);
       if (id < 8.5) return themeStarwars(z, a, t);
       if (id < 9.5) return themeVoxel(z, a, t);
-      return themeCorridor(z, a, t);
+      if (id < 10.5) return themeCorridor(z, a, t);
+      return themeDeathstar(z, a, t);
+    }
+    // Crossfaded wall colour at (z, a) for the current two themes — used for the
+    // inner wall and, multi-tapped, for the blurred parallax layer.
+    vec3 wall2(float idA, float idB, float k, float z, float a) {
+      return mix(themeById(idA, z, a, uTime), themeById(idB, z, a, uTime), k);
     }
     // Deterministic random theme for cycle slot n (per-track via uSeed).
     float hash1(float n) { return fract(sin(n * 127.1 + uSeed * 311.7) * 43758.5453); }
-    float themeSlot(float n) { return floor(hash1(n) * 11.0); }
+    float themeSlot(float n) { return floor(hash1(n) * 12.0); }
+
+    // Tube cross-section per theme: 0=circle, 1=square, 2=hexagon, 3=star. Returned
+    // as the "radius" the marcher compares to R, so the tube's silhouette differs
+    // by theme; circle/square/hex are exact perpendicular distances (no marching
+    // overshoot), the star is a gentle radial modulation.
+    float shapeRadius(vec2 p, float shape) {
+      if (shape < 0.5) return length(p);               // circle
+      if (shape < 1.5) return max(abs(p.x), abs(p.y)); // square
+      if (shape < 2.5) {                                // flat-top hexagon
+        vec2 q = abs(p);
+        return max(q.x * 0.8660254 + q.y * 0.5, q.y);
+      }
+      return length(p) / (1.0 + 0.15 * cos(atan(p.y, p.x) * 5.0)); // 5-point star
+    }
+    // Which cross-section each theme wears (ids per themeById order).
+    float shapeOf(float id) {
+      if (id > 9.5) return 1.0;             // corridor → square
+      if (id > 8.5) return 1.0;             // voxel → square
+      if (id > 4.5 && id < 5.5) return 2.0; // circuit → hexagon
+      if (id > 2.5 && id < 3.5) return 3.0; // giger → star
+      return 0.0;                           // everything else → circle
+    }
+
+    float rnd1(float n) { return fract(sin(n * 45.233) * 43758.5453); }
+    // Green plasma bolts flying up the tube toward the camera: each has a real
+    // depth (bz) travelling far → past the viewpoint, projected like the walls
+    // (lateral × focal / depth) and following the tube's bend via center(bz). So a
+    // bolt starts as a tiny dot at the vanishing point, then accelerates outward
+    // and grows (1/bz) as it nears, streaking past the edge. sp = unrolled screen.
+    vec3 plasma(vec2 sp, float t) {
+      vec3 acc = vec3(0.0);
+      for (int i = 0; i < 4; i++) {
+        float fi = float(i);
+        float x = t * (0.4 + rnd1(fi) * 0.25) + rnd1(fi + 5.0); // sparse firing (~1.6–2.5s apart)
+        float ph = fract(x);
+        float cyc = floor(x);
+        float ang = rnd1(cyc * 3.7 + fi * 11.0) * 6.2831853;
+        float rho = 0.3 + rnd1(cyc * 7.3 + fi) * 0.5; // offset from the tube axis
+        vec2 off = rho * vec2(cos(ang), sin(ang));
+        // The fly-by spans a moderate slice of the cycle so you can watch it
+        // approach and pass, then the bolt is gone until it re-fires.
+        float p = clamp(ph / 0.32, 0.0, 1.0);
+        float bz = mix(20.0, 0.28, p);                   // depth: far → near/past
+        vec2 sc = (center(bz) + off) * (uFov / bz);      // perspective, bend-following
+        vec2 d = sp - sc;
+        vec2 rdir = sc / (length(sc) + 1e-4);            // screen travel dir (outward)
+        float along = dot(d, rdir), perp = dot(d, vec2(-rdir.y, rdir.x));
+        float size = 0.02 + 0.5 / bz;                    // dot when far → long streak when near
+        float wth = 0.015 + 0.05 / bz;                   // and thickens as it nears
+        float head = exp(-(along * along) / (size * size)) * exp(-(perp * perp) / (wth * wth));
+        float tail = exp(min(along, 0.0) * 7.0 / size) * exp(-(perp * perp) / (wth * wth * 2.0));
+        // Atmospheric depth cue: faint when deep in the tube, brightening as it nears.
+        float depth = 0.25 + 0.85 * smoothstep(18.0, 2.0, bz);
+        float life = smoothstep(0.0, 0.05, p) * smoothstep(1.0, 0.8, p);
+        acc += mix(vec3(0.15, 1.0, 0.3), vec3(0.85, 1.0, 0.9), head) * (head + tail * 0.5) * life * depth;
+      }
+      return acc;
+    }
 
     void main() {
       vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
@@ -186,9 +263,20 @@
       float cr = cos(roll), sr = sin(roll);
       uv = mat2(cr, -sr, sr, cr) * uv;
 
+      // Which wall theme is showing (+ crossfade k) — computed up front so the
+      // tube's cross-section can morph with it. Hold a randomly-picked theme ~22s,
+      // then crossfade to the next (never the same one back-to-back).
+      float tp = uTime / 22.0;
+      float n = floor(tp);
+      float idA = themeSlot(n);
+      float idB = themeSlot(n + 1.0);
+      if (abs(idA - idB) < 0.5) idB = mod(idB + 1.0, 12.0);
+      float k = smoothstep(0.82, 1.0, fract(tp));
+      float shapeA = shapeOf(idA), shapeB = shapeOf(idB);
+
       // March the ray through the (curved) tube until it crosses the wall. The
-      // cylinder slack (R - dist-to-axis) is a valid step, so open space is
-      // covered fast and we creep as we near the wall. uFov punches in on beats.
+      // cross-section radius (morphed A→B) as slack is a valid step, so open space
+      // is covered fast and we creep as we near the wall. uFov punches in on beats.
       vec3 rd = normalize(vec3(uv, uFov));
       // ...and pitch over hills from the vertical drift ahead: climbing tilts the
       // view up, cresting tilts it down so the far side drops out of sight.
@@ -201,7 +289,7 @@
       for (int i = 0; i < 104; i++) {
         vec3 pos = rd * t;
         vec2 rel = pos.xy - center(pos.z);
-        float slack = R - length(rel); // >0 inside, 0 at wall
+        float slack = R - mix(shapeRadius(rel, shapeA), shapeRadius(rel, shapeB), k); // >0 inside
         if (slack < 0.003) {
           hit = true;
           hitZ = pos.z;
@@ -227,15 +315,18 @@
       if (hit) {
         float z = uCamZ + hitZ;
         float a = hitAng * 0.15915494 + 0.5; // 0..1 around the tube
-        // Hold a randomly-picked wall theme for ~22s, then crossfade to the next
-        // (also random, but never the same one back-to-back). Seeded per track.
-        float tp = uTime / 22.0;
-        float n = floor(tp);
-        float idA = themeSlot(n);
-        float idB = themeSlot(n + 1.0);
-        if (abs(idA - idB) < 0.5) idB = mod(idB + 1.0, 11.0);
-        float k = smoothstep(0.82, 1.0, fract(tp));
-        col = mix(themeById(idA, z, a, uTime), themeById(idB, z, a, uTime), k);
+        // Wall colour crossfades between the two themes chosen above.
+        col = wall2(idA, idB, k, z, a);
+        // Parallax: a blurred, slower copy of the wall shows through the dark gaps
+        // of the grid, reading as a second tube set farther out and out of focus
+        // behind the inner one. Strongest on neon/grid themes (near-black gaps),
+        // faint on solid ones. z*0.3 → slower scroll = a bigger depth gap; the
+        // 3-tap z-average softens its grid so it reads as distant/defocused.
+        float gap = smoothstep(0.5, 0.0, dot(col, vec3(0.4)));
+        float oz = z * 0.3 + 9.0;
+        vec3 outer = (wall2(idA, idB, k, oz - 0.6, a) + wall2(idA, idB, k, oz, a) +
+                      wall2(idA, idB, k, oz + 0.6, a)) / 3.0;
+        col += outer * gap * 0.3;
         float fog = exp(-hitZ * 0.055); // gentle: the tube recedes into depth, not a void
         col *= fog * (0.55 + uGlow * 0.9);
         col += col * uPulse * 0.5; // beat bloom kick (theme-agnostic)
@@ -254,6 +345,16 @@
       // Vanishing-point core glow — fills the deep centre so it reads as a lit
       // tunnel receding, not a black hole.
       col += vec3(0.5, 0.7, 1.0) * 0.16 * smoothstep(0.4, 0.0, length(uv)) * (0.6 + uPulse * 0.6 + uTreble * 0.2);
+
+      // Speed vignette: energetic passages darken the edges for a tunnel-vision rush.
+      col *= 1.0 - smoothstep(0.45, 1.0, length(uv)) * uGlow * 0.35;
+
+      // Green plasma blasts — only during the combat themes (corridor / Death Star),
+      // fading in/out with their crossfade so they don't clutter the others.
+      float combat = (idA > 9.5 ? 1.0 - k : 0.0) + (idB > 9.5 ? k : 0.0);
+      if (combat > 0.001) {
+        col += plasma((gl_FragCoord.xy - 0.5 * uRes) / uRes.y, uTime) * combat;
+      }
 
       col = 1.0 - exp(-col); // exponential tonemap → soft neon bloom rolloff
 
@@ -337,13 +438,17 @@
     });
     ro.observe(el);
 
-    // 's' toggles the CRT scanline overlay. Scoped to this component, so it only
-    // acts while the tunnel viz is on screen; ignored while typing in a field.
-    let scanOn = true; // CRT scanlines on by default; 's' toggles
+    // Keys, scoped to this component (only while the tunnel viz is on screen;
+    // ignored while typing): 's' toggles CRT scanlines, 'n' jumps to the next
+    // wall theme (nudges the ~22s theme clock forward by one period).
+    let clock = 0; // seconds elapsed, for theme morph + wall animation
+    let scanOn = true; // CRT scanlines on by default
     const onKey = (e: KeyboardEvent) => {
       const ae = document.activeElement;
       const typing = !!ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA");
-      if (!typing && (e.key === "s" || e.key === "S")) scanOn = !scanOn;
+      if (typing) return;
+      if (e.key === "s" || e.key === "S") scanOn = !scanOn;
+      else if (e.key === "n" || e.key === "N") clock += 22;
     };
     window.addEventListener("keydown", onKey);
 
@@ -357,7 +462,6 @@
     };
 
     let raf = 0;
-    let clock = 0; // seconds elapsed, for theme morph + wall animation
     let camZ = 0;
     let speed = 0.4; // eased travel units/sec
     let glow = 0; // eased energy
