@@ -32,13 +32,26 @@
     return `${ini}'${yy}`;
   }
 
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Poll /status until the initial/rescan scan finishes, then load the parties.
+  // Resilient by design: a transient error mid-scan (the DB is briefly locked by
+  // the scan, or a slow-NAS hiccup) reschedules the poll instead of killing the
+  // chain — otherwise the page freezes on "scanning…" forever and never recovers
+  // even after the scan completes. Clears the error once a request succeeds.
   async function load() {
-    status = await api.status();
-    if (status.scanning) {
-      setTimeout(load, 1000);
-      return;
+    try {
+      status = await api.status();
+      if (status.scanning) {
+        pollTimer = setTimeout(load, 1000);
+        return;
+      }
+      parties = await api.parties();
+      error = null;
+    } catch (e) {
+      error = String(e);
+      pollTimer = setTimeout(load, 1500); // keep polling through transient errors
     }
-    parties = await api.parties();
   }
 
   // Re-walk the whole Parties/ tree, then refresh the list. The request blocks
@@ -63,7 +76,10 @@
     // otherwise music keeps playing with no visible controls (e.g. after
     // clicking the party name to go home).
     stopPlayback();
-    load().catch((e) => (error = String(e)));
+    void load();
+    return () => {
+      if (pollTimer) clearTimeout(pollTimer);
+    };
   });
 </script>
 
