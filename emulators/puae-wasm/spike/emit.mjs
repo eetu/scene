@@ -72,6 +72,7 @@ export const op = {
   i32Load: (off = 0, align = 2) => concat([0x28], uleb(align), uleb(off)),
   i32Store: (off = 0, align = 2) => concat([0x36], uleb(align), uleb(off)),
   i32Add: () => [0x6a],
+  i32Sub: () => [0x6b],
   i32Mul: () => [0x6c],
   callIndirect: (typeIdx, tableIdx = 0) => concat([0x11], uleb(typeIdx), uleb(tableIdx)),
   end: () => [0x0b],
