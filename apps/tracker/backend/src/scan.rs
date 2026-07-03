@@ -121,9 +121,15 @@ pub fn hash_bytes(bytes: &[u8]) -> (String, String) {
     (sha, md5)
 }
 
+/// Canonical top-level directory for tracks with no group. Files under it parse
+/// as `group == GROUPLESS`; the UI shows that bucket distinctly (pinned last),
+/// and the rename endpoint writes here when the group field is left blank.
+pub const GROUPLESS: &str = "_groupless";
+
 /// Split a relative path (forward-slash separated) into (group, artist).
 /// `group/artist/song.ext` → ("group", Some("artist")); `group/song.ext` →
-/// ("group", None). Deeper nesting keeps segment[0]/segment[1].
+/// ("group", None). Deeper nesting keeps segment[0]/segment[1]. A file under
+/// `_groupless/` therefore parses with group == [`GROUPLESS`].
 fn group_artist(rel: &str) -> (String, Option<String>) {
     let segs: Vec<&str> = rel.split('/').collect();
     let group = segs.first().copied().unwrap_or("").to_string();
@@ -325,6 +331,12 @@ mod tests {
             group_artist("Acme/Coder/sub/song.mod"),
             ("Acme".into(), Some("Coder".into()))
         );
+        // Groupless artists live under the canonical _groupless/ dir.
+        assert_eq!(
+            group_artist("_groupless/Purple Motion/song.mod"),
+            (GROUPLESS.into(), Some("Purple Motion".into()))
+        );
+        assert_eq!(group_artist("_groupless/song.mod"), (GROUPLESS.into(), None));
     }
 
     #[test]
