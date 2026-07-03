@@ -56,6 +56,7 @@ const xOld = () => [c0(), w.op.i32Load(L.CCR_OFF), w.op.i32Const(16), w.op.i32An
 const ccrAdd = () => orAll([termN(LRES), termZ(LRES), vAdd(), cAdd(), shl(cAdd(), 4)]);
 const ccrSub = () => orAll([termN(LRES), termZ(LRES), vSub(), cSub(), shl(cSub(), 4)]);
 const ccrMoveNZ = () => orAll([xOld(), termN(LRES), termZ(LRES)]); // NZ, V=C=0, X preserved
+const ccrCmp = () => orAll([xOld(), termN(LRES), termZ(LRES), vSub(), cSub()]); // like sub, X preserved
 
 // ── effective address → compute guest addr into local `dst` (with side effects) ──
 function eaAddr(ea, dst) {
@@ -152,6 +153,60 @@ function emitInstr(it) {
         w.op.i32Sub(),
         w.op.localSet(LRES),
         ...storeAt(L.DREG(it.dx), [w.op.localGet(LRES)]),
+        ...storeAt(L.CCR_OFF, ccrSub()),
+      ];
+    case "and":
+    case "or":
+    case "eor": {
+      // AND/OR write Dx; EOR writes Dy. res = a OP b; N,Z; V=C=0; X preserved.
+      const dst = it.op === "eor" ? it.dy : it.dx;
+      const other = it.op === "eor" ? it.dx : it.dy;
+      const bit = it.op === "and" ? w.op.i32And() : it.op === "or" ? w.op.i32Or() : w.op.i32Xor();
+      return [
+        ...loadD(dst),
+        w.op.localSet(LA),
+        ...loadD(other),
+        w.op.localSet(LB),
+        w.op.localGet(LA),
+        w.op.localGet(LB),
+        ...[bit],
+        w.op.localSet(LRES),
+        ...storeAt(L.DREG(dst), [w.op.localGet(LRES)]),
+        ...storeAt(L.CCR_OFF, ccrMoveNZ()),
+      ];
+    }
+    case "cmp": // Dx - Dy, flags only (no writeback), X preserved
+      return [
+        ...loadD(it.dx),
+        w.op.localSet(LA),
+        ...loadD(it.dy),
+        w.op.localSet(LB),
+        w.op.localGet(LA),
+        w.op.localGet(LB),
+        w.op.i32Sub(),
+        w.op.localSet(LRES),
+        ...storeAt(L.CCR_OFF, ccrCmp()),
+      ];
+    case "not": // Dn = ~Dn; N,Z; V=C=0; X preserved
+      return [
+        ...loadD(it.dn),
+        w.op.i32Const(-1),
+        w.op.i32Xor(),
+        w.op.localSet(LRES),
+        ...storeAt(L.DREG(it.dn), [w.op.localGet(LRES)]),
+        ...storeAt(L.CCR_OFF, ccrMoveNZ()),
+      ];
+    case "neg": // Dn = 0 - Dn; flags like SUB(0,Dn) (X:=C)
+      return [
+        w.op.i32Const(0),
+        w.op.localSet(LA),
+        ...loadD(it.dn),
+        w.op.localSet(LB),
+        w.op.localGet(LA),
+        w.op.localGet(LB),
+        w.op.i32Sub(),
+        w.op.localSet(LRES),
+        ...storeAt(L.DREG(it.dn), [w.op.localGet(LRES)]),
         ...storeAt(L.CCR_OFF, ccrSub()),
       ];
     case "move": {

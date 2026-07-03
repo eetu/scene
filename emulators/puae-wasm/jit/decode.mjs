@@ -50,6 +50,18 @@ export function decodeAt(words, i) {
   if ((w & 0xf1f8) === 0xd080) return [{ op: "add", dx: (w >> 9) & 7, dy: w & 7 }, i + 1];
   // SUB.L Dy,Dx : 1001 xxx0 10 000 yyy
   if ((w & 0xf1f8) === 0x9080) return [{ op: "sub", dx: (w >> 9) & 7, dy: w & 7 }, i + 1];
+  // AND.L Dy,Dx : 1100 xxx0 10 000 yyy
+  if ((w & 0xf1f8) === 0xc080) return [{ op: "and", dx: (w >> 9) & 7, dy: w & 7 }, i + 1];
+  // OR.L Dy,Dx : 1000 xxx0 10 000 yyy
+  if ((w & 0xf1f8) === 0x8080) return [{ op: "or", dx: (w >> 9) & 7, dy: w & 7 }, i + 1];
+  // EOR.L Dx,Dy (Dy ^= Dx) : 1011 xxx1 10 000 yyy
+  if ((w & 0xf1f8) === 0xb180) return [{ op: "eor", dx: (w >> 9) & 7, dy: w & 7 }, i + 1];
+  // CMP.L Dy,Dx (Dx - Dy, flags only) : 1011 xxx0 10 000 yyy
+  if ((w & 0xf1f8) === 0xb080) return [{ op: "cmp", dx: (w >> 9) & 7, dy: w & 7 }, i + 1];
+  // NOT.L Dn : 0100 0110 10 000 nnn
+  if ((w & 0xfff8) === 0x4680) return [{ op: "not", dn: w & 7 }, i + 1];
+  // NEG.L Dn : 0100 0100 10 000 nnn
+  if ((w & 0xfff8) === 0x4480) return [{ op: "neg", dn: w & 7 }, i + 1];
   // MOVE.L / MOVEA.L : 0010 (dstReg dstMode) (srcMode srcReg)
   if ((w & 0xf000) === 0x2000) {
     const dstReg = (w >> 9) & 7;

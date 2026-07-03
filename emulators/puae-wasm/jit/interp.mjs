@@ -108,6 +108,39 @@ export function runInterp(words, s) {
         s[L.iA(d.dst.n)] = readEA(s, d.src) | 0; // MOVEA.L: no flags
         break;
       }
+      case "and":
+      case "or":
+      case "eor": {
+        // AND/OR to Dx; EOR of Dx into Dy. N,Z from result; V=C=0; X preserved.
+        const dst = d.op === "eor" ? d.dy : d.dx;
+        const a = s[L.iD(dst)];
+        const b = d.op === "eor" ? s[L.iD(d.dx)] : s[L.iD(d.dy)];
+        const res = (d.op === "and" ? a & b : d.op === "or" ? a | b : a ^ b) | 0;
+        s[L.iD(dst)] = res;
+        s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
+        break;
+      }
+      case "cmp": {
+        // Dx - Dy, flags only (no writeback). CMP does NOT affect X.
+        const a = s[L.iD(d.dx)];
+        const b = s[L.iD(d.dy)];
+        const res = (a - b) | 0;
+        s[CCR] = (flagsSub(a, b, res) & ~L.X) | (s[CCR] & L.X);
+        break;
+      }
+      case "not": {
+        const res = ~s[L.iD(d.dn)] | 0;
+        s[L.iD(d.dn)] = res;
+        s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
+        break;
+      }
+      case "neg": {
+        const b = s[L.iD(d.dn)];
+        const res = (0 - b) | 0;
+        s[L.iD(d.dn)] = res;
+        s[CCR] = flagsSub(0, b, res); // X:=C, correct for NEG
+        break;
+      }
       default:
         throw new Error(`interp: unhandled ${d.op}`);
     }

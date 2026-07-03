@@ -26,15 +26,16 @@ node difftest.mjs 20000 20   # more trials / longer blocks
 
 ## Status ✅
 
-- **ALU (register):** MOVEQ, ADDQ.L, ADD.L Dy,Dx, SUB.L Dy,Dx — full **CCR flags
-  (X N Z V C)** in generated WASM (carry/borrow via `i32.lt_u`, signed overflow
-  via the xor-and-sign trick, X:=C for add/sub, X preserved for MOVEQ).
+- **ALU (register .L):** MOVEQ, ADDQ.L, ADD/SUB Dy,Dx, AND/OR Dy,Dx, EOR Dx,Dy,
+  CMP Dy,Dx (flags only), NOT/NEG Dn — full **CCR flags (X N Z V C)** in generated
+  WASM (carry/borrow via `i32.lt_u`, signed overflow via the xor-and-sign trick;
+  X:=C for add/sub/neg, X preserved for logic/moveq, CMP leaves X untouched).
 - **Data movement + memory:** MOVE.L / MOVEA.L with **EA modes** Dn, An, (An),
   (An)+, -(An), (d16,An), abs.L, #imm — guest-RAM load/store inlined as
   `(GUEST_BASE + (addr & RAM_MASK))`, with (An)+/-(An) register side effects and
   MOVE's NZ/VC flags (MOVEA sets none).
 - `difftest` compares **D0..D7, A0..A7, CCR, and the whole RAM region** →
-  **30000/30000**. Codegen for results, flags, addressing, and memory is proven.
+  **40000/40000**. Codegen for results, flags, addressing, and memory is proven.
 
 RAM is modelled as little-endian i32 cells here (both sides agree, so codegen is
 validated); real big-endian byte-addressed 68k memory is handled at integration

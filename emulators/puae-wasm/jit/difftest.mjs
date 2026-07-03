@@ -52,7 +52,19 @@ const anySrc = () => [memEA, immEA, dEA, aEA][ri(4)]();
 
 // instruction generators → array of words
 function randInstr() {
-  switch (ri(8)) {
+  switch (ri(14)) {
+    case 8:
+      return [0xc080 | (ri(8) << 9) | ri(8)]; // AND.L Dy,Dx
+    case 9:
+      return [0x8080 | (ri(8) << 9) | ri(8)]; // OR.L Dy,Dx
+    case 10:
+      return [0xb180 | (ri(8) << 9) | ri(8)]; // EOR.L Dx,Dy
+    case 11:
+      return [0xb080 | (ri(8) << 9) | ri(8)]; // CMP.L Dy,Dx
+    case 12:
+      return [0x4680 | ri(8)]; // NOT.L Dn
+    case 13:
+      return [0x4480 | ri(8)]; // NEG.L Dn
     case 0:
       return [0x7000 | (ri(8) << 9) | ri(256)]; // MOVEQ
     case 1:
