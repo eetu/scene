@@ -458,6 +458,69 @@
       $virtualizer.scrollToOffset(0);
     });
   });
+  // ---- A-Z quick-jump rail ----
+  // A long, alphabetically-ordered library means scrolling forever to reach the
+  // Z's. This side rail jumps the virtualized list to the first group under a
+  // letter — click a letter, or drag along it (a scrubber, handy on touch). Only
+  // meaningful when the buckets are actually in A-Z order (groupSort "name") and
+  // there are enough of them to be worth the reach.
+  function railLetter(name: string): string {
+    const c = name[0]?.toUpperCase() ?? "#";
+    return c >= "A" && c <= "Z" ? c : "#";
+  }
+  // letter -> row index of its first group header. Buckets are contiguous per
+  // letter when sorted A-Z, so the first hit is the correct jump target.
+  const letterRows = $derived.by(() => {
+    // Throwaway lookup rebuilt each run (read-only), not reactive state.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const m = new Map<string, number>();
+    rows.forEach((r, i) => {
+      if (r.kind === "header" && !m.has(railLetter(r.name))) m.set(railLetter(r.name), i);
+    });
+    return m;
+  });
+  const showRail = $derived(listView && groupSort === "name" && groups.length > 12);
+  const railItems = $derived.by(() => {
+    const base = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
+    const letters = letterRows.has("#") ? ["#", ...base] : base;
+    return letters.map((letter) => ({ letter, index: letterRows.get(letter) ?? null }));
+  });
+
+  let railEl = $state<HTMLElement | undefined>(undefined);
+  let railActive = $state<string | null>(null);
+
+  function jumpToRow(index: number) {
+    if (scrollEl) $virtualizer.scrollToIndex(index, { align: "start" });
+  }
+  // Snap a rail position to the nearest letter that has a group, so dragging over
+  // an empty letter still lands somewhere sensible instead of doing nothing.
+  function railJump(target: number) {
+    const items = railItems;
+    for (let d = 0; d < items.length; d++) {
+      const a = items[target - d];
+      const b = items[target + d];
+      if (a?.index != null) return ((railActive = a.letter), jumpToRow(a.index));
+      if (b?.index != null) return ((railActive = b.letter), jumpToRow(b.index));
+    }
+  }
+  function railIndexAtY(clientY: number): number {
+    if (!railEl) return 0;
+    const r = railEl.getBoundingClientRect();
+    const rel = (clientY - r.top) / r.height;
+    return Math.max(0, Math.min(railItems.length - 1, Math.floor(rel * railItems.length)));
+  }
+  function railDown(e: PointerEvent) {
+    railEl?.setPointerCapture(e.pointerId);
+    railJump(railIndexAtY(e.clientY));
+  }
+  function railMove(e: PointerEvent) {
+    if (railEl?.hasPointerCapture(e.pointerId)) railJump(railIndexAtY(e.clientY));
+  }
+  function railUp(e: PointerEvent) {
+    railEl?.releasePointerCapture(e.pointerId);
+    railActive = null;
+  }
+
   // Loudest channel VU drives the Boing-ball visualizer energy.
   const vuEnergy = $derived(playback.vu.length ? Math.max(...playback.vu) : 0);
   const hasPrev = $derived(playback.queueIndex > 0);
@@ -757,100 +820,128 @@
   </div>
 {/if}
 
-<main bind:this={scrollEl}>
-  {#if activeTab === "playlists"}
-    <PlaylistsTab {playlists} onRefresh={refreshPlaylists} onPlay={playList} />
-  {:else if scanning && tracks.length === 0}
-    <div class="scan-panel">
-      <div class="boing"><BoingBall /></div>
-      <p>Scanning the collection…</p>
-      <p class="scan-detail">
-        {#if scanPct !== null}
-          {scanPct}% — {(status?.scan_processed ?? 0).toLocaleString()} of {(
-            status?.scan_total ?? 0
-          ).toLocaleString()} modules
-        {:else if (status?.scan_processed ?? 0) > 0}
-          {(status?.scan_processed ?? 0).toLocaleString()} modules indexed…
-        {:else}
-          starting…
-        {/if}
-      </p>
-      <p class="scan-note">First run hashes every file, later scans are quick(er).</p>
-    </div>
-  {:else if loading}
-    <p class="msg">loading library…</p>
-  {:else if error}
-    <p class="msg err">{error}</p>
-  {:else if tracks.length === 0}
-    <p class="msg">
-      No modules indexed yet — try <button class="link" onclick={rescan}>rescan</button>.
-    </p>
-  {:else if favView && flatTracks.length === 0}
-    <p class="msg">No favourites yet — tap the ☆ on any track.</p>
-  {:else}
-    <div class="vlist" style:height="{$virtualizer.getTotalSize()}px">
-      {#each $virtualizer.getVirtualItems() as v (v.key)}
-        {@const row = rows[v.index]}
-        <div
-          class="vrow"
-          class:spaced={row?.kind === "header" && !row.first}
-          style:transform="translateY({v.start}px)"
-        >
-          {#if row?.kind === "header"}
-            <button
-              class="card head"
-              class:closed={!row.open}
-              onclick={() => toggleGroup(row.name)}
-              aria-expanded={row.open}
-            >
-              <span class="grp-name">{row.name}</span>
-              <span class="grp-count">{row.count}</span>
-            </button>
-          {:else if row?.kind === "track"}
-            {@const t = row.track}
-            {@const isCurrent = playback.current?.path === t.path}
-            {@const sub = subLabel(t)}
-            <div class="card li" class:last={row.last} class:current={isCurrent}>
-              <button class="row" title={t.path} onclick={() => openTrack(t)}>
-                <span class="name"
-                  ><span class="sub">{sub}&nbsp;</span><span class="song"
-                    >{t.title || t.filename}</span
-                  ></span
-                >
-                {#if groupBy !== "ext"}<span class="fmt-chip">{t.ext}</span>{/if}
-                <span class="plays" title={t.play_count > 0 ? `${t.play_count} plays` : undefined}>
-                  {#if t.play_count > 0}<Play size={9} fill="currentColor" />{t.play_count}{/if}
-                </span>
-                <span class="dur">{t.duration ? fmtTime(t.duration) : ""}</span>
-              </button>
-              <button
-                class="fav"
-                class:on={t.favorite}
-                title={t.favorite ? "unfavourite" : "favourite"}
-                aria-label="toggle favourite"
-                aria-pressed={t.favorite}
-                onclick={() => toggleFavorite(t)}
-              >
-                <Star size={14} fill={t.favorite ? "currentColor" : "none"} />
-              </button>
-              <button
-                class="edit"
-                title="add to playlist"
-                aria-label="add to playlist"
-                onclick={() => startAdd(t)}
-              >
-                <ListPlus size={14} />
-              </button>
-              <button class="edit" title="rename / move" onclick={() => startEdit(t)}>
-                <Pencil size={14} />
-              </button>
-            </div>
+<div class="listwrap">
+  <main bind:this={scrollEl} class:has-rail={showRail}>
+    {#if activeTab === "playlists"}
+      <PlaylistsTab {playlists} onRefresh={refreshPlaylists} onPlay={playList} />
+    {:else if scanning && tracks.length === 0}
+      <div class="scan-panel">
+        <div class="boing"><BoingBall /></div>
+        <p>Scanning the collection…</p>
+        <p class="scan-detail">
+          {#if scanPct !== null}
+            {scanPct}% — {(status?.scan_processed ?? 0).toLocaleString()} of {(
+              status?.scan_total ?? 0
+            ).toLocaleString()} modules
+          {:else if (status?.scan_processed ?? 0) > 0}
+            {(status?.scan_processed ?? 0).toLocaleString()} modules indexed…
+          {:else}
+            starting…
           {/if}
-        </div>
+        </p>
+        <p class="scan-note">First run hashes every file, later scans are quick(er).</p>
+      </div>
+    {:else if loading}
+      <p class="msg">loading library…</p>
+    {:else if error}
+      <p class="msg err">{error}</p>
+    {:else if tracks.length === 0}
+      <p class="msg">
+        No modules indexed yet — try <button class="link" onclick={rescan}>rescan</button>.
+      </p>
+    {:else if favView && flatTracks.length === 0}
+      <p class="msg">No favourites yet — tap the ☆ on any track.</p>
+    {:else}
+      <div class="vlist" style:height="{$virtualizer.getTotalSize()}px">
+        {#each $virtualizer.getVirtualItems() as v (v.key)}
+          {@const row = rows[v.index]}
+          <div
+            class="vrow"
+            class:spaced={row?.kind === "header" && !row.first}
+            style:transform="translateY({v.start}px)"
+          >
+            {#if row?.kind === "header"}
+              <button
+                class="card head"
+                class:closed={!row.open}
+                onclick={() => toggleGroup(row.name)}
+                aria-expanded={row.open}
+              >
+                <span class="grp-name">{row.name}</span>
+                <span class="grp-count">{row.count}</span>
+              </button>
+            {:else if row?.kind === "track"}
+              {@const t = row.track}
+              {@const isCurrent = playback.current?.path === t.path}
+              {@const sub = subLabel(t)}
+              <div class="card li" class:last={row.last} class:current={isCurrent}>
+                <button class="row" title={t.path} onclick={() => openTrack(t)}>
+                  <span class="name"
+                    ><span class="sub">{sub}&nbsp;</span><span class="song"
+                      >{t.title || t.filename}</span
+                    ></span
+                  >
+                  {#if groupBy !== "ext"}<span class="fmt-chip">{t.ext}</span>{/if}
+                  <span
+                    class="plays"
+                    title={t.play_count > 0 ? `${t.play_count} plays` : undefined}
+                  >
+                    {#if t.play_count > 0}<Play size={9} fill="currentColor" />{t.play_count}{/if}
+                  </span>
+                  <span class="dur">{t.duration ? fmtTime(t.duration) : ""}</span>
+                </button>
+                <button
+                  class="fav"
+                  class:on={t.favorite}
+                  title={t.favorite ? "unfavourite" : "favourite"}
+                  aria-label="toggle favourite"
+                  aria-pressed={t.favorite}
+                  onclick={() => toggleFavorite(t)}
+                >
+                  <Star size={14} fill={t.favorite ? "currentColor" : "none"} />
+                </button>
+                <button
+                  class="edit"
+                  title="add to playlist"
+                  aria-label="add to playlist"
+                  onclick={() => startAdd(t)}
+                >
+                  <ListPlus size={14} />
+                </button>
+                <button class="edit" title="rename / move" onclick={() => startEdit(t)}>
+                  <Pencil size={14} />
+                </button>
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </main>
+  {#if showRail}
+    <div
+      class="az-rail"
+      bind:this={railEl}
+      role="navigation"
+      aria-label="jump to letter"
+      onpointerdown={railDown}
+      onpointermove={railMove}
+      onpointerup={railUp}
+      onpointercancel={railUp}
+    >
+      {#each railItems as it (it.letter)}
+        <button
+          class="az-letter"
+          class:present={it.index != null}
+          class:active={railActive === it.letter}
+          disabled={it.index == null}
+          tabindex="-1"
+          onclick={() => it.index != null && jumpToRow(it.index)}>{it.letter}</button
+        >
       {/each}
     </div>
   {/if}
-</main>
+</div>
 
 {#if editingTrack}
   {@const et = editingTrack}
@@ -1230,11 +1321,71 @@
     }
   }
 
+  /* Wraps the scroll container so the A-Z rail can pin over it (main scrolls, the
+     rail stays put). Takes over main's old flex role as the body-column child. */
+  .listwrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
   main {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     padding: 12px 14px 60px;
+  }
+  /* Give the last column clearance from the rail when it's shown. */
+  main.has-rail {
+    padding-right: 26px;
+  }
+
+  /* A-Z quick-jump rail: content-height, vertically centred over the list, clear
+     of the fixed transport dock. Content-sized so the drag-scrubber maps finger
+     Y → letter exactly (each letter is a fixed slice of the rail's height). */
+  .az-rail {
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    max-height: calc(100% - 88px);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    z-index: 4;
+    padding: 2px 1px;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .az-letter {
+    appearance: none;
+    border: 0;
+    background: none;
+    margin: 0;
+    padding: 0;
+    width: 18px;
+    height: 14px;
+    line-height: 14px;
+    font-size: 10px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    color: var(--muted);
+    opacity: 0.3;
+    cursor: pointer;
+  }
+  .az-letter.present {
+    opacity: 0.8;
+  }
+  .az-letter.present:hover,
+  .az-letter.active {
+    opacity: 1;
+    color: var(--accent);
+  }
+  .az-letter:disabled {
+    cursor: default;
   }
   .msg {
     color: var(--muted);
