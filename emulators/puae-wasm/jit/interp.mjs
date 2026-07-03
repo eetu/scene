@@ -68,6 +68,8 @@ function writeEA(s, ea, val) {
 /** Execute one non-control-flow instruction against state s. */
 export function execOne(d, s) {
   switch (d.op) {
+    case "nop":
+      break;
     case "moveq": {
       const res = d.imm | 0;
       s[L.iD(d.dn)] = res;
