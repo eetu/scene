@@ -93,3 +93,44 @@ Do **R0 + M0 together**: they're the "modified core boots and runs" milestone an
 they de-risk everything (build, hook, ABI) before any JIT-correctness work. If M0
 boots at baseline, the rest is incremental and always falls back to the
 interpreter for anything not yet handled.
+
+## R0 findings (resolved) ✅
+
+- **Dispatch:** the live runners in `newcpu.c` are `#ifdef`-tangled and the plain
+  `m68k_run_2` is an empty stub in this build; the real per-instruction dispatch
+  is `cpu_cycles = (*cpufunctbl[regs.opcode])(regs.opcode)` inside the config's
+  runner. M1 hooks *there* (check a PC→block cache before the interpreter call).
+- **Registers (`struct regstruct`, global `regs`):** `uae_u32 regs[16]` (D0–D7 =
+  0..7, A0–A7 = 8..15), `uae_u32 pc`, `uae_u8 *pc_p` (direct host pointer to the
+  guest code stream — the compiler reads opcodes through it).
+- **Flags:** `newcpu.h → machdep/m68k.h → retrodep/machdep/m68k.h`, which
+  dispatches by host arch and for **wasm falls to `md-generic`**. Layout (global
+  `struct flag_struct regflags`, little-endian):
+  `cznv` (u32) with **N=bit15, Z=bit14, C=bit8, V=bit0**; `x` (u32) with X=bit8.
+  Our packed CCR (X=16 N=8 Z=4 V=2 C=1) maps by a fixed scatter:
+  `cznv = (N<<15)|(Z<<14)|(C<<8)|(V<<0)`, `x = (X<<8)` — a handful of shifts/ors
+  emitted at block exit; the JIT's flag computation is unchanged.
+- **Memory:** `get_long`/`put_long` (+ `*_jit` fast variants) are `STATIC_INLINE`
+  in `memory.h`, bank-dispatched and big-endian-correct. We add non-inline
+  exported wrappers (`jit_get_long`/`jit_put_long`/word/byte) for blocks to call.
+- **ABI descriptor:** struct/global linear-memory addresses are only known
+  post-link, so the patched core exports tiny helpers (`&regs`, `&regflags`,
+  `offsetof` of `regs`/`pc`/`cznv`/`x`); the JS recompiler reads them once at
+  init and targets the real offsets. No hardcoded layout.
+
+## M1 build plan (grounded in R0)
+
+Patch (`core/patches/`, extends the M0 one) adds, and CI rebuilds with:
+1. **ABI-export helpers** + **exported memory wrappers** (`jit_*_long`).
+2. **Hot-loop hook**: before `cpufunctbl[opcode](opcode)`, `idx = ejs_jit_get(pc)`;
+   if `idx >= 0`, `((void(*)(void))idx)()` (the block) instead of interpreting.
+3. **Link flags**: `-sALLOW_TABLE_GROWTH` + expose `wasmTable`/`wasmMemory`
+   (RetroArch `Makefile.emulatorjs` / `build-emulatorjs.sh` — extra patch point).
+4. **JS `ejs_jit_get`**: decode via `pc_p`, recompile (`jit/`) against the ABI
+   offsets + md-generic flag scatter + memory wrappers, **synchronously**
+   instantiate into the core's table (unrestricted in the worker), cache
+   `pc→idx`, return idx.
+
+Iteration is CI-bound (~16 min/build), so each patch lands as correct-as-possible
+from the recon; verify by diffing JIT vs interpreter on a supported region, then
+measure fps in `bench/` with `--vendor`.
