@@ -58,21 +58,35 @@ that dominate the misses. Never activates a block.
   (144), `0x4e75` RTS (25), plus `0x43fa`/`0x41fa` LEA d16(PC),An (18). Then
   SUBQ/Scc/DBcc (35), MOVE.B (23), immediate/bit (16), CMP.W (16), MOVE.W (15).
 
-### Data-ranked M2 scope
+### Data-ranked M2 scope (with measured results)
 
 1. **Terminator-ify JMP/JSR/BSR/RTS/RTE** in `../jit/decode.mjs` — JIT the
-   straight-line body, return `fallPC`, let the interpreter take the transfer.
-   Unblocks ~80% of the 0x4xxx misses (the single biggest coverage jump).
-2. **PC-relative / more EA modes** (`d16(PC)`, indexed) — LEA table,An is
-   ubiquitous.
+   straight-line body before the transfer, return the terminator's PC, let the
+   interpreter take the transfer. **Done → decoder coverage 24.4% → 80.1%**
+   (decoded 233 → 764, failed 721 → 190). Node difftests still 4000/4000 +
+   cftest + coretest 40000/40000.
+2. **SUBQ/Scc/DBcc** (35 remaining misses), **MOVE.B** (23), **immediate/bit**
+   (16), **CMP.W** (16), **MOVE.W** (15), residual **0x4xxx** (60: MOVEM,
+   TST.W/CLR.W, PC-rel/indexed LEA, PEA).
 3. **.W / .B sizes** for MOVE/TST/CLR/CMP (the core already exports
    `_jit_get_word`/`_jit_get_byte` + put variants).
-4. **SUBQ, Scc, immediate/bit ops.**
 
-Strategic caveat: because blocks are short, single-block JIT with per-block
-`hook → JS → call_indirect` overhead won't beat the interpreter on its own —
-**block chaining / linking (M3)** is what turns coverage into an fps win (the
-3.1× payoff was on a hot *loop*, not scattered 1-instr blocks).
+### Sharpened strategic finding
+
+After terminator-ifying, `avgBlockLen` is **0.7 straight-line instrs** (max 8):
+Dreamscape's hot code is tiny blocks separated by constant subroutine/library
+calls (`JSR d16(A6)` = graphics.library etc.). So a plain basic-block JIT would
+execute ~1 JIT instr, then bounce to the interpreter for the transfer, every
+block — the `hook → JS → call_indirect` + interpreter-transfer overhead would
+dominate and likely LOSE to the pure interpreter.
+
+The fps win therefore depends on **block chaining across transfers** (M3): link
+each compiled block directly to its successors (both Bcc targets; and ideally JIT
+JSR/RTS with inline stack ops so calls stay in JIT'd code) so hot loops run many
+blocks without returning to the dispatcher. The 3.1× payoff was on a hot *loop*;
+realising it here means keeping control flow inside the JIT, not just covering
+opcodes. This reorders the plan: **coverage (M2) is necessary but not sufficient;
+chaining (M3) is on the critical path to any measured speedup.**
 
 ## Step 2b — real blocks (next)
 

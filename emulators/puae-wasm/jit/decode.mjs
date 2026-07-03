@@ -126,12 +126,42 @@ export function decodeAt(words, i) {
     if (!dst || dst.ea === "imm") return [null, i];
     return [{ op: "move", dst, src }, k];
   }
+  // Control-flow terminators — the JIT compiles the straight-line body BEFORE
+  // one of these, returns the terminator's own PC, and lets the interpreter take
+  // the actual transfer (so JSR/RTS/JMP linkage + stack stay the interpreter's
+  // job). Recognising them here is the biggest coverage lever (probe: JMP/JSR/RTS
+  // are ~80% of live decode misses). New ops → codegen adds them in M2; until
+  // then a block that reaches one still JITs everything up to it.
+  if (w === 0x4e75) return [{ op: "rts", term: true }, i + 1];
+  if (w === 0x4e73) return [{ op: "rte", term: true }, i + 1];
+  if (w === 0x4e77) return [{ op: "rtr", term: true }, i + 1];
+  if (w === 0x4e71) return [{ op: "nop" }, i + 1]; // no-op (non-terminator)
+  {
+    const isJsr = (w & 0xffc0) === 0x4e80;
+    const isJmp = (w & 0xffc0) === 0x4ec0;
+    if (isJsr || isJmp) {
+      // length from the control-addressing EA, so fallPC/next stay correct
+      const mode = (w >> 3) & 7,
+        reg = w & 7;
+      let ext = 0;
+      if (mode === 5 || mode === 6) ext = 1; // (d16,An) / (d8,An,Xn)
+      else if (mode === 7 && reg === 0) ext = 1; // abs.W
+      else if (mode === 7 && reg === 1) ext = 2; // abs.L
+      else if (mode === 7 && (reg === 2 || reg === 3)) ext = 1; // (d16,PC)/(d8,PC,Xn)
+      return [{ op: isJsr ? "jsr" : "jmp", term: true }, i + 1 + ext];
+    }
+  }
   // ILLEGAL 0x4AFC — used here as a HALT sentinel for the runner/tests.
   if (w === 0x4afc) return [{ op: "halt", term: true }, i + 1];
   // Bcc / BRA : 0110 cccc dddddddd  (cc=0 BRA; cc=1 BSR, unsupported)
   if ((w & 0xf000) === 0x6000) {
     const cc = (w >> 8) & 0xf;
-    if (cc === 1) return [null, i]; // BSR not supported yet
+    if (cc === 1) {
+      // BSR — a terminator like JSR (interpreter takes the call + stack push)
+      const d8b = w & 0xff;
+      if (d8b === 0) return [{ op: "bsr", disp: sign16(words[i + 1]), len: 4, term: true }, i + 2];
+      return [{ op: "bsr", disp: sign8(d8b), len: 2, term: true }, i + 1];
+    }
     const d8 = w & 0xff;
     // pc0 = byte address of this instruction; targets are relative to pc0+2.
     if (d8 === 0) {
