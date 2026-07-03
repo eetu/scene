@@ -7,10 +7,11 @@
 
 use std::collections::HashMap;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::time::UNIX_EPOCH;
 
+use rayon::prelude::*;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use walkdir::{DirEntry, WalkDir};
@@ -174,53 +175,65 @@ pub fn scan_into(
     progress.total.store(cache.len(), Ordering::Relaxed);
 
     let mut result = ScanResult::default();
-    let tx = conn.transaction()?;
-    {
-        let mut seen: Vec<String> = Vec::new();
-        let mut upsert = tx.prepare(
-            "INSERT INTO files (rel_path, grp, artist, filename, ext, size, mtime, content_hash, md5)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-             ON CONFLICT(rel_path) DO UPDATE SET
-               grp=excluded.grp, artist=excluded.artist, filename=excluded.filename,
-               ext=excluded.ext, size=excluded.size, mtime=excluded.mtime,
-               content_hash=excluded.content_hash, md5=excluded.md5",
-        )?;
 
-        let walker = WalkDir::new(root)
-            .follow_links(false)
-            .into_iter()
-            .filter_entry(|e| !is_hidden_dir(e));
-
-        for entry in walker {
-            let entry = match entry {
-                Ok(e) => e,
-                Err(e) => {
-                    tracing::warn!(error = %e, "walk error; skipping");
-                    continue;
-                }
-            };
-            if !entry.file_type().is_file() {
+    // 1) Walk the tree (WalkDir is inherently sequential) and collect the module
+    // files. `file_type()` uses the directory entry's type, so this needs no
+    // per-file stat — the expensive stat + hash happens in parallel below.
+    let mut cands: Vec<(PathBuf, String, String, String)> = Vec::new();
+    let walker = WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| !is_hidden_dir(e));
+    for entry in walker {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::warn!(error = %e, "walk error; skipping");
                 continue;
             }
-            let name = entry.file_name().to_string_lossy().to_string();
-            if is_junk(&name) {
-                continue;
-            }
-            let Some(ext) = module_ext(&name) else {
-                continue;
-            };
-            progress.processed.fetch_add(1, Ordering::Relaxed);
-            let path = entry.path();
-            let Ok(rel) = path.strip_prefix(root) else {
-                continue;
-            };
-            let rel_path = rel.to_string_lossy().replace('\\', "/");
+        };
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if is_junk(&name) {
+            continue;
+        }
+        let Some(ext) = module_ext(&name) else {
+            continue;
+        };
+        let Ok(rel) = entry.path().strip_prefix(root) else {
+            continue;
+        };
+        let rel_path = rel.to_string_lossy().replace('\\', "/");
+        cands.push((entry.path().to_path_buf(), rel_path, name, ext));
+    }
 
-            let meta = match entry.metadata() {
+    // 2) Resolve each file's stat + hash in parallel — the network-heavy part over
+    // CIFS. Unchanged files (size + mtime match, md5 already backfilled) reuse the
+    // cached digests; only new/changed files are read + hashed. Spreading it across
+    // rayon threads overlaps the per-file NAS round-trips instead of paying them
+    // one after another (a big win on a cold or large-change scan).
+    struct Resolved {
+        rel_path: String,
+        grp: String,
+        artist: Option<String>,
+        name: String,
+        ext: String,
+        size: i64,
+        mtime: i64,
+        hash: String,
+        md5: String,
+        hashed: bool,
+    }
+    let resolved: Vec<Resolved> = cands
+        .par_iter()
+        .filter_map(|(path, rel_path, name, ext)| {
+            let meta = match std::fs::metadata(path) {
                 Ok(m) => m,
                 Err(e) => {
                     tracing::warn!(path = %rel_path, error = %e, "stat failed; skipping");
-                    continue;
+                    return None;
                 }
             };
             let size = meta.len() as i64;
@@ -230,42 +243,64 @@ pub fn scan_into(
                 .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0);
-
-            // Reuse the cached hashes if nothing changed *and* the md5 backfill
-            // is already done; otherwise read + hash (computes both digests).
-            let (hash, md5) = match cache.get(&rel_path) {
+            // Reuse the cached hashes if nothing changed *and* the md5 backfill is
+            // already done; otherwise read + hash (computes both digests).
+            let (hash, md5, hashed) = match cache.get(rel_path) {
                 Some(c) if c.size == size && c.mtime == mtime && c.md5.is_some() => {
-                    (c.hash.clone(), c.md5.clone().unwrap())
+                    (c.hash.clone(), c.md5.clone().unwrap(), false)
                 }
                 _ => match hash_file(path) {
-                    Ok(pair) => {
-                        result.hashed += 1;
+                    Ok((sha, m)) => {
                         progress.hashed.fetch_add(1, Ordering::Relaxed);
-                        pair
+                        (sha, m, true)
                     }
                     Err(e) => {
                         tracing::warn!(path = %rel_path, error = %e, "hash failed; skipping");
-                        continue;
+                        return None;
                     }
                 },
             };
+            progress.processed.fetch_add(1, Ordering::Relaxed);
+            let (grp, artist) = group_artist(rel_path);
+            Some(Resolved {
+                rel_path: rel_path.clone(),
+                grp,
+                artist,
+                name: name.clone(),
+                ext: ext.clone(),
+                size,
+                mtime,
+                hash,
+                md5,
+                hashed,
+            })
+        })
+        .collect();
+    result.hashed = resolved.iter().filter(|r| r.hashed).count();
 
-            let (grp, artist) = group_artist(&rel_path);
+    // 3) Write the index sequentially (SQLite is single-connection): upsert every
+    // resolved file, then drop rows for files that no longer exist on disk.
+    let tx = conn.transaction()?;
+    {
+        let mut upsert = tx.prepare(
+            "INSERT INTO files (rel_path, grp, artist, filename, ext, size, mtime, content_hash, md5)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(rel_path) DO UPDATE SET
+               grp=excluded.grp, artist=excluded.artist, filename=excluded.filename,
+               ext=excluded.ext, size=excluded.size, mtime=excluded.mtime,
+               content_hash=excluded.content_hash, md5=excluded.md5",
+        )?;
+        for r in &resolved {
             upsert.execute(rusqlite::params![
-                rel_path, grp, artist, name, ext, size, mtime, hash, md5
+                r.rel_path, r.grp, r.artist, r.name, r.ext, r.size, r.mtime, r.hash, r.md5
             ])?;
-            seen.push(rel_path);
             result.indexed += 1;
         }
         drop(upsert);
 
         // Drop rows for files that no longer exist on disk.
-        let seen_set: std::collections::HashSet<&String> = seen.iter().collect();
-        let stale: Vec<String> = cache
-            .keys()
-            .filter(|k| !seen_set.contains(k))
-            .cloned()
-            .collect();
+        let seen: std::collections::HashSet<&String> = resolved.iter().map(|r| &r.rel_path).collect();
+        let stale: Vec<String> = cache.keys().filter(|k| !seen.contains(k)).cloned().collect();
         for rel_path in &stale {
             tx.execute("DELETE FROM files WHERE rel_path = ?1", [rel_path])?;
             result.removed += 1;

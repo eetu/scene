@@ -1989,6 +1989,7 @@ dependencies = [
  "hex",
  "md5",
  "mime_guess",
+ "rayon",
  "reqwest",
  "rusqlite",
  "serde",
