@@ -56,12 +56,22 @@
       // the jit_* ABI), then installs the ejsJitGet self-test the moment the core
       // Module is up. The EM_JS hook in m68k_run_2_020 calls ejsJitGet(pc) every
       // instruction; the first call runs the substrate self-test.
-      import { installSelfTest, installProbe } from "./runtime.mjs";
+      import { installSelfTest, installProbe, installJit } from "./runtime.mjs";
 
       const hud = document.getElementById("hud");
       const W = window;
       const Q = new URLSearchParams(location.search);
       const setHud = (html) => (hud.innerHTML = html);
+
+      // Force preserveDrawingBuffer so the effectiveFps canvas-hash can read the
+      // emulator's WebGL output (same trick as bench/index.html). Must run before
+      // the core creates its context.
+      const _getContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+        if (type === "webgl" || type === "webgl2" || type === "experimental-webgl")
+          attrs = Object.assign({}, attrs || {}, { preserveDrawingBuffer: true });
+        return _getContext.call(this, type, attrs);
+      };
 
       async function main() {
         const cfg = await fetch("/config.json").then((r) => r.json());
@@ -111,7 +121,10 @@
             clearInterval(iv);
             try {
               const mode = Q.get("mode") || "selftest";
-              if (mode === "probe") installProbe(M);
+              if (mode === "off") {
+                // pure interpreter baseline — install nothing
+              } else if (mode === "probe") installProbe(M);
+              else if (mode === "jit") installJit(M, { gate: Q.get("gate") !== "0" });
               else installSelfTest(M);
               W.__jitStatus = "installed:" + mode;
             } catch (e) {
@@ -126,14 +139,82 @@
 
       function poll() {
         const gm = () => W.EJS_emulator && W.EJS_emulator.gameManager;
+
+        // effectiveFps: hash the emulator canvas each host frame; count distinct
+        // frames over a ~2s window (the real animation-rate / lag metric).
+        const probe = document.createElement("canvas");
+        probe.width = 96;
+        probe.height = 72;
+        const pctx = probe.getContext("2d", { willReadFrequently: true });
+        const emuCanvas = () => document.querySelector("#game canvas");
+        let lastHash = null,
+          distinct = 0,
+          hashOk = false;
+        const eWin = [];
+        function hashFrame() {
+          const c = emuCanvas();
+          if (!c || !c.width) return;
+          try {
+            pctx.drawImage(c, 0, 0, probe.width, probe.height);
+          } catch {
+            return;
+          }
+          const d = pctx.getImageData(0, 0, probe.width, probe.height).data;
+          let h = 2166136261 >>> 0;
+          for (let i = 0; i < d.length; i += 53) {
+            h = (h ^ d[i]) >>> 0;
+            h = Math.imul(h, 16777619) >>> 0;
+          }
+          hashOk = true;
+          if (h !== lastHash) distinct++;
+          lastHash = h;
+        }
+        function tick() {
+          hashFrame();
+          requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+
+        let vAnchor = null;
+        const vWin = [];
         setInterval(() => {
           const g = gm();
           const frame = g && g.getFrameNum ? g.getFrameNum() : null;
           const st = W.__jitStatus || "booting";
           const t = W.__jitSelfTest;
           const pr = W.__jitProbe;
-          W.__hud = { frame, status: st, selfTest: t || null, probe: pr || null };
-          let line = `<b>JIT runtime harness</b>  core:${st}  frame:${frame}`;
+          const js = W.__jitStats;
+          const now = performance.now();
+
+          eWin.push({ t: now, d: distinct });
+          while (eWin.length > 2 && now - eWin[0].t > 2000) eWin.shift();
+          const eDt = (now - eWin[0].t) / 1000;
+          const effectiveFps = eDt > 0.25 ? +((distinct - eWin[0].d) / eDt).toFixed(1) : 0;
+
+          let vblankFps = 0;
+          if (typeof frame === "number" && frame >= 0) {
+            vWin.push({ t: now, f: frame });
+            while (vWin.length > 2 && now - vWin[0].t > 2000) vWin.shift();
+            const vDt = (now - vWin[0].t) / 1000;
+            vblankFps = vDt > 0.25 ? +((frame - vWin[0].f) / vDt).toFixed(1) : 0;
+          }
+
+          W.__hud = {
+            frame,
+            status: st,
+            effectiveFps,
+            vblankFps,
+            hashOk,
+            selfTest: t || null,
+            probe: pr || null,
+            jitStats: js || null,
+          };
+          let line =
+            `<b>JIT runtime harness</b>  core:${st}  frame:${frame}` +
+            `  <b>effective ${effectiveFps} fps</b>  vblank ${vblankFps}` +
+            (hashOk ? "" : `  <span class="bad">[canvas unreadable]</span>`);
+          if (js)
+            line += `\n  jit: ${js.activated} active / ${js.compiled} compiled / ${js.gateFail} gateFail / ${js.empty} empty / ${js.decodeFail} decErr (${js.blocks} pcs)`;
           if (pr) {
             line +=
               `\n  probe: ${pr.uniqueProbed} blocks  decoderCoverage ${pr.decoderCoverage}%` +

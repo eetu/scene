@@ -156,6 +156,7 @@ async function main() {
   });
 
   if (MODE === "probe") return probeMode(c, crlog, cleanup);
+  if (MODE === "jit" || MODE === "off") return fpsMode(c, crlog, cleanup);
 
   console.log(`\nwaiting up to ${WAIT / 1000}s for boot + self-test…`);
   const t0 = Date.now();
@@ -198,6 +199,74 @@ async function main() {
     console.log("\n❌ self-test FAILED — see mismatches/error above.");
     process.exit(1);
   }
+}
+
+// fps mode (jit | off): let the demo boot + animate, then sample effectiveFps /
+// vblank / jit stats for a window and report — the JIT-vs-interpreter baseline.
+async function fpsMode(c, crlog, cleanup) {
+  const measure = Number(arg("measure", "20")) * 1000;
+  console.log(`\nmode=${MODE}: waiting for boot + animation, then measuring ${measure / 1000}s…`);
+  const t0 = Date.now();
+  // wait until a frame is produced
+  let booted = false;
+  while (Date.now() - t0 < 60000) {
+    await sleep(2000);
+    const hud = await c.evals("JSON.stringify(window.__hud||null)");
+    const h = hud && !hud.__err ? JSON.parse(hud) : null;
+    if (h && typeof h.frame === "number" && h.frame > 0) {
+      console.log(`  booted (core:${h.status}, frame ${h.frame})`);
+      booted = true;
+      break;
+    }
+  }
+  if (!booted) {
+    c.close();
+    cleanup();
+    console.log("❌ never produced a frame.\n" + crlog.slice(-1000));
+    process.exit(2);
+  }
+  // wait for animation to start (distinct frames climbing)
+  let prev = 0;
+  for (let i = 0; i < 20; i++) {
+    await sleep(1500);
+    const h = JSON.parse((await c.evals("JSON.stringify(window.__hud||null)")) || "null");
+    const eff = h ? h.effectiveFps : 0;
+    if (eff > 3) break;
+    prev = eff;
+  }
+
+  const eff = [],
+    vbl = [];
+  let lastStats = null;
+  const tm = Date.now();
+  while (Date.now() - tm < measure) {
+    await sleep(1000);
+    const h = JSON.parse((await c.evals("JSON.stringify(window.__hud||null)")) || "null");
+    if (!h) continue;
+    eff.push(h.effectiveFps);
+    vbl.push(h.vblankFps);
+    lastStats = h.jitStats;
+    process.stdout.write(
+      `  effective ${h.effectiveFps}fps  vblank ${h.vblankFps}  frame ${h.frame}` +
+        (h.jitStats ? `  jit ${h.jitStats.activated}act/${h.jitStats.gateFail}gf` : "") +
+        (h.hashOk ? "" : "  [canvas unreadable]") +
+        "\n",
+    );
+  }
+  const gateFails = JSON.parse(
+    (await c.evals("JSON.stringify(window.__jitGateFails||null)")) || "null",
+  );
+  c.close();
+  cleanup();
+
+  const med = (a) => (a.length ? [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] : 0);
+  const mean = (a) => (a.length ? +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1) : 0);
+  console.log(`\n=== mode=${MODE} — ${eff.length} samples ===`);
+  console.log(`effectiveFps: median ${med(eff)}  mean ${mean(eff)}   vblankFps mean ${mean(vbl)}`);
+  if (lastStats) console.log("jitStats:", JSON.stringify(lastStats));
+  if (gateFails && gateFails.length)
+    console.log("gateFails (first few):", JSON.stringify(gateFails, null, 2));
+  process.exit(0);
 }
 
 // Probe mode: let the demo run, sampling live decoder-coverage stats, then dump.

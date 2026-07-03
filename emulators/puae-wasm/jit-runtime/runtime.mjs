@@ -11,7 +11,10 @@
 // -1 forever so the demo keeps running on the interpreter. Step 2b makes
 // ejsJitGet actually decode+compile the guest block at `pc` and return its slot.
 import { recompileCore } from "../jit/coretarget.mjs";
+import { recompileCoreBlock } from "../jit/coreblock.mjs";
 import { blockAt } from "../jit/decode.mjs";
+import { interpBlock } from "../jit/interp.mjs";
+import * as L from "../jit/layout.mjs";
 
 // md-generic flag pack (matches jit/coretarget.mjs + jit/coretest.mjs):
 //   cznv = N<<15 | Z<<14 | C<<8 | V<<0 ; x = C<<8
@@ -217,6 +220,146 @@ function summarizeProbe(s) {
     topMissOpcodes: topMiss,
     decodedOpHistogram: topOps,
   };
+}
+
+// --- Real JIT (step 2b) --------------------------------------------------
+// On a miss, decode the block at pc, recompile it (coreblock.mjs, real ABI +
+// next-PC), parity-gate it against interp.mjs, install into the core's table,
+// cache pc→slot, and return the slot so the M1 hook runs it. Blocks with no
+// body, an unsupported opcode, or a failed parity check fall back (return -1).
+
+const packedFromMd = (cznv, x) =>
+  ((cznv >>> 15) & 1 ? L.N : 0) |
+  ((cznv >>> 14) & 1 ? L.Z : 0) |
+  ((cznv >>> 8) & 1 ? L.C : 0) |
+  (cznv & 1 ? L.V : 0) |
+  ((x >>> 8) & 1 ? L.X : 0);
+
+function snapRegsFlags(dv, abi) {
+  const D = [],
+    A = [];
+  for (let i = 0; i < 8; i++) D.push(dv.getInt32(abi.regsBase + i * 4, true));
+  for (let i = 0; i < 8; i++) A.push(dv.getInt32(abi.regsBase + 32 + i * 4, true));
+  return {
+    D,
+    A,
+    cznv: dv.getUint32(abi.regflagsBase, true) >>> 0,
+    x: dv.getUint32(abi.regflagsBase + 4, true) >>> 0,
+  };
+}
+function restoreRegsFlags(dv, abi, s) {
+  for (let i = 0; i < 8; i++) dv.setInt32(abi.regsBase + i * 4, s.D[i], true);
+  for (let i = 0; i < 8; i++) dv.setInt32(abi.regsBase + 32 + i * 4, s.A[i], true);
+  dv.setUint32(abi.regflagsBase, s.cznv, true);
+  dv.setUint32(abi.regflagsBase + 4, s.x, true);
+}
+
+// Verify a compiled block against interp.mjs from the SAME entry state, using
+// shadow memory on both sides so real guest RAM is never mutated. The JIT block
+// runs on the real reg file (entry = snapshot), captured then restored.
+function parityCheck(Module, abi, blk, mod) {
+  const dv = new DataView(Module.wasmMemory.buffer);
+  const snap = snapRegsFlags(dv, abi);
+
+  // interp on a copy state; shadow mem = buffered writes over read-through core RAM
+  const s = new Int32Array(18);
+  for (let i = 0; i < 8; i++) s[L.iD(i)] = snap.D[i];
+  for (let i = 0; i < 8; i++) s[L.iA(i)] = snap.A[i];
+  s[L.iCCR] = packedFromMd(snap.cznv, snap.x);
+  s[L.iPC] = blk.startPC;
+  const iw = new Map();
+  s.__mem = {
+    get: (a) => (iw.has(a) ? iw.get(a) : Module._jit_get_long(a >>> 0) | 0),
+    put: (a, v) => void iw.set(a >>> 0, v | 0),
+  };
+  interpBlock(blk, s);
+
+  // JIT block: shadow env so real RAM is untouched; real regs mutated then restored
+  const jw = new Map();
+  const shadowEnv = {
+    memory: Module.wasmMemory,
+    get_long: (a) => (jw.has(a >>> 0) ? jw.get(a >>> 0) : Module._jit_get_long(a >>> 0) | 0),
+    put_long: (a, v) => void jw.set(a >>> 0, v | 0),
+  };
+  const inst = new WebAssembly.Instance(mod, { env: shadowEnv });
+  const jitPC = inst.exports.block() | 0;
+  const post = snapRegsFlags(dv, abi);
+  restoreRegsFlags(dv, abi, snap);
+
+  let ok = jitPC === (s[L.iPC] | 0);
+  const bad = [];
+  if (!ok) bad.push(`pc=0x${(jitPC >>> 0).toString(16)} want 0x${(s[L.iPC] >>> 0).toString(16)}`);
+  for (let i = 0; i < 8; i++) if (post.D[i] !== s[L.iD(i)]) ((ok = false), bad.push(`D${i}`));
+  for (let i = 0; i < 8; i++) if (post.A[i] !== s[L.iA(i)]) ((ok = false), bad.push(`A${i}`));
+  if (packedFromMd(post.cznv, post.x) !== (s[L.iCCR] & 0x1f)) ((ok = false), bad.push("ccr"));
+  if (jw.size !== iw.size) ((ok = false), bad.push("mem#"));
+  else
+    for (const [a, v] of jw) if (iw.get(a) !== v) ((ok = false), bad.push("mem@" + a.toString(16)));
+  return { ok, detail: { bad, ops: blk.instrs.map((i) => i.op), term: blk.term && blk.term.op } };
+}
+
+export function installJit(Module, opts = {}) {
+  const abi = {
+    regsBase: Module._jit_abi_regs() >>> 0,
+    regflagsBase: Module._jit_abi_regflags() >>> 0,
+  };
+  const words = guestWords(Module);
+  const table = Module.wasmTable;
+  const realEnv = {
+    memory: Module.wasmMemory,
+    get_long: Module._jit_get_long,
+    put_long: Module._jit_put_long,
+  };
+  const ramMax = opts.ramMax ?? 0x00f00000;
+  const gate = opts.gate !== false;
+  const cache = new Map(); // pc → slot (>=0 active JIT) | -1 (fall back to interp)
+  const st = { compiled: 0, activated: 0, gateFail: 0, empty: 0, decodeFail: 0, blocks: 0 };
+  window.__jitGateFails = [];
+
+  Module.ejsJitGet = (pc) => {
+    pc = pc >>> 0;
+    const c = cache.get(pc);
+    if (c !== undefined) return c;
+    st.blocks++;
+    if (pc >= ramMax) {
+      cache.set(pc, -1);
+      return -1;
+    }
+    let slot = -1;
+    try {
+      const blk = blockAt(words, pc, 64);
+      if (!blk.instrs.length) {
+        st.empty++;
+        cache.set(pc, -1);
+        return -1;
+      }
+      const mod = new WebAssembly.Module(recompileCoreBlock(blk, abi));
+      st.compiled++;
+      if (gate) {
+        const p = parityCheck(Module, abi, blk, mod);
+        if (!p.ok) {
+          st.gateFail++;
+          if (window.__jitGateFails.length < 12)
+            window.__jitGateFails.push({ pc: pc.toString(16), ...p.detail });
+          cache.set(pc, -1);
+          window.__jitStats = st;
+          return -1;
+        }
+      }
+      slot = table.grow(1);
+      table.set(slot, new WebAssembly.Instance(mod, { env: realEnv }).exports.block);
+      st.activated++;
+    } catch (e) {
+      st.decodeFail++;
+      slot = -1;
+    }
+    cache.set(pc, slot);
+    window.__jitStats = st;
+    return slot;
+  };
+  window.__jitAttached = true;
+  window.__jitStats = st;
+  console.log("[jit] real block JIT installed (gate=" + gate + ")");
 }
 
 export function installProbe(Module, opts = {}) {
