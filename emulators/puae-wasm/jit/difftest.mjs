@@ -1,10 +1,11 @@
 // Differential test: for many random programs + random register states, run the
-// recompiled WASM block and the reference interpreter and assert identical D0..D7.
-// This is how we know the recompiler's codegen is correct without a running core.
+// recompiled WASM block and the reference interpreter and assert identical
+// D0..D7 AND CCR (index 16). This is how we know the recompiler's codegen —
+// results and condition-code flags — is correct without a running core.
 //
 //   node difftest.mjs [trials] [maxlen]
 import { recompile } from "./recompile.mjs";
-import { runInterp } from "./interp.mjs";
+import { runInterp, CCR } from "./interp.mjs";
 import { decodeBlock } from "./decode.mjs";
 
 // seeded PRNG (mulberry32) — reproducible runs
@@ -46,7 +47,10 @@ const failures = [];
 
 for (let t = 0; t < TRIALS; t++) {
   const words = Array.from({ length: 1 + ri(MAXLEN) }, randWord);
-  const init = Int32Array.from({ length: 8 }, () => (rnd() * 4294967296) | 0);
+  // register file: D0..D7 + CCR at index 16 (seed CCR too, to test X preservation)
+  const init = new Int32Array(17);
+  for (let i = 0; i < 8; i++) init[i] = (rnd() * 4294967296) | 0;
+  init[CCR] = ri(32); // X N Z V C
 
   // oracle
   const expect = Int32Array.from(init);
@@ -56,25 +60,25 @@ for (let t = 0; t < TRIALS; t++) {
   const mem = new WebAssembly.Memory({ initial: 1 });
   const inst = await WebAssembly.instantiate(
     await WebAssembly.compile(recompile(decodeBlock(words))),
-    {
-      env: { memory: mem },
-    },
+    { env: { memory: mem } },
   );
   const view = new Int32Array(mem.buffer);
-  view.set(init.subarray(0, 8));
+  for (let i = 0; i < 8; i++) view[i] = init[i];
+  view[CCR] = init[CCR];
   inst.exports.block();
-  const got = view.subarray(0, 8);
 
-  let ok = true;
-  for (let i = 0; i < 8; i++) if (got[i] !== expect[i]) ok = false;
+  let ok = view[CCR] === expect[CCR];
+  for (let i = 0; i < 8; i++) if (view[i] !== expect[i]) ok = false;
   if (ok) pass++;
   else {
     fail++;
     if (failures.length < 3)
       failures.push({
         words: words.map((w) => "0x" + w.toString(16)),
-        expect: [...expect],
-        got: [...got],
+        expectRegs: [...expect.subarray(0, 8)],
+        gotRegs: [...view.subarray(0, 8)],
+        expectCCR: expect[CCR],
+        gotCCR: view[CCR],
       });
   }
 }
