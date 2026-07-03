@@ -15,27 +15,33 @@ node difftest.mjs 20000 20   # more trials / longer blocks
 
 ## Pieces
 
-- `decode.mjs` — 68k opcode decoder (returns null for unhandled → interp fallback).
+- `layout.mjs` — shared memory map (D0..D7, A0..A7, CCR, guest RAM) used by both
+  the interpreter and the recompiler so they can't drift.
+- `decode.mjs` — cursor-based 68k decoder (consumes extension words; returns null
+  for unhandled → interp fallback).
 - `interp.mjs` — reference interpreter (the oracle).
-- `recompile.mjs` — block → WASM `block()`; Dn lives at byte offset `n*4` in the
-  shared memory, read/written with i32.load/store.
-- `difftest.mjs` — differential test: random programs on random register state,
-  recompiled WASM vs interpreter, assert identical D0..D7.
+- `recompile.mjs` — block → WASM `block()` over the shared layout.
+- `difftest.mjs` — differential test: random programs on random state, recompiled
+  WASM vs interpreter, assert identical D/A regs, CCR, and guest RAM.
 
 ## Status ✅
 
-Straight-line data-register longword ops: **MOVEQ, ADDQ.L, ADD.L Dy,Dx,
-SUB.L Dy,Dx**, each with full **CCR flags (X N Z V C)** computed in the generated
-WASM (carry/borrow via `i32.lt_u`, signed overflow via the xor-and-sign trick,
-X:=C for add/sub, X preserved for MOVEQ). `difftest` compares D0..D7 **and CCR**
-and passes **40000/40000** on random programs. The codegen pipeline — results and
-condition codes — is proven; it's the skeleton the rest hangs off.
+- **ALU (register):** MOVEQ, ADDQ.L, ADD.L Dy,Dx, SUB.L Dy,Dx — full **CCR flags
+  (X N Z V C)** in generated WASM (carry/borrow via `i32.lt_u`, signed overflow
+  via the xor-and-sign trick, X:=C for add/sub, X preserved for MOVEQ).
+- **Data movement + memory:** MOVE.L / MOVEA.L with **EA modes** Dn, An, (An),
+  (An)+, -(An), (d16,An), abs.L, #imm — guest-RAM load/store inlined as
+  `(GUEST_BASE + (addr & RAM_MASK))`, with (An)+/-(An) register side effects and
+  MOVE's NZ/VC flags (MOVEA sets none).
+- `difftest` compares **D0..D7, A0..A7, CCR, and the whole RAM region** →
+  **30000/30000**. Codegen for results, flags, addressing, and memory is proven.
+
+RAM is modelled as little-endian i32 cells here (both sides agree, so codegen is
+validated); real big-endian byte-addressed 68k memory is handled at integration
+via UAE's memory helpers — see `layout.mjs`.
 
 ## Next
 
-- **Effective-address modes** — immediate/absolute/indirect/(An)+/-(An)/disp, so
-  ops touch guest RAM, not just registers. Plain chip/fast RAM inlines as
-  load/store; custom-chip/IO regions call a UAE bank helper (import).
 - **Control flow** — Bcc/DBcc/JMP: end blocks at branches, chain blocks.
 - **Wider opcode coverage** + interpreter fallback for the long tail.
 - **Integration** — hook `libretro-uae`'s `newcpu` dispatch to try a JIT block

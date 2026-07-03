@@ -1,68 +1,111 @@
 // Reference 68k interpreter for the MVP subset — the ORACLE the recompiler is
-// validated against (jit/difftest.mjs). Register file is an Int32Array:
-//   index 0..7   = D0..D7
-//   index 16     = CCR (byte offset 64; bits X=16 N=8 Z=4 V=2 C=1)
-// `| 0` keeps everything signed-32, matching 68k .L wrapping and WASM i32.
-import { decodeOne } from "./decode.mjs";
+// validated against (jit/difftest.mjs). Operates on an Int32Array `s` laid out
+// per layout.mjs (D0..D7, A0..A7, CCR, guest RAM cells).
+import * as L from "./layout.mjs";
+import { decodeBlock } from "./decode.mjs";
 
-export const CCR = 16; // register-file index of the condition codes
-export const X = 16,
-  N = 8,
-  Z = 4,
-  V = 2,
-  C = 1;
+export const CCR = L.iCCR;
 
-// Flags after a+b (result already truncated). X := C.
 function flagsAdd(a, b, res) {
-  const c = res >>> 0 < a >>> 0 ? C : 0;
-  const v = ((a ^ res) & (b ^ res)) < 0 ? V : 0; // signed-overflow sign bit
-  const n = res < 0 ? N : 0;
-  const z = res === 0 ? Z : 0;
-  return n | z | v | c | (c ? X : 0);
+  const c = res >>> 0 < a >>> 0 ? L.C : 0;
+  const v = ((a ^ res) & (b ^ res)) < 0 ? L.V : 0;
+  return (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0) | v | c | (c ? L.X : 0);
 }
-
-// Flags after a-b (result already truncated). X := C(borrow).
 function flagsSub(a, b, res) {
-  const c = a >>> 0 < b >>> 0 ? C : 0;
-  const v = ((a ^ b) & (a ^ res)) < 0 ? V : 0;
-  const n = res < 0 ? N : 0;
-  const z = res === 0 ? Z : 0;
-  return n | z | v | c | (c ? X : 0);
+  const c = a >>> 0 < b >>> 0 ? L.C : 0;
+  const v = ((a ^ b) & (a ^ res)) < 0 ? L.V : 0;
+  return (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0) | v | c | (c ? L.X : 0);
 }
 
-/** Run a block of opcode words against regs (Int32Array, len ≥ 17), in place. */
-export function runInterp(words, regs) {
-  for (const w of words) {
-    const d = decodeOne(w);
+// Effective address (guest addr), applying (An)+ / -(An) side effects.
+function eaAddr(s, ea) {
+  switch (ea.ea) {
+    case "ind":
+      return s[L.iA(ea.n)];
+    case "pinc": {
+      const a = s[L.iA(ea.n)];
+      s[L.iA(ea.n)] = (a + 4) | 0;
+      return a;
+    }
+    case "pdec": {
+      const a = (s[L.iA(ea.n)] - 4) | 0;
+      s[L.iA(ea.n)] = a;
+      return a;
+    }
+    case "disp":
+      return (s[L.iA(ea.n)] + ea.d) | 0;
+    case "abs":
+      return ea.addr;
+  }
+  throw new Error(`eaAddr: not a memory EA (${ea.ea})`);
+}
+function readEA(s, ea) {
+  switch (ea.ea) {
+    case "d":
+      return s[L.iD(ea.n)];
+    case "a":
+      return s[L.iA(ea.n)];
+    case "imm":
+      return ea.val | 0;
+    default:
+      return s[L.iCell(eaAddr(s, ea))];
+  }
+}
+function writeEA(s, ea, val) {
+  switch (ea.ea) {
+    case "d":
+      s[L.iD(ea.n)] = val | 0;
+      break;
+    case "a":
+      s[L.iA(ea.n)] = val | 0;
+      break;
+    default:
+      s[L.iCell(eaAddr(s, ea))] = val | 0;
+      break;
+  }
+}
+
+/** Run a block (raw words) against state s (Int32Array), in place. */
+export function runInterp(words, s) {
+  for (const d of decodeBlock(words)) {
     switch (d.op) {
       case "moveq": {
         const res = d.imm | 0;
-        regs[d.dn] = res;
-        // MOVEQ: N,Z from result; V=C=0; X unaffected.
-        regs[CCR] = (regs[CCR] & X) | (res < 0 ? N : 0) | (res === 0 ? Z : 0);
+        s[L.iD(d.dn)] = res;
+        s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
         break;
       }
       case "addq": {
-        const a = regs[d.dn];
+        const a = s[L.iD(d.dn)];
         const res = (a + d.imm) | 0;
-        regs[d.dn] = res;
-        regs[CCR] = flagsAdd(a, d.imm, res);
+        s[L.iD(d.dn)] = res;
+        s[CCR] = flagsAdd(a, d.imm, res);
         break;
       }
       case "add": {
-        const a = regs[d.dx];
-        const b = regs[d.dy];
+        const a = s[L.iD(d.dx)];
+        const b = s[L.iD(d.dy)];
         const res = (a + b) | 0;
-        regs[d.dx] = res;
-        regs[CCR] = flagsAdd(a, b, res);
+        s[L.iD(d.dx)] = res;
+        s[CCR] = flagsAdd(a, b, res);
         break;
       }
       case "sub": {
-        const a = regs[d.dx];
-        const b = regs[d.dy];
+        const a = s[L.iD(d.dx)];
+        const b = s[L.iD(d.dy)];
         const res = (a - b) | 0;
-        regs[d.dx] = res;
-        regs[CCR] = flagsSub(a, b, res);
+        s[L.iD(d.dx)] = res;
+        s[CCR] = flagsSub(a, b, res);
+        break;
+      }
+      case "move": {
+        const val = readEA(s, d.src); // src side effects first
+        writeEA(s, d.dst, val); // then dst side effects
+        s[CCR] = (s[CCR] & L.X) | (val < 0 ? L.N : 0) | (val === 0 ? L.Z : 0); // NZ, V=C=0
+        break;
+      }
+      case "movea": {
+        s[L.iA(d.dst.n)] = readEA(s, d.src) | 0; // MOVEA.L: no flags
         break;
       }
       default:
