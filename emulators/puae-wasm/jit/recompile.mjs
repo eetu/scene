@@ -393,3 +393,40 @@ export function recompileBlock(block) {
     ...emitTerminator(block.term, block.fallPC),
   ]);
 }
+
+// Byte offset of the loop-counter cell used by recompileLoop (benchmark only).
+export const ITERS_OFF = 200;
+
+/**
+ * Benchmark helper: a module exporting run():i32 that runs `instrs` (the body)
+ * ITERS_OFF-cell times, then returns D0. Models an ideal chained JIT — the loop
+ * body is fully inlined native WASM, zero per-iteration dispatch. (Counter lives
+ * in memory so the body's locals 0..4 stay free for emitInstr.)
+ */
+export function recompileLoop(instrs) {
+  const body = instrs.flatMap(emitInstr);
+  const loop = [
+    ...w.op.loop(),
+    ...body,
+    // ITERS -= 1
+    c0(),
+    c0(),
+    w.op.i32Load(ITERS_OFF),
+    w.op.i32Const(1),
+    w.op.i32Sub(),
+    w.op.i32Store(ITERS_OFF),
+    // branch back while ITERS != 0
+    c0(),
+    w.op.i32Load(ITERS_OFF),
+    ...w.op.brIf(0),
+    ...w.op.end(),
+    // return D0
+    c0(),
+    w.op.i32Load(L.DREG(0)),
+  ];
+  const types = w.section(w.S.TYPE, w.vec([w.funcType([], [w.I32])]));
+  const funcs = w.section(w.S.FUNC, w.vec([w.uleb(0)]));
+  const exports = w.section(w.S.EXPORT, w.vec([w.concat(w.str("run"), [0x00], w.uleb(0))]));
+  const code = w.section(w.S.CODE, w.vec([w.body([{ count: 5, type: w.I32 }], loop)]));
+  return w.module([types, IMPORTS(), funcs, exports, code]);
+}

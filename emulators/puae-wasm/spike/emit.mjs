@@ -86,6 +86,10 @@ export const op = {
   i32ShrS: () => [0x75],
   i32ShrU: () => [0x76],
   select: () => [0x1b], // stack [a, b, cond] → cond!=0 ? a : b
+  loop: () => [0x03, 0x40], // loop with void blocktype (branch target = loop start)
+  block: () => [0x02, 0x40], // block with void blocktype (branch target = block end)
+  br: (depth) => concat([0x0c], uleb(depth)),
+  brIf: (depth) => concat([0x0d], uleb(depth)),
   callIndirect: (typeIdx, tableIdx = 0) => concat([0x11], uleb(typeIdx), uleb(tableIdx)),
   end: () => [0x0b],
 };

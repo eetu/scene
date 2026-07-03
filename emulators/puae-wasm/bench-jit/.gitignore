@@ -1,0 +1,3 @@
+# emcc build artifacts — rebuild with build.sh
+interp.mjs
+interp.wasm
