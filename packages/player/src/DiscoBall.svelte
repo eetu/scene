@@ -25,8 +25,9 @@
     uniform float uBass;   // eased bass 0..1
     uniform float uTreble; // eased treble 0..1
     uniform float uBurst;  // drop flash 0..1
+    uniform vec3 uLight;   // key-light position — drifts (JS, reduced-motion aware)
 
-    #define NF 32          // spot-casting facets (Fibonacci, even beams)
+    #define NF 32                  // spot-casting facets (Fibonacci, even beams)
     const float GA = 2.3999632;    // golden angle
     const float NLAT = 12.0;       // ball tile rows (latitude bands)
     const float NLON = 24.0;       // ball tile columns (longitude segments)
@@ -36,34 +37,12 @@
     const float BR = 1.7;                 // ball radius
     const vec3 BOXMIN = vec3(-7.0, -4.0, -1.5);
     const vec3 BOXMAX = vec3(7.0, 4.0, 15.0);
-    const vec3 LP = vec3(-3.0, 4.2, 2.0); // light position
 
     mat3 rotY(float a) { float c = cos(a), s = sin(a); return mat3(c, 0.0, s, 0.0, 1.0, 0.0, -s, 0.0, c); }
     mat3 rotX(float a) { float c = cos(a), s = sin(a); return mat3(1.0, 0.0, 0.0, 0.0, c, -s, 0.0, s, c); }
 
-    // i-th mirror-facet direction on a Fibonacci sphere (unrotated).
-    vec3 facetDir(float fi) {
-      float y = 1.0 - 2.0 * (fi + 0.5) / float(NF);
-      float r = sqrt(max(0.0, 1.0 - y * y));
-      float th = fi * GA;
-      return vec3(r * cos(th), y, r * sin(th));
-    }
     // Modern-retro palette (synthwave magenta→cyan→violet).
     vec3 pal(float h) { return 0.5 + 0.5 * cos(6.2831 * (h + vec3(0.0, 0.33, 0.67)) + 3.6); }
-
-    // Chrome environment sampled along a reflection direction: a dark room with
-    // one hot light and faint neon surroundings. Each mirror tile shows a flat
-    // sample of this, so the ball reads as polished chrome reflecting the room.
-    vec3 env(vec3 dir, vec3 toLight) {
-      float hot = pow(max(dot(dir, toLight), 0.0), 60.0);   // sharp light reflection
-      float warm = pow(max(dot(dir, toLight), 0.0), 4.0);   // soft falloff around it
-      vec3 around = pal(fract(atan(dir.x, dir.z) / TAU + 0.5 + dir.y * 0.35));
-      float horizon = 0.15 + 0.2 * smoothstep(-0.4, 0.4, dir.y); // brighter up
-      return vec3(0.02, 0.025, 0.035)
-           + vec3(1.0, 0.97, 0.9) * hot * 4.0
-           + vec3(0.6, 0.7, 0.85) * warm * 0.4
-           + around * horizon * 0.35;
-    }
 
     // Neon grid on a room surface, from the two coords tangent to its normal.
     float grid(vec3 p, vec3 n) {
@@ -76,13 +55,76 @@
       return 1.0 - min(line, 1.0);
     }
 
+    // Quantise a unit direction to the lat/long mirror-tile grid. Returns the
+    // tile-centre normal; outputs the in-cell fraction (for grout) + the cell id.
+    // The SAME grid shades the ball (from its surface normal) and casts the wall
+    // spots (from the light's reflected normal), so tiles and spots always agree.
+    vec3 tileQuant(vec3 d, out vec2 frac, out vec2 cell) {
+      float lu = (asin(clamp(d.y, -1.0, 1.0)) + 0.5 * PI) / PI * NLAT;
+      float ou = (atan(d.x, d.z) + PI) / TAU * NLON;
+      cell = vec2(floor(lu), floor(ou));
+      frac = vec2(fract(lu), fract(ou));
+      float clat = (cell.x + 0.5) / NLAT * PI - 0.5 * PI;
+      float clon = (cell.y + 0.5) / NLON * TAU - PI;
+      return vec3(cos(clat) * sin(clon), sin(clat), cos(clat) * cos(clon));
+    }
+
+    // i-th mirror-facet direction on a Fibonacci sphere (unrotated) — an even
+    // spread of beam directions, independent of the ball's visible tiling.
+    vec3 facetDir(float fi) {
+      float y = 1.0 - 2.0 * (fi + 0.5) / float(NF);
+      float r = sqrt(max(0.0, 1.0 - y * y));
+      float th = fi * GA;
+      return vec3(r * cos(th), y, r * sin(th));
+    }
+
+    // Disco spots at a wall point P: each facet reflects the light into a round
+    // beam that lands where the wall direction V aligns with the reflected ray.
+    // Cast from an even Fibonacci set (not the visible tiles) — it reads better as
+    // an effect: cleaner, rounder, sweeping beams as the ball spins.
+    vec3 discoSpot(vec3 P, mat3 rot, vec3 toLight) {
+      vec3 V = normalize(P - C);
+      vec3 spot = vec3(0.0);
+      for (int i = 0; i < NF; i++) {
+        vec3 R = reflect(-toLight, rot * facetDir(float(i)));
+        float d = max(dot(V, R), 0.0);
+        vec3 tint = pal(fract(float(i) * 0.137 + 0.2));
+        spot += tint * pow(d, 300.0);        // crisp beam (tighter → smaller blob)
+        spot += tint * pow(d, 55.0) * 0.16;  // soft bounce halo
+      }
+      return spot;
+    }
+
+    // Shade the room the ray o+d*t sees: dark box + neon grid + the disco spots
+    // cast by the ball's tiles + the light fixture itself. Used both for the walls
+    // we look at directly AND for what each chrome tile reflects — so the ball is a
+    // true mirror of the actual room, spots and all.
+    vec3 shadeRoom(vec3 o, vec3 d, mat3 rot, vec3 toLight) {
+      vec3 invd = 1.0 / d;
+      vec3 t1 = (BOXMIN - o) * invd, t2 = (BOXMAX - o) * invd;
+      vec3 tmax = max(t1, t2);
+      float tB = min(min(tmax.x, tmax.y), tmax.z);
+      vec3 P = o + d * max(tB, 0.0);
+      vec3 n = -sign(d) * step(tmax, tmax.yzx) * step(tmax, tmax.zxy);
+      vec3 gcol = mix(vec3(1.0, 0.15, 0.6), vec3(0.2, 0.8, 1.0), clamp(P.y * 0.12 + 0.5, 0.0, 1.0));
+      vec3 spot = discoSpot(P, rot, toLight);
+      vec3 c = vec3(0.015, 0.02, 0.03)
+             + gcol * grid(P, n) * (0.12 + uPulse * 0.3)
+             + spot * (1.4 + uGlow * 2.8 + uBass * 2.2);
+      c *= exp(-tB * 0.06); // fog into depth
+      // The light fixture, as a hot disk — seen directly and mirrored by the ball.
+      vec3 toL = normalize(uLight - o);
+      c += vec3(1.0, 0.95, 0.85) * pow(max(dot(d, toL), 0.0), 200.0) * 3.0;
+      return c;
+    }
+
     void main() {
       vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
       vec3 ro = vec3(0.0, 0.0, 0.0);
       vec3 rd = normalize(vec3(uv, 1.5));
       mat3 rot = rotY(uSpin) * rotX(uSpin * 0.5);
       mat3 rotInv = rotX(-uSpin * 0.5) * rotY(-uSpin); // world → ball-local
-      vec3 toLight = normalize(LP - C);
+      vec3 toLight = normalize(uLight - C);
 
       // Ray → ball (sphere) intersection.
       vec3 oc = ro - C;
@@ -98,47 +140,28 @@
 
       vec3 col = vec3(0.0);
       if (tS < tB && tS > 0.0) {
-        // --- the chrome ball: uniform lat/long mirror tiles ---
+        // --- the chrome ball: uniform lat/long mirror tiles reflecting the room ---
         vec3 P = ro + rd * tS;
         vec3 N = normalize(P - C);
-        // Quantise the normal into a regular lat/long tile grid in the ball's
-        // local frame, so the tiling is painted on the ball and spins with it.
-        vec3 nl = rotInv * N;
-        float lu = (asin(clamp(nl.y, -1.0, 1.0)) + 0.5 * PI) / PI * NLAT; // row coord
-        float ou = (atan(nl.x, nl.z) + PI) / TAU * NLON;                  // col coord
-        float clat = (floor(lu) + 0.5) / NLAT * PI - 0.5 * PI;
-        float clon = (floor(ou) + 0.5) / NLON * TAU - PI;
-        // Flat tile normal at the cell centre, back to world space.
-        vec3 fnl = vec3(cos(clat) * sin(clon), sin(clat), cos(clat) * cos(clon));
-        vec3 fn = rot * fnl;
-        // Grout: darken the tile borders for the classic mirrored-tile look.
-        float grout = smoothstep(0.0, 0.09, min(fract(lu), 1.0 - fract(lu)))
-                    * smoothstep(0.0, 0.09, min(fract(ou), 1.0 - fract(ou)));
-        vec3 chrome = env(reflect(rd, fn), toLight);
+        // Quantise the surface normal into the tile grid (ball-local, spins with
+        // it). Each flat tile mirrors the room in one reflected direction.
+        vec2 frac, cell;
+        vec3 fn = rot * tileQuant(rotInv * N, frac, cell);
+        // Grout: darken tile borders for the classic mirrored-tile look.
+        float grout = smoothstep(0.0, 0.09, min(frac.x, 1.0 - frac.x))
+                    * smoothstep(0.0, 0.09, min(frac.y, 1.0 - frac.y));
+        // True planar reflection: sample the room down the mirrored ray. Adjacent
+        // tiles face differently → high contrast (some catch the light, most stay
+        // dark) → the ball scintillates like real chrome.
+        vec3 mir = shadeRoom(P, reflect(rd, fn), rot, toLight);
+        mir += vec3(0.05, 0.06, 0.09); // ambient chrome sheen → tiles never read pure black
         float fres = pow(1.0 - max(dot(-rd, N), 0.0), 4.0);
-        col = chrome * (0.22 + 0.78 * grout)      // mirror sample, dark grout lines
-            + vec3(0.7, 0.8, 1.0) * fres * 0.35;   // cool fresnel rim
-        col *= 0.8 + uGlow * 0.5;                  // whole ball brightens with energy
+        col = mir * (0.25 + 0.75 * grout)         // mirror sample, dark grout lines
+            + vec3(0.6, 0.75, 1.0) * fres * 0.4;   // cool fresnel rim
+        col *= 0.85 + uGlow * 0.5;                 // whole ball brightens with energy
       } else {
-        // --- room wall / floor: neon grid + swept disco spots ---
-        vec3 P = ro + rd * tB;
-        // Exit face normal: the axis whose tmax is the minimum (first exit).
-        vec3 n = -sign(rd) * step(tmax, tmax.yzx) * step(tmax, tmax.zxy);
-        vec3 V = normalize(P - C); // ball → wall point
-        vec3 spot = vec3(0.0);
-        for (int i = 0; i < NF; i++) {
-          vec3 R = reflect(-toLight, rot * facetDir(float(i)));
-          float d = max(dot(V, R), 0.0);
-          vec3 tint = pal(fract(float(i) * 0.137 + 0.2));
-          spot += tint * pow(d, 160.0);          // the crisp beam
-          spot += tint * pow(d, 22.0) * 0.18;    // soft halo → light bouncing around
-        }
-        float fog = exp(-tB * 0.06);
-        vec3 gcol = mix(vec3(1.0, 0.15, 0.6), vec3(0.2, 0.8, 1.0), clamp(P.y * 0.12 + 0.5, 0.0, 1.0));
-        col = vec3(0.015, 0.02, 0.03)                        // dark room
-            + gcol * grid(P, n) * (0.12 + uPulse * 0.3)       // neon grid, pulses on beat
-            + spot * (1.4 + uGlow * 2.8 + uBass * 2.2);       // disco spots, music-lit
-        col *= fog;
+        // --- room wall / floor: neon grid + the ball's swept disco spots ---
+        col = shadeRoom(ro, rd, rot, toLight);
       }
 
       // --- small lens flare from the ball's specular highlight ---
@@ -147,7 +170,7 @@
       vec3 Hp = C + BR * H;                         // highlight point on the ball
       float faces = smoothstep(0.0, 0.5, dot(H, -camDirC)) * step(0.001, Hp.z);
       vec2 fuv = Hp.xy * 1.5 / Hp.z;                // its screen position
-      fuv += vec2(sin(uTime * 0.5), cos(uTime * 0.37)) * 0.06; // gentle drift
+      // (moves on its own as the key light drifts — no arbitrary drift needed)
       vec2 dd = uv - fuv;
       float core = exp(-dot(dd, dd) * 90.0);
       float streak = exp(-dd.y * dd.y * 900.0) * exp(-abs(dd.x) * 4.0) * 0.6;
@@ -224,7 +247,8 @@
       uPulse = u("uPulse"),
       uBass = u("uBass"),
       uTreble = u("uTreble"),
-      uBurst = u("uBurst");
+      uBurst = u("uBurst"),
+      uLight = u("uLight");
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const ro = new ResizeObserver(() => {
@@ -234,6 +258,10 @@
       gl.viewport(0, 0, el.width, el.height);
     });
     ro.observe(el);
+
+    // Accessibility: honour prefers-reduced-motion by damping the ball's spin
+    // acceleration and the light's drift to a calm fraction. Read once at mount.
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0.35 : 1.0;
 
     let raf = 0;
     let clock = 0;
@@ -260,8 +288,8 @@
       bass += (bands.bass - bass) * 0.2;
       treble += (bands.treble - treble) * 0.2;
 
-      // Spin: a steady tumble, faster with energy, kicked on the beat.
-      spin += dt * (0.25 + glow * 0.9 + pulse * 1.5);
+      // Spin: a steady tumble; energy/beat speed it up (damped under reduced-motion).
+      spin += dt * (0.25 + (glow * 0.9 + pulse * 1.5) * motion);
 
       if (lastBeat < 0) lastBeat = playback.beat;
       else if (playback.beat !== lastBeat) {
@@ -292,6 +320,14 @@
       gl.uniform1f(uBass, bass);
       gl.uniform1f(uTreble, treble);
       gl.uniform1f(uBurst, burst);
+      // Key light drifts on a slow Lissajous around its base (damped for reduced
+      // motion) so the spots sweep with variety and the highlight/flare wander.
+      gl.uniform3f(
+        uLight,
+        -3.0 + Math.sin(clock * 0.3) * 2.5 * motion,
+        4.2 + Math.sin(clock * 0.21) * 0.7 * motion,
+        2.0 + Math.cos(clock * 0.3) * 2.0 * motion,
+      );
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
       raf = requestAnimationFrame(frame);
