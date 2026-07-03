@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    CircleHelp,
     ListPlus,
     Monitor,
     Moon,
@@ -61,6 +62,7 @@
 
   let showPattern = $state(false);
   let showSettings = $state(false);
+  let showHelp = $state(false);
   let pvTab = $state<"pattern" | "samples" | "viz">("pattern");
   // Which visualizer the "viz" tab shows. Persists across tab switches.
   type VizMode =
@@ -552,6 +554,14 @@
   function onKey(e: KeyboardEvent) {
     const el = e.target as HTMLElement | null;
     if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+    if (e.key === "?") {
+      showHelp = !showHelp;
+      return;
+    }
+    if (e.key === "Escape" && showHelp) {
+      showHelp = false;
+      return;
+    }
     if (e.key === "Escape" && addTrack) {
       addTrack = null;
       return;
@@ -654,6 +664,15 @@
   let addTrack = $state<Track | null>(null);
   let addNewName = $state("");
   let addBusy = $state(false);
+  // Transient confirmation / error banner (add-to-playlist). Auto-dismisses so a
+  // silent modal-close is never the only signal an action landed.
+  let toast = $state<{ msg: string; kind: "ok" | "err" } | null>(null);
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+  function showToast(msg: string, kind: "ok" | "err" = "ok") {
+    toast = { msg, kind };
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (toast = null), 2400);
+  }
 
   function startAdd(t: Track) {
     addTrack = t;
@@ -672,11 +691,15 @@
   }
   async function addToPlaylist(id: string) {
     if (!addTrack?.md5) return;
+    const name = playlists.find((p) => p.id === id)?.name ?? "playlist";
     addBusy = true;
     try {
       await api.addToPlaylist(id, trackItem(addTrack));
       addTrack = null;
       await refreshPlaylists();
+      showToast(`Added to ${name}`);
+    } catch (e) {
+      showToast(`Couldn't add: ${e instanceof Error ? e.message : String(e)}`, "err");
     } finally {
       addBusy = false;
     }
@@ -690,6 +713,9 @@
       await api.addToPlaylist(pl.id, trackItem(addTrack));
       addTrack = null;
       await refreshPlaylists();
+      showToast(`Added to ${name}`);
+    } catch (e) {
+      showToast(`Couldn't add: ${e instanceof Error ? e.message : String(e)}`, "err");
     } finally {
       addBusy = false;
     }
@@ -728,6 +754,14 @@
       {bucketNoun}
     {/if}
   </div>
+  <button
+    class="icon-btn"
+    onclick={() => (showHelp = true)}
+    title="help & shortcuts (?)"
+    aria-label="help and keyboard shortcuts"
+  >
+    <CircleHelp size={16} />
+  </button>
   <button
     class="icon-btn gear"
     onclick={() => (showSettings = true)}
@@ -1182,6 +1216,42 @@
   </div>
 {/if}
 
+{#if showHelp}
+  <div class="modal-bg">
+    <button class="modal-scrim" aria-label="close" onclick={() => (showHelp = false)}></button>
+    <div class="modal help" role="dialog" aria-modal="true" aria-label="help and shortcuts">
+      <div class="help-head">
+        <h3>Help &amp; shortcuts</h3>
+        <button class="icon-btn" onclick={() => (showHelp = false)} aria-label="close">
+          <X size={16} />
+        </button>
+      </div>
+      <dl class="keys">
+        <dt><kbd>Space</kbd></dt>
+        <dd>play / pause</dd>
+        <dt><kbd>←</kbd> <kbd>→</kbd></dt>
+        <dd>previous / next track</dd>
+        <dt><kbd>Esc</kbd></dt>
+        <dd>close the player view / dialogs</dd>
+        <dt><kbd>?</kbd></dt>
+        <dd>toggle this help</dd>
+      </dl>
+      <ul class="tips">
+        <li>Tap a track to open the player; tap the title in the bar to reopen it.</li>
+        <li>Drag the <strong>A–Z</strong> rail to jump through a long list.</li>
+        <li>
+          Use <strong>☆</strong> to favourite a track and <strong>+</strong> to add it to a playlist.
+        </li>
+        <li>Sort within and across groups, and filter by format / tracker, from the toolbar.</li>
+      </ul>
+    </div>
+  </div>
+{/if}
+
+{#if toast}
+  <div class="toast" class:err={toast.kind === "err"} role="status">{toast.msg}</div>
+{/if}
+
 {#if playback.current}
   <div class="transport-dock">
     <Transport onOpenView={() => (showPattern = true)} />
@@ -1536,8 +1606,10 @@
   .plays :global(svg) {
     opacity: 0.75;
   }
+  /* Always present (faded) so favouriting is discoverable at rest rather than
+     hover-only; solid + accent when set, and brightens on hover/focus. */
   .fav {
-    visibility: hidden;
+    opacity: 0.4;
     padding: 2px 6px;
     display: inline-flex;
     align-items: center;
@@ -1545,13 +1617,18 @@
     border: none;
     background: none;
     color: var(--muted);
+    transition:
+      opacity 0.12s ease,
+      color 0.12s ease;
   }
   .fav.on {
-    visibility: visible;
+    opacity: 1;
     color: var(--accent);
   }
-  .li:hover .fav {
-    visibility: visible;
+  .li:hover .fav,
+  .fav:hover,
+  .fav:focus-visible {
+    opacity: 1;
   }
   /* The whole row is one click target → openTrack. */
   .row {
@@ -1632,6 +1709,71 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  .help-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .help-head h3 {
+    font-size: 14px;
+  }
+  .keys {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 12px;
+    margin: 0;
+    font-size: 13px;
+  }
+  .keys dt {
+    display: flex;
+    gap: 4px;
+  }
+  .keys dd {
+    margin: 0;
+    align-self: center;
+    color: var(--muted);
+  }
+  kbd {
+    font-family: var(--font-mono-retro, ui-monospace, monospace);
+    font-size: 11px;
+    line-height: 1;
+    padding: 3px 6px;
+    background: var(--panel-hi);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+  }
+  .tips {
+    margin: 4px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .tips strong {
+    color: var(--text);
+  }
+  /* Transient confirmation / error banner — bottom-centred, above the dock. */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 76px;
+    transform: translateX(-50%);
+    z-index: 20;
+    max-width: calc(100vw - 32px);
+    padding: 8px 14px;
+    background: var(--panel-hi);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  }
+  .toast.err {
+    border-color: var(--halo-error);
+    color: var(--halo-error);
   }
   .modal label {
     display: flex;
@@ -1907,9 +2049,11 @@
 
   /* Touch has no hover — always show the rename affordance there. */
   @media (hover: none) {
-    .edit,
-    .fav {
+    .edit {
       visibility: visible;
+    }
+    .fav {
+      opacity: 1;
     }
   }
 
