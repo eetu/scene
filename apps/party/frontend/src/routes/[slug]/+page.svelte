@@ -14,6 +14,7 @@
     Search,
     X,
   } from "@lucide/svelte";
+  import { trapFocus } from "@scene/design";
   import {
     cueInOrder,
     playback,
@@ -56,12 +57,14 @@
     void goto(u, { replaceState: true, keepFocus: true, noScroll: true });
   }
 
-  // Mobile (≤720px): the catalog is a slide-over drawer, auto-closed on
-  // selection so the detail/player gets the whole screen.
+  // Mobile (≤640px): the catalog is a slide-over drawer, auto-closed on
+  // selection so the detail/player gets the whole screen. Kept in step with the
+  // FileBrowser's own ≤640px stacking, so a tablet never lands in a hybrid where
+  // both the catalog drawer and the file-list drawer overlay at once.
   let isMobile = $state(false);
   $effect(() => {
     if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(max-width: 720px)");
+    const mq = window.matchMedia("(max-width: 640px)");
     const update = () => (isMobile = mq.matches);
     update();
     mq.addEventListener("change", update);
@@ -408,7 +411,14 @@
   {#if showHelp}
     <div class="modal-bg">
       <button class="modal-scrim" aria-label="close" onclick={() => (showHelp = false)}></button>
-      <div class="modal" role="dialog" aria-modal="true" aria-label="help and shortcuts">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="help and shortcuts"
+        tabindex="-1"
+        use:trapFocus
+      >
         <div class="help-head">
           <h3>Help &amp; shortcuts</h3>
           <button class="navtoggle" onclick={() => (showHelp = false)} aria-label="close">
@@ -817,7 +827,7 @@
   .muted {
     color: var(--muted);
   }
-  @media (max-width: 720px) {
+  @media (max-width: 640px) {
     /* Single-pane: the detail fills the screen; the catalog is an off-canvas
 		   drawer that slides in over it, toggled by the header list button and
 		   auto-closed on selection (so the player/emulator gets the whole phone). */

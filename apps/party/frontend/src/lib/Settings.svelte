@@ -3,7 +3,7 @@
   // theme selector — mirrors tracker's settings. Self-contained; drop <Settings/>
   // into any header.
   import { Monitor, Moon, Settings as Gear, Sun } from "@lucide/svelte";
-  import { setTheme, theme } from "@scene/design";
+  import { setTheme, theme, trapFocus } from "@scene/design";
 
   let open = $state(false);
 
@@ -21,7 +21,14 @@
 {#if open}
   <div class="modal-bg">
     <button class="modal-scrim" aria-label="close" onclick={() => (open = false)}></button>
-    <div class="modal" role="dialog" aria-modal="true" aria-label="settings">
+    <div
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="settings"
+      tabindex="-1"
+      use:trapFocus
+    >
       <h3>settings</h3>
       <div class="setting">
         <span class="setting-label">theme</span>

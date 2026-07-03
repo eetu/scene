@@ -13,6 +13,11 @@
   let status = $state<StatusResponse | null>(null);
   let error = $state<string | null>(null);
   let rescanning = $state(false);
+  // Scan-stall detection: if scan_processed stops advancing while still
+  // "scanning", surface a hint + reload instead of an eternal silent spinner.
+  let scanStalled = $state(false);
+  let lastProcessed = -1;
+  let stalledPolls = 0;
 
   const NATIVE_IMG = new Set(["gif", "jpg", "jpeg", "png"]);
 
@@ -43,9 +48,19 @@
     try {
       status = await api.status();
       if (status.scanning) {
+        const p = status.scan_processed ?? 0;
+        if (p === lastProcessed) stalledPolls++;
+        else {
+          stalledPolls = 0;
+          lastProcessed = p;
+        }
+        scanStalled = stalledPolls >= 20; // ~20s with no newly-processed files
         pollTimer = setTimeout(load, 1000);
         return;
       }
+      stalledPolls = 0;
+      lastProcessed = -1;
+      scanStalled = false;
       parties = await api.parties();
       error = null;
     } catch (e) {
@@ -61,13 +76,29 @@
     if (rescanning) return;
     rescanning = true;
     error = null;
+    // Poll /status while the (blocking) rescan runs so the file count updates
+    // live in the scanning line — otherwise the button just spins with no sign
+    // of progress on a large archive.
+    let done = false;
+    const poller = (async () => {
+      while (!done) {
+        try {
+          status = await api.status();
+        } catch {
+          /* transient — keep polling */
+        }
+        await new Promise((r) => setTimeout(r, 700));
+      }
+    })();
     try {
       await api.rescan();
-      await load();
     } catch (e) {
       error = String(e);
     } finally {
+      done = true;
+      await poller;
       rescanning = false;
+      await load();
     }
   }
 
@@ -108,6 +139,12 @@
       scanning… {status.scan_processed} files{status.scan_total ? ` / ${status.scan_total}` : ""} ({status.scan_hashed}
       hashed)
     </p>
+    {#if scanStalled}
+      <p class="muted">
+        No new files for a while — the scan may be stuck on a large file, or it finished without
+        notifying. <button class="link" onclick={() => location.reload()}>Reload</button> to re-check.
+      </p>
+    {/if}
   {:else if parties.length === 0}
     <p class="muted">no parties found under the archive root.</p>
   {:else}
@@ -292,6 +329,15 @@
   }
   .muted {
     color: var(--muted);
+  }
+  .link {
+    padding: 0 2px;
+    background: none;
+    border: none;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
   }
   @media (max-width: 480px) {
     /* Tight phone header: drop the tagline so brand + Rescan + gear fit a row. */

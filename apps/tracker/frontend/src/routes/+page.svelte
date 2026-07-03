@@ -13,7 +13,7 @@
     Sun,
     X,
   } from "@lucide/svelte";
-  import { setTheme, theme } from "@scene/design";
+  import { setTheme, theme, trapFocus } from "@scene/design";
   import {
     BoingBall,
     CopperBars,
@@ -981,7 +981,14 @@
   {@const et = editingTrack}
   <div class="modal-bg">
     <button class="modal-scrim" aria-label="close" onclick={cancelEdit}></button>
-    <div class="modal" role="dialog" aria-modal="true" aria-label="rename or move">
+    <div
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="rename or move"
+      tabindex="-1"
+      use:trapFocus
+    >
       <h3>rename / move <span class="fmt">{et.ext}</span></h3>
       <label>
         group
@@ -1013,7 +1020,14 @@
 {#if showSettings}
   <div class="modal-bg">
     <button class="modal-scrim" aria-label="close" onclick={() => (showSettings = false)}></button>
-    <div class="modal" role="dialog" aria-modal="true" aria-label="settings">
+    <div
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="settings"
+      tabindex="-1"
+      use:trapFocus
+    >
       <h3>settings</h3>
       <div class="setting">
         <span class="setting-label">theme</span>
@@ -1079,7 +1093,14 @@
   {@const at = addTrack}
   <div class="modal-bg">
     <button class="modal-scrim" aria-label="close" onclick={() => (addTrack = null)}></button>
-    <div class="modal" role="dialog" aria-modal="true" aria-label="add to playlist">
+    <div
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="add to playlist"
+      tabindex="-1"
+      use:trapFocus
+    >
       <h3>add to playlist</h3>
       <p class="add-track">{at.title || at.filename}</p>
       <div class="add-list">
@@ -1219,7 +1240,14 @@
 {#if showHelp}
   <div class="modal-bg">
     <button class="modal-scrim" aria-label="close" onclick={() => (showHelp = false)}></button>
-    <div class="modal help" role="dialog" aria-modal="true" aria-label="help and shortcuts">
+    <div
+      class="modal help"
+      role="dialog"
+      aria-modal="true"
+      aria-label="help and shortcuts"
+      tabindex="-1"
+      use:trapFocus
+    >
       <div class="help-head">
         <h3>Help &amp; shortcuts</h3>
         <button class="icon-btn" onclick={() => (showHelp = false)} aria-label="close">
