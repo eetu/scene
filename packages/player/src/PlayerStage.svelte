@@ -1,22 +1,4 @@
-<script lang="ts">
-  // The player "stage": a partial header of tabs (pattern / samples / viz) over
-  // a content area that switches between the scrolling pattern grid + scope, the
-  // instrument/sample name lists, and the visualizers. The "viz" tab holds its
-  // own sub-selector for the equalizer bars and the Amiga boing ball. Fills its
-  // container's height. Pair it with <Transport/>. Shared by tracker + party.
-  import BoingBall from "./BoingBall.svelte";
-  import CopperBars from "./CopperBars.svelte";
-  import DiscoBall from "./DiscoBall.svelte";
-  import Equalizer from "./Equalizer.svelte";
-  import GlowWave from "./GlowWave.svelte";
-  import PatternView from "./PatternView.svelte";
-  import { playback } from "./player.svelte";
-  import Plasma from "./Plasma.svelte";
-  import Scope from "./Scope.svelte";
-  import Starfield from "./Starfield.svelte";
-  import Tunnel from "./Tunnel.svelte";
-  import VuMeters from "./VuMeters.svelte";
-
+<script module lang="ts">
   // Party's enabled visualizers (its own set — the tracker keeps a separate list).
   type VizMode =
     | "vu"
@@ -40,9 +22,44 @@
     "ball",
   ];
 
-  let { tab = $bindable<"pattern" | "samples" | "viz">("pattern") } = $props();
-  // Which visualizer the "viz" tab shows. Persists across tab switches.
-  let vizMode = $state<VizMode>("vu");
+  // Persist the stage's tab + visualizer across remounts. The party rebuilds this
+  // player whenever next/prev/auto-advance advances the track: the detail pane
+  // briefly unmounts while the next production's detail loads. Without persisting,
+  // the stage would snap back to the pattern tab (and default viz) on every song
+  // change, regardless of what the listener was watching.
+  let savedTab: "pattern" | "samples" | "viz" = "pattern";
+  let savedViz: VizMode = "vu";
+</script>
+
+<script lang="ts">
+  // The player "stage": a partial header of tabs (pattern / samples / viz) over
+  // a content area that switches between the scrolling pattern grid + scope, the
+  // instrument/sample name lists, and the visualizers. The "viz" tab holds its
+  // own sub-selector for the equalizer bars and the Amiga boing ball. Fills its
+  // container's height. Pair it with <Transport/>. Shared by tracker + party.
+  import BoingBall from "./BoingBall.svelte";
+  import CopperBars from "./CopperBars.svelte";
+  import DiscoBall from "./DiscoBall.svelte";
+  import Equalizer from "./Equalizer.svelte";
+  import GlowWave from "./GlowWave.svelte";
+  import PatternView from "./PatternView.svelte";
+  import { playback } from "./player.svelte";
+  import Plasma from "./Plasma.svelte";
+  import Scope from "./Scope.svelte";
+  import Starfield from "./Starfield.svelte";
+  import Tunnel from "./Tunnel.svelte";
+  import VuMeters from "./VuMeters.svelte";
+
+  let { tab = $bindable(savedTab) } = $props();
+  // Which visualizer the "viz" tab shows. Persists across tab switches — and,
+  // via the module-scoped saves below, across remounts (song changes).
+  let vizMode = $state<VizMode>(savedViz);
+
+  // Remember the current view so a remount restores it (see the module script).
+  $effect(() => {
+    savedTab = tab;
+    savedViz = vizMode;
+  });
 
   const energy = $derived(playback.vu.length ? Math.max(...playback.vu) : 0);
   const playing = $derived(playback.playing && !playback.paused);
