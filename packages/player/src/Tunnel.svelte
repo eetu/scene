@@ -64,7 +64,6 @@
 
     const float R = 1.0;          // tube radius (world units)
     const float FAR = 62.0;       // max march distance (deep enough to hide the void)
-    const float GATE_SPACING = 18.0; // world units between passing neon gate-rings
     const float RING_FREQ = 1.15; // ring lines per world unit of travel
     const float RAIL_FREQ = 16.0; // rails around the tube
     const float TAU = 6.2831853;  // angular terms use integer×TAU to wrap seamlessly
@@ -355,39 +354,9 @@
         col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, 1.0 + uGlow * 0.18);
       }
 
-      // Passing gate-rings: sparse emissive neon rings at regular z, rushing past
-      // and through the camera. Each sits just inside the wall; occluded by the
-      // wall hit (tr < t), fades in from the fog, and fades out before it engulfs
-      // the view so it reads as flying through. They pulse with the beat/bass.
-      vec3 gates = vec3(0.0);
-      for (int g = 0; g < 6; g++) {
-        float zi = (floor(uCamZ / GATE_SPACING) + float(g) + 1.0) * GATE_SPACING;
-        float dz = zi - uCamZ;                 // distance ahead of the camera
-        if (dz <= 0.05 || rd.z <= 0.001) continue;
-        float tr = dz / rd.z;                  // ray param where it crosses that plane
-        if (tr > t) continue;                  // behind the wall we hit → occluded
-        vec3 rp = rd * tr;
-        vec2 rel = rp.xy - center(dz);
-        float ring = abs(length(rel) - R * 0.9);
-        float core = smoothstep(0.07, 0.0, ring);
-        float fadeIn = smoothstep(GATE_SPACING * 4.5, GATE_SPACING * 1.8, dz);
-        float pass = smoothstep(2.5, 6.5, dz);  // fade out before engulfing the view
-        gates += hsv2rgb(vec3(fract(zi * 0.021 + uTime * 0.03), 0.65, 1.0)) * core * fadeIn * pass;
-      }
-      col += gates * (0.35 + uGlow * 0.5 + uPulse * 0.7 + uBass * 0.5);
-
       // Vanishing-point core glow — fills the deep centre so it reads as a lit
       // tunnel receding, not a black hole.
       col += vec3(0.5, 0.7, 1.0) * 0.16 * smoothstep(0.4, 0.0, length(uv)) * (0.6 + uPulse * 0.6 + uTreble * 0.2);
-
-      // Volumetric god-rays: angular light shafts streaming out of the vanishing
-      // point (the pulsing light ahead of the bend), brightest at the centre and
-      // fading outward. Slow drift + energy/treble drive their strength.
-      float rad = length(uv);
-      float ang = atan(uv.y, uv.x);
-      float shafts = pow(0.5 + 0.5 * sin(ang * 9.0 + uSeed * 2.0 + uTime * 0.4), 3.0);
-      shafts *= smoothstep(0.75, 0.0, rad); // concentrate near the light, fade out
-      col += vec3(0.55, 0.72, 1.0) * shafts * (0.06 + uGlow * 0.22 + uPulse * 0.18 + uTreble * 0.12);
 
       // Speed vignette: energetic passages darken the edges for a tunnel-vision rush.
       col *= 1.0 - smoothstep(0.45, 1.0, length(uv)) * uGlow * 0.35;
