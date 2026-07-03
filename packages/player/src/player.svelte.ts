@@ -187,6 +187,10 @@ export const playback = $state({
 });
 
 let queue: Track[] = [];
+// Consecutive load/playback failures without a successful frame in between —
+// bounds the auto-skip past broken modules so a fully-unplayable queue can't
+// spin forever. Reset on the first progress tick of a track that actually plays.
+let consecutiveErrors = 0;
 
 function ensurePlayer(): Promise<void> {
   if (player) return ready as Promise<void>;
@@ -207,6 +211,7 @@ function ensurePlayer(): Promise<void> {
   // Once the graph exists, tap it for the background-capable media-element route.
   void ready.then(setupMediaElementRoute);
   player.onProgress((d: ProgressMsg) => {
+    consecutiveErrors = 0; // a frame arrived → this track plays; clear the skip guard
     playback.position = d.pos ?? 0;
     playback.order = d.order ?? 0;
     playback.pattern = d.pattern ?? 0;
@@ -238,6 +243,22 @@ function ensurePlayer(): Promise<void> {
   });
   player.onError((e: { type?: string }) => {
     playback.error = e?.type ?? "playback error";
+    consecutiveErrors++;
+    // Auto-skip past an unplayable module (corrupt / unsupported) to the next
+    // queued track — but stop once we've cycled ~the whole queue, so a fully
+    // broken playlist surfaces the error instead of spinning. A short delay lets
+    // the error register before the next track clears it.
+    const canAdvance =
+      playback.queueIndex >= 0 &&
+      (playback.shuffle ? queue.length > 1 : playback.queueIndex + 1 < queue.length);
+    if (canAdvance && consecutiveErrors <= queue.length) {
+      setTimeout(() => {
+        if (playback.error) playNext();
+      }, 900);
+    } else {
+      playback.playing = false;
+      syncNowPlaying();
+    }
   });
   player.onParsed((d: { id: number; meta: ParsedMeta | null }) => {
     const resolve = pendingParse.get(d.id);

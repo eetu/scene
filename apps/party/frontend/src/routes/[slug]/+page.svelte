@@ -5,6 +5,7 @@
   // demos/intros → an emulator placeholder (Phase 3). Everything downloadable.
   import {
     ChevronRight,
+    CircleHelp,
     Film,
     Image as ImageIcon,
     Monitor,
@@ -139,6 +140,15 @@
   // are visible without manual expansion.
   let query = $state("");
   const q = $derived(query.trim().toLowerCase());
+
+  // Help / shortcuts overlay. `?` toggles it, Esc closes it (ignored while typing).
+  let showHelp = $state(false);
+  function onKey(e: KeyboardEvent) {
+    const el = e.target as HTMLElement | null;
+    if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+    if (e.key === "?") showHelp = !showHelp;
+    else if (e.key === "Escape" && showHelp) showHelp = false;
+  }
   function matches(p: Production): boolean {
     if (!q) return true;
     return (
@@ -244,6 +254,8 @@
   }
 </script>
 
+<svelte:window onkeydown={onKey} />
+
 <header>
   <button
     class="navtoggle"
@@ -256,6 +268,9 @@
   <!-- The party name is the way home — click it to return to the parties list. -->
   <a class="title" href="/" title="Back to parties">{slug}</a>
   <span class="sub">{prods.length} productions</span>
+  <button class="navtoggle" onclick={() => (showHelp = true)} title="Help (?)" aria-label="Help">
+    <CircleHelp size={18} />
+  </button>
   <Settings />
 </header>
 
@@ -390,6 +405,39 @@
   <!-- Global now-playing bar: spans both panes and stays visible whenever a
 	     track is loaded, so music keeps its controls even after you navigate to
 	     another production. The title jumps back to the playing entry. -->
+  {#if showHelp}
+    <div class="modal-bg">
+      <button class="modal-scrim" aria-label="close" onclick={() => (showHelp = false)}></button>
+      <div class="modal" role="dialog" aria-modal="true" aria-label="help and shortcuts">
+        <div class="help-head">
+          <h3>Help &amp; shortcuts</h3>
+          <button class="navtoggle" onclick={() => (showHelp = false)} aria-label="close">
+            <X size={16} />
+          </button>
+        </div>
+        <dl class="keys">
+          <dt><kbd>?</kbd></dt>
+          <dd>toggle this help</dd>
+          <dt><kbd>Esc</kbd></dt>
+          <dd>close this dialog</dd>
+        </dl>
+        <ul class="tips">
+          <li>Click a production to open it — its main file opens automatically.</li>
+          <li>Pick other files (screenshots, NFO) from the list beside the viewer.</li>
+          <li>
+            For DOS / Amiga / C64 entries, press <strong>Launch</strong> to run the emulator, then click
+            the screen and type — many demos wait for a keypress.
+          </li>
+          <li>
+            Click the <strong>now-playing title</strong> in the bar to jump back to what's playing.
+          </li>
+          <li>Click the party name (top-left) to return to all parties.</li>
+          <li>Search filters productions by title, group, or compo.</li>
+        </ul>
+      </div>
+    </div>
+  {/if}
+
   <div class="musicbar">
     <Transport onOpenView={openPlayingView} showPos={false} />
   </div>
@@ -432,6 +480,82 @@
     color: var(--muted);
     font-size: 13px;
     margin-right: auto;
+  }
+  /* Help overlay (mirrors the Settings modal's look). */
+  .modal-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .modal-scrim {
+    position: absolute;
+    inset: 0;
+    border: none;
+    background: rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+  }
+  .modal {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 460px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .help-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .help-head h3 {
+    margin: 0;
+    font-size: 14px;
+  }
+  .keys {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 12px;
+    margin: 0;
+    font-size: 13px;
+  }
+  .keys dt {
+    display: flex;
+    gap: 4px;
+  }
+  .keys dd {
+    margin: 0;
+    align-self: center;
+    color: var(--muted);
+  }
+  kbd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    line-height: 1;
+    padding: 3px 6px;
+    background: var(--panel-hi);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+  }
+  .tips {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .tips strong {
+    color: var(--text);
   }
   main {
     display: flex;

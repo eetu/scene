@@ -3,7 +3,16 @@
   // now-playing title/artist, and time + order/pattern/row readouts. Drives the
   // `playback` store. Layout-agnostic (no fixed positioning) — the host app
   // places it (tracker docks it at the bottom; party shows it inline).
-  import { Pause, Play, Repeat, Shuffle, SkipBack, SkipForward } from "@lucide/svelte";
+  import {
+    Maximize2,
+    Pause,
+    Play,
+    Repeat,
+    Shuffle,
+    SkipBack,
+    SkipForward,
+    TriangleAlert,
+  } from "@lucide/svelte";
 
   import {
     playback,
@@ -121,13 +130,20 @@
         <SkipForward size={16} />
       </button>
       {#if onOpenView}
-        <button class="t-info" onclick={onOpenView} title="open player view">
-          <span class="t-title">{playback.current.title || playback.current.filename}</span>
+        <button
+          class="t-info t-info-btn"
+          onclick={onOpenView}
+          title="open player view"
+          aria-label="open player view"
+        >
+          <span class="t-title-row">
+            <span class="t-title">{playback.current.title || playback.current.filename}</span>
+            <span class="t-open" aria-hidden="true"><Maximize2 size={12} /></span>
+          </span>
           <span class="t-meta">
             {playback.current.group ?? ""}{playback.current.artist
               ? ` · ${playback.current.artist}`
               : ""}
-            {#if playback.error}· <span class="t-err">{playback.error}</span>{/if}
           </span>
         </button>
       {:else}
@@ -137,7 +153,6 @@
             {playback.current.group ?? ""}{playback.current.artist
               ? ` · ${playback.current.artist}`
               : ""}
-            {#if playback.error}· <span class="t-err">{playback.error}</span>{/if}
           </span>
         </div>
       {/if}
@@ -172,6 +187,11 @@
         </div>
       {/if}
     </div>
+    {#if playback.error}
+      <div class="t-error" role="alert">
+        <TriangleAlert size={13} /> Couldn't play this module — {playback.error}
+      </div>
+    {/if}
   </div>
 {/if}
 
@@ -317,8 +337,56 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .t-err {
+  /* When the title is a button (open player view), signal it's interactive:
+     a trailing expand glyph + underline/accent on hover & keyboard focus. */
+  .t-info-btn {
+    display: block;
+  }
+  .t-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .t-title-row .t-title {
+    min-width: 0;
+  }
+  .t-open {
+    flex: 0 0 auto;
+    display: inline-flex;
+    color: var(--muted);
+    opacity: 0.7;
+    transition:
+      color 0.15s ease,
+      opacity 0.15s ease;
+  }
+  .t-info-btn:hover .t-open,
+  .t-info-btn:focus-visible .t-open {
+    color: var(--accent);
+    opacity: 1;
+  }
+  .t-info-btn:hover .t-title {
+    text-decoration: underline;
+  }
+  .t-info-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* Playback error — a full-width strip under the controls, not a whisper after
+     the artist name, so a corrupt/unsupported module doesn't read as "muted". */
+  .t-error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    font-size: 12px;
     color: var(--halo-error);
+    background: color-mix(in srgb, var(--halo-error) 14%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--halo-error) 35%, transparent);
+  }
+  .t-error :global(svg) {
+    flex: 0 0 auto;
   }
   .t-time {
     flex: 0 0 auto;
