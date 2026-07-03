@@ -31,7 +31,11 @@
     "Corridor",
     "Death Star",
   ];
+  // Theme label — shown only on a manual "next theme" (the 'n' key or a tap on
+  // the view), not on the automatic rotation. labelSeq re-keys the element so the
+  // fade replays on every request, even if it lands on the same theme name.
   let themeName = $state<string | null>(null);
+  let labelSeq = $state(0);
 
   const VERT = `
     attribute vec2 a_pos;
@@ -60,6 +64,7 @@
 
     const float R = 1.0;          // tube radius (world units)
     const float FAR = 62.0;       // max march distance (deep enough to hide the void)
+    const float GATE_SPACING = 18.0; // world units between passing neon gate-rings
     const float RING_FREQ = 1.15; // ring lines per world unit of travel
     const float RAIL_FREQ = 16.0; // rails around the tube
     const float TAU = 6.2831853;  // angular terms use integer×TAU to wrap seamlessly
@@ -157,13 +162,20 @@
     vec3 themeBW(float z, float a, float t) {
       return vec3(max(neon(z * RING_FREQ, 0.05), neon(a * RAIL_FREQ, 0.04)));
     }
-    // Star Wars hyperspace: deep blue field with dense blue-white streaks stretched
-    // along the tube, whipping past fast — the jump-to-lightspeed look.
+    // Star Wars opening starfield: scattered static star *points* (not streaks —
+    // that's Hyperspace's job) twinkling on deep blue-black space, with a faint
+    // blue depth wash and the odd warm/gold star. Reads as drifting through space.
     vec3 themeStarwars(float z, float a, float t) {
-      float lane = floor(a * 96.0);
-      float r = fract(sin(lane * 78.233 + uSeed) * 43758.5453);
-      float streak = smoothstep(0.9, 1.0, 0.5 + 0.5 * sin(z * 1.2 + t * (30.0 + r * 40.0) + r * 20.0));
-      return vec3(0.06, 0.12, 0.4) + mix(vec3(0.3, 0.5, 1.0), vec3(1.0), r) * streak * 2.6;
+      float cz = z * 2.5, ca = a * 64.0;    // star cell grid (64 around → seamless)
+      vec2 cell = fract(vec2(cz, ca));
+      float r = fract(sin(floor(cz) * 12.9 + floor(ca) * 78.2 + uSeed) * 43758.5);
+      float star = step(0.9, r);            // ~10% of cells hold a star
+      vec2 jit = vec2(fract(r * 41.0), fract(r * 71.0));   // jittered position in cell
+      float pt = smoothstep(0.16, 0.0, length(cell - jit)); // round point
+      float tw = 0.55 + 0.45 * sin(t * (2.0 + r * 6.0) + r * 40.0); // twinkle
+      vec3 tint = mix(vec3(0.8, 0.85, 1.0), vec3(1.0, 0.82, 0.45), step(0.985, r)); // rare gold
+      vec3 space = mix(vec3(0.006, 0.01, 0.03), vec3(0.02, 0.03, 0.07), 0.5 + 0.5 * sin(a * TAU));
+      return space + tint * star * pt * tw * 2.4;
     }
     // Purple voxel tunnel: blocky cells (per-cell purple shade) with dark grout
     // borders, so the wall reads as extruded voxels.
@@ -308,8 +320,15 @@
       if (hit) {
         float z = uCamZ + hitZ;
         float a = hitAng * 0.15915494 + 0.5; // 0..1 around the tube
-        // Wall colour crossfades between the two themes chosen above.
-        col = wall2(idA, idB, k, z, a);
+        // Zone transition: instead of crossfading the whole wall uniformly, the
+        // theme boundary flies down the tube toward the camera as k advances. The
+        // far end adopts the next theme first, and the seam rushes past — a switch
+        // reads as flying into a new zone. bz sweeps FAR→0 over the crossfade; a
+        // fragment beyond the boundary (deeper) shows the new theme.
+        float bz = mix(FAR, 0.0, k);
+        float kz = smoothstep(bz - 5.0, bz + 5.0, hitZ);
+        // Wall colour crossfades between the two themes at the moving boundary.
+        col = wall2(idA, idB, kz, z, a);
         // Parallax: a blurred, slower copy of the wall shows through the dark gaps
         // of the grid, reading as a second tube set farther out and out of focus
         // behind the inner one. Strongest on neon/grid themes (near-black gaps),
@@ -317,8 +336,8 @@
         // 3-tap z-average softens its grid so it reads as distant/defocused.
         float gap = smoothstep(0.5, 0.0, dot(col, vec3(0.4)));
         float oz = z * 0.3 + 9.0;
-        vec3 outer = (wall2(idA, idB, k, oz - 0.6, a) + wall2(idA, idB, k, oz, a) +
-                      wall2(idA, idB, k, oz + 0.6, a)) / 3.0;
+        vec3 outer = (wall2(idA, idB, kz, oz - 0.6, a) + wall2(idA, idB, kz, oz, a) +
+                      wall2(idA, idB, kz, oz + 0.6, a)) / 3.0;
         col += outer * gap * 0.3;
         float fog = exp(-hitZ * 0.055); // gentle: the tube recedes into depth, not a void
         col *= fog * (0.55 + uGlow * 0.9);
@@ -335,9 +354,40 @@
         // Louder passages read a touch more vivid.
         col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, 1.0 + uGlow * 0.18);
       }
+
+      // Passing gate-rings: sparse emissive neon rings at regular z, rushing past
+      // and through the camera. Each sits just inside the wall; occluded by the
+      // wall hit (tr < t), fades in from the fog, and fades out before it engulfs
+      // the view so it reads as flying through. They pulse with the beat/bass.
+      vec3 gates = vec3(0.0);
+      for (int g = 0; g < 6; g++) {
+        float zi = (floor(uCamZ / GATE_SPACING) + float(g) + 1.0) * GATE_SPACING;
+        float dz = zi - uCamZ;                 // distance ahead of the camera
+        if (dz <= 0.05 || rd.z <= 0.001) continue;
+        float tr = dz / rd.z;                  // ray param where it crosses that plane
+        if (tr > t) continue;                  // behind the wall we hit → occluded
+        vec3 rp = rd * tr;
+        vec2 rel = rp.xy - center(dz);
+        float ring = abs(length(rel) - R * 0.9);
+        float core = smoothstep(0.07, 0.0, ring);
+        float fadeIn = smoothstep(GATE_SPACING * 4.5, GATE_SPACING * 1.8, dz);
+        float pass = smoothstep(2.5, 6.5, dz);  // fade out before engulfing the view
+        gates += hsv2rgb(vec3(fract(zi * 0.021 + uTime * 0.03), 0.65, 1.0)) * core * fadeIn * pass;
+      }
+      col += gates * (0.35 + uGlow * 0.5 + uPulse * 0.7 + uBass * 0.5);
+
       // Vanishing-point core glow — fills the deep centre so it reads as a lit
       // tunnel receding, not a black hole.
       col += vec3(0.5, 0.7, 1.0) * 0.16 * smoothstep(0.4, 0.0, length(uv)) * (0.6 + uPulse * 0.6 + uTreble * 0.2);
+
+      // Volumetric god-rays: angular light shafts streaming out of the vanishing
+      // point (the pulsing light ahead of the bend), brightest at the centre and
+      // fading outward. Slow drift + energy/treble drive their strength.
+      float rad = length(uv);
+      float ang = atan(uv.y, uv.x);
+      float shafts = pow(0.5 + 0.5 * sin(ang * 9.0 + uSeed * 2.0 + uTime * 0.4), 3.0);
+      shafts *= smoothstep(0.75, 0.0, rad); // concentrate near the light, fade out
+      col += vec3(0.55, 0.72, 1.0) * shafts * (0.06 + uGlow * 0.22 + uPulse * 0.18 + uTreble * 0.12);
 
       // Speed vignette: energetic passages darken the edges for a tunnel-vision rush.
       col *= 1.0 - smoothstep(0.45, 1.0, length(uv)) * uGlow * 0.35;
@@ -346,6 +396,16 @@
       col += vec3(0.7, 0.85, 1.0) * uBurst * 0.45;
 
       col = 1.0 - exp(-col); // exponential tonemap → soft neon bloom rolloff
+
+      // Lens post: a radial chromatic fringe (single-pass approximation — channels
+      // pushed apart toward the edges) plus a soft vignette. Both lean harder on
+      // drops for a lens-punch. Cheap: no second pass / framebuffer.
+      float r2 = dot(uv, uv);
+      float ca = 0.05 + uBurst * 0.14 + uGlow * 0.04;
+      col.r *= 1.0 + r2 * ca;
+      col.g *= 1.0 - r2 * ca * 0.35;
+      col.b *= 1.0 + r2 * ca * 0.55;
+      col *= 1.0 - r2 * (0.09 + uBurst * 0.16); // vignette
 
       // Optional CRT overlay ('s'): horizontal scanlines + a soft vignette.
       if (uScan > 0.5) {
@@ -436,18 +496,28 @@
     // ignored while typing): 's' toggles CRT scanlines, 'n' jumps to the next wall
     // theme, 'l' locks/unlocks the theme rotation.
     let clock = 0; // seconds elapsed, for wall animation (uTime)
+    const SLOT = 24; // seconds a wall theme holds before crossfading to the next
     let themeTime = 0; // theme-selection clock (frozen while locked)
     let locked = false; // 'l' freezes the theme rotation
     let scanOn = true; // CRT scanlines on by default
+    // Advance to the next wall theme and flash its label. Bound to 'n' and to a
+    // tap on the view (the touch equivalent for mobile, where there's no 'n' key).
+    function nextTheme() {
+      themeTime = (Math.floor(themeTime / SLOT) + 1) * SLOT;
+      themeName = THEMES[themeSlot(Math.floor(themeTime / SLOT))];
+      labelSeq++;
+    }
     const onKey = (e: KeyboardEvent) => {
       const ae = document.activeElement;
       const typing = !!ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA");
       if (typing) return;
       if (e.key === "s" || e.key === "S") scanOn = !scanOn;
-      else if (e.key === "n" || e.key === "N") themeTime = (Math.floor(themeTime / 22) + 1) * 22;
+      else if (e.key === "n" || e.key === "N") nextTheme();
       else if (e.key === "l" || e.key === "L") locked = !locked;
     };
     window.addEventListener("keydown", onKey);
+    const onTap = () => nextTheme();
+    el.addEventListener("click", onTap);
 
     // Per-track course seed from the filename (FNV-1a → a stable phase). Read
     // only inside frame() — reading playback.* in the effect body would make the
@@ -484,9 +554,8 @@
     let fpsAcc = 0;
     let fpsN = 0;
 
-    // JS-authoritative theme rotation (mirrored out of the shader so the on-screen
-    // label matches exactly): a seeded per-slot random, held ~22s then crossfaded.
-    let lastPrimary = -1;
+    // JS-authoritative theme rotation (mirrored out of the shader): a seeded
+    // per-slot random, held one SLOT then crossfaded to the next.
     // Drop detection state: slow energy floor + last-jump timers.
     let energyBase = 0;
     let prevEnergy = 0;
@@ -535,27 +604,25 @@
       ) {
         lastDrop = now;
         burst = 1;
-        if (!locked && now - lastThemeJump > 5000) {
-          themeTime = (Math.floor(themeTime / 22) + 1) * 22;
+        // A drop only *lands* a theme change on the beat — gated to ~one slot
+        // apart so drops sync the timing without switching every few seconds.
+        if (!locked && now - lastThemeJump > SLOT * 1000) {
+          themeTime = (Math.floor(themeTime / SLOT) + 1) * SLOT;
           lastThemeJump = now;
         }
       }
       prevEnergy = energy;
       burst *= Math.exp(-dt / 0.45);
 
-      // Pick the wall theme (+ crossfade) in JS; show its name on change.
+      // Pick the wall theme (+ crossfade) in JS. The on-screen label is not shown
+      // on this automatic rotation — only on a manual advance (see nextTheme).
       if (!locked) themeTime += dt;
-      const tp = themeTime / 22;
+      const tp = themeTime / SLOT;
       const nSlot = Math.floor(tp);
       let idA = themeSlot(nSlot);
       let idB = themeSlot(nSlot + 1);
       if (idA === idB) idB = (idB + 1) % THEMES.length;
       const kk = smooth01(0.82, 1.0, tp - nSlot);
-      const primary = kk < 0.5 ? idA : idB;
-      if (primary !== lastPrimary) {
-        lastPrimary = primary;
-        themeName = THEMES[primary];
-      }
 
       glow += ((active ? energy : 0) - glow) * 0.1;
       // Per-band levels (bass drives the beat punch/pulse, treble the sparkle).
@@ -610,6 +677,7 @@
       cancelAnimationFrame(raf);
       ro.disconnect();
       window.removeEventListener("keydown", onKey);
+      el.removeEventListener("click", onTap);
       gl.deleteProgram(prog);
       gl.deleteShader(vs);
       gl.deleteShader(fs);
@@ -622,7 +690,7 @@
 <div class="tunnel">
   <canvas bind:this={canvas}></canvas>
   {#if themeName}
-    {#key themeName}
+    {#key labelSeq}
       <div class="label">{themeName}</div>
     {/key}
   {/if}
