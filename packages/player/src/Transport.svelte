@@ -41,22 +41,71 @@
     return `${m}:${s.toString().padStart(2, "0")}`;
   }
 
-  function seekClick(e: MouseEvent) {
+  // Draggable seek head. Pointer events cover mouse + touch; while dragging we
+  // preview the position locally (dragFrac) and commit the seek on release, so a
+  // scrub doesn't thrash the decoder mid-drag. A plain tap seeks on release too.
+  let seeking = $state(false);
+  let dragFrac = $state(0);
+  // Fill/head position: the live drag preview while scrubbing, else the playhead.
+  const pct = $derived(
+    (seeking ? dragFrac : playback.duration ? playback.position / playback.duration : 0) * 100,
+  );
+
+  function fracAt(clientX: number, el: HTMLElement): number {
+    const rect = el.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  }
+  function onPointerDown(e: PointerEvent) {
     if (!playback.duration) return;
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    seekSeconds(frac * playback.duration);
+    const el = e.currentTarget as HTMLElement;
+    el.setPointerCapture(e.pointerId);
+    seeking = true;
+    dragFrac = fracAt(e.clientX, el);
+  }
+  function onPointerMove(e: PointerEvent) {
+    if (!seeking) return;
+    dragFrac = fracAt(e.clientX, e.currentTarget as HTMLElement);
+  }
+  function onPointerUp(e: PointerEvent) {
+    if (!seeking) return;
+    dragFrac = fracAt(e.clientX, e.currentTarget as HTMLElement);
+    if (playback.duration) seekSeconds(dragFrac * playback.duration);
+    seeking = false;
+  }
+  function onSeekKey(e: KeyboardEvent) {
+    if (!playback.duration) return;
+    const step = e.shiftKey ? 10 : 5; // seconds
+    if (e.key === "ArrowLeft") {
+      seekSeconds(Math.max(0, playback.position - step));
+      e.preventDefault();
+    } else if (e.key === "ArrowRight") {
+      seekSeconds(Math.min(playback.duration, playback.position + step));
+      e.preventDefault();
+    }
   }
 </script>
 
 {#if playback.current}
   <div class="transport">
-    <button class="seek" onclick={seekClick} aria-label="seek" title="seek">
-      <div
-        class="seek-fill"
-        style:width="{playback.duration ? (playback.position / playback.duration) * 100 : 0}%"
-      ></div>
-    </button>
+    <div
+      class="seek"
+      class:seeking
+      role="slider"
+      tabindex="0"
+      aria-label="seek"
+      aria-valuemin="0"
+      aria-valuemax={Math.round(playback.duration) || 0}
+      aria-valuenow={Math.round(playback.position) || 0}
+      aria-valuetext="{fmtTime(playback.position)} of {fmtTime(playback.duration)}"
+      onpointerdown={onPointerDown}
+      onpointermove={onPointerMove}
+      onpointerup={onPointerUp}
+      onpointercancel={onPointerUp}
+      onkeydown={onSeekKey}
+    >
+      <div class="seek-fill" style:width="{pct}%"></div>
+      <div class="seek-head" style:left="{pct}%"></div>
+    </div>
     <div class="t-controls">
       <button class="t-btn" onclick={playPrev} disabled={!hasPrev} aria-label="previous">
         <SkipBack size={16} />
@@ -134,6 +183,7 @@
     border-top: 1px solid var(--border);
   }
   .seek {
+    position: relative;
     display: block;
     width: 100%;
     height: 8px;
@@ -142,11 +192,47 @@
     border-radius: 0;
     background: var(--panel-hi);
     cursor: pointer;
+    touch-action: none; /* we handle the drag; don't let it scroll the page */
+  }
+  .seek:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
   .seek-fill {
     height: 100%;
     background: var(--accent);
     pointer-events: none;
+  }
+  /* Draggable head — a knob at the playhead; grows while scrubbing. */
+  .seek-head {
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    margin-left: -6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px var(--panel);
+    transform: translateY(-50%);
+    transition:
+      transform 0.1s ease,
+      opacity 0.15s ease;
+    pointer-events: none;
+  }
+  .seek.seeking .seek-head {
+    transform: translateY(-50%) scale(1.35);
+  }
+  /* On pointer devices reveal the head only on hover/focus (or while scrubbing);
+     touch devices (no hover) keep it visible so it's always grabbable. */
+  @media (hover: hover) {
+    .seek-head {
+      opacity: 0;
+    }
+    .seek:hover .seek-head,
+    .seek:focus-visible .seek-head,
+    .seek.seeking .seek-head {
+      opacity: 1;
+    }
   }
   .t-controls {
     display: flex;
@@ -255,6 +341,15 @@
     font-variant-numeric: tabular-nums;
   }
   @media (max-width: 640px) {
+    /* Fatter strip + bigger head so the playhead is easy to grab by thumb. */
+    .seek {
+      height: 16px;
+    }
+    .seek-head {
+      width: 20px;
+      height: 20px;
+      margin-left: -10px;
+    }
     .t-pos {
       display: none;
     }
