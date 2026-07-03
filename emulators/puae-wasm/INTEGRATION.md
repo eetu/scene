@@ -134,3 +134,54 @@ Patch (`core/patches/`, extends the M0 one) adds, and CI rebuilds with:
 Iteration is CI-bound (~16 min/build), so each patch lands as correct-as-possible
 from the recon; verify by diffing JIT vs interpreter on a supported region, then
 measure fps in `bench/` with `--vendor`.
+
+## M1 build spec (concrete — everything located)
+
+**Strategy to avoid rebuilds:** build the C scaffolding ONCE; iterate all JIT
+logic at RUNTIME. The `EM_JS` hook only delegates: `ejs_jit_get(pc)` returns
+`Module.ejsJitGet ? Module.ejsJitGet(pc) : -1`. We define/iterate
+`Module.ejsJitGet` (decode→recompile→instantiate→cache) in the harness with zero
+core rebuilds. Blocks import the core's exported memory wrappers + share its
+table/memory (proven in `phase1-abi/`).
+
+**Runner + hook (found):** our config → `m68k_run_2_020` (68020+, non-CE,
+non-compatible, no MMU/JIT). Its inner loop (newcpu.c ~6516):
+
+```c
+r->instruction_pc = m68k_getpc();
+/* ejs-jit hook (M1): */
+{ int __i = ejs_jit_get((unsigned)r->instruction_pc);
+  if (__i >= 0) {
+    unsigned __npc = ((unsigned(*)(void))(uintptr_t)__i)(); /* block: side-effects regs/regflags/mem, returns next PC */
+    m68k_setpc(__npc);                    /* resync regs.pc AND regs.pc_p (interp reads via pc_p) */
+    cpu_cycles = adjust_cycles(4 * CYCLE_UNIT); /* approx per-block; refine in M2 */
+    do_cycles(cpu_cycles);
+    if (r->spcflags) { if (do_specialties(cpu_cycles)) exit = true; }
+    continue;
+  } }
+r->opcode = x_get_iword(0); ...           /* unchanged interpreter path */
+```
+
+**Block ABI:** `i32 block(void)` → returns next guest PC; writes D/A via `regs`,
+flags via `regflags` (md-generic scatter), memory via imported `jit_*_long`.
+
+**C exports to add (newcpu.c):** `ejs_jit_get` (EM_JS delegator); ABI helpers
+`jit_abi_regs()`=&regs.regs, `jit_abi_pc()`=&regs.pc, `jit_abi_regflags()`
+=&regflags (+ cznv/x offsets are 0/4); memory wrappers `jit_get_long/put_long`
+(+ word/byte) wrapping the `STATIC_INLINE` `get_long`/`put_long`.
+
+**Link edits (`RetroArch/Makefile.emulatorjs`):** add `-s ALLOW_TABLE_GROWTH=1`
+to `LDFLAGS` (line ~167); add `wasmTable,wasmMemory` to `EXPORTS` (line 132); add
+`_jit_get_long,_jit_put_long,_jit_get_word,_jit_put_word,_jit_get_byte,_jit_put_byte,
+_jit_abi_regs,_jit_abi_pc,_jit_abi_regflags` to `EXPORTED_FUNCTIONS` (line 124).
+
+**Build wiring caveat:** `build.sh` clones RetroArch AND `git pull`s it before
+linking, so a pre-clone+patch of the Makefile risks the pull. Cleanest: pre-clone
+RetroArch (+ its EmulatorJS submodule) at the pinned commit and neutralize the
+`git pull` (or pass link flags via `EMCC_CFLAGS`). Resolve this before the build
+so it's one-shot.
+
+**First build = scaffolding only:** hook returns -1 (Module.ejsJitGet undefined),
+so the core boots at baseline; then implement `Module.ejsJitGet` at runtime and
+iterate with no rebuilds. The one risk baked into the build is the hook-branch
+correctness (pc_p resync + cycles), written carefully above from the recon.
