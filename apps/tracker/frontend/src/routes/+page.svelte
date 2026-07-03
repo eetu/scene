@@ -1254,7 +1254,10 @@
 
 {#if playback.current}
   <div class="transport-dock">
-    <Transport onOpenView={() => (showPattern = true)} />
+    <!-- The dock sits above the player overlay (z 5 > 4), so only offer "open
+         player view" while it's closed — otherwise the expand affordance is a
+         no-op over the very view it claims to open. -->
+    <Transport onOpenView={showPattern ? undefined : () => (showPattern = true)} />
   </div>
 {/if}
 
