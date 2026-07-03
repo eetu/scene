@@ -1,0 +1,200 @@
+// Headless driver for the M1 JIT runtime harness. Boots server.mjs + a cached
+// chrome-headless-shell (over the DevTools Protocol, no npm deps), loads the
+// harness (which boots the demo on the M1 core and installs the ejsJitGet
+// self-test), and reports the substrate result:
+//
+//   does the EM_JS hook reach JS · are the jit ABI + wasmTable/wasmMemory
+//   reachable · does a Node-validated block install into the core's table and
+//   correctly mutate the REAL 68k register file + md-generic flags in-situ.
+//
+//   node drive.mjs --vendor <m1-vendor> [--demo <p>] [--kick <p>] [--wait 90]
+import { spawn } from "node:child_process";
+import { readdir, mkdtemp } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const arg = (n, d) => {
+  const i = process.argv.indexOf(`--${n}`);
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d;
+};
+const PORT = Number(arg("port", "8791"));
+const DBG = Number(arg("dbg", "9334"));
+const WAIT = Number(arg("wait", "90")) * 1000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function findChrome() {
+  const explicit = arg("chrome", "");
+  if (explicit) return explicit;
+  const cache = join(process.env.HOME, "Library/Caches/ms-playwright");
+  if (!existsSync(cache)) throw new Error("no ms-playwright cache; pass --chrome <path>");
+  for (const d of await readdir(cache)) {
+    if (!d.startsWith("chromium")) continue;
+    for (const sub of [
+      "chrome-headless-shell-mac-arm64/chrome-headless-shell",
+      "chrome-mac/Chromium.app/Contents/MacOS/Chromium",
+    ]) {
+      const p = join(cache, d, sub);
+      if (existsSync(p)) return p;
+    }
+  }
+  throw new Error("chrome-headless-shell not found; pass --chrome <path>");
+}
+
+function cdp(wsUrl) {
+  const ws = new WebSocket(wsUrl);
+  const pending = new Map();
+  let id = 0;
+  ws.addEventListener("message", (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.id && pending.has(m.id)) {
+      pending.get(m.id)(m);
+      pending.delete(m.id);
+    }
+  });
+  const ready = new Promise((res, rej) => {
+    ws.addEventListener("open", () => res());
+    ws.addEventListener("error", (e) => rej(new Error("ws error: " + (e.message || e.type))));
+  });
+  const send = (method, params = {}) =>
+    new Promise((res) => {
+      const mid = ++id;
+      pending.set(mid, res);
+      ws.send(JSON.stringify({ id: mid, method, params }));
+    });
+  const evals = async (expression) => {
+    const r = await send("Runtime.evaluate", {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+    });
+    if (r.result?.exceptionDetails) return { __err: r.result.exceptionDetails.text };
+    return r.result?.result?.value;
+  };
+  return { ready, send, evals, close: () => ws.close() };
+}
+
+const getJson = (path) => fetch(`http://127.0.0.1:${DBG}${path}`).then((r) => r.json());
+
+async function main() {
+  const chrome = await findChrome();
+  console.log(`chrome: ${chrome}`);
+
+  const passthrough = [];
+  for (const k of ["demo", "kick", "vendor"]) {
+    const v = arg(k, "");
+    if (v) passthrough.push(`--${k}`, v);
+  }
+  const srv = spawn("node", [join(HERE, "server.mjs"), "--port", String(PORT), ...passthrough], {
+    stdio: ["ignore", "inherit", "inherit"],
+  });
+  await sleep(500);
+
+  const profile = await mkdtemp(join(tmpdir(), "puae-jit-"));
+  const cr = spawn(
+    chrome,
+    [
+      `--remote-debugging-port=${DBG}`,
+      `--user-data-dir=${profile}`,
+      "--no-first-run",
+      "--no-default-browser-check",
+      "--disable-dev-shm-usage",
+      "--no-sandbox",
+      "--use-gl=angle",
+      "--use-angle=swiftshader",
+      "--enable-unsafe-swiftshader",
+      "--window-size=800,600",
+      "about:blank",
+    ],
+    { stdio: ["ignore", "ignore", "pipe"] },
+  );
+  let crlog = "";
+  cr.stderr.on("data", (d) => (crlog += d));
+  const cleanup = () => {
+    try {
+      cr.kill("SIGKILL");
+    } catch {}
+    try {
+      srv.kill("SIGKILL");
+    } catch {}
+  };
+  process.on("exit", cleanup);
+  process.on("SIGINT", () => {
+    cleanup();
+    process.exit(1);
+  });
+
+  let wsUrl = null;
+  for (let i = 0; i < 60; i++) {
+    try {
+      const page = (await getJson("/json")).find(
+        (t) => t.type === "page" && t.webSocketDebuggerUrl,
+      );
+      if (page) {
+        wsUrl = page.webSocketDebuggerUrl;
+        break;
+      }
+    } catch {}
+    await sleep(500);
+  }
+  if (!wsUrl) {
+    console.error(crlog.slice(-800));
+    cleanup();
+    throw new Error("no chrome page target");
+  }
+
+  const c = cdp(wsUrl);
+  await c.ready;
+  await c.send("Page.enable");
+  await c.send("Runtime.enable");
+  await c.send("Page.navigate", { url: `http://localhost:${PORT}/?cpu=68030&compat=normal` });
+
+  console.log(`\nwaiting up to ${WAIT / 1000}s for boot + self-test…`);
+  const t0 = Date.now();
+  let last = null;
+  let result = null;
+  while (Date.now() - t0 < WAIT) {
+    await sleep(2000);
+    const hud = await c.evals("JSON.stringify(window.__hud||null)");
+    const h = hud && !hud.__err ? JSON.parse(hud) : null;
+    if (h) {
+      const line = `  t+${((Date.now() - t0) / 1000).toFixed(0)}s  core:${h.status}  frame:${h.frame}${h.selfTest ? "  self-test:" + (h.selfTest.pass ? "PASS" : "FAIL") : ""}`;
+      if (line !== last) {
+        console.log(line);
+        last = line;
+      }
+      if (h.selfTest) {
+        result = h.selfTest;
+        break;
+      }
+    }
+  }
+
+  c.close();
+  cleanup();
+
+  console.log("\n=== M1 JIT runtime self-test ===");
+  if (!result) {
+    console.log("❌ no self-test result (core Module never reached, or hook never fired).");
+    console.log("   Chrome stderr tail:\n" + crlog.slice(-1000));
+    process.exit(2);
+  }
+  console.log(JSON.stringify(result, null, 2));
+  if (result.pass) {
+    console.log(
+      "\n✅ M1 substrate proven IN-SITU: EM_JS hook → JS → real ABI → block installed in the",
+    );
+    console.log("   core's table → correct mutation of the real 68k reg file + md-generic flags.");
+    process.exit(0);
+  } else {
+    console.log("\n❌ self-test FAILED — see mismatches/error above.");
+    process.exit(1);
+  }
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

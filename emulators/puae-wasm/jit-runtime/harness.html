@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>puae-wasm JIT runtime harness</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0f0f0f;
+        color: #eee;
+        font:
+          13px/1.5 ui-monospace,
+          Menlo,
+          monospace;
+      }
+      #wrap {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      #hud {
+        padding: 6px 10px;
+        background: #161616;
+        border-bottom: 1px solid #262626;
+        white-space: pre-wrap;
+      }
+      #hud b {
+        color: #f78f08;
+      }
+      .ok {
+        color: #2ecc40;
+      }
+      .bad {
+        color: #ff4136;
+      }
+      #game {
+        flex: 1;
+        min-height: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="wrap">
+      <div id="hud">loading…</div>
+      <div id="game"></div>
+    </div>
+    <script type="module">
+      // M1 JIT runtime harness. Boots the JIT-scaffolding core (non-threaded, so
+      // its Module lives on THIS thread and we can reach wasmTable/wasmMemory +
+      // the jit_* ABI), then installs the ejsJitGet self-test the moment the core
+      // Module is up. The EM_JS hook in m68k_run_2_020 calls ejsJitGet(pc) every
+      // instruction; the first call runs the substrate self-test.
+      import { installSelfTest } from "./runtime.mjs";
+
+      const hud = document.getElementById("hud");
+      const W = window;
+      const Q = new URLSearchParams(location.search);
+      const setHud = (html) => (hud.innerHTML = html);
+
+      async function main() {
+        const cfg = await fetch("/config.json").then((r) => r.json());
+
+        // Accelerated AGA path, 68030/normal → dispatches to m68k_run_2_020,
+        // where the M1 hook lives. Overridable via ?cpu=/?compat=.
+        const opts = {
+          "virtual-gamepad": "disabled",
+          puae_model: Q.get("model") || "A1200",
+          puae_cpu_model: Q.get("cpu") || "68030",
+          puae_cpu_compatibility: Q.get("compat") || "normal",
+          puae_immediate_blits: "immediate",
+          puae_fastmem_size: "8",
+          puae_collision_level: "none",
+          ...cfg.options,
+        };
+
+        W.EJS_player = "#game";
+        W.EJS_pathtodata = "/vendor/emulatorjs/";
+        W.EJS_core = "amiga";
+        W.EJS_gameUrl = cfg.gameUrl;
+        W.EJS_biosUrl = cfg.biosUrl;
+        W.EJS_startOnLoaded = true;
+        W.EJS_language = "en";
+        W.EJS_threads = false; // force the non-threaded core (Module on this thread)
+        W.EJS_volume = 0;
+        W.EJS_color = "#f78f08";
+        W.EJS_backgroundColor = "#0f0f0f";
+        W.EJS_defaultOptions = opts;
+
+        const s = document.createElement("script");
+        s.src = "/vendor/emulatorjs/loader.js";
+        document.body.appendChild(s);
+
+        attachWhenReady();
+        poll();
+      }
+
+      // Reach the core Module (EmulatorJS stores it at gameManager.Module) and
+      // install the self-test as soon as the jit ABI + table are present.
+      function attachWhenReady() {
+        const t0 = performance.now();
+        const iv = setInterval(() => {
+          const gm = W.EJS_emulator && W.EJS_emulator.gameManager;
+          const M = gm && gm.Module;
+          if (M && M._jit_abi_regs && M.wasmTable && M.wasmMemory) {
+            clearInterval(iv);
+            try {
+              installSelfTest(M);
+              W.__jitStatus = "installed";
+            } catch (e) {
+              W.__jitStatus = "install-error: " + e;
+            }
+          } else if (performance.now() - t0 > 60000) {
+            clearInterval(iv);
+            W.__jitStatus = "core-module-not-found";
+          }
+        }, 100);
+      }
+
+      function poll() {
+        const gm = () => W.EJS_emulator && W.EJS_emulator.gameManager;
+        setInterval(() => {
+          const g = gm();
+          const frame = g && g.getFrameNum ? g.getFrameNum() : null;
+          const st = W.__jitStatus || "booting";
+          const t = W.__jitSelfTest;
+          W.__hud = { frame, status: st, selfTest: t || null };
+          let line = `<b>JIT runtime harness</b>  core:${st}  frame:${frame}`;
+          if (t) {
+            const cls = t.pass ? "ok" : "bad";
+            line +=
+              `\n  self-test: <span class="${cls}">${t.pass ? "PASS ✅" : "FAIL ❌"}</span>` +
+              `  slot ${t.tableSlot}  ret ${t.blockReturned}  firstPc 0x${(t.firstPc || 0).toString(16)}` +
+              (t.mismatches && t.mismatches.length
+                ? `\n  mismatch: ${t.mismatches.join(", ")}`
+                : "") +
+              (t.error ? `\n  <span class="bad">error: ${t.error}</span>` : "");
+          }
+          setHud(line);
+        }, 300);
+      }
+
+      main().catch((e) => setHud(`<span class="bad">error: ${e}</span>`));
+    </script>
+  </body>
+</html>
