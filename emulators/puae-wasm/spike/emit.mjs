@@ -90,6 +90,7 @@ export const op = {
   block: () => [0x02, 0x40], // block with void blocktype (branch target = block end)
   br: (depth) => concat([0x0c], uleb(depth)),
   brIf: (depth) => concat([0x0d], uleb(depth)),
+  call: (funcIdx) => concat([0x10], uleb(funcIdx)), // direct call (e.g. imported jit_get_long)
   callIndirect: (typeIdx, tableIdx = 0) => concat([0x11], uleb(typeIdx), uleb(tableIdx)),
   end: () => [0x0b],
 };
