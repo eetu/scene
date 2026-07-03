@@ -102,6 +102,17 @@
         W.EJS_backgroundColor = "#0f0f0f";
         W.EJS_defaultOptions = opts;
 
+        // Fast-forward control (drive.mjs warps past the HD boot to the effect).
+        W.__setFF = (on, ratio) => {
+          const gm = W.EJS_emulator && W.EJS_emulator.gameManager;
+          if (!gm || !gm.toggleFastForward) return false;
+          if (on) {
+            if (ratio != null && gm.setFastForwardRatio) gm.setFastForwardRatio(ratio);
+            gm.toggleFastForward(1);
+          } else gm.toggleFastForward(0);
+          return true;
+        };
+
         const s = document.createElement("script");
         s.src = "/vendor/emulatorjs/loader.js";
         document.body.appendChild(s);

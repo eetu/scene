@@ -88,10 +88,50 @@ realising it here means keeping control flow inside the JIT, not just covering
 opcodes. This reorders the plan: **coverage (M2) is necessary but not sufficient;
 chaining (M3) is on the critical path to any measured speedup.**
 
-## Step 2b — real blocks (next)
+## Step 2b — real blocks execute live (done ✅)
 
-After the M2 codegen port, replace the self-test with the real path: on a miss,
-decode the block at `pc`, `recompileCore` it (now with correct `fallPC` return +
-full op/size coverage), install, cache `pc→slot`, return the slot; unsupported
-blocks fall back (return -1). Then verify JIT vs interpreter parity on the live
-demo and measure the fps delta in `../bench/`.
+`installJit` runs the real path: on a miss it decodes the block at `pc` (guest
+words via `_jit_get_word`), recompiles it with `../jit/coreblock.mjs` (real ABI,
+md-generic flags, imported `get_long`/`put_long`, block returns next PC),
+**parity-checks it against `interp.mjs`** from the same entry snapshot (shadow
+memory on both sides so real RAM is never mutated; the JIT block runs on the real
+reg file, then is restored), installs it into the core's `wasmTable`, caches
+`pc→slot`, and returns the slot so the M1 hook runs it. Empty / unsupported /
+parity-mismatch → fall back to the interpreter (-1).
+
+Run: `node drive.mjs --mode jit --ff 24` (and `--mode off` for the interpreter
+control).
+
+### Measured on Dreamscape (TG'96)
+
+- **132 blocks compiled, 132 activated, 0 parity-gate failures** over 38055 unique
+  pcs (436 empty, 190 decode-fallback). Real decoded guest blocks execute through
+  the JIT with verified parity; the demo is byte-for-byte stable (mode=off and
+  mode=jit behave identically).
+- **Emulation throughput (FF): interpreter 65.5 vs JIT 62.8 emulated-frames/
+  wall-sec — the JIT is ~4% SLOWER.** Exactly the predicted pre-chaining result.
+
+### Why it's slower, and what M3 must fix
+
+Two compounding costs, both independent of opcode coverage:
+
+1. **Per-instruction wasm→JS tax.** The M1 hook calls `ejs_jit_get(pc)` — an
+   EM_JS function, i.e. a wasm→JS crossing — *before every instruction*. Even a
+   cached `-1` pays that crossing every instruction. (This design was chosen so
+   the recompiler iterates with zero core rebuilds; it is not how a production
+   dispatch should work.)
+2. **Tiny blocks.** avg ~1 straight-line instr per block, so a JIT'd block does
+   ~1 instruction of useful work then returns to the (JS) dispatcher.
+
+So the payoff needs the dispatch + chaining to live **in wasm**, not JS: a future
+core build should check a `pc→slot` table in C and `call_indirect` on a hit (no
+JS crossing for interpreted instructions), and compiled blocks should **chain**
+directly to their successors (Bcc targets; JIT'd JSR/RTS) so hot loops never
+return to the dispatcher. That is the M3 work; single-block JIT through the
+JS hook cannot win, as measured.
+
+> Note: this baseline is the idle/loader phase — the heavy AGA effect couldn't be
+> measured because these demos render a static frame under headless swiftshader
+> (vblank advances, canvas frozen, in both interp and JIT). The throughput metric
+> (emulated-frames/wall-sec under FF) is rendering-independent and is the fair
+> JIT-vs-interp speed comparison.

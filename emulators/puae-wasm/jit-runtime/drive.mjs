@@ -225,15 +225,35 @@ async function fpsMode(c, crlog, cleanup) {
     console.log("❌ never produced a frame.\n" + crlog.slice(-1000));
     process.exit(2);
   }
-  // wait for animation to start (distinct frames climbing)
-  let prev = 0;
-  for (let i = 0; i < 20; i++) {
+  // Fast-forward past the HD boot / trackload to the heavy effect (unlimited
+  // ratio = as fast as the host manages), then drop back to 1× to measure the
+  // true (host-bound) rate — same approach as bench/measure.mjs.
+  const ff = Number(arg("ff", "35")) * 1000;
+  let ffThroughput = null;
+  if (ff > 0) {
+    console.log(`  fast-forwarding ~${ff / 1000}s (also measures emulation throughput)…`);
+    await c.evals("window.__setFF(true, 0)");
+    await sleep(2000); // let FF spin up before sampling throughput
+    const fh0 = JSON.parse((await c.evals("JSON.stringify(window.__hud||null)")) || "null");
+    const f0 = fh0 ? fh0.frame : 0,
+      w0 = Date.now();
+    const fe = Date.now();
+    while (Date.now() - fe < ff) {
+      await sleep(3000);
+      const h = JSON.parse((await c.evals("JSON.stringify(window.__hud||null)")) || "null");
+      if (h) process.stdout.write(`    ff… frame ${h.frame}  effective ${h.effectiveFps}\n`);
+    }
+    const fh1 = JSON.parse((await c.evals("JSON.stringify(window.__hud||null)")) || "null");
+    const f1 = fh1 ? fh1.frame : 0,
+      w1 = Date.now();
+    ffThroughput = +(((f1 - f0) * 1000) / (w1 - w0)).toFixed(1); // emulated frames / wall-sec
+    console.log(
+      `  FF throughput: ${ffThroughput} emulated-frames/wall-sec (${f1 - f0} frames in ${((w1 - w0) / 1000).toFixed(1)}s)`,
+    );
+    await c.evals("window.__setFF(false)");
     await sleep(1500);
-    const h = JSON.parse((await c.evals("JSON.stringify(window.__hud||null)")) || "null");
-    const eff = h ? h.effectiveFps : 0;
-    if (eff > 3) break;
-    prev = eff;
   }
+  fpsMode._ffThroughput = ffThroughput;
 
   const eff = [],
     vbl = [];
@@ -262,6 +282,8 @@ async function fpsMode(c, crlog, cleanup) {
   const med = (a) => (a.length ? [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] : 0);
   const mean = (a) => (a.length ? +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1) : 0);
   console.log(`\n=== mode=${MODE} — ${eff.length} samples ===`);
+  if (fpsMode._ffThroughput != null)
+    console.log(`FF throughput: ${fpsMode._ffThroughput} emulated-frames/wall-sec`);
   console.log(`effectiveFps: median ${med(eff)}  mean ${mean(eff)}   vblankFps mean ${mean(vbl)}`);
   if (lastStats) console.log("jitStats:", JSON.stringify(lastStats));
   if (gateFails && gateFails.length)
