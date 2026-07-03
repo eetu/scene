@@ -17,12 +17,17 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../../..");
-const VENDOR = join(REPO_ROOT, "apps/party/frontend/static/vendor/emulatorjs");
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
+
+// --vendor overrides the EmulatorJS dir (to serve a JIT-modified core instead of
+// the vendored one). Default: the party app's vendored core.
+const VENDOR = resolve(
+  arg("vendor", join(REPO_ROOT, "apps/party/frontend/static/vendor/emulatorjs")),
+);
 
 const DEMO = arg(
   "demo",

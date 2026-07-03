@@ -192,7 +192,7 @@ async function main() {
   console.log(`chrome: ${chrome}`);
 
   const passthrough = [];
-  for (const k of ["demo", "kick", "target"]) {
+  for (const k of ["demo", "kick", "target", "vendor"]) {
     const val = arg(k, "");
     if (val) passthrough.push(`--${k}`, val);
   }

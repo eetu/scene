@@ -1,0 +1,60 @@
+name: Build PUAE core (JIT M0)
+
+# Builds a JIT-MODIFIED PUAE core: clones EmulatorJS/libretro-uae ourselves,
+# applies emulators/puae-wasm/core/patches/m0-jit-hook.py (adds the EM_JS C<->JS
+# hook, stubbed to always interpret), then runs the normal EmulatorJS build. The
+# pre-clone means build.sh's clone guard skips re-cloning and compiles OUR patched
+# source. Native amd64 (local amd64-under-qemu deadlocks — see puae-core.yml).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [party-puae-wasm-jit]
+    paths:
+      - ".github/workflows/puae-core-jit.yml"
+      - "emulators/puae-wasm/core/patches/**"
+
+jobs:
+  build-puae-jit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget curl gpg p7zip-full binutils-mips-linux-gnu \
+            build-essential pkgconf python3 git zip libsdl2-dev jq
+
+      - name: Set up emsdk 3.1.74
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk && ./emsdk install 3.1.74 && ./emsdk activate 3.1.74
+
+      - name: Clone EmulatorJS/build
+        run: git clone --depth 1 https://github.com/EmulatorJS/build.git
+
+      - name: Clone + patch libretro-uae (M0 JIT hook)
+        run: |
+          mkdir -p build/compile
+          git clone --recurse-submodules https://github.com/EmulatorJS/libretro-uae.git build/compile/puae
+          python3 emulators/puae-wasm/core/patches/m0-jit-hook.py build/compile/puae/sources/src/newcpu.c
+          echo "=== patch markers ==="; grep -n 'ejs_jit_get' build/compile/puae/sources/src/newcpu.c
+
+      - name: Build patched puae core
+        run: |
+          source emsdk/emsdk_env.sh
+          cd build && bash build.sh --core=puae
+
+      - name: List outputs
+        run: find build/output -type f | sort
+
+      - name: Upload patched puae core
+        uses: actions/upload-artifact@v4
+        with:
+          name: puae-wasm-jit-m0
+          path: |
+            build/output/*.data
+            build/output/reports/puae.json
+          if-no-files-found: error
