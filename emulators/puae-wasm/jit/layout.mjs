@@ -26,6 +26,9 @@ export const RAM_MASK = (RAM_BYTES - 1) & ~3; // mask to region + 4-byte align â
 export const iD = (n) => n; // 0..7
 export const iA = (n) => 8 + n; // 8..15
 export const iCCR = 16;
+export const PC_OFF = 68; // guest program counter (byte offset into the program)
+export const iPC = 17;
+export const HALT_PC = 0xffff; // sentinel PC; the runner stops when PC == HALT_PC
 export const iCell = (addr) => (GUEST_BASE + (addr & RAM_MASK)) / 4; // guest addr â†’ i32 index
 export const RAM_CELL0 = GUEST_BASE / 4; // first RAM cell index (64)
 export const RAM_CELLS = RAM_BYTES / 4; // 256

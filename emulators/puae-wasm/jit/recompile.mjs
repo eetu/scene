@@ -230,16 +230,132 @@ function emitInstr(it) {
   }
 }
 
-/** Build a WASM module exporting block():void, importing env.memory. */
-export function recompile(instrs) {
-  const types = w.section(w.S.TYPE, w.vec([w.funcType([], [])]));
-  const imports = w.section(
+// ── condition codes → 0/1 on the stack (bits shifted down to LSB) ──
+const loadCCR = () => [c0(), w.op.i32Load(L.CCR_OFF)];
+const bit = (shift) => [
+  ...loadCCR(),
+  w.op.i32Const(shift),
+  w.op.i32ShrU(),
+  w.op.i32Const(1),
+  w.op.i32And(),
+];
+const bC = () => [...loadCCR(), w.op.i32Const(1), w.op.i32And()]; // bit 0
+const bV = () => bit(1);
+const bZ = () => bit(2);
+const bN = () => bit(3);
+const not = (x) => [...x, w.op.i32Eqz()];
+const and2 = (a, b) => [...a, ...b, w.op.i32And()];
+const or2 = (a, b) => [...a, ...b, w.op.i32Or()];
+const eq2 = (a, b) => [...a, ...b, w.op.i32Eq()];
+const ne2 = (a, b) => [...a, ...b, w.op.i32Ne()];
+function condExpr(cc) {
+  switch (cc) {
+    case 0:
+      return [w.op.i32Const(1)]; // T
+    case 1:
+      return [w.op.i32Const(0)]; // F
+    case 2:
+      return and2(not(bC()), not(bZ())); // HI
+    case 3:
+      return or2(bC(), bZ()); // LS
+    case 4:
+      return not(bC()); // CC
+    case 5:
+      return bC(); // CS
+    case 6:
+      return not(bZ()); // NE
+    case 7:
+      return bZ(); // EQ
+    case 8:
+      return not(bV()); // VC
+    case 9:
+      return bV(); // VS
+    case 10:
+      return not(bN()); // PL
+    case 11:
+      return bN(); // MI
+    case 12:
+      return eq2(bN(), bV()); // GE
+    case 13:
+      return ne2(bN(), bV()); // LT
+    case 14:
+      return and2(not(bZ()), eq2(bN(), bV())); // GT
+    default:
+      return or2(bZ(), ne2(bN(), bV())); // LE (15)
+  }
+}
+// select(a,b,cond): cond!=0 ? a : b
+const sel = (aBytes, bBytes, condBytes) => [...aBytes, ...bBytes, ...condBytes, w.op.select()];
+
+// terminator → bytes that set PC (uses locals LA/LB/LRES, free at block end)
+function emitTerminator(term, fallPC) {
+  if (!term) return storeAt(L.PC_OFF, [w.op.i32Const(fallPC)]);
+  if (term.op === "halt") return storeAt(L.PC_OFF, [w.op.i32Const(L.HALT_PC)]);
+  const target = (term.pc + 2 + term.disp) | 0;
+  if (term.op === "bcc")
+    return storeAt(
+      L.PC_OFF,
+      sel([w.op.i32Const(target)], [w.op.i32Const(fallPC)], condExpr(term.cc)),
+    );
+  // dbcc
+  const dec = [
+    w.op.localGet(LB),
+    w.op.i32Const(0xffff0000 | 0),
+    w.op.i32And(),
+    w.op.localGet(LB),
+    w.op.i32Const(1),
+    w.op.i32Sub(),
+    w.op.i32Const(0xffff),
+    w.op.i32And(),
+    w.op.i32Or(),
+  ];
+  const cntNotMinus1 = [
+    w.op.localGet(LRES),
+    w.op.i32Const(0xffff),
+    w.op.i32And(),
+    w.op.i32Const(0xffff),
+    w.op.i32Ne(),
+  ];
+  const branchTaken = [...[w.op.localGet(LA), w.op.i32Eqz()], ...cntNotMinus1, w.op.i32And()]; // !cond && cnt!=-1
+  return [
+    ...condExpr(term.cc),
+    w.op.localSet(LA),
+    ...loadD(term.dn),
+    w.op.localSet(LB),
+    ...dec,
+    w.op.localSet(LRES),
+    ...storeAt(L.DREG(term.dn), [
+      w.op.localGet(LB),
+      w.op.localGet(LRES),
+      w.op.localGet(LA),
+      w.op.select(),
+    ]), // cond?keep:dec
+    ...storeAt(L.PC_OFF, sel([w.op.i32Const(target)], [w.op.i32Const(fallPC)], branchTaken)),
+  ];
+}
+
+const IMPORTS = () =>
+  w.section(
     w.S.IMPORT,
     w.vec([w.concat(w.str("env"), w.str("memory"), [0x02], w.memType({ min: 1 }))]),
   );
+function buildModule(bodyBytes) {
+  const types = w.section(w.S.TYPE, w.vec([w.funcType([], [])]));
   const funcs = w.section(w.S.FUNC, w.vec([w.uleb(0)]));
   const exports = w.section(w.S.EXPORT, w.vec([w.concat(w.str("block"), [0x00], w.uleb(0))]));
-  const instrBytes = instrs.flatMap(emitInstr);
-  const code = w.section(w.S.CODE, w.vec([w.body([{ count: 5, type: w.I32 }], instrBytes)]));
-  return w.module([types, imports, funcs, exports, code]);
+  const code = w.section(w.S.CODE, w.vec([w.body([{ count: 5, type: w.I32 }], bodyBytes)]));
+  return w.module([types, IMPORTS(), funcs, exports, code]);
+}
+
+/** Straight-line block → WASM module (no PC/terminator). */
+export function recompile(instrs) {
+  return buildModule(instrs.flatMap(emitInstr));
+}
+
+/** Basic block (from blockAt) → WASM module that also sets PC per the terminator. */
+export function recompileBlock(block) {
+  return buildModule([
+    ...block.instrs.flatMap(emitInstr),
+    ...emitTerminator(block.term, block.fallPC),
+  ]);
 }

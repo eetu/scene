@@ -85,6 +85,7 @@ export const op = {
   i32Shl: () => [0x74],
   i32ShrS: () => [0x75],
   i32ShrU: () => [0x76],
+  select: () => [0x1b], // stack [a, b, cond] → cond!=0 ? a : b
   callIndirect: (typeIdx, tableIdx = 0) => concat([0x11], uleb(typeIdx), uleb(tableIdx)),
   end: () => [0x0b],
 };

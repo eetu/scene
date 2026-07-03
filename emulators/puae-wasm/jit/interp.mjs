@@ -2,7 +2,7 @@
 // validated against (jit/difftest.mjs). Operates on an Int32Array `s` laid out
 // per layout.mjs (D0..D7, A0..A7, CCR, guest RAM cells).
 import * as L from "./layout.mjs";
-import { decodeBlock } from "./decode.mjs";
+import { decodeBlock, blockAt } from "./decode.mjs";
 
 export const CCR = L.iCCR;
 
@@ -65,84 +65,169 @@ function writeEA(s, ea, val) {
   }
 }
 
-/** Run a block (raw words) against state s (Int32Array), in place. */
-export function runInterp(words, s) {
-  for (const d of decodeBlock(words)) {
-    switch (d.op) {
-      case "moveq": {
-        const res = d.imm | 0;
-        s[L.iD(d.dn)] = res;
-        s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
-        break;
-      }
-      case "addq": {
-        const a = s[L.iD(d.dn)];
-        const res = (a + d.imm) | 0;
-        s[L.iD(d.dn)] = res;
-        s[CCR] = flagsAdd(a, d.imm, res);
-        break;
-      }
-      case "add": {
-        const a = s[L.iD(d.dx)];
-        const b = s[L.iD(d.dy)];
-        const res = (a + b) | 0;
-        s[L.iD(d.dx)] = res;
-        s[CCR] = flagsAdd(a, b, res);
-        break;
-      }
-      case "sub": {
-        const a = s[L.iD(d.dx)];
-        const b = s[L.iD(d.dy)];
-        const res = (a - b) | 0;
-        s[L.iD(d.dx)] = res;
-        s[CCR] = flagsSub(a, b, res);
-        break;
-      }
-      case "move": {
-        const val = readEA(s, d.src); // src side effects first
-        writeEA(s, d.dst, val); // then dst side effects
-        s[CCR] = (s[CCR] & L.X) | (val < 0 ? L.N : 0) | (val === 0 ? L.Z : 0); // NZ, V=C=0
-        break;
-      }
-      case "movea": {
-        s[L.iA(d.dst.n)] = readEA(s, d.src) | 0; // MOVEA.L: no flags
-        break;
-      }
-      case "and":
-      case "or":
-      case "eor": {
-        // AND/OR to Dx; EOR of Dx into Dy. N,Z from result; V=C=0; X preserved.
-        const dst = d.op === "eor" ? d.dy : d.dx;
-        const a = s[L.iD(dst)];
-        const b = d.op === "eor" ? s[L.iD(d.dx)] : s[L.iD(d.dy)];
-        const res = (d.op === "and" ? a & b : d.op === "or" ? a | b : a ^ b) | 0;
-        s[L.iD(dst)] = res;
-        s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
-        break;
-      }
-      case "cmp": {
-        // Dx - Dy, flags only (no writeback). CMP does NOT affect X.
-        const a = s[L.iD(d.dx)];
-        const b = s[L.iD(d.dy)];
-        const res = (a - b) | 0;
-        s[CCR] = (flagsSub(a, b, res) & ~L.X) | (s[CCR] & L.X);
-        break;
-      }
-      case "not": {
-        const res = ~s[L.iD(d.dn)] | 0;
-        s[L.iD(d.dn)] = res;
-        s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
-        break;
-      }
-      case "neg": {
-        const b = s[L.iD(d.dn)];
-        const res = (0 - b) | 0;
-        s[L.iD(d.dn)] = res;
-        s[CCR] = flagsSub(0, b, res); // X:=C, correct for NEG
-        break;
-      }
-      default:
-        throw new Error(`interp: unhandled ${d.op}`);
+/** Execute one non-control-flow instruction against state s. */
+export function execOne(d, s) {
+  switch (d.op) {
+    case "moveq": {
+      const res = d.imm | 0;
+      s[L.iD(d.dn)] = res;
+      s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
+      break;
     }
+    case "addq": {
+      const a = s[L.iD(d.dn)];
+      const res = (a + d.imm) | 0;
+      s[L.iD(d.dn)] = res;
+      s[CCR] = flagsAdd(a, d.imm, res);
+      break;
+    }
+    case "add": {
+      const a = s[L.iD(d.dx)];
+      const b = s[L.iD(d.dy)];
+      const res = (a + b) | 0;
+      s[L.iD(d.dx)] = res;
+      s[CCR] = flagsAdd(a, b, res);
+      break;
+    }
+    case "sub": {
+      const a = s[L.iD(d.dx)];
+      const b = s[L.iD(d.dy)];
+      const res = (a - b) | 0;
+      s[L.iD(d.dx)] = res;
+      s[CCR] = flagsSub(a, b, res);
+      break;
+    }
+    case "move": {
+      const val = readEA(s, d.src); // src side effects first
+      writeEA(s, d.dst, val); // then dst side effects
+      s[CCR] = (s[CCR] & L.X) | (val < 0 ? L.N : 0) | (val === 0 ? L.Z : 0); // NZ, V=C=0
+      break;
+    }
+    case "movea": {
+      s[L.iA(d.dst.n)] = readEA(s, d.src) | 0; // MOVEA.L: no flags
+      break;
+    }
+    case "and":
+    case "or":
+    case "eor": {
+      // AND/OR to Dx; EOR of Dx into Dy. N,Z from result; V=C=0; X preserved.
+      const dst = d.op === "eor" ? d.dy : d.dx;
+      const a = s[L.iD(dst)];
+      const b = d.op === "eor" ? s[L.iD(d.dx)] : s[L.iD(d.dy)];
+      const res = (d.op === "and" ? a & b : d.op === "or" ? a | b : a ^ b) | 0;
+      s[L.iD(dst)] = res;
+      s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
+      break;
+    }
+    case "cmp": {
+      // Dx - Dy, flags only (no writeback). CMP does NOT affect X.
+      const a = s[L.iD(d.dx)];
+      const b = s[L.iD(d.dy)];
+      const res = (a - b) | 0;
+      s[CCR] = (flagsSub(a, b, res) & ~L.X) | (s[CCR] & L.X);
+      break;
+    }
+    case "not": {
+      const res = ~s[L.iD(d.dn)] | 0;
+      s[L.iD(d.dn)] = res;
+      s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
+      break;
+    }
+    case "neg": {
+      const b = s[L.iD(d.dn)];
+      const res = (0 - b) | 0;
+      s[L.iD(d.dn)] = res;
+      s[CCR] = flagsSub(0, b, res); // X:=C, correct for NEG
+      break;
+    }
+    default:
+      throw new Error(`interp: unhandled ${d.op}`);
   }
+}
+
+// Evaluate a 68k condition code (0..15) against CCR in state s → boolean.
+export function evalCond(cc, s) {
+  const ccr = s[CCR];
+  const C = (ccr & L.C) !== 0,
+    V = (ccr & L.V) !== 0,
+    Z = (ccr & L.Z) !== 0,
+    N = (ccr & L.N) !== 0;
+  switch (cc) {
+    case 0:
+      return true; // T
+    case 1:
+      return false; // F
+    case 2:
+      return !C && !Z; // HI
+    case 3:
+      return C || Z; // LS
+    case 4:
+      return !C; // CC/HS
+    case 5:
+      return C; // CS/LO
+    case 6:
+      return !Z; // NE
+    case 7:
+      return Z; // EQ
+    case 8:
+      return !V; // VC
+    case 9:
+      return V; // VS
+    case 10:
+      return !N; // PL
+    case 11:
+      return N; // MI
+    case 12:
+      return N === V; // GE
+    case 13:
+      return N !== V; // LT
+    case 14:
+      return !Z && N === V; // GT
+    default:
+      return Z || N !== V; // LE (15)
+  }
+}
+
+// Execute a basic block (from blockAt) against state s, updating PC.
+export function interpBlock(block, s) {
+  for (const d of block.instrs) execOne(d, s);
+  const t = block.term;
+  if (!t) {
+    s[L.iPC] = block.fallPC; // hit maxInstrs → fall through
+    return;
+  }
+  if (t.op === "halt") {
+    s[L.iPC] = L.HALT_PC;
+    return;
+  }
+  const target = (t.pc + 2 + t.disp) | 0;
+  if (t.op === "bcc") {
+    s[L.iPC] = evalCond(t.cc, s) ? target : block.fallPC;
+    return;
+  }
+  // dbcc: if cond true → fall through (no decrement); else decrement Dn.w and
+  // branch unless it wrapped past 0 (word == -1).
+  if (evalCond(t.cc, s)) {
+    s[L.iPC] = block.fallPC;
+  } else {
+    const dn = s[L.iD(t.dn)];
+    const cnt = (dn - 1) & 0xffff;
+    s[L.iD(t.dn)] = (dn & 0xffff0000) | cnt;
+    s[L.iPC] = cnt !== 0xffff ? target : block.fallPC;
+  }
+}
+
+// Run a program (words) from state s.PC until HALT_PC or the block budget.
+export function runProgram(words, s, budget = 100000) {
+  let steps = 0;
+  while (steps < budget && (s[L.iPC] & 0xffff) !== L.HALT_PC) {
+    interpBlock(blockAt(words, s[L.iPC]), s);
+    steps++;
+  }
+  return steps;
+}
+
+/** Run a straight-line block (raw words) against state s, in place. */
+export function runInterp(words, s) {
+  for (const d of decodeBlock(words)) execOne(d, s);
 }

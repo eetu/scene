@@ -75,6 +75,26 @@ export function decodeAt(words, i) {
     if (!dst || dst.ea === "imm") return [null, i];
     return [{ op: "move", dst, src }, k];
   }
+  // ILLEGAL 0x4AFC — used here as a HALT sentinel for the runner/tests.
+  if (w === 0x4afc) return [{ op: "halt", term: true }, i + 1];
+  // Bcc / BRA : 0110 cccc dddddddd  (cc=0 BRA; cc=1 BSR, unsupported)
+  if ((w & 0xf000) === 0x6000) {
+    const cc = (w >> 8) & 0xf;
+    if (cc === 1) return [null, i]; // BSR not supported yet
+    const d8 = w & 0xff;
+    // pc0 = byte address of this instruction; targets are relative to pc0+2.
+    if (d8 === 0) {
+      const disp = sign16(words[i + 1]);
+      return [{ op: "bcc", cc, disp, len: 4, term: true }, i + 2];
+    }
+    return [{ op: "bcc", cc, disp: sign8(d8), len: 2, term: true }, i + 1];
+  }
+  // DBcc : 0101 cccc 11 001 rrr  + 16-bit disp
+  if ((w & 0xf0f8) === 0x50c8) {
+    const cc = (w >> 8) & 0xf;
+    const disp = sign16(words[i + 1]);
+    return [{ op: "dbcc", cc, dn: w & 7, disp, len: 4, term: true }, i + 2];
+  }
   return [null, i];
 }
 
@@ -90,4 +110,32 @@ export function decodeBlock(words) {
     i = next;
   }
   return out;
+}
+
+/**
+ * Split the basic block starting at byte address `pcByte` from a program (array
+ * of words). Collects non-terminator instructions until a control-flow op
+ * (term:true) or `maxInstrs`. Returns { startPC, instrs, term, fallPC } where
+ * term is the terminator instr (with .pc set) or null (block hit maxInstrs), and
+ * fallPC is the byte address immediately after the block (the not-taken path).
+ */
+export function blockAt(words, pcByte, maxInstrs = 64) {
+  let i = pcByte >> 1;
+  const instrs = [];
+  let term = null;
+  while (instrs.length < maxInstrs && i < words.length) {
+    const iByte = i * 2;
+    const [instr, next] = decodeAt(words, i);
+    if (!instr)
+      throw new Error(`unhandled opcode 0x${words[i].toString(16).padStart(4, "0")} @${iByte}`);
+    instr.pc = iByte;
+    instr.len = (next - i) * 2;
+    i = next;
+    if (instr.term) {
+      term = instr;
+      break;
+    }
+    instrs.push(instr);
+  }
+  return { startPC: pcByte, instrs, term, fallPC: i * 2 };
 }
