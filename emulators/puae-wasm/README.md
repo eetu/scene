@@ -51,15 +51,20 @@ Two facts shrink "general Amiga JIT" to something buildable:
   - Residual risk carried into Phase 1: the *Emscripten* PUAE ABI (growable
     `__indirect_function_table`, memory import, fn-pointer==table-index). Needs
     `emcc` to confirm — first Phase-1 task.
-- **Phase 1 — Reproducible core build.**
-  - `phase1-abi/` — **✅ DONE.** Validated the three Emscripten hooks against a
-    real emcc-compiled core: growable `__indirect_function_table`, a runtime
-    block importing the core's `memory`, and fn-pointer==table-index C dispatch.
-    The residual Phase-0 risk is retired — the JIT substrate is proven end-to-end.
-  - Next: fork libretro-uae + the EmulatorJS core-build (Emscripten + RetroArch
-    `dist-scripts`); rebuild an *unmodified* `puae-wasm.data` (with
-    `-sALLOW_TABLE_GROWTH`) that boots our demos identically. De-risks the
-    toolchain.
+- **Phase 1 — Reproducible core build. ✅ DONE.**
+  - `phase1-abi/` — validated the three Emscripten hooks against a real
+    emcc-compiled core: growable `__indirect_function_table`, a runtime block
+    importing the core's `memory`, and fn-pointer==table-index C dispatch. The
+    residual Phase-0 risk is retired — the JIT substrate is proven end-to-end.
+  - `core/` — reproduces the puae core from source (`EmulatorJS/libretro-uae` +
+    RetroArch, emsdk 3.1.74). **Built all 4 variants on CI**
+    (`.github/workflows/puae-core.yml`, `ubuntu-latest`), each matching the
+    vendored `puae-*.data` within ~0.3% and structurally identical (7z of
+    `puae_libretro.{js,wasm}` + core.json). Local amd64 builds **deadlock under
+    qemu-TCG on Apple Silicon** at emscripten's final JS link (the wasm compiles,
+    then hangs at 0% CPU), so the core is built on the native-amd64 runner; the
+    `core/` podman flow stays for local compile/iteration up to the wasm.
+  - Next (Phase 2): rebuild with `-sALLOW_TABLE_GROWTH` + the recompiler hooks.
 - **Phase 2 — Recompiler MVP.** 68020 decoder → IR → WASM codegen for the common
   integer/addressing subset; interpreter fallback for the rest; inline chip/fast
   RAM access, helper calls for custom-chip/IO regions. Validate against
