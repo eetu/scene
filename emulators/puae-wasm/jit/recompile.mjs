@@ -195,6 +195,54 @@ function emitInstr(it) {
         ...storeAt(L.DREG(it.dn), [w.op.localGet(LRES)]),
         ...storeAt(L.CCR_OFF, ccrSub()),
       ];
+    case "asl":
+    case "lsl":
+    case "asr":
+    case "lsr": {
+      // .L shift by immediate n (1..8). LA=val, LRES=result. C=last bit out; X:=C.
+      const n = it.cnt;
+      const left = it.op === "asl" || it.op === "lsl";
+      const shift = left ? w.op.i32Shl() : it.op === "asr" ? w.op.i32ShrS() : w.op.i32ShrU();
+      const cBit = left
+        ? [
+            w.op.localGet(LA),
+            w.op.i32Const(32 - n),
+            w.op.i32ShrU(),
+            w.op.i32Const(1),
+            w.op.i32And(),
+          ]
+        : [
+            w.op.localGet(LA),
+            w.op.i32Const(n - 1),
+            w.op.i32ShrU(),
+            w.op.i32Const(1),
+            w.op.i32And(),
+          ];
+      const xBit = [...cBit, w.op.i32Const(4), w.op.i32Shl()];
+      // ASL V: set if the top (n+1) bits aren't all equal (sar(val,31-n) ∉ {0,-1})
+      const top = [w.op.localGet(LA), w.op.i32Const(31 - n), w.op.i32ShrS()];
+      const vBit =
+        it.op === "asl"
+          ? [
+              ...[...top, w.op.i32Eqz()],
+              ...[...top, w.op.i32Const(-1), w.op.i32Eq()],
+              w.op.i32Or(),
+              w.op.i32Eqz(),
+              w.op.i32Const(1),
+              w.op.i32Shl(),
+            ]
+          : [w.op.i32Const(0)];
+      return [
+        ...loadD(it.dn),
+        w.op.localSet(LA),
+        w.op.localGet(LA),
+        w.op.i32Const(n),
+        shift,
+        w.op.localSet(LRES),
+        ...storeAt(L.DREG(it.dn), [w.op.localGet(LRES)]),
+        ...storeAt(L.CCR_OFF, orAll([termN(LRES), termZ(LRES), vBit, cBit, xBit])),
+      ];
+    }
     case "move": {
       const code = [];
       if (isMem(it.src)) code.push(...eaAddr(it.src, LADDR));

@@ -59,7 +59,15 @@ const aluEA = (base, allowA) => {
 
 // instruction generators → array of words
 function randInstr() {
-  switch (ri(14)) {
+  switch (ri(18)) {
+    case 14:
+      return [0xe080 | (ri(8) << 9) | ri(8)]; // ASR.L #cnt,Dn
+    case 15:
+      return [0xe180 | (ri(8) << 9) | ri(8)]; // ASL.L #cnt,Dn
+    case 16:
+      return [0xe088 | (ri(8) << 9) | ri(8)]; // LSR.L #cnt,Dn
+    case 17:
+      return [0xe188 | (ri(8) << 9) | ri(8)]; // LSL.L #cnt,Dn
     case 8:
       return aluEA(0xc000, false); // AND.L <ea>,Dn
     case 9:

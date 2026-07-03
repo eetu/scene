@@ -33,6 +33,9 @@ node cftest.mjs              # control flow: multi-block program vs interpreter
   ADDQ.L, EOR Dx,Dy, NOT/NEG Dn — full **CCR flags (X N Z V C)** in generated WASM
   (carry/borrow via `i32.lt_u`, signed overflow via the xor-and-sign trick; X:=C
   for add/sub/neg, X preserved for logic/moveq, CMP leaves X untouched).
+- **Shifts (.L, immediate count 1..8):** ASL/ASR/LSL/LSR — C = last bit out, X:=C,
+  N/Z from result, and ASL's V (set when the sign bit changes) via the
+  `sar(val,31-n) ∉ {0,-1}` test.
 - **Data movement + memory:** MOVE.L / MOVEA.L with **EA modes** Dn, An, (An),
   (An)+, -(An), (d16,An), abs.L, #imm — guest-RAM load/store inlined as
   `(GUEST_BASE + (addr & RAM_MASK))`, with (An)+/-(An) register side effects and

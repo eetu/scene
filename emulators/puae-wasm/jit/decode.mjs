@@ -63,6 +63,15 @@ export function decodeAt(words, i) {
   if ((w & 0xfff8) === 0x4680) return [{ op: "not", dn: w & 7 }, i + 1];
   // NEG.L Dn : 0100 0100 10 000 nnn
   if ((w & 0xfff8) === 0x4480) return [{ op: "neg", dn: w & 7 }, i + 1];
+  // Shift/rotate .L, immediate count : 1110 ccc d 10 0 tt nnn  (cnt 1..8, 0→8)
+  {
+    const shf = { 0xe080: "asr", 0xe180: "asl", 0xe088: "lsr", 0xe188: "lsl" };
+    const op = shf[w & 0xf1f8];
+    if (op) {
+      const c = (w >> 9) & 7;
+      return [{ op, cnt: c === 0 ? 8 : c, dn: w & 7 }, i + 1];
+    }
+  }
   // MOVE.L / MOVEA.L : 0010 (dstReg dstMode) (srcMode srcReg)
   if ((w & 0xf000) === 0x2000) {
     const dstReg = (w >> 9) & 7;

@@ -148,6 +148,26 @@ export function execOne(d, s) {
       s[CCR] = flagsSub(0, b, res); // X:=C, correct for NEG
       break;
     }
+    case "asl":
+    case "lsl":
+    case "asr":
+    case "lsr": {
+      // .L shift by immediate count n (1..8). C = last bit shifted out; X:=C;
+      // N,Z from result; V=0 except ASL (set if the sign bit changed).
+      const n = d.cnt;
+      const v = s[L.iD(d.dn)];
+      const left = d.op === "asl" || d.op === "lsl";
+      const res = (left ? v << n : d.op === "asr" ? v >> n : v >>> n) | 0;
+      const c = (left ? (v >>> (32 - n)) & 1 : (v >>> (n - 1)) & 1) ? L.C : 0;
+      let vf = 0;
+      if (d.op === "asl") {
+        const top = v >> (31 - n); // arithmetic: 0 or -1 iff sign bits all equal
+        vf = top === 0 || top === -1 ? 0 : L.V;
+      }
+      s[L.iD(d.dn)] = res;
+      s[CCR] = (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0) | vf | c | (c ? L.X : 0);
+      break;
+    }
     default:
       throw new Error(`interp: unhandled ${d.op}`);
   }
