@@ -366,8 +366,12 @@ async fn api_rename(
     State(state): State<AppState>,
     Json(req): Json<RenameIn>,
 ) -> AppResult<Json<Value>> {
-    let group =
-        clean_segment(&req.group).ok_or_else(|| AppError::BadRequest("invalid group".into()))?;
+    // A blank group means "no group" → the canonical _groupless directory.
+    let group = if req.group.trim().is_empty() {
+        crate::scan::GROUPLESS.to_string()
+    } else {
+        clean_segment(&req.group).ok_or_else(|| AppError::BadRequest("invalid group".into()))?
+    };
     let filename = clean_segment(&req.filename)
         .ok_or_else(|| AppError::BadRequest("invalid filename".into()))?;
     if !crate::scan::has_module_ext(&filename) {

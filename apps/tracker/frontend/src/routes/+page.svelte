@@ -316,8 +316,13 @@
     return list;
   });
 
+  // Canonical "no group" bucket: files under the _groupless/ dir (or with an
+  // empty group) collect here. Shown as "Groupless", pinned last, styled apart.
+  const GROUPLESS = "_groupless";
+  const GROUPLESS_LABEL = "Groupless";
+
   function keyOf(t: Track): string {
-    if (groupBy === "group") return t.group || "(none)";
+    if (groupBy === "group") return t.group || GROUPLESS;
     if (groupBy === "artist") return t.artist || "(unknown artist)";
     return t.ext.toUpperCase();
   }
@@ -347,6 +352,10 @@
       a[0].localeCompare(b[0], undefined, { sensitivity: "base" });
     const plays = (items: Track[]) => items.reduce((n, t) => n + t.play_count, 0);
     return Object.entries(acc).sort((a, b) => {
+      // Groupless always sinks to the bottom, whatever the bucket sort is.
+      const ag = a[0] === GROUPLESS;
+      const bg = b[0] === GROUPLESS;
+      if (ag !== bg) return ag ? 1 : -1;
       if (groupSort === "plays") return plays(b[1]) - plays(a[1]) || byName(a, b);
       if (groupSort === "size") return b[1].length - a[1].length || byName(a, b);
       return byName(a, b);
@@ -354,9 +363,11 @@
   });
 
   function subLabel(t: Track): string {
+    // A groupless track has no real group to show as a prefix.
+    const grp = t.group === GROUPLESS ? "" : t.group;
     if (groupBy === "group") return t.artist ?? "—";
-    if (groupBy === "artist") return t.group;
-    return t.artist ? `${t.group} · ${t.artist}` : t.group;
+    if (groupBy === "artist") return grp || "—";
+    return [grp, t.artist].filter(Boolean).join(" · ") || "—";
   }
 
   // A row's label is rendered as styled parts (not one string): the *other*
@@ -599,7 +610,9 @@
 
   function startEdit(t: Track) {
     editingTrack = t;
-    dGroup = t.group;
+    // Show groupless tracks with a blank group field — and blank saves back to
+    // groupless (the backend maps an empty group to the _groupless/ dir).
+    dGroup = t.group === GROUPLESS ? "" : t.group;
     dArtist = t.artist ?? "";
     dFilename = t.filename;
     renameError = null;
@@ -895,13 +908,16 @@
             style:transform="translateY({v.start}px)"
           >
             {#if row?.kind === "header"}
+              {@const isGroupless = row.name === GROUPLESS}
               <button
                 class="card head"
                 class:closed={!row.open}
+                class:groupless={isGroupless}
                 onclick={() => toggleGroup(row.name)}
                 aria-expanded={row.open}
               >
-                <span class="grp-name">{row.name}</span>
+                <span class="grp-name">{isGroupless ? GROUPLESS_LABEL : row.name}</span>
+                {#if isGroupless}<span class="grp-tag">no group</span>{/if}
                 <span class="grp-count">{row.count}</span>
               </button>
             {:else if row?.kind === "track"}
@@ -992,7 +1008,7 @@
       <h3>rename / move <span class="fmt">{et.ext}</span></h3>
       <label>
         group
-        <input bind:value={dGroup} placeholder="group" />
+        <input bind:value={dGroup} placeholder="group (blank = groupless)" />
       </label>
       <label>
         artist
@@ -1576,6 +1592,22 @@
     margin-left: auto;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
+  }
+  /* Groupless bucket: pinned last (see the groups sort) and set apart — muted +
+     italic, with a heavier top rule as a divider from the real groups above.
+     (border-box keeps the 2px border from changing the virtualizer's row height.) */
+  .head.groupless {
+    border-top: 2px solid var(--border);
+    color: var(--muted);
+    font-style: italic;
+  }
+  .grp-tag {
+    font-style: normal;
+    font-size: 11px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
   }
   .li {
     display: flex;
