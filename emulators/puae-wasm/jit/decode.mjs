@@ -63,6 +63,47 @@ export function decodeAt(words, i) {
   if ((w & 0xfff8) === 0x4680) return [{ op: "not", dn: w & 7 }, i + 1];
   // NEG.L Dn : 0100 0100 10 000 nnn
   if ((w & 0xfff8) === 0x4480) return [{ op: "neg", dn: w & 7 }, i + 1];
+  // EXT.L Dn : 0100 1000 11 000 nnn ; SWAP Dn : 0100 1000 01 000 nnn
+  if ((w & 0xfff8) === 0x48c0) return [{ op: "ext", dn: w & 7 }, i + 1];
+  if ((w & 0xfff8) === 0x4840) return [{ op: "swap", dn: w & 7 }, i + 1];
+  // Immediate ALU .L → Dn : ORI/ANDI/SUBI/ADDI/EORI/CMPI #imm32,Dn (dst mode 000)
+  {
+    const imm = {
+      0x0080: "or",
+      0x0280: "and",
+      0x0480: "sub",
+      0x0680: "add",
+      0x0a80: "eori",
+      0x0c80: "cmp",
+    };
+    const op = imm[w & 0xfff8];
+    if (op) {
+      const val = (words[i + 1] << 16) | words[i + 2] | 0;
+      if (op === "eori") return [{ op: "eori", dn: w & 7, imm: val }, i + 3];
+      return [{ op, dn: w & 7, src: { ea: "imm", val } }, i + 3];
+    }
+  }
+  // TST.L <ea> : 0100 1010 10 mmm rrr
+  if ((w & 0xffc0) === 0x4a80) {
+    const [src, j] = decodeEA((w >> 3) & 7, w & 7, words, i + 1);
+    if (src && src.ea !== "a") return [{ op: "tst", src }, j];
+  }
+  // CLR.L <ea> : 0100 0010 10 mmm rrr
+  if ((w & 0xffc0) === 0x4280) {
+    const [dst, j] = decodeEA((w >> 3) & 7, w & 7, words, i + 1);
+    if (dst && dst.ea !== "a" && dst.ea !== "imm") return [{ op: "clr", dst }, j];
+  }
+  // ADDA/SUBA/CMPA.L <ea>,An (opmode 111) ; LEA <ea>,An
+  {
+    const aOps = { 0xd1c0: "adda", 0x91c0: "suba", 0xb1c0: "cmpa", 0x41c0: "lea" };
+    const op = aOps[w & 0xf1c0];
+    if (op) {
+      const [src, j] = decodeEA((w >> 3) & 7, w & 7, words, i + 1);
+      // LEA needs a control address (no Dn/An/imm/(An)+/-(An))
+      const okLea = src && (src.ea === "ind" || src.ea === "disp" || src.ea === "abs");
+      if (op === "lea" ? okLea : src) return [{ op, an: (w >> 9) & 7, src }, j];
+    }
+  }
   // Shift/rotate .L, immediate count : 1110 ccc d 10 0 tt nnn  (cnt 1..8, 0→8)
   {
     const shf = { 0xe080: "asr", 0xe180: "asl", 0xe088: "lsr", 0xe188: "lsl" };

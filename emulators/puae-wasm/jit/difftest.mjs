@@ -57,9 +57,46 @@ const aluEA = (base, allowA) => {
   return [base | (dn << 9) | (0b010 << 6) | (s.mode << 3) | s.reg, ...s.ext];
 };
 
+// immediate ALU #imm32,Dn (ADDI/SUBI/ANDI/ORI/EORI/CMPI)
+const immI = () => {
+  const base = [0x0680, 0x0480, 0x0280, 0x0080, 0x0a80, 0x0c80][ri(6)];
+  const v = r32();
+  return [base | ri(8), (v >>> 16) & 0xffff, v & 0xffff];
+};
+// LEA needs a control address: (An), (d16,An), or abs.L
+const memEA_disp = () => ({ mode: 5, reg: ri(8), ext: [ri(0x10000)] });
+const memEA_abs = () => {
+  const a = r32();
+  return { mode: 7, reg: 1, ext: [(a >>> 16) & 0xffff, a & 0xffff] };
+};
+const leaEA = () => [{ mode: 2, reg: ri(8), ext: [] }, memEA_disp(), memEA_abs()][ri(3)];
+const eaWord = (base, an, s) => [base | (an << 9) | (s.mode << 3) | s.reg, ...s.ext];
+
 // instruction generators → array of words
 function randInstr() {
-  switch (ri(18)) {
+  switch (ri(27)) {
+    case 18:
+      return immI(); // ADDI/SUBI/ANDI/ORI/EORI/CMPI #imm,Dn
+    case 19: {
+      const s = [memEA, immEA, dEA][ri(3)]();
+      return [0x4a80 | (s.mode << 3) | s.reg, ...s.ext]; // TST.L <ea>
+    }
+    case 20: {
+      const s = [memEA, dEA][ri(2)]();
+      return [0x4280 | (s.mode << 3) | s.reg, ...s.ext]; // CLR.L <ea>
+    }
+    case 21:
+      return eaWord(0xd1c0, ri(8), anySrc()); // ADDA.L <ea>,An
+    case 22:
+      return eaWord(0x91c0, ri(8), anySrc()); // SUBA.L <ea>,An
+    case 23:
+      return eaWord(0xb1c0, ri(8), anySrc()); // CMPA.L <ea>,An
+    case 24:
+      return eaWord(0x41c0, ri(8), leaEA()); // LEA <ea>,An
+    case 25:
+      return [0x48c0 | ri(8)]; // EXT.L Dn
+    case 26:
+      return [0x4840 | ri(8)]; // SWAP Dn
     case 14:
       return [0xe080 | (ri(8) << 9) | ri(8)]; // ASR.L #cnt,Dn
     case 15:

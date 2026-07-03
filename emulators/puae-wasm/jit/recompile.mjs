@@ -243,6 +243,79 @@ function emitInstr(it) {
         ...storeAt(L.CCR_OFF, orAll([termN(LRES), termZ(LRES), vBit, cBit, xBit])),
       ];
     }
+    case "eori": // Dn ^= imm; N,Z; V=C=0; X preserved
+      return [
+        ...loadD(it.dn),
+        w.op.i32Const(it.imm),
+        w.op.i32Xor(),
+        w.op.localSet(LRES),
+        ...storeAt(L.DREG(it.dn), [w.op.localGet(LRES)]),
+        ...storeAt(L.CCR_OFF, ccrMoveNZ()),
+      ];
+    case "tst": {
+      // read <ea> value → LRES, flags only, no writeback
+      const code = [];
+      if (isMem(it.src)) code.push(...eaAddr(it.src, LADDR));
+      code.push(...srcVal(it.src, LADDR), w.op.localSet(LRES));
+      code.push(...storeAt(L.CCR_OFF, ccrMoveNZ()));
+      return code;
+    }
+    case "clr": {
+      // write 0 to <ea>; Z=1, N=V=C=0, X preserved
+      const code = [];
+      if (isMem(it.dst)) code.push(...eaAddr(it.dst, LADDR));
+      if (it.dst.ea === "d") code.push(...storeAt(L.DREG(it.dst.n), [w.op.i32Const(0)]));
+      else code.push(...memStore(LADDR, [w.op.i32Const(0)]));
+      code.push(...storeAt(L.CCR_OFF, [...xOld(), w.op.i32Const(4), w.op.i32Or()])); // X | Z
+      return code;
+    }
+    case "adda":
+    case "suba": {
+      // An = An ± src; no flags
+      const bin = it.op === "adda" ? w.op.i32Add() : w.op.i32Sub();
+      const code = [];
+      if (isMem(it.src)) code.push(...eaAddr(it.src, LADDR));
+      code.push(...storeAt(L.AREG(it.an), [...loadA(it.an), ...srcVal(it.src, LADDR), bin]));
+      return code;
+    }
+    case "cmpa": {
+      // An - src, flags only (X preserved), no writeback
+      const code = [];
+      if (isMem(it.src)) code.push(...eaAddr(it.src, LADDR));
+      code.push(...loadA(it.an), w.op.localSet(LA));
+      code.push(...srcVal(it.src, LADDR), w.op.localSet(LB));
+      code.push(w.op.localGet(LA), w.op.localGet(LB), w.op.i32Sub(), w.op.localSet(LRES));
+      code.push(...storeAt(L.CCR_OFF, ccrCmp()));
+      return code;
+    }
+    case "lea": // An = effective address (no load, no flags)
+      return [...eaAddr(it.src, LADDR), ...storeAt(L.AREG(it.an), [w.op.localGet(LADDR)])];
+    case "ext": // sign-extend low word → long; N,Z; V=C=0; X preserved
+      return [
+        ...loadD(it.dn),
+        w.op.i32Const(16),
+        w.op.i32Shl(),
+        w.op.i32Const(16),
+        w.op.i32ShrS(),
+        w.op.localSet(LRES),
+        ...storeAt(L.DREG(it.dn), [w.op.localGet(LRES)]),
+        ...storeAt(L.CCR_OFF, ccrMoveNZ()),
+      ];
+    case "swap": // exchange upper/lower words; N,Z; V=C=0; X preserved
+      return [
+        ...loadD(it.dn),
+        w.op.localSet(LA),
+        w.op.localGet(LA),
+        w.op.i32Const(16),
+        w.op.i32ShrU(),
+        w.op.localGet(LA),
+        w.op.i32Const(16),
+        w.op.i32Shl(),
+        w.op.i32Or(),
+        w.op.localSet(LRES),
+        ...storeAt(L.DREG(it.dn), [w.op.localGet(LRES)]),
+        ...storeAt(L.CCR_OFF, ccrMoveNZ()),
+      ];
     case "move": {
       const code = [];
       if (isMem(it.src)) code.push(...eaAddr(it.src, LADDR));

@@ -81,19 +81,20 @@ export function execOne(d, s) {
       s[CCR] = flagsAdd(a, d.imm, res);
       break;
     }
+    // For <ea>,Dn/An ops the SOURCE EA is evaluated first (its (An)+/-(An) side
+    // effects happen before the destination is read) — matches real 68k and the
+    // recompiler (which runs eaAddr before loading the destination register).
     case "add": {
-      // ADD.L <ea>,Dn
-      const a = s[L.iD(d.dn)];
       const b = readEA(s, d.src);
+      const a = s[L.iD(d.dn)];
       const res = (a + b) | 0;
       s[L.iD(d.dn)] = res;
       s[CCR] = flagsAdd(a, b, res);
       break;
     }
     case "sub": {
-      // SUB.L <ea>,Dn
-      const a = s[L.iD(d.dn)];
       const b = readEA(s, d.src);
+      const a = s[L.iD(d.dn)];
       const res = (a - b) | 0;
       s[L.iD(d.dn)] = res;
       s[CCR] = flagsSub(a, b, res);
@@ -101,18 +102,16 @@ export function execOne(d, s) {
     }
     case "and":
     case "or": {
-      // AND/OR.L <ea>,Dn. N,Z from result; V=C=0; X preserved.
-      const a = s[L.iD(d.dn)];
       const b = readEA(s, d.src);
+      const a = s[L.iD(d.dn)];
       const res = (d.op === "and" ? a & b : a | b) | 0;
       s[L.iD(d.dn)] = res;
       s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
       break;
     }
     case "cmp": {
-      // CMP.L <ea>,Dn — Dn - src, flags only (no writeback). Does NOT affect X.
-      const a = s[L.iD(d.dn)];
       const b = readEA(s, d.src);
+      const a = s[L.iD(d.dn)];
       const res = (a - b) | 0;
       s[CCR] = (flagsSub(a, b, res) & ~L.X) | (s[CCR] & L.X);
       break;
@@ -166,6 +165,62 @@ export function execOne(d, s) {
       }
       s[L.iD(d.dn)] = res;
       s[CCR] = (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0) | vf | c | (c ? L.X : 0);
+      break;
+    }
+    case "eori": {
+      // EORI #imm,Dn. N,Z; V=C=0; X preserved.
+      const res = (s[L.iD(d.dn)] ^ d.imm) | 0;
+      s[L.iD(d.dn)] = res;
+      s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
+      break;
+    }
+    case "tst": {
+      // TST <ea> — flags from the value, no writeback; V=C=0; X preserved.
+      const v = readEA(s, d.src);
+      s[CCR] = (s[CCR] & L.X) | (v < 0 ? L.N : 0) | (v === 0 ? L.Z : 0);
+      break;
+    }
+    case "clr": {
+      // CLR <ea> — write 0; Z=1, N=V=C=0, X preserved.
+      writeEA(s, d.dst, 0);
+      s[CCR] = (s[CCR] & L.X) | L.Z;
+      break;
+    }
+    case "adda": {
+      const b = readEA(s, d.src); // src first (side effects), then read An
+      s[L.iA(d.an)] = (s[L.iA(d.an)] + b) | 0; // no flags
+      break;
+    }
+    case "suba": {
+      const b = readEA(s, d.src);
+      s[L.iA(d.an)] = (s[L.iA(d.an)] - b) | 0; // no flags
+      break;
+    }
+    case "cmpa": {
+      // An - src, flags only; X preserved.
+      const b = readEA(s, d.src);
+      const a = s[L.iA(d.an)];
+      const res = (a - b) | 0;
+      s[CCR] = (flagsSub(a, b, res) & ~L.X) | (s[CCR] & L.X);
+      break;
+    }
+    case "lea": {
+      s[L.iA(d.an)] = eaAddr(s, d.src) | 0; // effective address, no load, no flags
+      break;
+    }
+    case "ext": {
+      // EXT.L: sign-extend low word to long. N,Z; V=C=0; X preserved.
+      const res = ((s[L.iD(d.dn)] << 16) >> 16) | 0;
+      s[L.iD(d.dn)] = res;
+      s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
+      break;
+    }
+    case "swap": {
+      // SWAP: exchange upper/lower words. N,Z on full 32-bit; V=C=0; X preserved.
+      const x = s[L.iD(d.dn)];
+      const res = (x >>> 16) | (x << 16) | 0;
+      s[L.iD(d.dn)] = res;
+      s[CCR] = (s[CCR] & L.X) | (res < 0 ? L.N : 0) | (res === 0 ? L.Z : 0);
       break;
     }
     default:
