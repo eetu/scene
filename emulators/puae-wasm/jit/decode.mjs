@@ -46,18 +46,19 @@ export function decodeAt(words, i) {
     const d = (w >> 9) & 7;
     return [{ op: "addq", imm: d === 0 ? 8 : d, dn: w & 7 }, i + 1];
   }
-  // ADD.L Dy,Dx : 1101 xxx0 10 000 yyy
-  if ((w & 0xf1f8) === 0xd080) return [{ op: "add", dx: (w >> 9) & 7, dy: w & 7 }, i + 1];
-  // SUB.L Dy,Dx : 1001 xxx0 10 000 yyy
-  if ((w & 0xf1f8) === 0x9080) return [{ op: "sub", dx: (w >> 9) & 7, dy: w & 7 }, i + 1];
-  // AND.L Dy,Dx : 1100 xxx0 10 000 yyy
-  if ((w & 0xf1f8) === 0xc080) return [{ op: "and", dx: (w >> 9) & 7, dy: w & 7 }, i + 1];
-  // OR.L Dy,Dx : 1000 xxx0 10 000 yyy
-  if ((w & 0xf1f8) === 0x8080) return [{ op: "or", dx: (w >> 9) & 7, dy: w & 7 }, i + 1];
-  // EOR.L Dx,Dy (Dy ^= Dx) : 1011 xxx1 10 000 yyy
+  // EOR.L Dx,Dy (Dy ^= Dx) : 1011 xxx1 10 000 yyy  (checked before the general
+  // <ea>,Dn forms below, which require opmode 010)
   if ((w & 0xf1f8) === 0xb180) return [{ op: "eor", dx: (w >> 9) & 7, dy: w & 7 }, i + 1];
-  // CMP.L Dy,Dx (Dx - Dy, flags only) : 1011 xxx0 10 000 yyy
-  if ((w & 0xf1f8) === 0xb080) return [{ op: "cmp", dx: (w >> 9) & 7, dy: w & 7 }, i + 1];
+  // ADD/SUB/AND/OR/CMP.L <ea>,Dn : cccc nnn 010 mmm rrr  (opmode 010 = long, →Dn)
+  // The old Dy,Dx forms are the ea=Dn (mode 000) special case of these.
+  {
+    const eaAlu = { 0xd080: "add", 0x9080: "sub", 0xc080: "and", 0x8080: "or", 0xb080: "cmp" };
+    const op = eaAlu[w & 0xf1c0];
+    if (op) {
+      const [src, j] = decodeEA((w >> 3) & 7, w & 7, words, i + 1);
+      if (src) return [{ op, dn: (w >> 9) & 7, src }, j];
+    }
+  }
   // NOT.L Dn : 0100 0110 10 000 nnn
   if ((w & 0xfff8) === 0x4680) return [{ op: "not", dn: w & 7 }, i + 1];
   // NEG.L Dn : 0100 0100 10 000 nnn

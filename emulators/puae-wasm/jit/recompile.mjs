@@ -130,62 +130,48 @@ function emitInstr(it) {
         ...storeAt(L.CCR_OFF, ccrAdd()),
       ];
     case "add":
-      return [
-        ...loadD(it.dx),
-        w.op.localSet(LA),
-        ...loadD(it.dy),
-        w.op.localSet(LB),
-        w.op.localGet(LA),
-        w.op.localGet(LB),
-        w.op.i32Add(),
-        w.op.localSet(LRES),
-        ...storeAt(L.DREG(it.dx), [w.op.localGet(LRES)]),
-        ...storeAt(L.CCR_OFF, ccrAdd()),
-      ];
     case "sub":
-      return [
-        ...loadD(it.dx),
-        w.op.localSet(LA),
-        ...loadD(it.dy),
-        w.op.localSet(LB),
-        w.op.localGet(LA),
-        w.op.localGet(LB),
-        w.op.i32Sub(),
-        w.op.localSet(LRES),
-        ...storeAt(L.DREG(it.dx), [w.op.localGet(LRES)]),
-        ...storeAt(L.CCR_OFF, ccrSub()),
-      ];
     case "and":
     case "or":
-    case "eor": {
-      // AND/OR write Dx; EOR writes Dy. res = a OP b; N,Z; V=C=0; X preserved.
-      const dst = it.op === "eor" ? it.dy : it.dx;
-      const other = it.op === "eor" ? it.dx : it.dy;
-      const bit = it.op === "and" ? w.op.i32And() : it.op === "or" ? w.op.i32Or() : w.op.i32Xor();
-      return [
-        ...loadD(dst),
-        w.op.localSet(LA),
-        ...loadD(other),
-        w.op.localSet(LB),
-        w.op.localGet(LA),
-        w.op.localGet(LB),
-        ...[bit],
-        w.op.localSet(LRES),
-        ...storeAt(L.DREG(dst), [w.op.localGet(LRES)]),
-        ...storeAt(L.CCR_OFF, ccrMoveNZ()),
-      ];
+    case "cmp": {
+      // <ea>,Dn: LA = Dn, LB = src value, LRES = LA OP LB. CMP has no writeback.
+      const bin =
+        it.op === "add"
+          ? w.op.i32Add()
+          : it.op === "sub" || it.op === "cmp"
+            ? w.op.i32Sub()
+            : it.op === "and"
+              ? w.op.i32And()
+              : w.op.i32Or();
+      const ccr =
+        it.op === "add"
+          ? ccrAdd()
+          : it.op === "sub"
+            ? ccrSub()
+            : it.op === "cmp"
+              ? ccrCmp()
+              : ccrMoveNZ(); // and/or
+      const code = [];
+      if (isMem(it.src)) code.push(...eaAddr(it.src, LADDR));
+      code.push(...loadD(it.dn), w.op.localSet(LA));
+      code.push(...srcVal(it.src, LADDR), w.op.localSet(LB));
+      code.push(w.op.localGet(LA), w.op.localGet(LB), bin, w.op.localSet(LRES));
+      if (it.op !== "cmp") code.push(...storeAt(L.DREG(it.dn), [w.op.localGet(LRES)]));
+      code.push(...storeAt(L.CCR_OFF, ccr));
+      return code;
     }
-    case "cmp": // Dx - Dy, flags only (no writeback), X preserved
+    case "eor": // EOR.L Dx,Dy (Dy ^= Dx); N,Z; V=C=0; X preserved
       return [
-        ...loadD(it.dx),
-        w.op.localSet(LA),
         ...loadD(it.dy),
+        w.op.localSet(LA),
+        ...loadD(it.dx),
         w.op.localSet(LB),
         w.op.localGet(LA),
         w.op.localGet(LB),
-        w.op.i32Sub(),
+        w.op.i32Xor(),
         w.op.localSet(LRES),
-        ...storeAt(L.CCR_OFF, ccrCmp()),
+        ...storeAt(L.DREG(it.dy), [w.op.localGet(LRES)]),
+        ...storeAt(L.CCR_OFF, ccrMoveNZ()),
       ];
     case "not": // Dn = ~Dn; N,Z; V=C=0; X preserved
       return [

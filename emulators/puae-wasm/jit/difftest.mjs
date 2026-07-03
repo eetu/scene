@@ -50,17 +50,24 @@ const dEA = () => ({ mode: 0, reg: ri(8), ext: [] });
 const aEA = () => ({ mode: 1, reg: ri(8), ext: [] });
 const anySrc = () => [memEA, immEA, dEA, aEA][ri(4)]();
 
+// ALU <ea>,Dn: base opcode + random source EA (add/sub/cmp allow An; and/or don't)
+const aluEA = (base, allowA) => {
+  const s = allowA ? anySrc() : [memEA, immEA, dEA][ri(3)]();
+  const dn = ri(8);
+  return [base | (dn << 9) | (0b010 << 6) | (s.mode << 3) | s.reg, ...s.ext];
+};
+
 // instruction generators → array of words
 function randInstr() {
   switch (ri(14)) {
     case 8:
-      return [0xc080 | (ri(8) << 9) | ri(8)]; // AND.L Dy,Dx
+      return aluEA(0xc000, false); // AND.L <ea>,Dn
     case 9:
-      return [0x8080 | (ri(8) << 9) | ri(8)]; // OR.L Dy,Dx
+      return aluEA(0x8000, false); // OR.L <ea>,Dn
     case 10:
-      return [0xb180 | (ri(8) << 9) | ri(8)]; // EOR.L Dx,Dy
+      return [0xb180 | (ri(8) << 9) | ri(8)]; // EOR.L Dx,Dy (reg only)
     case 11:
-      return [0xb080 | (ri(8) << 9) | ri(8)]; // CMP.L Dy,Dx
+      return aluEA(0xb000, true); // CMP.L <ea>,Dn
     case 12:
       return [0x4680 | ri(8)]; // NOT.L Dn
     case 13:
@@ -70,9 +77,9 @@ function randInstr() {
     case 1:
       return [0x5080 | (ri(8) << 9) | ri(8)]; // ADDQ.L
     case 2:
-      return [0xd080 | (ri(8) << 9) | ri(8)]; // ADD.L Dy,Dx
+      return aluEA(0xd000, true); // ADD.L <ea>,Dn
     case 3:
-      return [0x9080 | (ri(8) << 9) | ri(8)]; // SUB.L Dy,Dx
+      return aluEA(0x9000, true); // SUB.L <ea>,Dn
     case 4: {
       // MOVE.L <ea>,Dn (load / reg move); src ext words follow the opcode
       const s = anySrc();

@@ -28,10 +28,11 @@ node cftest.mjs              # control flow: multi-block program vs interpreter
 
 ## Status ✅
 
-- **ALU (register .L):** MOVEQ, ADDQ.L, ADD/SUB Dy,Dx, AND/OR Dy,Dx, EOR Dx,Dy,
-  CMP Dy,Dx (flags only), NOT/NEG Dn — full **CCR flags (X N Z V C)** in generated
-  WASM (carry/borrow via `i32.lt_u`, signed overflow via the xor-and-sign trick;
-  X:=C for add/sub/neg, X preserved for logic/moveq, CMP leaves X untouched).
+- **ALU (.L):** ADD/SUB/AND/OR/CMP **`<ea>,Dn`** (source is any EA — Dn, (An),
+  (An)+, -(An), (d16,An), abs.L, #imm; An too for add/sub/cmp), plus MOVEQ,
+  ADDQ.L, EOR Dx,Dy, NOT/NEG Dn — full **CCR flags (X N Z V C)** in generated WASM
+  (carry/borrow via `i32.lt_u`, signed overflow via the xor-and-sign trick; X:=C
+  for add/sub/neg, X preserved for logic/moveq, CMP leaves X untouched).
 - **Data movement + memory:** MOVE.L / MOVEA.L with **EA modes** Dn, An, (An),
   (An)+, -(An), (d16,An), abs.L, #imm — guest-RAM load/store inlined as
   `(GUEST_BASE + (addr & RAM_MASK))`, with (An)+/-(An) register side effects and
