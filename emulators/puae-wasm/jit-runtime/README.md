@@ -39,10 +39,45 @@ node drive.mjs --vendor <m1-vendor-dir> \
 Build the `<m1-vendor-dir>` by copying the vendored EmulatorJS and swapping the
 four `puae-*.data` cores for the `puae-wasm-jit-m1` artifact.
 
+## Coverage probe — what the live demo actually needs
+
+Before writing more codegen, `installProbe` (run: `node drive.mjs --mode probe`)
+decodes the real basic block at every unique RAM `pc` the hook sees (reading
+guest words through `_jit_get_word`) and tallies decoder coverage + the opcodes
+that dominate the misses. Never activates a block.
+
+**Dreamscape (TG'96), ~80s:**
+
+- **954 unique RAM blocks**, and the set stabilises in ~3s → the hot code is a
+  small, static working set. Perfect for a `pc→slot` block cache (compile once,
+  reuse thousands of times).
+- **Decoder coverage 24.4%** (233/954). Blocks are **short**: avg ~1 straight-line
+  instr, max 7; every decoded block ends in a branch (230 Bcc, 3 DBcc).
+- **Misses are dominated by the 0x4xxx family (586/721 = 81%)**, and within it by
+  control flow: `0x4ef9` JMP abs.L (328), `0x4eae` JSR d16(A6) — library calls
+  (144), `0x4e75` RTS (25), plus `0x43fa`/`0x41fa` LEA d16(PC),An (18). Then
+  SUBQ/Scc/DBcc (35), MOVE.B (23), immediate/bit (16), CMP.W (16), MOVE.W (15).
+
+### Data-ranked M2 scope
+
+1. **Terminator-ify JMP/JSR/BSR/RTS/RTE** in `../jit/decode.mjs` — JIT the
+   straight-line body, return `fallPC`, let the interpreter take the transfer.
+   Unblocks ~80% of the 0x4xxx misses (the single biggest coverage jump).
+2. **PC-relative / more EA modes** (`d16(PC)`, indexed) — LEA table,An is
+   ubiquitous.
+3. **.W / .B sizes** for MOVE/TST/CLR/CMP (the core already exports
+   `_jit_get_word`/`_jit_get_byte` + put variants).
+4. **SUBQ, Scc, immediate/bit ops.**
+
+Strategic caveat: because blocks are short, single-block JIT with per-block
+`hook → JS → call_indirect` overhead won't beat the interpreter on its own —
+**block chaining / linking (M3)** is what turns coverage into an fps win (the
+3.1× payoff was on a hot *loop*, not scattered 1-instr blocks).
+
 ## Step 2b — real blocks (next)
 
-Replace the self-test with the real path: on a miss, decode the guest block at
-`pc` from the core's memory (via `../jit/decode.mjs` over `_jit_get_word`),
-`recompileCore` it, install, cache `pc→slot`, and return the slot. Blocks with
-any unsupported opcode fall back to the interpreter (return -1). Then verify JIT
-vs interpreter parity on the live demo and measure the fps delta in `../bench/`.
+After the M2 codegen port, replace the self-test with the real path: on a miss,
+decode the block at `pc`, `recompileCore` it (now with correct `fallPC` return +
+full op/size coverage), install, cache `pc→slot`, return the slot; unsupported
+blocks fall back (return -1). Then verify JIT vs interpreter parity on the live
+demo and measure the fps delta in `../bench/`.

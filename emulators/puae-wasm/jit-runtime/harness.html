@@ -56,7 +56,7 @@
       // the jit_* ABI), then installs the ejsJitGet self-test the moment the core
       // Module is up. The EM_JS hook in m68k_run_2_020 calls ejsJitGet(pc) every
       // instruction; the first call runs the substrate self-test.
-      import { installSelfTest } from "./runtime.mjs";
+      import { installSelfTest, installProbe } from "./runtime.mjs";
 
       const hud = document.getElementById("hud");
       const W = window;
@@ -110,8 +110,10 @@
           if (M && M._jit_abi_regs && M.wasmTable && M.wasmMemory) {
             clearInterval(iv);
             try {
-              installSelfTest(M);
-              W.__jitStatus = "installed";
+              const mode = Q.get("mode") || "selftest";
+              if (mode === "probe") installProbe(M);
+              else installSelfTest(M);
+              W.__jitStatus = "installed:" + mode;
             } catch (e) {
               W.__jitStatus = "install-error: " + e;
             }
@@ -129,8 +131,17 @@
           const frame = g && g.getFrameNum ? g.getFrameNum() : null;
           const st = W.__jitStatus || "booting";
           const t = W.__jitSelfTest;
-          W.__hud = { frame, status: st, selfTest: t || null };
+          const pr = W.__jitProbe;
+          W.__hud = { frame, status: st, selfTest: t || null, probe: pr || null };
           let line = `<b>JIT runtime harness</b>  core:${st}  frame:${frame}`;
+          if (pr) {
+            line +=
+              `\n  probe: ${pr.uniqueProbed} blocks  decoderCoverage ${pr.decoderCoverage}%` +
+              `  avgLen ${pr.avgBlockLen}  topMiss: ` +
+              (pr.topMissFamilies[0]
+                ? `${pr.topMissFamilies[0].family} (${pr.topMissFamilies[0].n})`
+                : "—");
+          }
           if (t) {
             const cls = t.pass ? "ok" : "bad";
             line +=

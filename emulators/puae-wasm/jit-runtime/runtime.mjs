@@ -11,6 +11,7 @@
 // -1 forever so the demo keeps running on the interpreter. Step 2b makes
 // ejsJitGet actually decode+compile the guest block at `pc` and return its slot.
 import { recompileCore } from "../jit/coretarget.mjs";
+import { blockAt } from "../jit/decode.mjs";
 
 // md-generic flag pack (matches jit/coretarget.mjs + jit/coretest.mjs):
 //   cznv = N<<15 | Z<<14 | C<<8 | V<<0 ; x = C<<8
@@ -139,4 +140,128 @@ export function installSelfTest(Module) {
   };
   window.__jitAttached = true;
   console.log("[jit] ejsJitGet self-test installed");
+}
+
+// --- Coverage probe -------------------------------------------------------
+// Before writing more codegen, measure what the LIVE demo actually needs: for
+// each unique RAM pc the hook sees, decode the basic block there (via the shared
+// jit/decode.mjs, reading guest words through _jit_get_word) and tally decoder
+// coverage + which opcodes dominate the misses. Never activates a block (returns
+// -1); this only quantifies the gap so the port is scoped to the hot path.
+
+// A lazy word[] view over guest memory: words[i] = big-endian 16-bit at byte i*2.
+function guestWords(Module) {
+  const gw = Module._jit_get_word;
+  return new Proxy(
+    {},
+    {
+      get(_, prop) {
+        if (prop === "length") return 0x40000000; // effectively unbounded
+        const idx = typeof prop === "string" ? Number(prop) : NaN;
+        return Number.isInteger(idx) ? gw((idx * 2) >>> 0) & 0xffff : undefined;
+      },
+    },
+  );
+}
+
+// Rough 68k family label for a miss opcode word — enough to scope codegen work.
+function classify(w) {
+  const fam = [
+    "ANDI/ORI/bit/immediate", // 0
+    "MOVE.B", // 1
+    "MOVE.L/MOVEA.L", // 2
+    "MOVE.W/MOVEA.W", // 3
+    "misc 0x4xxx (LEA/JSR/JMP/TST/CLR/EXT/MOVEM/NOP/RTS…)", // 4
+    "ADDQ/SUBQ/Scc/DBcc", // 5
+    "Bcc/BSR/BRA", // 6
+    "MOVEQ", // 7
+    "OR/DIVU/DIVS", // 8
+    "SUB/SUBX/SUBA", // 9
+    "line-A", // A
+    "CMP/EOR/CMPA/CMPM", // B
+    "AND/MULU/MULS/ABCD/EXG", // C
+    "ADD/ADDX/ADDA", // D
+    "shift/rotate", // E
+    "line-F (FPU/MMU/copro)", // F
+  ];
+  return fam[(w >> 12) & 0xf];
+}
+
+function summarizeProbe(s) {
+  const topMiss = Object.entries(s.misses)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map(([w, n]) => ({ opcode: "0x" + w, n, family: classify(parseInt(w, 16)) }));
+  const famTally = {};
+  for (const [w, n] of Object.entries(s.misses)) {
+    const f = classify(parseInt(w, 16));
+    famTally[f] = (famTally[f] || 0) + n;
+  }
+  const topFamilies = Object.entries(famTally)
+    .sort((a, b) => b[1] - a[1])
+    .map(([family, n]) => ({ family, n }));
+  const topOps = Object.entries(s.opHist)
+    .sort((a, b) => b[1] - a[1])
+    .map(([op, n]) => ({ op, n }));
+  return {
+    ramPcsSeen: s.ramSeen,
+    uniqueProbed: s.probed,
+    decoded: s.decoded, // block fully decoded to a terminator / maxInstrs
+    failed: s.failed, // hit an opcode the decoder doesn't handle
+    decoderCoverage: s.probed ? +((100 * s.decoded) / s.probed).toFixed(1) : 0,
+    avgBlockLen: s.decoded ? +(s.totalBlockLen / s.decoded).toFixed(1) : 0,
+    maxBlockLen: s.maxLen,
+    blocksWithTerm: s.withTerm,
+    termKinds: s.termKinds,
+    topMissFamilies: topFamilies,
+    topMissOpcodes: topMiss,
+    decodedOpHistogram: topOps,
+  };
+}
+
+export function installProbe(Module, opts = {}) {
+  const maxUnique = opts.maxUnique || 40000;
+  const ramMax = opts.ramMax ?? 0x00f00000; // skip Kickstart ROM (0xf80000+) & IO
+  const words = guestWords(Module);
+  const seen = new Set();
+  const s = {
+    ramSeen: 0,
+    probed: 0,
+    decoded: 0,
+    failed: 0,
+    totalBlockLen: 0,
+    maxLen: 0,
+    withTerm: 0,
+    termKinds: {},
+    misses: {},
+    opHist: {},
+  };
+  Module.ejsJitGet = (pc) => {
+    pc = pc >>> 0;
+    if (pc >= ramMax) return -1;
+    s.ramSeen++;
+    if (seen.has(pc) || seen.size >= maxUnique) return -1;
+    seen.add(pc);
+    s.probed++;
+    try {
+      const blk = blockAt(words, pc, 64);
+      s.decoded++;
+      s.totalBlockLen += blk.instrs.length;
+      if (blk.instrs.length > s.maxLen) s.maxLen = blk.instrs.length;
+      for (const it of blk.instrs) s.opHist[it.op] = (s.opHist[it.op] || 0) + 1;
+      if (blk.term) {
+        s.withTerm++;
+        s.termKinds[blk.term.op] = (s.termKinds[blk.term.op] || 0) + 1;
+      }
+    } catch (e) {
+      s.failed++;
+      const m = /0x([0-9a-f]{4})/.exec(String(e));
+      if (m) s.misses[m[1]] = (s.misses[m[1]] || 0) + 1;
+    }
+    window.__jitProbe = summarizeProbe(s);
+    return -1;
+  };
+  window.__jitAttached = true;
+  window.__jitProbe = summarizeProbe(s);
+  console.log("[jit] ejsJitGet coverage probe installed");
 }

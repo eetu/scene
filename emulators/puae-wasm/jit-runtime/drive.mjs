@@ -23,6 +23,8 @@ const arg = (n, d) => {
 const PORT = Number(arg("port", "8791"));
 const DBG = Number(arg("dbg", "9334"));
 const WAIT = Number(arg("wait", "90")) * 1000;
+const MODE = arg("mode", "selftest"); // selftest | probe
+const PROBE_SECS = Number(arg("probe-secs", "60")) * 1000; // how long to let probe run
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function findChrome() {
@@ -149,7 +151,11 @@ async function main() {
   await c.ready;
   await c.send("Page.enable");
   await c.send("Runtime.enable");
-  await c.send("Page.navigate", { url: `http://localhost:${PORT}/?cpu=68030&compat=normal` });
+  await c.send("Page.navigate", {
+    url: `http://localhost:${PORT}/?cpu=68030&compat=normal&mode=${MODE}`,
+  });
+
+  if (MODE === "probe") return probeMode(c, crlog, cleanup);
 
   console.log(`\nwaiting up to ${WAIT / 1000}s for boot + self-test…`);
   const t0 = Date.now();
@@ -192,6 +198,44 @@ async function main() {
     console.log("\n❌ self-test FAILED — see mismatches/error above.");
     process.exit(1);
   }
+}
+
+// Probe mode: let the demo run, sampling live decoder-coverage stats, then dump.
+async function probeMode(c, crlog, cleanup) {
+  console.log(`\nprobing live blocks for ${PROBE_SECS / 1000}s…`);
+  const t0 = Date.now();
+  let last = "";
+  let pr = null;
+  while (Date.now() - t0 < PROBE_SECS) {
+    await sleep(3000);
+    const hud = await c.evals("JSON.stringify(window.__hud||null)");
+    const h = hud && !hud.__err ? JSON.parse(hud) : null;
+    if (h && h.probe) {
+      pr = h.probe;
+      const top = pr.topMissFamilies[0];
+      const line = `  t+${((Date.now() - t0) / 1000).toFixed(0)}s  core:${h.status}  frame:${h.frame}  blocks:${pr.uniqueProbed}  cov ${pr.decoderCoverage}%  topMiss:${top ? top.family + "(" + top.n + ")" : "—"}`;
+      if (line !== last) {
+        console.log(line);
+        last = line;
+      }
+    }
+  }
+  c.close();
+  cleanup();
+
+  console.log("\n=== M1 JIT live coverage probe ===");
+  if (!pr) {
+    console.log("❌ no probe data (core Module never reached, or hook never fired).");
+    console.log("   Chrome stderr tail:\n" + crlog.slice(-1000));
+    process.exit(2);
+  }
+  console.log(JSON.stringify(pr, null, 2));
+  console.log(
+    `\ndecoder covers ${pr.decoderCoverage}% of ${pr.uniqueProbed} live RAM blocks ` +
+      `(avg ${pr.avgBlockLen} instrs, max ${pr.maxBlockLen}).`,
+  );
+  console.log("Top miss families above scope the codegen/decoder widening for the hot path.");
+  process.exit(0);
 }
 
 main().catch((e) => {
