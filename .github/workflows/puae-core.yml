@@ -6,10 +6,17 @@ name: Build PUAE core (WASM)
 # hangs at 0% CPU). ubuntu-latest is native amd64 with 16 GB RAM, so it runs the
 # exact same EmulatorJS/build flow cleanly and uploads the core as an artifact.
 #
-# Manual only (workflow_dispatch): dispatch with --ref party-puae-wasm-jit.
+# Runs on push to the branch when the workflow or core build files change (a
+# branch-only workflow can't use workflow_dispatch — that needs the file on the
+# default branch). workflow_dispatch is kept for once this lands on main.
 
 on:
   workflow_dispatch:
+  push:
+    branches: [party-puae-wasm-jit]
+    paths:
+      - ".github/workflows/puae-core.yml"
+      - "emulators/puae-wasm/core/**"
 
 jobs:
   build-puae:
