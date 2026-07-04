@@ -81,12 +81,18 @@
         const opts = {
           "virtual-gamepad": "disabled",
           puae_model: Q.get("model") || "A1200",
+          // Per-media model overrides — floppies use puae_model_fd (default A500!),
+          // HDs use puae_model_hd, independent of puae_model. Set to test AGA on ADF.
+          ...(Q.get("fd") ? { puae_model_fd: Q.get("fd") } : {}),
+          ...(Q.get("hd") ? { puae_model_hd: Q.get("hd") } : {}),
           puae_cpu_model: Q.get("cpu") || "68030",
           puae_cpu_compatibility: Q.get("compat") || "normal",
           puae_immediate_blits: "immediate",
           puae_fastmem_size: "8",
           puae_collision_level: "none",
           ...cfg.options,
+          // Generic passthrough for testing arbitrary core options: ?opts={"k":"v"}
+          ...(Q.get("opts") ? JSON.parse(Q.get("opts")) : {}),
         };
 
         W.EJS_player = "#game";
