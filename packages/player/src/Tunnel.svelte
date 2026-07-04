@@ -115,16 +115,25 @@
       float striations = 0.55 + 0.45 * sin((z * 0.7 - t * 2.5) * TAU + a * TAU * 6.0);
       return hsv2rgb(vec3(hue, 0.9, 1.0)) * striations * 1.3;
     }
-    // Hyperspace: sparse bright star-streaks whipping past along the tube. Kept
-    // sparse (fewer active lanes, thinner/shorter streaks) so it doesn't read as
-    // a busy ring, and faded in a little way down the tube so the near mouth (the
-    // "outer pipe") stays obscured rather than a bright band right at the camera.
+    // Hyperspace: thin radial star-streaks flying along the tube walls — bright
+    // heads with long smooth tails, travelling toward the camera at varied speeds.
+    // Thin in angle (clean radial lines, not blocky bands), ~half the lanes lit
+    // with varied brightness, and faded near the mouth so the outer pipe stays dark.
     vec3 themeHyper(float z, float a, float t) {
-      float lane = floor(a * 48.0);
+      float LANES = 48.0;
+      float la = a * LANES;
+      float sub = abs(fract(la) - 0.5); // 0 at lane centre → 0.5 at the edge
+      float lane = floor(la);
       float r = fract(sin(lane * 12.9898 + uSeed) * 43758.5453);
-      float streak = smoothstep(0.985, 1.0, 0.5 + 0.5 * sin(z * 2.0 + t * (14.0 + r * 26.0) + r * 40.0));
-      float nearFade = smoothstep(2.0, 12.0, z - uCamZ); // obscure the near mouth
-      return mix(vec3(0.6, 0.75, 1.0), vec3(1.0), r) * streak * step(0.72, r) * nearFade * 1.7;
+      float r2 = fract(sin(lane * 45.77 + uSeed * 3.3) * 27182.8);
+      float on = step(0.5, r);                           // ~half the lanes carry a streak
+      float line = exp(-sub * sub * (90.0 + 140.0 * r)); // thin radial line, width varies
+      float d = z - uCamZ;                               // depth ahead of the camera
+      float head = mod(d * 0.09 - t * (1.4 + r * 1.6) + r2 * 10.0, 3.2);
+      float streak = exp(-head * 2.2);                   // sharp head + long fading tail
+      float nearFade = smoothstep(2.0, 16.0, d);         // obscure the near mouth
+      vec3 tint = mix(vec3(0.5, 0.68, 1.0), vec3(1.0), r * r);
+      return tint * line * streak * on * nearFade * (1.4 + 2.0 * r);
     }
     // Biomech / Giger: a dark ribbed metal tube — segmented rings along the tube
     // with a wet cold-steel sheen on the crests and near-black crevices between,
