@@ -414,7 +414,13 @@ export function installJitChained(Module, opts = {}) {
     if (pc < ramMax) {
       try {
         const blk = blockAt(words, pc, 64);
-        if (!blk.instrs.length) st.empty++;
+        // A 0-body block is only worth JITing if its terminator is a COMPILED
+        // branch (Bcc/DBcc/BRA/halt), which returns a different PC → safe to
+        // chain. A 0-body pure-transfer (JSR/RTS/JMP…) returns its own PC →
+        // would infinite-loop, so hand it to the interpreter.
+        const compilableTerm =
+          blk.term && (blk.term.op === "bcc" || blk.term.op === "dbcc" || blk.term.op === "halt");
+        if (!blk.instrs.length && !compilableTerm) st.empty++;
         else {
           const mod = new WebAssembly.Module(recompileCoreBlock(blk, abi));
           st.compiled++;

@@ -122,6 +122,14 @@ export function makeCodegen(abi) {
       case "abs":
       case "absw":
         return put([k(ea.addr)]);
+      case "idx": {
+        // base + signExt(indexReg, isz)*scale + disp
+        const baseE = ea.an != null ? loadAraw(ea.an) : [k(ea.base)];
+        const idxRaw = ea.ri < 8 ? loadDraw(ea.ri) : loadAraw(ea.ri - 8);
+        const idxE = signExtExpr(idxRaw, ea.isz);
+        const scaled = ea.scale > 1 ? [...idxE, k(ea.scale), w.op.i32Mul()] : idxE;
+        return put([...baseE, ...scaled, w.op.i32Add(), k(ea.disp), w.op.i32Add()]);
+      }
       default:
         throw new Error(`coreblock eaAddr: ${ea.ea}`);
     }
@@ -476,6 +484,60 @@ export function makeCodegen(abi) {
             }
           if (it.ea.ea === "pinc") code.push(...storeAfull(it.ea.n, [get(LADDR)]));
         }
+        return code;
+      }
+      case "btst":
+      case "bchg":
+      case "bclr":
+      case "bset": {
+        const code = [];
+        if (isMem(it.dst)) code.push(...eaAddr(it.dst, LADDR, sz));
+        code.push(...readEA(it.dst, LADDR, sz), set(LA)); // value → LA
+        const bmask = sz === 4 ? 31 : 7;
+        const bnExpr =
+          it.bitReg != null
+            ? [...loadDraw(it.bitReg), k(bmask), w.op.i32And()]
+            : [k(it.bitnum & bmask)];
+        code.push(...bnExpr, set(LB)); // bit number → LB
+        code.push(get(LA), get(LB), w.op.i32ShrU(), k(1), w.op.i32And(), set(LRES)); // bit → LRES
+        // Z only: cznv = (cznv & ~0x4000) | (bit==0 ? 0x4000 : 0)
+        code.push(
+          ...storeCznv([
+            k(fb),
+            w.op.i32Load(0),
+            k(~0x4000),
+            w.op.i32And(),
+            get(LRES),
+            w.op.i32Eqz(),
+            k(14),
+            w.op.i32Shl(),
+            w.op.i32Or(),
+          ]),
+        );
+        if (it.op !== "btst") {
+          const oneShl = [k(1), get(LB), w.op.i32Shl()];
+          const nv =
+            it.op === "bset"
+              ? [get(LA), ...oneShl, w.op.i32Or()]
+              : it.op === "bclr"
+                ? [get(LA), ...oneShl, k(-1), w.op.i32Xor(), w.op.i32And()]
+                : [get(LA), ...oneShl, w.op.i32Xor()]; // bchg
+          code.push(...nv, set(LRES));
+          code.push(...writeEA(it.dst, LADDR, sz, LRES));
+        }
+        return code;
+      }
+      case "mulu":
+      case "muls": {
+        const code = [];
+        if (isMem(it.src)) code.push(...eaAddr(it.src, LADDR2, 2));
+        const aWord = [...loadDraw(it.dn), k(0xffff), w.op.i32And()];
+        const bWord = readEA(it.src, LADDR2, 2);
+        const aE = it.op === "muls" ? signExtExpr(aWord, 2) : aWord;
+        const bE = it.op === "muls" ? signExtExpr(bWord, 2) : bWord;
+        code.push(...aE, ...bE, w.op.i32Mul(), set(LRES));
+        code.push(...storeDsz(it.dn, 4, [get(LRES)]));
+        code.push(...storeCznv(cznvNZ(LRES, 4))); // N,Z; V=C=0; X preserved
         return code;
       }
       default:

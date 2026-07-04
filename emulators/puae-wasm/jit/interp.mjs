@@ -79,6 +79,11 @@ function eaAddr(s, ea, sz) {
     case "abs":
     case "absw":
       return ea.addr | 0;
+    case "idx": {
+      const baseV = ea.an != null ? s[L.iA(ea.an)] : ea.base;
+      const ix = ea.ri < 8 ? s[L.iD(ea.ri)] : s[L.iA(ea.ri - 8)];
+      return (baseV + ea.disp + signExt(ix, ea.isz) * ea.scale) | 0;
+    }
   }
   throw new Error(`eaAddr: not memory (${ea.ea})`);
 }
@@ -354,6 +359,31 @@ export function execOne(d, s) {
         }
         if (d.ea.ea === "pinc") s[L.iA(d.ea.n)] = addr | 0;
       }
+      break;
+    }
+    case "btst":
+    case "bchg":
+    case "bclr":
+    case "bset": {
+      const addr = eaOnce(s, d.dst, sz);
+      const val = readAt(s, d.dst, sz, addr);
+      const bn = (d.bitReg != null ? s[L.iD(d.bitReg)] : d.bitnum) & (sz === 4 ? 31 : 7);
+      const bit = (val >>> bn) & 1;
+      s[CCR] = (s[CCR] & ~L.Z) | (bit ? 0 : L.Z); // only Z affected
+      if (d.op !== "btst") {
+        const nv =
+          d.op === "bset" ? val | (1 << bn) : d.op === "bclr" ? val & ~(1 << bn) : val ^ (1 << bn);
+        writeAt(s, d.dst, sz, addr, nv >>> 0);
+      }
+      break;
+    }
+    case "mulu":
+    case "muls": {
+      const b = readEA(s, d.src, 2); // word source
+      const a = s[L.iD(d.dn)] & 0xffff;
+      const res = d.op === "mulu" ? (a * b) >>> 0 : (signExt(a, 2) * signExt(b, 2)) | 0;
+      s[L.iD(d.dn)] = res | 0;
+      s[CCR] = (s[CCR] & L.X) | nz(res, 4); // N,Z; V=C=0; X preserved
       break;
     }
     default:

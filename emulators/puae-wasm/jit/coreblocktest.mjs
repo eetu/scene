@@ -49,8 +49,11 @@ function mkMem(seed) {
 
 // ---- instruction word generators ----
 const bits = (mode, reg) => (mode << 3) | reg;
+// brief index extension word (bit8=0): ireg<<12 | long<<11 | scale<<9 | disp8
+const briefExt = () => ((ri(16) << 12) | (ri(2) ? 0x800 : 0) | (ri(4) << 9) | ri(256)) & 0xfeff;
+const idxEA = () => ({ mode: 6, reg: ri(8), ext: [briefExt()] }); // (d8,An,Xn)
 const memEA = () => {
-  switch (ri(6)) {
+  switch (ri(7)) {
     case 0:
       return { mode: 2, reg: ri(8), ext: [] };
     case 1:
@@ -63,10 +66,10 @@ const memEA = () => {
       const a = r32() >>> 0;
       return { mode: 7, reg: 1, ext: [(a >>> 16) & 0xffff, a & 0xffff] };
     }
-    default: {
-      const a = ri(0x8000);
-      return { mode: 7, reg: 0, ext: [a] };
-    } // abs.W (positive)
+    case 5:
+      return { mode: 7, reg: 0, ext: [ri(0x8000)] }; // abs.W (positive)
+    default:
+      return idxEA();
   }
 };
 const dEA = () => ({ mode: 0, reg: ri(8), ext: [] });
@@ -77,13 +80,16 @@ const immEA = (sz) => {
   const v = r32();
   return { mode: 7, reg: 4, ext: [(v >>> 16) & 0xffff, v & 0xffff] };
 };
-const dataSrc = (sz) => pick([memEA, dEA, () => immEA(sz)])();
-const anySrc = (sz) => pick([memEA, dEA, aEA, () => immEA(sz)])();
+// PC-relative source EAs (read-only): (d16,PC) and (d8,PC,Xn)
+const pcEA = () =>
+  ri(2) ? { mode: 7, reg: 2, ext: [ri(0x10000)] } : { mode: 7, reg: 3, ext: [briefExt()] };
+const dataSrc = (sz) => pick([memEA, dEA, () => immEA(sz), pcEA])();
+const anySrc = (sz) => pick([memEA, dEA, aEA, () => immEA(sz), pcEA])();
 const dataAlt = () => pick([memEA, dEA])(); // data-alterable dst
 const word = (op, ea, extra = []) => [op | bits(ea.mode, ea.reg), ...ea.ext, ...extra];
 
 function randBody() {
-  const g = ri(26);
+  const g = ri(30);
   switch (g) {
     case 0:
       return [0x7000 | (ri(8) << 9) | ri(256)]; // MOVEQ
@@ -245,6 +251,25 @@ function randBody() {
             { mode: 5, reg: ri(8), ext: [ri(0x10000)] },
           ]);
       return [base | bits(ea.mode, ea.reg), ri(0x10000), ...ea.ext];
+    }
+    case 26: {
+      // static bit op: 0000 1000 tt mmm rrr + bit# word (before EA ext)
+      const tt = ri(4);
+      const d = dataAlt();
+      return [0x0800 | (tt << 6) | bits(d.mode, d.reg), ri(256), ...d.ext];
+    }
+    case 27: {
+      // dynamic bit op: 0000 rrr1 tt mmm rrr
+      const tt = ri(4);
+      const d = dataAlt();
+      return [0x0100 | (ri(8) << 9) | (tt << 6) | bits(d.mode, d.reg), ...d.ext];
+    }
+    case 28:
+    case 29: {
+      // MULU (0xc0c0) / MULS (0xc1c0) : Dn.w * <ea>.w → Dn
+      const base = ri(2) ? 0xc0c0 : 0xc1c0;
+      const s = pick([memEA, dEA, () => immEA(2), pcEA])();
+      return [base | (ri(8) << 9) | bits(s.mode, s.reg), ...s.ext];
     }
     default:
       return [0x4e71]; // NOP

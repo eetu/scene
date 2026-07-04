@@ -24,9 +24,18 @@ function decodeEA(mode, reg, words, i, sz = 4) {
       return [{ ea: "pdec", n: reg }, i];
     case 5:
       return [{ ea: "disp", n: reg, d: sign16(words[i]) }, i + 1];
+    case 6: {
+      const e = decodeIdx(words[i], reg, 0); // (d8,An,Xn) brief
+      return e.ea === "bad" ? [null, i] : [e, i + 1];
+    }
     case 7:
       if (reg === 0) return [{ ea: "absw", addr: sign16(words[i]) }, i + 1]; // abs.W
       if (reg === 1) return [{ ea: "abs", addr: (words[i] << 16) | words[i + 1] | 0 }, i + 2]; // abs.L
+      if (reg === 2) return [{ ea: "abs", addr: (i * 2 + sign16(words[i])) | 0 }, i + 1]; // (d16,PC) → const addr
+      if (reg === 3) {
+        const e = decodeIdx(words[i], null, i * 2); // (d8,PC,Xn)
+        return e.ea === "bad" ? [null, i] : [e, i + 1];
+      }
       if (reg === 4) {
         // #imm — width follows the operation size
         if (sz === 1) return [{ ea: "imm", val: words[i] & 0xff }, i + 1];
@@ -37,6 +46,21 @@ function decodeEA(mode, reg, words, i, sz = 4) {
     default:
       return [null, i];
   }
+}
+// brief-format index EA. an = base A-reg (mode 6) or null with base=pc (mode 7/3).
+// Returns {ea:"idx", an, base, ri, isz, scale, disp} or {ea:"bad"} for the
+// unsupported 68020 full extension format (bit 8 set).
+function decodeIdx(ext, an, base) {
+  if (ext & 0x100) return { ea: "bad" }; // full extension word — skip
+  return {
+    ea: "idx",
+    an,
+    base: base | 0,
+    ri: (ext >> 12) & 0xf, // 0..7 Dn, 8..15 An
+    isz: ext & 0x800 ? 4 : 2, // index size (W sign-extended / L)
+    scale: 1 << ((ext >> 9) & 3), // 68020 scale 1/2/4/8
+    disp: sign8(ext & 0xff),
+  };
 }
 
 export const isMem = (ea) => ea.ea !== "d" && ea.ea !== "a" && ea.ea !== "imm";
@@ -99,12 +123,19 @@ export function decodeAt(words, i) {
     if (fam) {
       const opmode = (w >> 6) & 7;
       if (opmode === 3 || opmode === 7) {
-        // <ea>,An : opmode 3=word, 7=long — ADDA/SUBA/CMPA (AND/OR have no An form)
-        const sz = opmode === 3 ? 2 : 4;
-        const aOp = { or: null, and: null, add: "adda", sub: "suba", cmpeor: "cmpa" }[fam];
-        if (aOp) {
-          const [src, j] = decodeEA(eaMode, eaReg, words, i + 1, sz);
-          if (src) return [{ op: aOp, an: regHi, src, sz }, j];
+        if (fam === "and") {
+          // MULU (opmode 3) / MULS (opmode 7) : Dn.w * <ea>.w → Dn (32-bit)
+          const [src, j] = decodeEA(eaMode, eaReg, words, i + 1, 2);
+          if (src && src.ea !== "a")
+            return [{ op: opmode === 3 ? "mulu" : "muls", dn: regHi, src, sz: 2 }, j];
+        } else {
+          // <ea>,An : opmode 3=word, 7=long — ADDA/SUBA/CMPA (OR→DIVU/DIVS: skip)
+          const sz = opmode === 3 ? 2 : 4;
+          const aOp = { add: "adda", sub: "suba", cmpeor: "cmpa" }[fam];
+          if (aOp) {
+            const [src, j] = decodeEA(eaMode, eaReg, words, i + 1, sz);
+            if (src) return [{ op: aOp, an: regHi, src, sz }, j];
+          }
         }
       } else if (opmode < 3) {
         // <ea>,Dn (result→Dn) size 0/1/2
@@ -130,6 +161,30 @@ export function decodeAt(words, i) {
           const [dst, j] = decodeEA(eaMode, eaReg, words, i + 1, sz);
           if (dst && isAlterableMem(dst)) return [{ op: fam, dn: regHi, dst, memDst: true, sz }, j];
         }
+      }
+    }
+  }
+
+  // Bit ops BTST/BCHG/BCLR/BSET : dynamic 0000 rrr1 tt mmm rrr (bit# in Dn=rrr);
+  // static 0000 1000 tt mmm rrr + bit# word. Dn dst → long (bit mod 32); mem → byte.
+  if ((w & 0xf000) === 0x0000) {
+    const dyn = (w >> 8) & 1;
+    const staticBit = (w & 0xff00) === 0x0800;
+    if (dyn || staticBit) {
+      const bop = ["btst", "bchg", "bclr", "bset"][(w >> 6) & 3];
+      let bitnum = null,
+        bitReg = null,
+        j0 = i + 1;
+      if (dyn) bitReg = regHi;
+      else {
+        bitnum = words[i + 1] & 0xff;
+        j0 = i + 2;
+      }
+      const [ea, j] = decodeEA(eaMode, eaReg, words, j0, 1);
+      if (ea && ea.ea !== "a") {
+        const isReg = ea.ea === "d";
+        const ok = bop === "btst" ? isReg || isMem(ea) : isReg || isAlterableMem(ea);
+        if (ok) return [{ op: bop, dst: ea, sz: isReg ? 4 : 1, bitnum, bitReg }, j];
       }
     }
   }
@@ -174,7 +229,14 @@ export function decodeAt(words, i) {
   // LEA <ea>,An : 0100 nnn 111 mmm rrr
   if ((w & 0xf1c0) === 0x41c0) {
     const [src, j] = decodeEA(eaMode, eaReg, words, i + 1, 4);
-    if (src && (src.ea === "ind" || src.ea === "disp" || src.ea === "abs" || src.ea === "absw"))
+    if (
+      src &&
+      (src.ea === "ind" ||
+        src.ea === "disp" ||
+        src.ea === "abs" ||
+        src.ea === "absw" ||
+        src.ea === "idx")
+    )
       return [{ op: "lea", an: regHi, src, sz: 4 }, j];
   }
 
