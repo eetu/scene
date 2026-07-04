@@ -122,12 +122,24 @@
       float streak = smoothstep(0.97, 1.0, 0.5 + 0.5 * sin(z * 2.0 + t * (14.0 + r * 26.0) + r * 40.0));
       return mix(vec3(0.6, 0.75, 1.0), vec3(1.0), r) * streak * step(0.55, r) * 2.2;
     }
-    // Biomech / Giger: dark ribbed organic-metal, cold violet-grey with wet sheen.
+    // Biomech / Giger: a dark ribbed metal tube — segmented rings along the tube
+    // with a wet cold-steel sheen on the crests and near-black crevices between,
+    // vertebrae segmentation around the circumference. Cold blue-grey, high
+    // contrast (the ribbed biomech corridor look, not soft violet folds).
     vec3 themeGiger(float z, float a, float t) {
-      float ribs = 0.5 + 0.5 * sin(z * 7.0 + sin(a * TAU * 3.0) * 1.6);
-      float spine = 0.5 + 0.5 * sin(a * TAU * 4.0 + z * 0.6);
-      vec3 col = mix(vec3(0.03, 0.03, 0.05), vec3(0.24, 0.22, 0.28), pow(ribs * spine, 1.5));
-      return col + vec3(0.12, 0.1, 0.16) * pow(spine, 5.0);
+      // Ribs = rings along the tube, warped around the circumference so they read
+      // as organic vertebrae rather than machined bands.
+      float ring = 0.5 + 0.5 * sin(z * 5.5 + sin(a * TAU * 2.0) * 0.7);
+      float rib = smoothstep(0.15, 0.85, ring);            // rounded rib body
+      float crest = pow(smoothstep(0.82, 1.0, ring), 3.0); // thin wet highlight on the crest
+      // Segmentation around the tube + fine mechanical micro-grooves.
+      float spine = pow(0.5 + 0.5 * sin(a * TAU * 6.0 + z * 0.4), 2.0);
+      float micro = 0.85 + 0.15 * sin(z * 26.0 + a * TAU * 8.0);
+      // Near-black crevices → blue-grey ribs; cold cyan-white wet sheen on crests.
+      vec3 col = mix(vec3(0.008, 0.01, 0.016), vec3(0.13, 0.16, 0.21), rib) * micro;
+      col *= 0.55 + 0.45 * spine;
+      col += vec3(0.45, 0.58, 0.78) * crest * (0.5 + 0.5 * spine);
+      return col;
     }
     // Vaporwave: magenta↔cyan neon grid over a purple gradient.
     vec3 themeVapor(float z, float a, float t) {
