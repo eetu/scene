@@ -111,20 +111,22 @@
     g.EJS_color = cssVar("--accent", "#f78f08");
     g.EJS_backgroundColor = cssVar("--bg", "#0f0f0f");
     // Core option defaults (the INITIAL value; once the user changes an option
-    // in the settings menu their choice persists in localStorage and wins):
-    // - Amiga: A1200 (AGA) model, but accelerated to a 68030 (like an A1200 with
-    //   a Blizzard 1230) so heavy AGA demos hit full framerate the way they do on
-    //   the target hardware / capture videos. A stock cycle-exact 68020 is pinned
-    //   to real-A1200 speed and chugs on demanding demos — the "Accurate" toggle
-    //   offers that for the few that need exact 020/copper/blitter timing.
-    //   CPU compatibility is 'normal' (the lightest interpreter path); immediate
-    //   blits + no collision (demos don't use it) save more CPU. See libretro
-    //   PUAE core options. NOTE: our vendored PUAE core is a JIT build (a
-    //   68k→WASM recompiler baked in via --post-js, see emulators/puae-wasm) that
-    //   self-installs on the emulation thread and accelerates the 'normal'
-    //   interpreter path — heavy AGA demos (e.g. Dreamscape) run ~2× faster,
-    //   above 50fps instead of chugging. Falls back to the interpreter per-block
-    //   on any unsupported opcode (parity-gated), so it's transparent.
+    // in the settings menu their choice persists in localStorage and wins,
+    // unless "Recommended" above forces these):
+    // - Amiga: A1200 (AGA), authentic 68020, CPU compatibility 'normal' (lightest
+    //   path); immediate blits + no collision (demos don't use it) save CPU.
+    //   NOTE: our vendored PUAE core is a JIT build (a 68k→WASM recompiler baked
+    //   in via --post-js, see emulators/puae-wasm) that self-installs on the
+    //   emulation thread and accelerates 'normal' — so a real 68020 runs heavy AGA
+    //   demos smoothly without faking a faster CPU. We deliberately DON'T bump to
+    //   68030: that raises the guest's cycles-per-frame budget (more emulated work
+    //   per frame) which, even with the JIT, the browser host can't always deliver
+    //   for the heaviest demos → lag; 68020 is both authentic and smoother here.
+    //   (Native fs-uae's JIT is fast enough that 030 wins there — not in-browser.)
+    //   The "Accurate" toggle switches this 020 from JIT/'normal' to cycle-exact
+    //   timing for the few demos that need exact 020/copper/blitter behaviour.
+    //   Falls back to the interpreter per-block on any unsupported opcode
+    //   (parity-gated), so the JIT is transparent.
     // - C64: drive-sound emulation off by default. VICE models the 1541's
     //   motor/stepper noise faithfully, and many demos keep the drive spinning,
     //   so the sound runs on under the demo (unlike Amiga, whose floppy noise
@@ -148,7 +150,7 @@
         opts.puae_bogomem_size = "2"; // + 512K slow RAM → 1 MB, what most 1990–93 OCS demos want
       } else {
         opts.puae_model = "A1200"; // force AGA — our Amiga content is AGA demos
-        opts.puae_cpu_model = "68030"; // accelerate (Blizzard-1230-style) for speed
+        opts.puae_cpu_model = "68020"; // authentic A1200 CPU; the JIT supplies the speed (see note)
         opts.puae_cpu_compatibility = "normal"; // lightest CPU path (JIT-accelerated, see note above)
         opts.puae_immediate_blits = "immediate"; // instant blitter — saves CPU
         // The A1200 preset is "2M Chip + 8M Fast", but the individual memory
@@ -271,10 +273,10 @@
     fpsOn = next === "show";
   }
 
-  // Amiga: flip between the accelerated 68030 default and authentic stock-A1200
-  // cycle-exact 68020 timing, then reset the machine so PUAE re-reads the
-  // variables. Each change pushes to the core via setVariable; restart()
-  // re-applies them without re-downloading the core.
+  // Amiga: flip the 68020 between the JIT/'normal' default and authentic
+  // cycle-exact 020 timing (for the few demos that need exact copper/blitter
+  // timing), then reset so PUAE re-reads the variables. Each change pushes to the
+  // core via setVariable; restart() re-applies them without re-downloading.
   function toggleAccurate() {
     const ci = w().EJS_emulator as
       | {
@@ -284,7 +286,7 @@
       | undefined;
     if (!ci?.changeSettingOption) return;
     accurateMode = !accurateMode;
-    ci.changeSettingOption("puae_cpu_model", accurateMode ? "68020" : "68030");
+    ci.changeSettingOption("puae_cpu_model", "68020"); // authentic A1200 either way
     ci.changeSettingOption("puae_cpu_compatibility", accurateMode ? "exact" : "normal");
     ci.changeSettingOption("puae_immediate_blits", accurateMode ? "waiting" : "immediate");
     ci.gameManager?.restart?.();
@@ -331,7 +333,7 @@
       <button
         class:on={accurateMode}
         onclick={toggleAccurate}
-        title="Accurate timing: authentic stock A1200 (cycle-exact 68020) — slower, for demos that need exact timing (restarts the demo)"
+        title="Accurate timing: cycle-exact 68020 (no JIT) — slower, for the few demos that need exact copper/blitter timing. Default is JIT-accelerated 68020 (restarts the demo)"
       >
         Accurate
       </button>
