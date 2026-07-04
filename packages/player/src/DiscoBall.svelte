@@ -284,6 +284,7 @@
 
     let clock = 0;
     let spin = 0;
+    let spinRate = 0.25; // eased angular velocity — smooths the per-beat spin kick
     let glow = 0;
     let pulse = 0;
     let bass = 0;
@@ -306,8 +307,13 @@
         bass += (bands.bass - bass) * 0.2;
         treble += (bands.treble - treble) * 0.2;
 
-        // Spin: a steady tumble; energy/beat speed it up (damped under reduced-motion).
-        spin += dt * (0.25 + (glow * 0.9 + pulse * 1.5) * motion);
+        // Spin: a steady tumble that energy/beat speed up. Ease the angular
+        // *velocity* toward its target rather than adding the beat spike straight
+        // into the rate — so a beat ramps the spin up and back down smoothly
+        // instead of lurching the ball forward on every hit.
+        const targetSpin = 0.25 + (glow * 0.9 + pulse * 1.2) * motion;
+        spinRate += (targetSpin - spinRate) * (1 - Math.exp(-dt / 0.18));
+        spin += dt * spinRate;
 
         if (lastBeat < 0) lastBeat = playback.beat;
         else if (playback.beat !== lastBeat) {
