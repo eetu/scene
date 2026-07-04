@@ -56,7 +56,7 @@
   // doesn't invalidate it and the old core keeps loading. Bump CORE_VERSION when
   // the vendored core changes to drop that cache ONCE (next load re-fetches +
   // re-caches the new one). Also clears cached BIOS (re-downloaded, small).
-  const CORE_VERSION = "jit-m4-2026-07";
+  const CORE_VERSION = "vanilla-nojit-2026-07";
   async function bustStaleCoreCache() {
     try {
       if (typeof indexedDB === "undefined") return;
@@ -112,20 +112,17 @@
     // Core option defaults (the INITIAL value; once the user changes an option
     // in the settings menu their choice persists in localStorage and wins,
     // unless "Recommended" above forces these):
-    // - Amiga: A1200 (AGA), authentic 68020, CPU compatibility 'normal' (lightest
-    //   path); immediate blits + no collision (demos don't use it) save CPU.
-    //   NOTE: our vendored PUAE core is a JIT build (a 68k→WASM recompiler baked
-    //   in via --post-js, see emulators/puae-wasm) that self-installs on the
-    //   emulation thread and accelerates 'normal' — so a real 68020 runs heavy AGA
-    //   demos smoothly without faking a faster CPU. We deliberately DON'T bump to
-    //   68030: that raises the guest's cycles-per-frame budget (more emulated work
-    //   per frame) which, even with the JIT, the browser host can't always deliver
-    //   for the heaviest demos → lag; 68020 is both authentic and smoother here.
-    //   (Native fs-uae's JIT is fast enough that 030 wins there — not in-browser.)
-    //   The "Accurate" toggle switches this 020 from JIT/'normal' to cycle-exact
-    //   timing for the few demos that need exact 020/copper/blitter behaviour.
-    //   Falls back to the interpreter per-block on any unsupported opcode
-    //   (parity-gated), so the JIT is transparent.
+    // - Amiga: A1200 (AGA), authentic 68020, CPU compatibility 'normal' (the
+    //   lightest interpreter path); immediate blits + no collision (demos don't
+    //   use it) save CPU. NOTE: we ship the STOCK PUAE core, NOT the 68k→WASM JIT
+    //   build (emulators/puae-wasm). The JIT compiled blocks fine but has no
+    //   self-modifying-code invalidation (m3-jit-scaffold.py caveat), so demos that
+    //   rewrite + rerun code ran stale blocks → corrupted/black output (0 gate-fails,
+    //   since the parity gate only checks at compile time). It's parked until that's
+    //   fixed. We keep 68020, not 68030: authentic, and 030 raises the guest's
+    //   cycles-per-frame budget (more emulated work/frame → lag). The "Accurate"
+    //   toggle switches 'normal' → cycle-exact for the few demos that need exact
+    //   020/copper/blitter timing.
     // - C64: drive-sound emulation off by default. VICE models the 1541's
     //   motor/stepper noise faithfully, and many demos keep the drive spinning,
     //   so the sound runs on under the demo (unlike Amiga, whose floppy noise
@@ -161,8 +158,12 @@
       } else {
         opts.puae_model = "A1200"; // force AGA — our Amiga content is AGA demos
         opts.puae_cpu_model = "68020"; // authentic A1200 CPU; the JIT supplies the speed (see note)
-        opts.puae_cpu_compatibility = "normal"; // lightest CPU path (JIT-accelerated, see note above)
-        opts.puae_immediate_blits = "immediate"; // instant blitter — saves CPU
+        // Accurate mode → cycle-exact 68020 (a different CPU loop that BYPASSES the
+        // JIT dispatch hook, so it's the reliable "JIT off" path); default → 'normal'
+        // (the JIT-accelerated loop). These select the CPU emulation path at machine
+        // init, so toggleAccurate() relaunches rather than warm-restarting.
+        opts.puae_cpu_compatibility = accurateMode ? "exact" : "normal";
+        opts.puae_immediate_blits = accurateMode ? "waiting" : "immediate"; // exact blitter timing vs instant
         // The A1200 preset is "2M Chip + 8M Fast", but the individual memory
         // options override the model preset, and EmulatorJS writes them all at the
         // core's default (fast = 0). With no fast RAM, any sizable demo aborts on
@@ -208,23 +209,32 @@
       if (M && typeof M.ejsJitGet === "function") {
         if (!saidCore) {
           saidCore = true;
-          console.log("%c[PUAE] 68k→WASM JIT core in use ⚡", "color:#2ecc40;font-weight:bold");
+          // NOTE: this only means the core is the JIT *build* (recompiler baked in)
+          // — NOT that the JIT is executing. In cycle-exact ("Accurate timing") mode,
+          // or on demos whose hot code the JIT can't compile, blocks barely run and
+          // ~0% of instructions go through it. The real signal is the % line below.
+          console.log("%c[PUAE] JIT-capable core loaded (recompiler present)", "color:#888");
         }
         const st = M.__ejsJitStats as { activated: number; gateFail: number } | undefined;
         if (st && st.activated > 0) {
-          let share = "";
+          let share: number | null = null;
           try {
             const tot = (M._jit_insn_total as (() => number) | undefined)?.();
             const jit = (M._jit_insn_jit as (() => number) | undefined)?.();
-            if (tot) share = ` · ${((100 * (jit ?? 0)) / tot).toFixed(0)}% of instructions via JIT`;
+            if (tot) share = (100 * (jit ?? 0)) / tot;
           } catch {
             /* counters not readable across threads — skip */
           }
+          // Only claim it's actually accelerating when a non-trivial share executes
+          // via the JIT; otherwise say so plainly so the banner can't mislead.
+          const running = share !== null && share >= 1;
+          const pct = share === null ? "" : ` · ${share.toFixed(1)}% of instructions via JIT`;
           console.log(
-            `%c[PUAE] JIT active: ${st.activated} blocks live, ${st.gateFail} gate-fails${share}`,
-            "color:#2ecc40",
+            `%c[PUAE] ${running ? "JIT executing ⚡" : "JIT idle (interpreter running)"}: ${st.activated} blocks compiled, ${st.gateFail} gate-fails${pct}`,
+            running ? "color:#2ecc40" : "color:#888",
           );
-          clearInterval(announceTimer!);
+          // keep sampling until the JIT actually kicks in (or the timeout below)
+          if (running) clearInterval(announceTimer!);
         }
       }
       if (tries > 240) {
@@ -271,21 +281,16 @@
 
   // Amiga: flip the 68020 between the JIT/'normal' default and authentic
   // cycle-exact 020 timing (for the few demos that need exact copper/blitter
-  // timing), then reset so PUAE re-reads the variables. Each change pushes to the
-  // core via setVariable; restart() re-applies them without re-downloading.
+  // timing — and the reliable "JIT off" path, since cycle-exact uses a different
+  // CPU loop that the JIT doesn't hook). PUAE only re-reads cpu_compatibility /
+  // cpu_model at machine INIT, not on a warm restart(), and on the threaded core
+  // the JIT can't be toggled from the page — so we relaunch (like the Recommended
+  // toggle) and let launch()'s opts (which read accurateMode) init the core in the
+  // chosen mode. You'll re-click Launch after the switch.
   function toggleAccurate() {
-    const ci = w().EJS_emulator as
-      | {
-          changeSettingOption?: (k: string, v: string) => void;
-          gameManager?: { restart?: () => void };
-        }
-      | undefined;
-    if (!ci?.changeSettingOption) return;
     accurateMode = !accurateMode;
-    ci.changeSettingOption("puae_cpu_model", "68020"); // authentic A1200 either way
-    ci.changeSettingOption("puae_cpu_compatibility", accurateMode ? "exact" : "normal");
-    ci.changeSettingOption("puae_immediate_blits", accurateMode ? "waiting" : "immediate");
-    ci.gameManager?.restart?.();
+    teardown();
+    void launch();
   }
 
   // Flip Recommended-settings mode, persist the choice, and relaunch so
@@ -324,10 +329,10 @@
         aria-pressed={forceDefaults}
         onclick={toggleForceDefaults}
         title={forceDefaults
-          ? "Recommended settings are ON — booting with the app's tuned defaults, ignoring any settings you changed. Click to use your own saved settings instead."
-          : "Using your own saved settings. Click to switch back to the recommended defaults (fixes a laggy or broken setup). Restarts the demo."}
+          ? "Settings source: booting the app's tuned defaults, ignoring any options you changed in the menu (fixes a laggy or broken setup). Click to use your own saved settings instead. Independent of Accurate timing."
+          : "Settings source: using your own saved settings. Click to boot the app's tuned defaults instead. Restarts the demo. Independent of Accurate timing."}
       >
-        <Sparkles size={15} /> Recommended
+        <Sparkles size={15} /> Default settings
       </button>
       {#if core === "amiga"}
         <button
@@ -335,7 +340,7 @@
           class:on={accurateMode}
           aria-pressed={accurateMode}
           onclick={toggleAccurate}
-          title="Accurate timing — cycle-exact 68020 (no JIT). Slower, but for the few demos that need exact copper/blitter timing. Off = JIT-accelerated (smooth). Restarts the demo."
+          title="CPU mode: cycle-exact 68020 (JIT off) — slower, for the few demos that need exact copper/blitter timing. Off = JIT-accelerated (smooth). Independent of Default settings. Restarts the demo."
         >
           <Gauge size={15} /> Accurate timing
         </button>
