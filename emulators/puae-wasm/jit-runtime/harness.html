@@ -136,7 +136,11 @@
             try {
               const mode = Q.get("mode") || "selftest";
               if (mode === "off") {
-                // pure interpreter baseline — install nothing
+                // pure interpreter baseline — install nothing. NOTE: the M4 core
+                // self-installs its own Module.ejsJitGet (baked post-js), so on an
+                // M4 core "off" still runs the JIT — that's how we test the baked
+                // path (and the ONLY way to observe it in the threaded worker is
+                // via effectiveFps, since the page can't reach the worker Module).
               } else if (mode === "probe") installProbe(M);
               else if (mode === "jit") installJit(M, { gate: Q.get("gate") !== "0" });
               else if (mode === "jit3")
@@ -202,8 +206,8 @@
           const st = W.__jitStatus || "booting";
           const t = W.__jitSelfTest;
           const pr = W.__jitProbe;
-          const js = W.__jitStats;
           const M = W.__M;
+          const js = W.__jitStats || (M && M.__ejsJitStats) || null; // page-installed or baked
           const insnTotal = M && M._jit_insn_total ? M._jit_insn_total() : null;
           const insnJit = M && M._jit_insn_jit ? M._jit_insn_jit() : null;
           const now = performance.now();
