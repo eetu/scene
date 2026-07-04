@@ -135,3 +135,48 @@ JS hook cannot win, as measured.
 > (vblank advances, canvas frozen, in both interp and JIT). The throughput metric
 > (emulated-frames/wall-sec under FF) is rendering-independent and is the fair
 > JIT-vs-interp speed comparison.
+
+## M3 — in-C dispatch + block chaining (done ✅)
+
+`core/patches/m3-jit-scaffold.py` moves the dispatch into C: a direct-mapped
+`pc→{slot,len}` cache (`ejs_jit_obtain` calls JS only on a genuine miss) and an
+in-C chain loop that runs compiled blocks back-to-back (`call_indirect` in C, no
+JS crossing between blocks) until a non-resident successor. Guest-instruction
+counters (`jit_insn_total`/`jit_insn_jit`) give a rendering-independent metric.
+This killed the per-instruction wasm→JS tax; single-block JIT now beats the
+interpreter.
+
+## M4 — baked JIT, threaded (done ✅)
+
+The threaded core runs the m68k loop in a worker where `wasmTable` is per-thread
+and `ejs_jit_get` reads *that thread's* `Module.ejsJitGet` — so the recompiler
+must run in the emulation thread, not the page. `core/ejs-jit/bundle.mjs` bundles
+the whole recompiler into `ejs-jit.js`, embedded via `--post-js` (m4-postjs.py),
+so the core **self-installs** `Module.ejsJitGet` on whatever thread the loop runs
+— threaded and non-threaded, no page harness. One threaded bug fixed: block
+modules must import the core's **shared** memory (SharedArrayBuffer) or
+`WebAssembly.Instance` LinkErrors (`emit.mjs` shared limits, detected via
+`SharedArrayBuffer`).
+
+### Measured (M4 core)
+
+| demo (core)                    | interp / no-JIT      | JIT                  | speedup |
+| ------------------------------ | -------------------- | -------------------- | ------- |
+| Sverige ADF (non-threaded)     | ~2.5 Minsn/wall-sec  | ~3.47 (60% share)    | ~1.4×   |
+| **Dreamscape HDF (threaded)**  | **39.6 fr/wall-sec, vblank 36** | **98.4 fr/wall-sec, vblank 60** | **~2.5×** |
+
+**The prize:** on the heavy AGA HDF demo (Dreamscape) in the *threaded* core the
+party app actually uses, the baked JIT activates in the worker (186+ blocks, 0
+gate failures) and takes it from **~0.8× realtime (laggy, vblank 36)** to **~2×
+realtime (smooth, vblank 60)**. HDF demos only mount on the threaded core, which
+is exactly the one M4 makes the JIT work in.
+
+Run: build `m4-vendor` from the `puae-wasm-jit-m4` artifact, then
+`node drive.mjs --mode off --isolate --threads --demo "…(AGA).hdf"` (mode=off —
+the core self-installs; `--isolate --threads` selects the threaded core).
+
+### Remaining levers (not yet done)
+
+JIT share plateaus ~60% (JSR/RTS/JMP handed to the interpreter) and per-instruction
+speedup is bounded by per-op flag computation + register memory traffic. Lazy
+flags, in-block register caching, and JIT'd calls/returns would raise both.
