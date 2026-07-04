@@ -441,6 +441,43 @@ export function makeCodegen(abi) {
           ...storeXfromC(cBit),
         ];
       }
+      case "movem": {
+        // mask is a compile-time constant → unroll exactly the listed registers.
+        const st = sz; // 2 or 4
+        const regOff = (idx) => (idx < 8 ? idx * 4 : 32 + (idx - 8) * 4);
+        const loadReg = (idx) => [k(rb), w.op.i32Load(regOff(idx))];
+        const storeRegFull = (idx, e) => [k(rb), ...e, w.op.i32Store(regOff(idx))];
+        const code = [];
+        if (it.toMem) {
+          if (it.ea.ea === "pdec") {
+            code.push(...loadAraw(it.ea.n), set(LADDR)); // addr = An
+            for (let bit = 0; bit < 16; bit++)
+              if (it.mask & (1 << bit)) {
+                code.push(get(LADDR), k(st), w.op.i32Sub(), set(LADDR));
+                code.push(...memStore(LADDR, st, loadReg(15 - bit))); // bit0=A7 … bit15=D0
+              }
+            code.push(...storeAfull(it.ea.n, [get(LADDR)]));
+          } else {
+            code.push(...eaAddr(it.ea, LADDR, st)); // control addr (ind/disp/abs)
+            for (let bit = 0; bit < 16; bit++)
+              if (it.mask & (1 << bit)) {
+                code.push(...memStore(LADDR, st, loadReg(bit))); // bit0=D0 … bit15=A7
+                code.push(get(LADDR), k(st), w.op.i32Add(), set(LADDR));
+              }
+          }
+        } else {
+          if (it.ea.ea === "pinc") code.push(...loadAraw(it.ea.n), set(LADDR));
+          else code.push(...eaAddr(it.ea, LADDR, st));
+          for (let bit = 0; bit < 16; bit++)
+            if (it.mask & (1 << bit)) {
+              const v = memLoad(LADDR, st);
+              code.push(...storeRegFull(bit, st === 2 ? signExtExpr(v, 2) : v)); // word sign-extends
+              code.push(get(LADDR), k(st), w.op.i32Add(), set(LADDR));
+            }
+          if (it.ea.ea === "pinc") code.push(...storeAfull(it.ea.n, [get(LADDR)]));
+        }
+        return code;
+      }
       default:
         throw new Error(`coreblock: unhandled ${it.op}`);
     }

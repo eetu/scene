@@ -83,7 +83,7 @@ const dataAlt = () => pick([memEA, dEA])(); // data-alterable dst
 const word = (op, ea, extra = []) => [op | bits(ea.mode, ea.reg), ...ea.ext, ...extra];
 
 function randBody() {
-  const g = ri(24);
+  const g = ri(26);
   switch (g) {
     case 0:
       return [0x7000 | (ri(8) << 9) | ri(256)]; // MOVEQ
@@ -227,6 +227,25 @@ function randBody() {
       const d = dataAlt();
       return [0x50c0 | (pick([2, 3, 6, 7, 12, 13]) << 8) | bits(d.mode, d.reg), ...d.ext];
     } // Scc
+    case 24:
+    case 25: {
+      // MOVEM <list>,<ea> / <ea>,<list>
+      const toMem = ri(2) === 0;
+      const long = ri(2) === 1;
+      const base = (toMem ? 0x4880 : 0x4c80) | (long ? 0x40 : 0);
+      const ea = toMem
+        ? pick([
+            { mode: 4, reg: ri(8), ext: [] },
+            { mode: 2, reg: ri(8), ext: [] },
+            { mode: 5, reg: ri(8), ext: [ri(0x10000)] },
+          ])
+        : pick([
+            { mode: 3, reg: ri(8), ext: [] },
+            { mode: 2, reg: ri(8), ext: [] },
+            { mode: 5, reg: ri(8), ext: [ri(0x10000)] },
+          ]);
+      return [base | bits(ea.mode, ea.reg), ri(0x10000), ...ea.ext];
+    }
     default:
       return [0x4e71]; // NOP
   }

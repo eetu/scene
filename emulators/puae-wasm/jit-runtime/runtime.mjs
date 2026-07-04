@@ -235,6 +235,32 @@ const packedFromMd = (cznv, x) =>
   (cznv & 1 ? L.V : 0) |
   ((x >>> 8) & 1 ? L.X : 0);
 
+// sized memory imports the coreblock module needs, wired to the core's exports
+const memEnv = (Module) => ({
+  memory: Module.wasmMemory,
+  get_byte: Module._jit_get_byte,
+  get_word: Module._jit_get_word,
+  get_long: Module._jit_get_long,
+  put_byte: Module._jit_put_byte,
+  put_word: Module._jit_put_word,
+  put_long: Module._jit_put_long,
+});
+// A byte-granular shadow: buffered writes over read-through core memory, so a
+// parity run never mutates real guest RAM. Sized get/put compose bytes big-endian.
+function byteShadow(Module) {
+  const wr = new Map();
+  const gb = (a) => (wr.has(a >>> 0) ? wr.get(a >>> 0) : Module._jit_get_byte(a >>> 0) & 0xff);
+  const get = (a, sz) => {
+    let v = 0;
+    for (let i = 0; i < sz; i++) v = ((v << 8) | gb((a + i) >>> 0)) >>> 0;
+    return v >>> 0;
+  };
+  const put = (a, sz, val) => {
+    for (let i = 0; i < sz; i++) wr.set((a + sz - 1 - i) >>> 0, (val >>> (8 * i)) & 0xff);
+  };
+  return { wr, get, put };
+}
+
 function snapRegsFlags(dv, abi) {
   const D = [],
     A = [];
@@ -267,19 +293,20 @@ function parityCheck(Module, abi, blk, mod) {
   for (let i = 0; i < 8; i++) s[L.iA(i)] = snap.A[i];
   s[L.iCCR] = packedFromMd(snap.cznv, snap.x);
   s[L.iPC] = blk.startPC;
-  const iw = new Map();
-  s.__mem = {
-    get: (a) => (iw.has(a) ? iw.get(a) : Module._jit_get_long(a >>> 0) | 0),
-    put: (a, v) => void iw.set(a >>> 0, v | 0),
-  };
+  const si = byteShadow(Module);
+  s.__mem = si;
   interpBlock(blk, s);
 
   // JIT block: shadow env so real RAM is untouched; real regs mutated then restored
-  const jw = new Map();
+  const sj = byteShadow(Module);
   const shadowEnv = {
     memory: Module.wasmMemory,
-    get_long: (a) => (jw.has(a >>> 0) ? jw.get(a >>> 0) : Module._jit_get_long(a >>> 0) | 0),
-    put_long: (a, v) => void jw.set(a >>> 0, v | 0),
+    get_byte: (a) => sj.get(a, 1),
+    get_word: (a) => sj.get(a, 2),
+    get_long: (a) => sj.get(a, 4),
+    put_byte: (a, v) => sj.put(a, 1, v),
+    put_word: (a, v) => sj.put(a, 2, v),
+    put_long: (a, v) => sj.put(a, 4, v),
   };
   const inst = new WebAssembly.Instance(mod, { env: shadowEnv });
   const jitPC = inst.exports.block() | 0;
@@ -292,9 +319,10 @@ function parityCheck(Module, abi, blk, mod) {
   for (let i = 0; i < 8; i++) if (post.D[i] !== s[L.iD(i)]) ((ok = false), bad.push(`D${i}`));
   for (let i = 0; i < 8; i++) if (post.A[i] !== s[L.iA(i)]) ((ok = false), bad.push(`A${i}`));
   if (packedFromMd(post.cznv, post.x) !== (s[L.iCCR] & 0x1f)) ((ok = false), bad.push("ccr"));
-  if (jw.size !== iw.size) ((ok = false), bad.push("mem#"));
+  if (sj.wr.size !== si.wr.size) ((ok = false), bad.push("mem#"));
   else
-    for (const [a, v] of jw) if (iw.get(a) !== v) ((ok = false), bad.push("mem@" + a.toString(16)));
+    for (const [a, v] of sj.wr)
+      if (si.wr.get(a) !== v) ((ok = false), bad.push("mem@" + a.toString(16)));
   return { ok, detail: { bad, ops: blk.instrs.map((i) => i.op), term: blk.term && blk.term.op } };
 }
 
@@ -305,11 +333,7 @@ export function installJit(Module, opts = {}) {
   };
   const words = guestWords(Module);
   const table = Module.wasmTable;
-  const realEnv = {
-    memory: Module.wasmMemory,
-    get_long: Module._jit_get_long,
-    put_long: Module._jit_put_long,
-  };
+  const realEnv = memEnv(Module);
   const ramMax = opts.ramMax ?? 0x00f00000;
   const gate = opts.gate !== false;
   const cache = new Map(); // pc → slot (>=0 active JIT) | -1 (fall back to interp)
@@ -373,11 +397,7 @@ export function installJitChained(Module, opts = {}) {
   };
   const words = guestWords(Module);
   const table = Module.wasmTable;
-  const realEnv = {
-    memory: Module.wasmMemory,
-    get_long: Module._jit_get_long,
-    put_long: Module._jit_put_long,
-  };
+  const realEnv = memEnv(Module);
   const ramMax = opts.ramMax ?? 0x00f00000;
   const gate = opts.gate !== false;
   const js = new Map(); // pc → packed (stable across C-cache evictions)
