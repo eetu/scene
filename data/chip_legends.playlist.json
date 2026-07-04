@@ -1,0 +1,70 @@
+{
+  "name": "Chip Legends",
+  "source": "curated:chip-legends",
+  "items": [
+    {
+      "path": "Fasttracker 2/Drax/a rose of gold.xm",
+      "title": "a rose of gold",
+      "artist": "Drax",
+      "format": "xm",
+      "filename": "a rose of gold.xm",
+      "md5": "6374da6cc29b9bd69f256353e4b3c3e5"
+    },
+    {
+      "path": "Fasttracker 2/Jeroen Tel/smiley.xm",
+      "title": "smiley",
+      "artist": "Jeroen Tel",
+      "format": "xm",
+      "filename": "smiley.xm",
+      "md5": "cafdcbd199c809a0dde79a65fe10a66a"
+    },
+    {
+      "path": "Fasttracker 2/Dubmood/3d galax.xm",
+      "title": "3d galax",
+      "artist": "Dubmood",
+      "format": "xm",
+      "filename": "3d galax.xm",
+      "md5": "d8e258fdbe58e8ea3084cc44304ba0a9"
+    },
+    {
+      "path": "Fasttracker 2/Zabutom/zeta force level 2.xm",
+      "title": "zeta force level 2",
+      "artist": "Zabutom",
+      "format": "xm",
+      "filename": "zeta force level 2.xm",
+      "md5": "ad7d2e8f49d984024026c423a3e12f4f"
+    },
+    {
+      "path": "Fasttracker 2/Cerror/dans la rue.xm",
+      "title": "dans la rue",
+      "artist": "Cerror",
+      "format": "xm",
+      "filename": "dans la rue.xm",
+      "md5": "7b14d0cb28abf67321006035e488863d"
+    },
+    {
+      "path": "Fasttracker 2/Dalezy/fresh.xm",
+      "title": "fresh",
+      "artist": "Dalezy",
+      "format": "xm",
+      "filename": "fresh.xm",
+      "md5": "48393e1bedf23bb14fa12fbb4a9f2ba7"
+    },
+    {
+      "path": "Fasttracker 2/4-Mat/hip shop.xm",
+      "title": "hip shop",
+      "artist": "4-Mat",
+      "format": "xm",
+      "filename": "hip shop.xm",
+      "md5": "bfa184d5bc42273d71b42611f9e0531d"
+    },
+    {
+      "path": "Impulsetracker/Virt/my favorite thing.it",
+      "title": "my favorite thing",
+      "artist": "Virt",
+      "format": "it",
+      "filename": "my favorite thing.it",
+      "md5": "d3791e2cc30144b33fc2deb906d78944"
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "name": "Amiga Legends",
+  "source": "curated:amiga-legends",
+  "items": [
+    {
+      "path": "Protracker/Dizzy/camomile.mod",
+      "title": "camomile",
+      "artist": "Dizzy",
+      "format": "mod",
+      "filename": "camomile.mod",
+      "md5": "352a9b88fd84130b8c7d434568fe5df1"
+    },
+    {
+      "path": "Protracker/Groo/crystal express.mod",
+      "title": "crystal express",
+      "artist": "Groo",
+      "format": "mod",
+      "filename": "crystal express.mod",
+      "md5": "72ac9130d400ddfcae7dbf6120dc7715"
+    },
+    {
+      "path": "Protracker/Heatbeat/bicykl0pedia.mod",
+      "title": "bicykl0pedia",
+      "artist": "Heatbeat",
+      "format": "mod",
+      "filename": "bicykl0pedia.mod",
+      "md5": "3b566cb9a3b50392e6bbe9aba75cfbea"
+    },
+    {
+      "path": "Protracker/Jogeir Liljedahl/gentle winds (2).mod",
+      "title": "gentle winds (2)",
+      "artist": "Jogeir Liljedahl",
+      "format": "mod",
+      "filename": "gentle winds (2).mod",
+      "md5": "ad2062874412b0c72acdb169f1e5271a"
+    },
+    {
+      "path": "Screamtracker 3/Purple Motion/World of plastic.s3m",
+      "title": "World of plastic",
+      "artist": "Purple Motion",
+      "format": "s3m",
+      "filename": "World of plastic.s3m",
+      "md5": "cbb96118251f54d6e58a46160492aca2"
+    },
+    {
+      "path": "Fasttracker 2/4-Mat/eternity.xm",
+      "title": "eternity",
+      "artist": "4-Mat",
+      "format": "xm",
+      "filename": "eternity.xm",
+      "md5": "6c94138c8b4a9702a083c99550d59867"
+    },
+    {
+      "path": "Protracker/Bruno/dr.snuggles.mod",
+      "title": "dr.snuggles",
+      "artist": "Bruno",
+      "format": "mod",
+      "filename": "dr.snuggles.mod",
+      "md5": "aec82e22b6f4b893b076c7991eaeb842"
+    },
+    {
+      "path": "Protracker/Jester/Elysium.mod",
+      "title": "Elysium",
+      "artist": "Jester",
+      "format": "mod",
+      "filename": "Elysium.mod",
+      "md5": "ce816893236cfd543263f2e843d29825"
+    },
+    {
+      "path": "Protracker/Lizardking/1.9.9.3.mod",
+      "title": "1.9.9.3",
+      "artist": "Lizardking",
+      "format": "mod",
+      "filename": "1.9.9.3.mod",
+      "md5": "897a9055a4626dd4648e153fde14dd28"
+    },
+    {
+      "path": "Protracker/Romeo Knight/1989-a number.mod",
+      "title": "1989-a number",
+      "artist": "Romeo Knight",
+      "format": "mod",
+      "filename": "1989-a number.mod",
+      "md5": "4f0a81329c6342f8905832a0f69c09d6"
+    }
+  ]
+}
