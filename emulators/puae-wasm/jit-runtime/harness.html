@@ -96,7 +96,9 @@
         W.EJS_biosUrl = cfg.biosUrl;
         W.EJS_startOnLoaded = true;
         W.EJS_language = "en";
-        W.EJS_threads = false; // force the non-threaded core (Module on this thread)
+        // Non-threaded by default (Module on this thread for the JIT); ?threads=1
+        // forces the threaded core (to A/B HDF mounting).
+        W.EJS_threads = Q.get("threads") === "1" && W.crossOriginIsolated === true;
         W.EJS_volume = 0;
         W.EJS_color = "#f78f08";
         W.EJS_backgroundColor = "#0f0f0f";
@@ -137,7 +139,11 @@
                 // pure interpreter baseline — install nothing
               } else if (mode === "probe") installProbe(M);
               else if (mode === "jit") installJit(M, { gate: Q.get("gate") !== "0" });
-              else if (mode === "jit3") installJitChained(M, { gate: Q.get("gate") !== "0" });
+              else if (mode === "jit3")
+                installJitChained(M, {
+                  gate: Q.get("gate") !== "0",
+                  ramMax: Q.get("rammax") ? parseInt(Q.get("rammax"), 16) >>> 0 : undefined,
+                });
               else installSelfTest(M);
               W.__jitStatus = "installed:" + mode;
             } catch (e) {

@@ -54,8 +54,19 @@ const MIME = {
   ".svg": "image/svg+xml",
 };
 
+// --isolate sends COOP/COEP so crossOriginIsolated is true → threaded core (to
+// A/B whether HDF mounting is threads-dependent).
+const ISOLATE = process.argv.includes("--isolate");
+function isolate(res) {
+  if (!ISOLATE) return;
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+}
+
 async function sendFile(res, path, typeHint) {
   const st = await stat(path);
+  isolate(res);
   res.setHeader("Content-Type", typeHint || MIME[extname(path)] || "application/octet-stream");
   res.setHeader("Content-Length", st.size);
   res.setHeader("Cache-Control", "no-store");
@@ -81,6 +92,7 @@ const server = createServer(async (req, res) => {
     if (p === "/runtime.mjs") return sendFile(res, join(HERE, "runtime.mjs"), MIME[".mjs"]);
 
     if (p === "/config.json") {
+      isolate(res);
       res.setHeader("Content-Type", MIME[".json"]);
       res.setHeader("Cache-Control", "no-store");
       return res.end(

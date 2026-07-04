@@ -89,6 +89,7 @@ async function main() {
     const v = arg(k, "");
     if (v) passthrough.push(`--${k}`, v);
   }
+  if (process.argv.includes("--isolate")) passthrough.push("--isolate");
   const srv = spawn("node", [join(HERE, "server.mjs"), "--port", String(PORT), ...passthrough], {
     stdio: ["ignore", "inherit", "inherit"],
   });
@@ -151,11 +152,14 @@ async function main() {
   await c.ready;
   await c.send("Page.enable");
   await c.send("Runtime.enable");
+  const rammax = arg("rammax", "");
+  const threads = process.argv.includes("--threads") ? "&threads=1" : ""; // decoupled from --isolate
   await c.send("Page.navigate", {
-    url: `http://localhost:${PORT}/?cpu=68030&compat=normal&mode=${MODE}`,
+    url: `http://localhost:${PORT}/?cpu=68030&compat=normal&mode=${MODE}${rammax ? "&rammax=" + rammax : ""}${threads}`,
   });
 
   if (MODE === "probe") return probeMode(c, crlog, cleanup);
+  if (MODE === "shots") return shotsMode(c, crlog, cleanup);
   if (MODE === "jit" || MODE === "jit3" || MODE === "off") return fpsMode(c, crlog, cleanup);
 
   console.log(`\nwaiting up to ${WAIT / 1000}s for boot + self-test…`);
@@ -199,6 +203,40 @@ async function main() {
     console.log("\n❌ self-test FAILED — see mismatches/error above.");
     process.exit(1);
   }
+}
+
+// shots mode: capture a real-time filmstrip (NO fast-forward, so the boot →
+// OS-window → demo-load sequence plays naturally) to a folder for eyeballing.
+//   node drive.mjs --mode shots --shotdir <dir> [--shot-secs 60] [--shot-every 3]
+async function shotsMode(c, crlog, cleanup) {
+  const { writeFile } = await import("node:fs/promises");
+  const dir = arg("shotdir", "/Users/eetu/Desktop/jit-shots");
+  const total = Number(arg("shot-secs", "60")) * 1000;
+  const every = Number(arg("shot-every", "3")) * 1000;
+  const tag = arg("tag", "shot");
+  console.log(
+    `\nmode=shots: capturing ${tag} every ${every / 1000}s for ${total / 1000}s → ${dir}`,
+  );
+  const t0 = Date.now();
+  let n = 0;
+  while (Date.now() - t0 < total) {
+    const secs = Math.round((Date.now() - t0) / 1000);
+    const h = JSON.parse((await c.evals("JSON.stringify(window.__hud||null)")) || "null");
+    const r = await c.send("Page.captureScreenshot", { format: "png" });
+    if (r.result?.data) {
+      const name = `${dir}/${tag}-${String(secs).padStart(3, "0")}s.png`;
+      await writeFile(name, Buffer.from(r.result.data, "base64"));
+      console.log(
+        `  ${name}  frame:${h ? h.frame : "?"}  effective:${h ? h.effectiveFps : "?"}  vblank:${h ? h.vblankFps : "?"}`,
+      );
+    }
+    n++;
+    await sleep(every);
+  }
+  c.close();
+  cleanup();
+  console.log(`\n${n} shots written to ${dir}`);
+  process.exit(0);
 }
 
 // fps mode (jit | off): let the demo boot + animate, then sample effectiveFps /
@@ -268,6 +306,16 @@ async function fpsMode(c, crlog, cleanup) {
     await sleep(1500);
   }
   fpsMode._ffThroughput = ffThroughput;
+
+  const shot = arg("shot", "");
+  if (shot) {
+    const r = await c.send("Page.captureScreenshot", { format: "png" });
+    if (r.result?.data) {
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(shot, Buffer.from(r.result.data, "base64"));
+      console.log(`  screenshot → ${shot}`);
+    }
+  }
 
   const eff = [],
     vbl = [];
