@@ -9,15 +9,18 @@
 //    the clock on return so the first visible frame doesn't get a huge dt.
 //
 // `render(dt, now)` receives the real elapsed seconds since the last *rendered*
-// frame (clamped to 50ms), so animation speed is independent of the cap. Returns
-// a stop() to cancel the loop and detach listeners.
+// frame (clamped to 50ms), so animation speed is independent of the cap. `fps`
+// may be a function, re-read each tick — e.g. () => (active ? 60 : 30) to idle a
+// heavy effect down while playback is paused. Returns a stop() to cancel the loop
+// and detach listeners.
 export function driveFrames(
   render: (dt: number, now: number) => void,
-  opts: { fps?: number } = {},
+  opts: { fps?: number | (() => number) } = {},
 ): () => void {
   if (typeof requestAnimationFrame === "undefined") return () => {};
+  const fpsOpt = opts.fps ?? 60;
   // −1ms slack so two 8.33ms (120Hz) ticks clear the 60fps gate cleanly.
-  const minInterval = 1000 / (opts.fps ?? 60) - 1;
+  const minInterval = () => 1000 / (typeof fpsOpt === "function" ? fpsOpt() : fpsOpt) - 1;
   let raf = 0;
   let last = performance.now();
 
@@ -25,7 +28,7 @@ export function driveFrames(
     raf = requestAnimationFrame(tick);
     if (typeof document !== "undefined" && document.hidden) return;
     const elapsed = now - last;
-    if (elapsed < minInterval) return; // too soon — skip this tick
+    if (elapsed < minInterval()) return; // too soon — skip this tick
     last = now;
     render(Math.min(0.05, elapsed / 1000), now);
   }

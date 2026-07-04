@@ -21,6 +21,8 @@
   // `format` (a module extension, lowercase) tunes the chunkiness: the legacy
   // Amiga/SoundTracker formats render big, blocky pixels (the authentic look);
   // the modern PC trackers (XM/IT/S3M/…) get a finer "HD" ball. Empty = neutral.
+  import { driveFrames } from "./raf";
+
   let {
     energy = 0,
     format = "",
@@ -247,128 +249,128 @@
       og.fill();
     }
 
-    let raf = 0;
-    function frame(ts: number) {
-      if (!t0) {
-        t0 = ts;
-        lastT = ts;
-      }
-      const t = (ts - t0) / 1000;
-      const dt = Math.min(0.05, (ts - lastT) / 1000);
-      lastT = ts;
-
-      if (oW > 0 && oH > 0) {
-        const r = radius();
-        const pad = 4;
-        const left = r + pad;
-        const right = oW - r - pad;
-        const floor = oH - r - pad;
-        const ceil = r + pad;
-
-        // Liveliness target: full for the loader; in react mode the bounce
-        // height tracks the music. Eased so it grows/shrinks smoothly.
-        const ampTarget = react ? (live ? Math.min(1, 0.45 + energy * 0.55) : 0) : 1;
-        amp += (ampTarget - amp) * (1 - Math.exp(-dt * 2.5));
-
-        const hp = t * H_SPEED;
-        const f = hp - Math.floor(hp);
-        const hx = f < 0.5 ? f * 2 : 2 - f * 2;
-        const dir = f < 0.5 ? 1 : -1;
-        const xc = (left + right) / 2;
-        // Analytic "boing" target — energy scales the height via amp.
-        const dx = xc + (left + (right - left) * hx - xc) * amp;
-        const dy = floor - (floor - ceil) * Math.abs(Math.sin(t * V_SPEED)) * amp;
-
-        if (!started) {
-          px = dx;
-          py = dy;
-          ppx = dx;
-          ppy = dy;
-          started = true;
+    const stopFrames = driveFrames(
+      (_dt: number, ts: number) => {
+        if (!t0) {
+          t0 = ts;
+          lastT = ts;
         }
+        const t = (ts - t0) / 1000;
+        const dt = Math.min(0.05, (ts - lastT) / 1000);
+        lastT = ts;
 
-        if (react && !live) {
-          // Paused → gravity sim. The velocity carried over from the last driven
-          // frame keeps the ball moving; gravity then pulls it down to bounce off
-          // the floor/walls (restitution + friction) until it settles. Gravity
-          // scales with the canvas so the feel is size-independent.
-          free = true;
-          vy += oH * 7 * dt;
-          px += vx * dt;
-          py += vy * dt;
-          if (px < left) {
-            px = left;
-            vx = -vx * 0.7;
-          } else if (px > right) {
-            px = right;
-            vx = -vx * 0.7;
-          }
-          if (py < ceil) {
-            py = ceil;
-            vy = -vy * 0.62;
-          }
-          if (py > floor) {
-            py = floor;
-            vy = -vy * 0.62;
-            vx *= 0.78; // floor friction
-            if (Math.abs(vy) < oH * 0.5) vy = 0; // tiny bounces settle out
-          }
-          vx *= 1 - Math.min(0.5, dt * 0.8); // air drag
-          if (py >= floor - 0.5 && Math.abs(vy) < 1 && Math.abs(vx) < oH * 0.08) {
-            vx = 0;
-            vy = 0;
-            py = floor;
-          }
-        } else {
-          // Driven (playing / loader). Resuming from the sim eases back onto the
-          // analytic path; otherwise track it exactly. Velocity is sampled so a
-          // later pause can hand off cleanly.
-          if (free) {
-            free = false;
-            blendT = 0.3;
-          }
-          if (blendT > 0) {
-            blendT = Math.max(0, blendT - dt);
-            const kB = 1 - Math.exp(-dt * 10);
-            px += (dx - px) * kB;
-            py += (dy - py) * kB;
-          } else {
+        if (oW > 0 && oH > 0) {
+          const r = radius();
+          const pad = 4;
+          const left = r + pad;
+          const right = oW - r - pad;
+          const floor = oH - r - pad;
+          const ceil = r + pad;
+
+          // Liveliness target: full for the loader; in react mode the bounce
+          // height tracks the music. Eased so it grows/shrinks smoothly.
+          const ampTarget = react ? (live ? Math.min(1, 0.45 + energy * 0.55) : 0) : 1;
+          amp += (ampTarget - amp) * (1 - Math.exp(-dt * 2.5));
+
+          const hp = t * H_SPEED;
+          const f = hp - Math.floor(hp);
+          const hx = f < 0.5 ? f * 2 : 2 - f * 2;
+          const dir = f < 0.5 ? 1 : -1;
+          const xc = (left + right) / 2;
+          // Analytic "boing" target — energy scales the height via amp.
+          const dx = xc + (left + (right - left) * hx - xc) * amp;
+          const dy = floor - (floor - ceil) * Math.abs(Math.sin(t * V_SPEED)) * amp;
+
+          if (!started) {
             px = dx;
             py = dy;
+            ppx = dx;
+            ppy = dy;
+            started = true;
           }
-          if (dt > 0.0001) {
-            vx = (px - ppx) / dt;
-            vy = (py - ppy) / dt;
+
+          if (react && !live) {
+            // Paused → gravity sim. The velocity carried over from the last driven
+            // frame keeps the ball moving; gravity then pulls it down to bounce off
+            // the floor/walls (restitution + friction) until it settles. Gravity
+            // scales with the canvas so the feel is size-independent.
+            free = true;
+            vy += oH * 7 * dt;
+            px += vx * dt;
+            py += vy * dt;
+            if (px < left) {
+              px = left;
+              vx = -vx * 0.7;
+            } else if (px > right) {
+              px = right;
+              vx = -vx * 0.7;
+            }
+            if (py < ceil) {
+              py = ceil;
+              vy = -vy * 0.62;
+            }
+            if (py > floor) {
+              py = floor;
+              vy = -vy * 0.62;
+              vx *= 0.78; // floor friction
+              if (Math.abs(vy) < oH * 0.5) vy = 0; // tiny bounces settle out
+            }
+            vx *= 1 - Math.min(0.5, dt * 0.8); // air drag
+            if (py >= floor - 0.5 && Math.abs(vy) < 1 && Math.abs(vx) < oH * 0.08) {
+              vx = 0;
+              vy = 0;
+              py = floor;
+            }
+          } else {
+            // Driven (playing / loader). Resuming from the sim eases back onto the
+            // analytic path; otherwise track it exactly. Velocity is sampled so a
+            // later pause can hand off cleanly.
+            if (free) {
+              free = false;
+              blendT = 0.3;
+            }
+            if (blendT > 0) {
+              blendT = Math.max(0, blendT - dt);
+              const kB = 1 - Math.exp(-dt * 10);
+              px += (dx - px) * kB;
+              py += (dy - py) * kB;
+            } else {
+              px = dx;
+              py = dy;
+            }
+            if (dt > 0.0001) {
+              vx = (px - ppx) / dt;
+              vy = (py - ppy) / dt;
+            }
           }
+          ppx = px;
+          ppy = py;
+
+          spin += SPIN_RATE * (0.6 + energy * 2) * dir * dt;
+          const rDraw = r * (1 + energy * 0.15);
+
+          // Grid layer: blit the cached static grid (redrawn only on resize).
+          main.clearRect(0, 0, W, H);
+          main.imageSmoothingEnabled = false;
+          main.drawImage(gridC, 0, 0, W, H);
+
+          // Ball layer (low-res offscreen, transparent), then composite up.
+          og.clearRect(0, 0, oW, oH);
+          // drop shadow on the wall, offset down-right behind the ball
+          og.fillStyle = "rgba(30,30,30,0.3)";
+          og.beginPath();
+          og.arc(px + rDraw * 0.32, py + rDraw * 0.22, rDraw, 0, Math.PI * 2);
+          og.fill();
+          ball(px, py, rDraw);
+
+          main.drawImage(off, 0, 0, oW, oH, 0, 0, W, H);
         }
-        ppx = px;
-        ppy = py;
-
-        spin += SPIN_RATE * (0.6 + energy * 2) * dir * dt;
-        const rDraw = r * (1 + energy * 0.15);
-
-        // Grid layer: blit the cached static grid (redrawn only on resize).
-        main.clearRect(0, 0, W, H);
-        main.imageSmoothingEnabled = false;
-        main.drawImage(gridC, 0, 0, W, H);
-
-        // Ball layer (low-res offscreen, transparent), then composite up.
-        og.clearRect(0, 0, oW, oH);
-        // drop shadow on the wall, offset down-right behind the ball
-        og.fillStyle = "rgba(30,30,30,0.3)";
-        og.beginPath();
-        og.arc(px + rDraw * 0.32, py + rDraw * 0.22, rDraw, 0, Math.PI * 2);
-        og.fill();
-        ball(px, py, rDraw);
-
-        main.drawImage(off, 0, 0, oW, oH, 0, 0, W, H);
-      }
-      raf = requestAnimationFrame(frame);
-    }
-    raf = requestAnimationFrame(frame);
+      },
+      { fps: 60 },
+    );
 
     return () => {
-      cancelAnimationFrame(raf);
+      stopFrames();
       ro.disconnect();
     };
   });
