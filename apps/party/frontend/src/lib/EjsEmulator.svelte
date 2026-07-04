@@ -136,7 +136,18 @@
     // - virtual-gamepad off: EmulatorJS defaults it to "enabled" on mobile, but
     //   these are keyboard/non-interactive demos, so the touch d-pad just covers
     //   the screen with nothing useful. Still re-enableable in the settings menu.
-    const opts: Record<string, string> = { "virtual-gamepad": "disabled" };
+    // Force the modern WebGL2 core build. EmulatorJS picks the "-legacy" (WebGL1)
+    // core whenever `webgl2Enabled` is falsy, and that value defaults to null unless
+    // a saved setting or the core's report JSON (options.defaultWebGL2) supplies one
+    // — our vendored report has no such key, and it 404s under the backend's SPA
+    // fallback in prod anyway. So a fresh origin (any real deployment) fell back to
+    // the legacy WebGL1 core, which renders AGA demos black; dev only worked because
+    // localhost's localStorage happened to have WebGL2 persisted. preGetSetting reads
+    // this default when there's no saved value, so this pins WebGL2 on everywhere.
+    const opts: Record<string, string> = {
+      "virtual-gamepad": "disabled",
+      webgl2Enabled: "enabled",
+    };
     if (core === "amiga") {
       // Model by filename tag (amigaA500 above): AGA demos (68020/AGA) run on an
       // A1200; OCS/ECS demos (State of the Art, Desert Dream, Enigma…) need a
