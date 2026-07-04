@@ -362,6 +362,70 @@ export function installJit(Module, opts = {}) {
   console.log("[jit] real block JIT installed (gate=" + gate + ")");
 }
 
+// M3: same as installJit but the C core owns the pc→slot cache + chaining, so
+// this returns PACKED (len<<24)|slot (or -1) and keeps a JS map only to avoid
+// re-growing the table if the C cache evicts and re-asks. `len` = guest
+// instructions the block retires (body + a compiled Bcc/DBcc/BRA terminator).
+export function installJitChained(Module, opts = {}) {
+  const abi = {
+    regsBase: Module._jit_abi_regs() >>> 0,
+    regflagsBase: Module._jit_abi_regflags() >>> 0,
+  };
+  const words = guestWords(Module);
+  const table = Module.wasmTable;
+  const realEnv = {
+    memory: Module.wasmMemory,
+    get_long: Module._jit_get_long,
+    put_long: Module._jit_put_long,
+  };
+  const ramMax = opts.ramMax ?? 0x00f00000;
+  const gate = opts.gate !== false;
+  const js = new Map(); // pc → packed (stable across C-cache evictions)
+  const st = { compiled: 0, activated: 0, gateFail: 0, empty: 0, decodeFail: 0, blocks: 0 };
+  window.__jitGateFails = [];
+  const CFTERM = { bcc: 1, dbcc: 1 }; // terminators the block itself executes (+1 retired)
+
+  Module.ejsJitGet = (pc) => {
+    pc = pc >>> 0;
+    const cached = js.get(pc);
+    if (cached !== undefined) return cached;
+    st.blocks++;
+    let packed = -1;
+    if (pc < ramMax) {
+      try {
+        const blk = blockAt(words, pc, 64);
+        if (!blk.instrs.length) st.empty++;
+        else {
+          const mod = new WebAssembly.Module(recompileCoreBlock(blk, abi));
+          st.compiled++;
+          if (gate && !parityCheck(Module, abi, blk, mod).ok) {
+            st.gateFail++;
+            if (window.__jitGateFails.length < 12)
+              window.__jitGateFails.push({ pc: pc.toString(16), ops: blk.instrs.map((i) => i.op) });
+          } else {
+            const slot = table.grow(1);
+            table.set(slot, new WebAssembly.Instance(mod, { env: realEnv }).exports.block);
+            const len = Math.min(
+              0xff,
+              blk.instrs.length + (blk.term && CFTERM[blk.term.op] ? 1 : 0),
+            );
+            packed = ((len & 0xff) << 24) | (slot & 0xffffff);
+            st.activated++;
+          }
+        }
+      } catch (e) {
+        st.decodeFail++;
+      }
+    }
+    js.set(pc, packed);
+    window.__jitStats = st;
+    return packed;
+  };
+  window.__jitAttached = true;
+  window.__jitStats = st;
+  console.log("[jit] M3 chained JIT installed (C-side dispatch, gate=" + gate + ")");
+}
+
 export function installProbe(Module, opts = {}) {
   const maxUnique = opts.maxUnique || 40000;
   const ramMax = opts.ramMax ?? 0x00f00000; // skip Kickstart ROM (0xf80000+) & IO
