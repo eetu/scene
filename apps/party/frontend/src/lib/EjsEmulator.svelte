@@ -30,6 +30,15 @@
   // on the target hardware / capture videos). This toggle switches to authentic
   // stock-A1200 cycle-exact 68020 timing for the few demos that require it.
   let accurateMode = $state(false);
+  // "Recommended settings" (on by default): ignore EmulatorJS's per-demo saved
+  // settings and boot with the app defaults below — forgiving, so an accidental
+  // setting that made a demo laggy doesn't stick. Toggle off to let your saved
+  // settings apply/persist. The choice itself is stored globally (survives the
+  // per-demo reset). See EJS_disableLocalStorage in launch().
+  const FORCE_KEY = "party-ejs-force-defaults";
+  const readForceDefaults = () =>
+    typeof localStorage === "undefined" || localStorage.getItem(FORCE_KEY) !== "0";
+  let forceDefaults = $state(readForceDefaults());
   // iOS Safari has no Fullscreen API on a <div>, so the real button no-ops; fall
   // back to a CSS "pseudo fullscreen" (fixed overlay), as the DOS surface does.
   let pseudoFs = $state(false);
@@ -70,6 +79,10 @@
     // walks Module.AL.currentCtx.sources): a threaded core leaves that slider
     // inert, so threading C64 would silently break its volume control.
     g.EJS_threads = core === "amiga" && window.crossOriginIsolated === true;
+    // Recommended mode → tell EmulatorJS to ignore (and not write) its saved
+    // per-demo settings, so EJS_defaultOptions below always win. Off → normal
+    // persistence: saved settings override the defaults.
+    g.EJS_disableLocalStorage = forceDefaults;
     g.EJS_volume = 1;
     g.EJS_color = cssVar("--accent", "#f78f08");
     g.EJS_backgroundColor = cssVar("--bg", "#0f0f0f");
@@ -198,6 +211,19 @@
     ci.gameManager?.restart?.();
   }
 
+  // Flip Recommended-settings mode, persist the choice, and relaunch so
+  // EJS_disableLocalStorage takes effect at core init.
+  function toggleForceDefaults() {
+    forceDefaults = !forceDefaults;
+    try {
+      localStorage.setItem(FORCE_KEY, forceDefaults ? "1" : "0");
+    } catch {
+      /* storage blocked — session-only */
+    }
+    teardown();
+    void launch();
+  }
+
   // Stop the running core and reset to a fresh Start Game screen.
   function stop() {
     teardown();
@@ -213,6 +239,15 @@
 <div class="emu" class:fs={pseudoFs}>
   {#if error}<p class="err">{error}</p>{/if}
   <div class="bar">
+    <button
+      class:on={forceDefaults}
+      onclick={toggleForceDefaults}
+      title={forceDefaults
+        ? "Recommended settings: booting with the app defaults (ignoring any settings you saved). Toggle off to use your saved settings."
+        : "Using your saved settings. Toggle on to force the recommended defaults (fixes a laggy/broken setup). Restarts the demo."}
+    >
+      Recommended
+    </button>
     {#if core === "amiga"}
       <button
         class:on={accurateMode}
