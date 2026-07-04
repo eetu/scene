@@ -80,10 +80,14 @@
     //   the target hardware / capture videos. A stock cycle-exact 68020 is pinned
     //   to real-A1200 speed and chugs on demanding demos — the "Accurate" toggle
     //   offers that for the few that need exact 020/copper/blitter timing.
-    //   CPU compatibility is 'normal' (the lightest interpreter path — the WASM
-    //   PUAE core has no 68k JIT, so this is the main speed lever); immediate
+    //   CPU compatibility is 'normal' (the lightest interpreter path); immediate
     //   blits + no collision (demos don't use it) save more CPU. See libretro
-    //   PUAE core options.
+    //   PUAE core options. NOTE: our vendored PUAE core is a JIT build (a
+    //   68k→WASM recompiler baked in via --post-js, see emulators/puae-wasm) that
+    //   self-installs on the emulation thread and accelerates the 'normal'
+    //   interpreter path — heavy AGA demos (e.g. Dreamscape) run ~2× faster,
+    //   above 50fps instead of chugging. Falls back to the interpreter per-block
+    //   on any unsupported opcode (parity-gated), so it's transparent.
     // - C64: drive-sound emulation off by default. VICE models the 1541's
     //   motor/stepper noise faithfully, and many demos keep the drive spinning,
     //   so the sound runs on under the demo (unlike Amiga, whose floppy noise
@@ -108,7 +112,7 @@
       } else {
         opts.puae_model = "A1200"; // force AGA — our Amiga content is AGA demos
         opts.puae_cpu_model = "68030"; // accelerate (Blizzard-1230-style) for speed
-        opts.puae_cpu_compatibility = "normal"; // lightest CPU path (no JIT in WASM)
+        opts.puae_cpu_compatibility = "normal"; // lightest CPU path (JIT-accelerated, see note above)
         opts.puae_immediate_blits = "immediate"; // instant blitter — saves CPU
         // The A1200 preset is "2M Chip + 8M Fast", but the individual memory
         // options override the model preset, and EmulatorJS writes them all at the
