@@ -115,19 +115,44 @@
       float striations = 0.55 + 0.45 * sin((z * 0.7 - t * 2.5) * TAU + a * TAU * 6.0);
       return hsv2rgb(vec3(hue, 0.9, 1.0)) * striations * 1.3;
     }
-    // Hyperspace: sparse bright star-streaks whipping past along the tube.
+    // Hyperspace: thin radial star-streaks flying along the tube walls — bright
+    // heads with long smooth tails, travelling toward the camera at varied speeds.
+    // Thin in angle (clean radial lines, not blocky bands), ~half the lanes lit
+    // with varied brightness, and faded near the mouth so the outer pipe stays dark.
     vec3 themeHyper(float z, float a, float t) {
-      float lane = floor(a * 48.0);
+      float LANES = 64.0;
+      float la = a * LANES;
+      float sub = abs(fract(la) - 0.5); // 0 at lane centre → 0.5 at the edge
+      float lane = floor(la);
       float r = fract(sin(lane * 12.9898 + uSeed) * 43758.5453);
-      float streak = smoothstep(0.97, 1.0, 0.5 + 0.5 * sin(z * 2.0 + t * (14.0 + r * 26.0) + r * 40.0));
-      return mix(vec3(0.6, 0.75, 1.0), vec3(1.0), r) * streak * step(0.55, r) * 2.2;
+      float r2 = fract(sin(lane * 45.77 + uSeed * 3.3) * 27182.8);
+      float on = step(0.42, r);                          // a bit over half the lanes lit → more stars
+      float line = exp(-sub * sub * (90.0 + 140.0 * r)); // thin radial line, width varies
+      float d = z - uCamZ;                               // depth ahead of the camera
+      float head = mod(d * 0.09 + t * (1.4 + r * 1.6) + r2 * 10.0, 3.2); // heads travel toward the camera
+      float streak = exp(-head * 2.2);                   // sharp head + long fading tail
+      float nearFade = smoothstep(2.0, 16.0, d);         // obscure the near mouth
+      vec3 tint = mix(vec3(0.5, 0.68, 1.0), vec3(1.0), r * r);
+      return tint * line * streak * on * nearFade * (1.4 + 2.0 * r);
     }
-    // Biomech / Giger: dark ribbed organic-metal, cold violet-grey with wet sheen.
+    // Biomech / Giger: a dark ribbed metal tube — segmented rings along the tube
+    // with a wet cold-steel sheen on the crests and near-black crevices between,
+    // vertebrae segmentation around the circumference. Cold blue-grey, high
+    // contrast (the ribbed biomech corridor look, not soft violet folds).
     vec3 themeGiger(float z, float a, float t) {
-      float ribs = 0.5 + 0.5 * sin(z * 7.0 + sin(a * TAU * 3.0) * 1.6);
-      float spine = 0.5 + 0.5 * sin(a * TAU * 4.0 + z * 0.6);
-      vec3 col = mix(vec3(0.03, 0.03, 0.05), vec3(0.24, 0.22, 0.28), pow(ribs * spine, 1.5));
-      return col + vec3(0.12, 0.1, 0.16) * pow(spine, 5.0);
+      // Ribs = rings along the tube, warped around the circumference so they read
+      // as organic vertebrae rather than machined bands.
+      float ring = 0.5 + 0.5 * sin(z * 5.5 + sin(a * TAU * 2.0) * 0.7);
+      float rib = smoothstep(0.15, 0.85, ring);            // rounded rib body
+      float crest = pow(smoothstep(0.82, 1.0, ring), 3.0); // thin wet highlight on the crest
+      // Segmentation around the tube + fine mechanical micro-grooves.
+      float spine = pow(0.5 + 0.5 * sin(a * TAU * 6.0 + z * 0.4), 2.0);
+      float micro = 0.85 + 0.15 * sin(z * 26.0 + a * TAU * 8.0);
+      // Near-black crevices → blue-grey ribs; cold cyan-white wet sheen on crests.
+      vec3 col = mix(vec3(0.008, 0.01, 0.016), vec3(0.13, 0.16, 0.21), rib) * micro;
+      col *= 0.55 + 0.45 * spine;
+      col += vec3(0.45, 0.58, 0.78) * crest * (0.5 + 0.5 * spine);
+      return col;
     }
     // Vaporwave: magenta↔cyan neon grid over a purple gradient.
     vec3 themeVapor(float z, float a, float t) {
@@ -334,11 +359,17 @@
         // behind the inner one. Strongest on neon/grid themes (near-black gaps),
         // faint on solid ones. z*0.3 → slower scroll = a bigger depth gap; the
         // 3-tap z-average softens its grid so it reads as distant/defocused.
+        // Hyperspace walls are mostly black (all gap), so push this "outside tunnel"
+        // harder and blur it across angle too — a soft second layer of streaks
+        // beyond the tube, out of focus.
+        float effId = mix(idA, idB, kz);
+        float hyperAmt = 1.0 - clamp(abs(effId - 2.0), 0.0, 1.0);
         float gap = smoothstep(0.5, 0.0, dot(col, vec3(0.4)));
         float oz = z * 0.3 + 9.0;
-        vec3 outer = (wall2(idA, idB, kz, oz - 0.6, a) + wall2(idA, idB, kz, oz, a) +
-                      wall2(idA, idB, kz, oz + 0.6, a)) / 3.0;
-        col += outer * gap * 0.3;
+        float ab = 0.05 * hyperAmt; // angular blur for the hyperspace outer layer
+        vec3 outer = (wall2(idA, idB, kz, oz - 0.6, a - ab) + wall2(idA, idB, kz, oz, a) +
+                      wall2(idA, idB, kz, oz + 0.6, a + ab)) / 3.0;
+        col += outer * gap * mix(0.3, 1.0, hyperAmt);
         float fog = exp(-hitZ * 0.055); // gentle: the tube recedes into depth, not a void
         col *= fog * (0.55 + uGlow * 0.9);
         col += col * uPulse * 0.5; // beat bloom kick (theme-agnostic)

@@ -10,8 +10,8 @@
 
   let canvas: HTMLCanvasElement | null = $state(null);
 
-  const PW = 128; // low-res buffer width
-  const PH = 80;
+  const PW = 160; // low-res buffer width
+  const PH = 100;
 
   $effect(() => {
     const el = canvas;
@@ -75,8 +75,10 @@
         // purple via the magenta side (never green) — on-style dark orange ↔ purple.
         const tri = (1 - Math.cos((i / 256) * Math.PI * 2)) / 2;
         const hue = (((baseHue - 110 * tri) % 360) + 360) % 360;
-        const l = 46 + 16 * tri; // dark orange → brighter purple
-        const [r, g, b] = hslToRgb(hue, 72, l);
+        // Wider dark→bright range + a hot peak, so the field reads with depth and
+        // contrast instead of a flat mid-lightness wash.
+        const l = 22 + 42 * tri + 16 * Math.pow(tri, 6);
+        const [r, g, b] = hslToRgb(hue, 82, l);
         palette[i * 3] = r;
         palette[i * 3 + 1] = g;
         palette[i * 3 + 2] = b;
@@ -111,15 +113,27 @@
         const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
         t += 0.02 + (active ? energy * 0.06 : 0.003);
 
+        // Two drifting hot-spots + higher-frequency sine layers give the field
+        // moving interference detail and depth, not a couple of static soft blobs.
+        const cx1 = PW * (0.5 + 0.32 * Math.sin(t * 0.6));
+        const cy1 = PH * (0.5 + 0.3 * Math.cos(t * 0.5));
+        const cx2 = PW * (0.5 + 0.34 * Math.sin(t * 0.37 + 2.0));
+        const cy2 = PH * (0.5 + 0.33 * Math.cos(t * 0.43 + 1.0));
+
         let p = 0;
         for (let y = 0; y < PH; y++) {
           for (let x = 0; x < PW; x++) {
+            const dx1 = x - cx1;
+            const dy1 = y - cy1;
+            const dx2 = x - cx2;
+            const dy2 = y - cy2;
             const v =
-              Math.sin(x * 0.06 + t) +
-              Math.sin(y * 0.07 - t * 0.8) +
-              Math.sin((x + y) * 0.05 + t * 0.6) +
-              Math.sin(Math.sqrt((x - PW / 2) ** 2 + (y - PH / 2) ** 2) * 0.08 - t);
-            const idx = (((v + 4) / 8) * 255) & 255;
+              Math.sin(x * 0.09 + t) +
+              Math.sin(y * 0.11 - t * 0.8) +
+              Math.sin((x + y) * 0.07 + t * 0.6) +
+              Math.sin(Math.sqrt(dx1 * dx1 + dy1 * dy1) * 0.11 - t * 1.3) +
+              Math.sin(Math.sqrt(dx2 * dx2 + dy2 * dy2) * 0.14 + t * 0.9);
+            const idx = (((v + 5) / 10) * 255) & 255;
             const c = idx * 3;
             data[p++] = palette[c];
             data[p++] = palette[c + 1];

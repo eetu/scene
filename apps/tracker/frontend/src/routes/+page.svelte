@@ -63,6 +63,40 @@
   let showPattern = $state(false);
   let showSettings = $state(false);
   let showHelp = $state(false);
+  // The viz-view container — pressing 'f' while the viz tab is open toggles
+  // browser fullscreen on it. In fullscreen the viz picker auto-hides (slides up
+  // like a top drawer) after a pause with no pointer activity, and slides back on
+  // movement — so the visualiser fills the screen unobstructed.
+  let vizEl = $state<HTMLElement | undefined>(undefined);
+  let vizFs = $state(false);
+  let pickerShown = $state(true);
+  let pickerTimer: ReturnType<typeof setTimeout> | null = null;
+  function schedulePickerHide() {
+    if (pickerTimer) clearTimeout(pickerTimer);
+    pickerTimer = setTimeout(() => {
+      if (vizFs) pickerShown = false;
+    }, 2500);
+  }
+  function revealPicker() {
+    pickerShown = true;
+    if (vizFs) schedulePickerHide();
+  }
+  function onFsChange() {
+    vizFs = !!document.fullscreenElement && document.fullscreenElement === vizEl;
+    pickerShown = true;
+    if (vizFs) schedulePickerHide();
+    else if (pickerTimer) clearTimeout(pickerTimer);
+  }
+  $effect(() => {
+    const el = vizEl;
+    if (!el) return;
+    el.addEventListener("pointermove", revealPicker);
+    el.addEventListener("pointerdown", revealPicker);
+    return () => {
+      el.removeEventListener("pointermove", revealPicker);
+      el.removeEventListener("pointerdown", revealPicker);
+    };
+  });
   let pvTab = $state<"pattern" | "samples" | "viz">("pattern");
   // Which visualizer the "viz" tab shows. Persists across tab switches.
   type VizMode =
@@ -562,6 +596,12 @@
 
   // Desktop shortcuts: space = play/pause, ←/→ = prev/next, esc = close view.
   // Ignored while typing in the filter or a rename field.
+  function toggleVizFullscreen() {
+    if (!vizEl) return;
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void vizEl.requestFullscreen?.();
+  }
+
   function onKey(e: KeyboardEvent) {
     const el = e.target as HTMLElement | null;
     if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
@@ -587,6 +627,11 @@
     }
     if (e.key === "Escape" && showPattern) {
       showPattern = false;
+      return;
+    }
+    if ((e.key === "f" || e.key === "F") && showPattern && pvTab === "viz") {
+      e.preventDefault();
+      toggleVizFullscreen();
       return;
     }
     if (!playback.current) return;
@@ -736,6 +781,7 @@
 </script>
 
 <svelte:window onkeydown={onKey} />
+<svelte:document onfullscreenchange={onFsChange} />
 
 <header class="bar">
   <div class="brand">tracker</div>
@@ -1201,8 +1247,8 @@
         </div>
       {:else if pvTab === "viz"}
         {@const vizActive = playback.playing && !playback.paused}
-        <div class="viz-view">
-          <div class="vizpick">
+        <div class="viz-view" class:fs={vizFs} bind:this={vizEl}>
+          <div class="vizpick" class:hide={!pickerShown}>
             {#each VIZ as m (m)}
               <button class:on={pvVizMode === m} onclick={() => (pvVizMode = m)}>{m}</button>
             {/each}
@@ -1277,6 +1323,8 @@
         <dd>previous / next track</dd>
         <dt><kbd>Esc</kbd></dt>
         <dd>close the player view / dialogs</dd>
+        <dt><kbd>f</kbd></dt>
+        <dd>fullscreen the visualiser (on the viz tab)</dd>
         <dt><kbd>?</kbd></dt>
         <dd>toggle this help</dd>
       </dl>
@@ -2091,6 +2139,26 @@
     color: var(--bg);
     background: var(--accent);
     border-color: var(--accent);
+  }
+  /* Fullscreen: the picker floats as a top drawer that slides away after a pause
+     and returns on pointer movement, so the viz fills the screen. */
+  .viz-view.fs {
+    position: relative;
+  }
+  .viz-view.fs .vizpick {
+    position: absolute;
+    inset: 0 0 auto 0;
+    z-index: 3;
+    background: color-mix(in srgb, var(--panel) 82%, transparent);
+    backdrop-filter: blur(6px);
+    transition:
+      transform 0.3s ease,
+      opacity 0.3s ease;
+  }
+  .viz-view.fs .vizpick.hide {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
   }
   .vizbody {
     flex: 1;
