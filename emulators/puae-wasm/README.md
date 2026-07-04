@@ -1,12 +1,46 @@
-# puae-wasm — fork + 68k→WASM recompiler (experimental)
+# puae-wasm — fork + 68k→WASM recompiler
 
-Home for the experimental fork of the EmulatorJS **PUAE** (libretro-uae) Amiga
-core plus a runtime **68020→WebAssembly block recompiler**, and the benchmark
-harness that gates the whole effort.
+A fork of the EmulatorJS **PUAE** (libretro-uae) Amiga core with a runtime
+**68020→WebAssembly block recompiler** baked in, plus the toolchain that builds,
+validates, and benchmarks it. **The JIT core ships in the party app** — heavy AGA
+demos that ran below realtime in-browser now run smooth.
 
 This is a build-time toolchain + a runtime JS lib — neither a cargo backend nor a
 yarn frontend package — so it lives in its own top-level `emulators/` bucket
 rather than under `apps/`, `packages/`, or `services/`.
+
+## Status — shipped ✅
+
+The recompiler is **baked into the core** (`--post-js`, self-installs on the
+thread the m68k loop runs on → works in the threaded worker the party app uses)
+and vendored at `apps/party/frontend/static/vendor/emulatorjs/cores/puae-*.data`.
+Merging + building the `party` image ships it (Dockerfile copies the SPA `dist/`,
+which includes the cores). The party app enables it by default; the console logs
+`[ejs-jit] 68k→WASM JIT installed` + a "JIT core in use ⚡" banner.
+
+| demo (core)                    | interp / no-JIT                 | JIT                             | speedup |
+| ------------------------------ | ------------------------------- | ------------------------------- | ------- |
+| Sverige ADF (non-threaded)     | ~2.5 Minsn/wall-sec             | ~3.47 (60% JIT share)           | ~1.4×   |
+| **Dreamscape HDF (threaded)**  | **39.6 fr/wall-sec, vblank 36** | **98.4 fr/wall-sec, vblank 60** | **~2.5×** |
+
+Every compiled block is **parity-gated at runtime** against a reference
+interpreter (falls back to interp on any mismatch/unsupported op), so it can only
+speed things up, never corrupt them. Full M1→M4 build-up, measurements, and the
+"where the remaining time goes" analysis live in
+[`jit-runtime/README.md`](jit-runtime/README.md).
+
+### Operational finding — AGA demos must be HDF, not ADF
+
+Validating the JIT across the party archive surfaced a machine-selection bug
+independent of the JIT: lr-puae picks the Amiga model **per media**
+(`puae_model_fd` for floppies = **A500/ECS** default; `puae_model_hd` for hard
+drives = A1200/AGA), and EmulatorJS writes every option at its default, so the
+`(AGA)` filename tag alone can't force AGA on an ADF. AGA demos wrapped in `.adf`
+therefore booted a non-AGA A500 and their config-checkers aborted. Fix: **package
+every AGA prod as a bootable `.hdf`** (proven — the same prod fails as `.adf`,
+launches as `.hdf`). All 36 `(AGA)` ADFs across the four parties were converted;
+the `.support/AGA-images-README.md` in each party's data tree documents the rule +
+recipe. `jit-runtime/batch.mjs` is the headless launch-checker that found it.
 
 ## Why
 
@@ -64,29 +98,38 @@ Two facts shrink "general Amiga JIT" to something buildable:
     qemu-TCG on Apple Silicon** at emscripten's final JS link (the wasm compiles,
     then hangs at 0% CPU), so the core is built on the native-amd64 runner; the
     `core/` podman flow stays for local compile/iteration up to the wasm.
-  - Next (Phase 2): rebuild with `-sALLOW_TABLE_GROWTH` + the recompiler hooks.
-- **Phase 2 — Recompiler MVP.** 68020 decoder → IR → WASM codegen for the common
-  integer/addressing subset; interpreter fallback for the rest; inline chip/fast
-  RAM access, helper calls for custom-chip/IO regions. Validate against
-  interpreter output.
-- **Phase 3 — SMC invalidation + block-boundary cycle return.** Make heavy demos
-  *correct* (self-modifying code + chipset sync are the top risks), then measure.
-- **Phase 4 — Perf + integration.** Block chaining; wire the `EjsEmulator`
-  accelerated-mode toggle; bump the bundle/cache version.
+- **Phase 2 — Recompiler MVP. ✅ DONE.** 68020 decoder → IR → WASM codegen
+  (`jit/`) for the common integer/addressing/bit/mul/shift subset, sized .B/.W/.L,
+  MOVEM, Bcc/DBcc terminators; interpreter fallback for the rest; inline RAM
+  access via imported sized get/put. Validated against a reference interpreter —
+  60000/60000 difftests.
+- **Phase 3 — In-situ correctness + in-C dispatch (M1–M3). ✅ DONE.** Real decoded
+  guest blocks execute live on the core's register file + memory, **parity-gated**
+  per block (`jit-runtime/`). Dispatch + block chaining moved into C
+  (`m3-jit-scaffold.py`) to kill the per-instruction wasm→JS tax.
+- **Phase 4 — Baked, threaded, integrated (M4). ✅ DONE.** Recompiler bundled into
+  the core via `--post-js` (`core/ejs-jit/`) so it self-installs on the emulation
+  worker (shared-memory block imports for the threaded core); vendored into the
+  party app; `EjsEmulator` defaults it on with a forgiving settings override.
 
 ## Layout
 
 ```text
 emulators/puae-wasm/
-  README.md      this file (plan + go/no-go)
-  bench/         Phase-0 baseline harness (boots a demo, reports emulated FPS)
-  (later) core/  libretro-uae fork + Emscripten build pipeline
-  (later) jit/   runtime 68k→WASM recompiler (JS emitter + integration glue)
+  README.md      this file — plan, status, results
+  INTEGRATION.md notes on wiring the JIT into the running core
+  bench/         baseline harness (boots a demo, reports emulated FPS)
+  spike/         runtime-JIT substrate proof + emit.mjs (the WASM encoder)
+  phase1-abi/    validates the Emscripten hooks (table growth, memory import)
+  jit/           the recompiler: decode → interp (oracle) → coreblock codegen + difftests
+  core/          reproducible core build; patches/ (M1–M4 hooks) + ejs-jit/ (baked bundle)
+  jit-runtime/   in-browser driver, harness, headless drivers (drive.mjs, batch.mjs)
 ```
 
-## Fallback if the gate fails
+## If you're picking this up
 
-Keep the accelerated-68030 + `normal` interpreter path for demos that run, and
-pre-render the few that chug to video via the party app's existing
-`video`-primary fallback — a perfect result for exactly the heavy AGA demos a JIT
-would target, at ~zero engineering risk.
+- Detailed results + the "codegen isn't the in-core bottleneck" analysis:
+  [`jit-runtime/README.md`](jit-runtime/README.md).
+- To rebuild the core: the M4 CI workflow (`.github/workflows/puae-core-jit-m4.yml`)
+  bundles `core/ejs-jit/` and builds via the `core/patches/` scripts.
+- To re-verify demos launch: `node jit-runtime/batch.mjs --dir <party>/amiga`.

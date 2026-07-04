@@ -1,5 +1,12 @@
 # Integration scope — running PUAE with the JIT-modified core
 
+> **Status: done.** This is the design/recon record for welding the recompiler to
+> the real core. It played out as M1 (in-situ, JS hook) → M3 (in-C dispatch +
+> chaining) → M4 (baked into the core, threaded). For the final state, results,
+> and how it ships, see [`README.md`](README.md) and
+> [`jit-runtime/README.md`](jit-runtime/README.md). The R0 findings below are
+> still accurate; the milestone plan is kept as history.
+
 Goal of this phase: **a modified `libretro-uae` core that boots a demo and
 executes guest 68k code through our runtime WASM recompiler**, then measures fps
 against the `bench/` baseline. We already have the two halves — a verified `.L`
