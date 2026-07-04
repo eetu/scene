@@ -52,6 +52,27 @@
     return v || fallback;
   }
 
+  // EmulatorJS caches the downloaded core in the "EmulatorJS-Cache" IndexedDB
+  // keyed by core NAME — so swapping the vendored *.data (e.g. to the JIT build)
+  // doesn't invalidate it and the old core keeps loading. Bump CORE_VERSION when
+  // the vendored core changes to drop that cache ONCE (next load re-fetches +
+  // re-caches the new one). Also clears cached BIOS (re-downloaded, small).
+  const CORE_VERSION = "jit-m4-2026-07";
+  async function bustStaleCoreCache() {
+    try {
+      if (typeof indexedDB === "undefined") return;
+      if (localStorage.getItem("party-ejs-core-ver") === CORE_VERSION) return;
+      await new Promise<void>((res) => {
+        const req = indexedDB.deleteDatabase("EmulatorJS-Cache");
+        req.onsuccess = req.onerror = req.onblocked = () => res();
+      });
+      localStorage.setItem("party-ejs-core-ver", CORE_VERSION);
+      console.log("[PUAE] cleared stale EmulatorJS core cache → fetching current core");
+    } catch {
+      /* storage/idb blocked — core just re-downloads */
+    }
+  }
+
   async function launch() {
     if (!host) return;
     error = null;
@@ -59,6 +80,8 @@
     // querySelector('#ejs-player') runs — when this component is (re)mounted
     // inside the file browser, the loader can otherwise race the DOM.
     await tick();
+    if (!host) return;
+    await bustStaleCoreCache(); // one-time, before the loader reads the core cache
     if (!host) return;
     const g = w();
     // A previous emulator instance (navigating between productions) leaves a
@@ -159,27 +182,23 @@
   // emulation thread's module, page-reachable), stops once the JIT is active.
   function announceJit() {
     let saidCore = false;
+    let sawModule = false;
     let tries = 0;
     if (announceTimer) clearInterval(announceTimer);
     announceTimer = setInterval(() => {
+      tries++;
       const M = (w().EJS_emulator as { gameManager?: { Module?: Record<string, unknown> } })
         ?.gameManager?.Module;
-      if (M) {
+      if (M) sawModule = true;
+      // ejsJitGet is set by the core's baked post-js; it can appear a tick after
+      // gameManager.Module does — so we WAIT for it rather than declaring "vanilla"
+      // on first sight (only conclude that after the timeout).
+      if (M && typeof M.ejsJitGet === "function") {
         if (!saidCore) {
           saidCore = true;
-          const hasJit = typeof M.ejsJitGet === "function";
-          console.log(
-            `%c[PUAE] ${hasJit ? "68k→WASM JIT core in use ⚡" : "vanilla core (no JIT)"}`,
-            `color:${hasJit ? "#2ecc40" : "#f78f08"};font-weight:bold`,
-          );
-          if (!hasJit) {
-            clearInterval(announceTimer!);
-            return;
-          }
+          console.log("%c[PUAE] 68k→WASM JIT core in use ⚡", "color:#2ecc40;font-weight:bold");
         }
-        const st = M.__ejsJitStats as
-          | { activated: number; compiled: number; gateFail: number }
-          | undefined;
+        const st = M.__ejsJitStats as { activated: number; gateFail: number } | undefined;
         if (st && st.activated > 0) {
           let share = "";
           try {
@@ -196,7 +215,16 @@
           clearInterval(announceTimer!);
         }
       }
-      if (++tries > 240) clearInterval(announceTimer!); // ~120s cap
+      if (tries > 240) {
+        // ~120s: give up. If we saw a module but never ejsJitGet, it's the vanilla
+        // core (stale cache?) — bump CORE_VERSION / reload to refetch.
+        if (sawModule && !saidCore)
+          console.log(
+            "%c[PUAE] vanilla core (no JIT) — stale cached core? hard-reload to refetch",
+            "color:#f78f08;font-weight:bold",
+          );
+        clearInterval(announceTimer!);
+      }
     }, 500);
   }
 
