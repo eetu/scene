@@ -120,16 +120,16 @@
     // Thin in angle (clean radial lines, not blocky bands), ~half the lanes lit
     // with varied brightness, and faded near the mouth so the outer pipe stays dark.
     vec3 themeHyper(float z, float a, float t) {
-      float LANES = 48.0;
+      float LANES = 64.0;
       float la = a * LANES;
       float sub = abs(fract(la) - 0.5); // 0 at lane centre → 0.5 at the edge
       float lane = floor(la);
       float r = fract(sin(lane * 12.9898 + uSeed) * 43758.5453);
       float r2 = fract(sin(lane * 45.77 + uSeed * 3.3) * 27182.8);
-      float on = step(0.5, r);                           // ~half the lanes carry a streak
+      float on = step(0.42, r);                          // a bit over half the lanes lit → more stars
       float line = exp(-sub * sub * (90.0 + 140.0 * r)); // thin radial line, width varies
       float d = z - uCamZ;                               // depth ahead of the camera
-      float head = mod(d * 0.09 - t * (1.4 + r * 1.6) + r2 * 10.0, 3.2);
+      float head = mod(d * 0.09 + t * (1.4 + r * 1.6) + r2 * 10.0, 3.2); // heads travel toward the camera
       float streak = exp(-head * 2.2);                   // sharp head + long fading tail
       float nearFade = smoothstep(2.0, 16.0, d);         // obscure the near mouth
       vec3 tint = mix(vec3(0.5, 0.68, 1.0), vec3(1.0), r * r);
