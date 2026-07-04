@@ -203,3 +203,29 @@ are higher-risk / diminishing-returns: JIT'ing JSR/RTS (raises share + removes
 interp round-trips), superblocks / block-linking to amortise dispatch, and
 batching `do_cycles` (trades timing accuracy). Given heavy demos already run
 smooth (~2×), the current point is a sensible stopping place.
+
+## Ships in the party image
+
+The JIT core is the one the party app serves: the vendored cores at
+`apps/party/frontend/static/vendor/emulatorjs/cores/puae-*.data` are the M4 (baked,
+shared-memory-fixed) build, and `adapter-static` copies `static/` verbatim into the
+SPA's `dist/`, which the party image bundles (`Dockerfile` → `party-frontend-build`
+→ `COPY … /dist`; backend serves it via `STATIC_DIR`). So **merging to `main` and
+building the `party` image ships the JIT emulator** — no extra deploy step.
+
+## batch.mjs — headless launch-check across a whole party
+
+`node batch.mjs --dir "/Volumes/scene/parties/Assembly95/amiga" --out <shots>` boots
+every `*(AGA|A500|OCS|ECS).(adf|hdf)` image under a party dir on the JIT core
+(threaded, one fresh server per image, one reused headless Chrome), fast-forwards
+past the load, and reports a per-image verdict + a screenshot + `report.json`.
+
+Because headless swiftshader freezes the GL canvas (black screenshot, effectiveFps
+~0 even when the demo is running fine), the launch signal is **vblankFps** — the
+emulated frame rate. Verdicts: `OK` (mounted + sustained a healthy vblank),
+`SUSPECT` (booted but never reached speed → stuck/struggling/crashed), `NO-BOOT`
+(no emulated frame ever advanced). It's a **boot + run-rate health check**, not a
+visual one: a demo that boots into a disk-requester still runs Kickstart at full
+vblank and reads `OK`, so this catches hard failures (bad/corrupt image, won't
+mount, immediate guru) rather than wrong artwork. It also records JIT
+`activated` per image, confirming the recompiler engages in the threaded worker.
