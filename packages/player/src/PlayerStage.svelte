@@ -72,8 +72,28 @@
     return dot >= 0 ? f.slice(dot + 1).toLowerCase() : "";
   });
 
-  // 'f' fullscreens the viz view (only while the viz tab is active).
+  // 'f' fullscreens the viz view (only while the viz tab is active). In fullscreen
+  // the picker auto-hides as a top drawer after a pause and returns on movement.
   let vizEl = $state<HTMLElement | undefined>(undefined);
+  let vizFs = $state(false);
+  let pickerShown = $state(true);
+  let pickerTimer: ReturnType<typeof setTimeout> | null = null;
+  function schedulePickerHide() {
+    if (pickerTimer) clearTimeout(pickerTimer);
+    pickerTimer = setTimeout(() => {
+      if (vizFs) pickerShown = false;
+    }, 2500);
+  }
+  function revealPicker() {
+    pickerShown = true;
+    if (vizFs) schedulePickerHide();
+  }
+  function onFsChange() {
+    vizFs = !!document.fullscreenElement && document.fullscreenElement === vizEl;
+    pickerShown = true;
+    if (vizFs) schedulePickerHide();
+    else if (pickerTimer) clearTimeout(pickerTimer);
+  }
   function onKey(e: KeyboardEvent) {
     if ((e.key !== "f" && e.key !== "F") || tab !== "viz") return;
     const el = e.target as HTMLElement | null;
@@ -83,9 +103,20 @@
     if (document.fullscreenElement) void document.exitFullscreen();
     else void vizEl.requestFullscreen?.();
   }
+  $effect(() => {
+    const el = vizEl;
+    if (!el) return;
+    el.addEventListener("pointermove", revealPicker);
+    el.addEventListener("pointerdown", revealPicker);
+    return () => {
+      el.removeEventListener("pointermove", revealPicker);
+      el.removeEventListener("pointerdown", revealPicker);
+    };
+  });
 </script>
 
 <svelte:window onkeydown={onKey} />
+<svelte:document onfullscreenchange={onFsChange} />
 
 <div class="stage">
   <div class="tabs">
@@ -98,8 +129,8 @@
       <div class="scope-strip"><Scope /></div>
       <div class="pfill"><PatternView /></div>
     {:else if tab === "viz"}
-      <div class="viz" bind:this={vizEl}>
-        <div class="vizpick">
+      <div class="viz" class:fs={vizFs} bind:this={vizEl}>
+        <div class="vizpick" class:hide={!pickerShown}>
           {#each VIZ as m (m)}
             <button class:on={vizMode === m} onclick={() => (vizMode = m)}>{m}</button>
           {/each}
@@ -220,6 +251,26 @@
     color: var(--bg);
     background: var(--accent);
     border-color: var(--accent);
+  }
+  /* Fullscreen: picker floats as a top drawer, sliding away after a pause and
+     returning on pointer movement so the viz fills the screen. */
+  .viz.fs {
+    position: relative;
+  }
+  .viz.fs .vizpick {
+    position: absolute;
+    inset: 0 0 auto 0;
+    z-index: 3;
+    background: color-mix(in srgb, var(--panel) 82%, transparent);
+    backdrop-filter: blur(6px);
+    transition:
+      transform 0.3s ease,
+      opacity 0.3s ease;
+  }
+  .viz.fs .vizpick.hide {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
   }
   .vizbody {
     flex: 1;
