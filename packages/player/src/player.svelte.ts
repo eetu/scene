@@ -548,9 +548,19 @@ export function togglePause() {
   if (!player || !playback.current || !playback.playing) return;
   player.togglePause();
   playback.paused = !playback.paused;
-  // Unpausing: iOS may have suspended the context and stalled the background
-  // <audio> element during the pause; nudge both back to life inside this tap.
-  if (!playback.paused) void wakeAudio();
+  if (playback.paused) {
+    // Pause the routed <audio> too. Once output is moved to it, that element is
+    // the only sink — the worklet going silent doesn't pause the element, so it
+    // keeps streaming silence and its own `paused` state stays false. The OS /
+    // hardware transport then reads it as still playing and keeps sending "pause"
+    // (never "play"), so playback pauses but can't be resumed. Pausing it keeps
+    // the element's state coherent with ours.
+    mediaEl?.pause();
+  } else {
+    // Unpausing: iOS may have suspended the context and stalled the background
+    // <audio> element during the pause; nudge both back to life inside this tap.
+    void wakeAudio();
+  }
   syncNowPlaying();
 }
 
