@@ -175,8 +175,31 @@ Run: build `m4-vendor` from the `puae-wasm-jit-m4` artifact, then
 `node drive.mjs --mode off --isolate --threads --demo "…(AGA).hdf"` (mode=off —
 the core self-installs; `--isolate --threads` selects the threaded core).
 
-### Remaining levers (not yet done)
+### Where the remaining time goes (measured — `jit/bench.mjs`)
 
-JIT share plateaus ~60% (JSR/RTS/JMP handed to the interpreter) and per-instruction
-speedup is bounded by per-op flag computation + register memory traffic. Lazy
-flags, in-block register caching, and JIT'd calls/returns would raise both.
+A micro-benchmark that runs a block body in an in-wasm loop (no dispatch) shows the
+**codegen itself is not the bottleneck**:
+
+| body                                   | Minsn/s | vs interp |
+| -------------------------------------- | ------- | --------- |
+| reg-only ALU (4 ops)                   | ~820    | ~23×      |
+| load / alu / store (imported get/put)  | ~190    | ~5.4×     |
+| interpreter (interp.mjs)               | ~35     | 1×        |
+
+So the recompiled code is already **5–23× faster** than the interpreter in
+isolation, yet in-core we measure ~2× on heavy demos. The gap is **not** codegen
+quality — it's:
+
+1. **Chipset emulation (`do_cycles`)** — the JIT speeds up the CPU, not the
+   copper/blitter/DMA. Heavy AGA demos are partly chipset-bound, so Amdahl caps
+   the win regardless of CPU speed. Irreducible without touching the chipset.
+2. **Per-block dispatch** — `m68k_setpc` + `adjust_cycles` + `do_cycles` +
+   `jit_lookup` every ~2.4 instructions (short blocks).
+3. **~40% interpreted** — JSR/RTS/JMP still handed to the interpreter.
+
+**Implication:** codegen micro-opts (lazy flags, in-block register caching) would
+give ~nothing in-core — there's already 20× headroom there. The only real levers
+are higher-risk / diminishing-returns: JIT'ing JSR/RTS (raises share + removes
+interp round-trips), superblocks / block-linking to amortise dispatch, and
+batching `do_cycles` (trades timing accuracy). Given heavy demos already run
+smooth (~2×), the current point is a sensible stopping place.
