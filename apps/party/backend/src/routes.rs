@@ -246,7 +246,14 @@ async fn api_productions(
     for p in &prods {
         if let Some(t) = p.title.as_deref().filter(|s| !s.is_empty()) {
             present_titles.insert((p.category.clone(), norm(t)));
-        } else if let Some(g) = p.group.as_deref().filter(|s| !s.is_empty()) {
+        }
+        // Register the group for *every* production, not only title-less ones. A
+        // title-less config row is matched by group below, so it must count as
+        // present even when its archived production carries a folder-derived
+        // title. Otherwise e.g. ASM'95 amiga/demo rank 12 (config credits only
+        // "Black Lotus", archived as ".../The Black Lotus - Misery") gets a
+        // spurious "(untitled)" missing row rendered beside the real "Misery".
+        if let Some(g) = p.group.as_deref().filter(|s| !s.is_empty()) {
             present_groups.insert((p.category.clone(), norm(g)));
         }
     }
