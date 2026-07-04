@@ -15,8 +15,12 @@
 #   * ejs_jit_get now returns PACKED (len<<24)|slot (or -1); JS supplies the block
 #     length so C can charge cycles + count instructions without extra crossings.
 #
-# Caveat: the cache keys on pc only (no SMC/code-write invalidation) — fine for
-# steady demo hot loops; a self-modifying reuse of a pc would run a stale block.
+# SMC handling: the cache keys on pc, but each entry stores code0 (the first
+# instruction word at compile time). Before running a cached block we compare code0
+# to the live word at pc; a mismatch (self-modifying code — decrunchers, part
+# loaders reusing an address) invalidates + recompiles it (counted in
+# ejs_smc_hits). Without this, a stale block runs over rewritten memory → silent
+# corruption the compile-time parity gate can't catch.
 #
 #   python3 m3-jit-scaffold.py <path-to>/newcpu.c
 import sys
@@ -50,12 +54,19 @@ EMSCRIPTEN_KEEPALIVE void jit_put_byte(unsigned a, unsigned v) { put_byte(a, v);
 #define JIT_CACHE_BITS 16
 #define JIT_CACHE_SIZE (1u << JIT_CACHE_BITS)
 #define JIT_CACHE_MASK (JIT_CACHE_SIZE - 1u)
-struct ejs_jit_entry { unsigned tag; int slot; unsigned len; unsigned char valid; };
+/* code0 = the instruction word at pc when this block was compiled. Guards against
+ * self-modifying code: demos decrunch/patch code and reuse addresses, so a block
+ * compiled+gated as correct can later be RUN over rewritten memory. Before running
+ * a cached block we compare code0 to the current word at pc; a mismatch means the
+ * code changed → invalidate + recompile (counted in ejs_smc_hits). */
+struct ejs_jit_entry { unsigned tag; int slot; unsigned len; unsigned code0; unsigned char valid; };
 static struct ejs_jit_entry ejs_jit_cache[JIT_CACHE_SIZE];
 static unsigned long long ejs_insn_total = 0; /* guest instructions retired */
 static unsigned long long ejs_insn_jit   = 0; /* of which via a JIT block */
+static unsigned long long ejs_smc_hits   = 0; /* stale-block recompiles (SMC) */
 EMSCRIPTEN_KEEPALIVE double jit_insn_total(void) { return (double)ejs_insn_total; }
 EMSCRIPTEN_KEEPALIVE double jit_insn_jit(void)   { return (double)ejs_insn_jit; }
+EMSCRIPTEN_KEEPALIVE double jit_smc_hits(void)   { return (double)ejs_smc_hits; }
 
 static inline struct ejs_jit_entry* ejs_jit_probe(unsigned pc) {
   struct ejs_jit_entry* e = &ejs_jit_cache[(pc >> 1) & JIT_CACHE_MASK];
@@ -66,9 +77,17 @@ static struct ejs_jit_entry* ejs_jit_obtain(unsigned pc) {
   struct ejs_jit_entry* e = &ejs_jit_cache[(pc >> 1) & JIT_CACHE_MASK];
   if (e->valid && e->tag == pc) return e;
   int packed = ejs_jit_get(pc);
-  e->tag = pc; e->valid = 1;
+  e->tag = pc; e->valid = 1; e->code0 = get_word(pc);
   if (packed < 0) { e->slot = -1; e->len = 0; }
   else { e->slot = (packed & 0xffffff); e->len = ((unsigned)packed >> 24) & 0xff; }
+  return e;
+}
+/* Return a runnable entry for pc, recompiling first if the code changed (SMC). */
+static struct ejs_jit_entry* ejs_jit_live(unsigned pc) {
+  struct ejs_jit_entry* e = ejs_jit_obtain(pc);
+  if (e->slot >= 0 && e->code0 != get_word(pc)) {
+    ejs_smc_hits++; e->valid = 0; e = ejs_jit_obtain(pc);
+  }
   return e;
 }
 /* ------------------------------------------------------------- */
@@ -91,7 +110,7 @@ j = s.index("r->opcode = x_get_iword(0);", f)
 line_start = s.rfind("\n", 0, j) + 1
 I = s[line_start:j]  # indent (tabs) before the fetch
 hook = (
-    I + "{ struct ejs_jit_entry* __e = ejs_jit_obtain((unsigned)r->instruction_pc);\n"
+    I + "{ struct ejs_jit_entry* __e = ejs_jit_live((unsigned)r->instruction_pc);\n"
     + I + "  if (__e->slot >= 0) {\n"
     + I + "    do {\n"
     + I + "      unsigned __npc = ((unsigned(*)(void))(uintptr_t)__e->slot)();\n"
@@ -101,7 +120,10 @@ hook = (
     + I + "      do_cycles(cpu_cycles);\n"
     + I + "      if (r->spcflags) { if (do_specialties(cpu_cycles)) { exit = true; break; } }\n"
     + I + "      /* re-read pc: do_specialties may have taken an interrupt (changed pc, returned 0) */\n"
-    + I + "      __e = ejs_jit_probe((unsigned)m68k_getpc());\n"
+    + I + "      unsigned __p = (unsigned)m68k_getpc();\n"
+    + I + "      __e = ejs_jit_probe(__p);\n"
+    + I + "      /* SMC: if the successor's code changed under us, drop it → outer loop recompiles */\n"
+    + I + "      if (__e && __e->slot >= 0 && __e->code0 != get_word(__p)) { ejs_smc_hits++; __e->valid = 0; __e = 0; }\n"
     + I + "    } while (__e && __e->slot >= 0 && !exit);\n"
     + I + "    continue;\n"
     + I + "  } }\n"

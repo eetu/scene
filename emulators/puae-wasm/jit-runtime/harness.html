@@ -216,6 +216,7 @@
           const js = W.__jitStats || (M && M.__ejsJitStats) || null; // page-installed or baked
           const insnTotal = M && M._jit_insn_total ? M._jit_insn_total() : null;
           const insnJit = M && M._jit_insn_jit ? M._jit_insn_jit() : null;
+          const smcHits = M && M._jit_smc_hits ? M._jit_smc_hits() : null;
           const now = performance.now();
 
           eWin.push({ t: now, d: distinct });
@@ -239,6 +240,7 @@
             hashOk,
             insnTotal,
             insnJit,
+            smcHits,
             selfTest: t || null,
             probe: pr || null,
             jitStats: js || null,
