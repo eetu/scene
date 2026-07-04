@@ -157,7 +157,12 @@
         vec3 mir = shadeRoom(P, reflect(rd, fn), rot, toLight);
         mir += vec3(0.05, 0.06, 0.09); // ambient chrome sheen → tiles never read pure black
         float fres = pow(1.0 - max(dot(-rd, N), 0.0), 4.0);
+        // Fake per-facet glow: each tile carries a faint colour of its own (keyed
+        // off its cell id, so neighbours differ), so dark away-facing facets read
+        // as softly glowing mirror tiles instead of near-black. Lifts with energy.
+        vec3 facetGlow = pal(fract(dot(cell, vec2(0.13, 0.071)) + 0.5)) * (0.09 + uGlow * 0.14);
         col = mir * (0.25 + 0.75 * grout)         // mirror sample, dark grout lines
+            + facetGlow * grout                    // faint self-lit facet colour
             + vec3(0.6, 0.75, 1.0) * fres * 0.4;   // cool fresnel rim
         col *= 0.85 + uGlow * 0.5;                 // whole ball brightens with energy
       } else {
