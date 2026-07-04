@@ -359,11 +359,17 @@
         // behind the inner one. Strongest on neon/grid themes (near-black gaps),
         // faint on solid ones. z*0.3 → slower scroll = a bigger depth gap; the
         // 3-tap z-average softens its grid so it reads as distant/defocused.
+        // Hyperspace walls are mostly black (all gap), so push this "outside tunnel"
+        // harder and blur it across angle too — a soft second layer of streaks
+        // beyond the tube, out of focus.
+        float effId = mix(idA, idB, kz);
+        float hyperAmt = 1.0 - clamp(abs(effId - 2.0), 0.0, 1.0);
         float gap = smoothstep(0.5, 0.0, dot(col, vec3(0.4)));
         float oz = z * 0.3 + 9.0;
-        vec3 outer = (wall2(idA, idB, kz, oz - 0.6, a) + wall2(idA, idB, kz, oz, a) +
-                      wall2(idA, idB, kz, oz + 0.6, a)) / 3.0;
-        col += outer * gap * 0.3;
+        float ab = 0.05 * hyperAmt; // angular blur for the hyperspace outer layer
+        vec3 outer = (wall2(idA, idB, kz, oz - 0.6, a - ab) + wall2(idA, idB, kz, oz, a) +
+                      wall2(idA, idB, kz, oz + 0.6, a + ab)) / 3.0;
+        col += outer * gap * mix(0.3, 1.0, hyperAmt);
         float fog = exp(-hitZ * 0.055); // gentle: the tube recedes into depth, not a void
         col *= fog * (0.55 + uGlow * 0.9);
         col += col * uPulse * 0.5; // beat bloom kick (theme-agnostic)
