@@ -63,6 +63,9 @@
   let showPattern = $state(false);
   let showSettings = $state(false);
   let showHelp = $state(false);
+  // The viz-view container — pressing 'f' while the viz tab is open toggles
+  // browser fullscreen on it.
+  let vizEl = $state<HTMLElement | undefined>(undefined);
   let pvTab = $state<"pattern" | "samples" | "viz">("pattern");
   // Which visualizer the "viz" tab shows. Persists across tab switches.
   type VizMode =
@@ -562,6 +565,12 @@
 
   // Desktop shortcuts: space = play/pause, ←/→ = prev/next, esc = close view.
   // Ignored while typing in the filter or a rename field.
+  function toggleVizFullscreen() {
+    if (!vizEl) return;
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void vizEl.requestFullscreen?.();
+  }
+
   function onKey(e: KeyboardEvent) {
     const el = e.target as HTMLElement | null;
     if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
@@ -587,6 +596,11 @@
     }
     if (e.key === "Escape" && showPattern) {
       showPattern = false;
+      return;
+    }
+    if ((e.key === "f" || e.key === "F") && showPattern && pvTab === "viz") {
+      e.preventDefault();
+      toggleVizFullscreen();
       return;
     }
     if (!playback.current) return;
@@ -1201,7 +1215,7 @@
         </div>
       {:else if pvTab === "viz"}
         {@const vizActive = playback.playing && !playback.paused}
-        <div class="viz-view">
+        <div class="viz-view" bind:this={vizEl}>
           <div class="vizpick">
             {#each VIZ as m (m)}
               <button class:on={pvVizMode === m} onclick={() => (pvVizMode = m)}>{m}</button>
@@ -1277,6 +1291,8 @@
         <dd>previous / next track</dd>
         <dt><kbd>Esc</kbd></dt>
         <dd>close the player view / dialogs</dd>
+        <dt><kbd>f</kbd></dt>
+        <dd>fullscreen the visualiser (on the viz tab)</dd>
         <dt><kbd>?</kbd></dt>
         <dd>toggle this help</dd>
       </dl>

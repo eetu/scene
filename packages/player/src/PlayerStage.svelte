@@ -71,7 +71,21 @@
     const dot = f.lastIndexOf(".");
     return dot >= 0 ? f.slice(dot + 1).toLowerCase() : "";
   });
+
+  // 'f' fullscreens the viz view (only while the viz tab is active).
+  let vizEl = $state<HTMLElement | undefined>(undefined);
+  function onKey(e: KeyboardEvent) {
+    if ((e.key !== "f" && e.key !== "F") || tab !== "viz") return;
+    const el = e.target as HTMLElement | null;
+    if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+    e.preventDefault();
+    if (!vizEl) return;
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void vizEl.requestFullscreen?.();
+  }
 </script>
+
+<svelte:window onkeydown={onKey} />
 
 <div class="stage">
   <div class="tabs">
@@ -84,7 +98,7 @@
       <div class="scope-strip"><Scope /></div>
       <div class="pfill"><PatternView /></div>
     {:else if tab === "viz"}
-      <div class="viz">
+      <div class="viz" bind:this={vizEl}>
         <div class="vizpick">
           {#each VIZ as m (m)}
             <button class:on={vizMode === m} onclick={() => (vizMode = m)}>{m}</button>
