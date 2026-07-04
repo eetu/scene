@@ -45,6 +45,7 @@
     // Modern-retro palette (synthwave magenta→cyan→violet).
     vec3 pal(float h) { return 0.5 + 0.5 * cos(6.2831 * (h + vec3(0.0, 0.33, 0.67)) + 3.6); }
 
+
     // Neon grid on a room surface, from the two coords tangent to its normal.
     float grid(vec3 p, vec3 n) {
       vec3 g = abs(fract(p * 0.5 + 0.5) - 0.5) / fwidth(p * 0.5); // crisp lines
@@ -120,7 +121,10 @@
     }
 
     void main() {
-      vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+      // Normalise by the SMALLER dimension so the ball keeps a fixed fraction of
+      // whichever axis is shorter — otherwise a tall (portrait / mobile) viewport
+      // squeezes the horizontal FOV and clips the ball off the left/right edges.
+      vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / min(uRes.x, uRes.y);
       vec3 ro = vec3(0.0, 0.0, 0.0);
       vec3 rd = normalize(vec3(uv, 1.5));
       mat3 rot = rotY(uSpin) * rotX(uSpin * 0.5);
@@ -154,12 +158,27 @@
         // True planar reflection: sample the room down the mirrored ray. Adjacent
         // tiles face differently → high contrast (some catch the light, most stay
         // dark) → the ball scintillates like real chrome.
-        vec3 mir = shadeRoom(P, reflect(rd, fn), rot, toLight);
-        mir += vec3(0.05, 0.06, 0.09); // ambient chrome sheen → tiles never read pure black
-        float fres = pow(1.0 - max(dot(-rd, N), 0.0), 4.0);
-        col = mir * (0.25 + 0.75 * grout)         // mirror sample, dark grout lines
-            + vec3(0.6, 0.75, 1.0) * fres * 0.4;   // cool fresnel rim
-        col *= 0.85 + uGlow * 0.5;                 // whole ball brightens with energy
+        vec3 rdir = reflect(rd, fn);
+        vec3 mir = shadeRoom(P, rdir, rot, toLight);
+        // Silver chrome: the tile isn't coloured itself — it borrows brightness from
+        // what it reflects. Pull the reflection toward luminance so it reads as
+        // polished metal (a hint of the room's colour survives) rather than a rainbow
+        // tile, then punctuate with hard, hot white glints of the key light + a bright
+        // reflected horizon line that sweeps across as the ball turns. High contrast +
+        // crisp white highlights = chrome; a uniform coloured fill = matte/faded.
+        float lum = dot(mir, vec3(0.299, 0.587, 0.114));
+        mir = mix(mir, vec3(lum), 0.7);
+        float sdot = max(dot(rdir, toLight), 0.0);
+        mir += vec3(1.0, 0.98, 0.95) * (pow(sdot, 500.0) * 5.0 + pow(sdot, 60.0) * 0.4);
+        mir += vec3(0.9, 0.95, 1.0) * smoothstep(0.04, 0.0, abs(rdir.y)) * 0.6;
+        float fres = pow(1.0 - max(dot(-rd, N), 0.0), 5.0);
+        // Neutral metal fill so the darkest facets read as dark chrome — a faint cool
+        // grey lifting with energy — instead of pure black or the old rainbow tint.
+        vec3 metalFill = vec3(0.09, 0.1, 0.13) * (0.7 + uGlow * 0.9);
+        col = mir * (0.32 + 0.68 * grout)          // mirror sample, dark grout lines
+            + metalFill * grout                    // neutral dark-chrome fill
+            + vec3(0.8, 0.9, 1.0) * fres * 0.55;   // cool white chrome rim
+        col *= 0.92 + uGlow * 0.5;                 // whole ball brightens with energy
       } else {
         // --- room wall / floor: neon grid + the ball's swept disco spots ---
         col = shadeRoom(ro, rd, rot, toLight);
@@ -269,6 +288,7 @@
 
     let clock = 0;
     let spin = 0;
+    let spinRate = 0.25; // eased angular velocity — smooths the per-beat spin kick
     let glow = 0;
     let pulse = 0;
     let bass = 0;
@@ -291,8 +311,13 @@
         bass += (bands.bass - bass) * 0.2;
         treble += (bands.treble - treble) * 0.2;
 
-        // Spin: a steady tumble; energy/beat speed it up (damped under reduced-motion).
-        spin += dt * (0.25 + (glow * 0.9 + pulse * 1.5) * motion);
+        // Spin: a steady tumble that energy/beat speed up. Ease the angular
+        // *velocity* toward its target rather than adding the beat spike straight
+        // into the rate — so a beat ramps the spin up and back down smoothly
+        // instead of lurching the ball forward on every hit.
+        const targetSpin = 0.25 + (glow * 0.9 + pulse * 1.2) * motion;
+        spinRate += (targetSpin - spinRate) * (1 - Math.exp(-dt / 0.18));
+        spin += dt * spinRate;
 
         if (lastBeat < 0) lastBeat = playback.beat;
         else if (playback.beat !== lastBeat) {
