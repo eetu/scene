@@ -3,7 +3,7 @@
   // and Amiga (puae). EmulatorJS shows its own themed "Start Game" button and
   // only downloads the core on that click, so it's already lazy + provides the
   // audio gesture — no separate launch button needed. We add Fullscreen + Stop.
-  import { Maximize, Power } from "@lucide/svelte";
+  import { Gauge, Maximize, Power, Sparkles } from "@lucide/svelte";
   import { onDestroy, onMount, tick } from "svelte";
 
   let {
@@ -25,7 +25,6 @@
 
   let host = $state<HTMLDivElement | null>(null);
   let error = $state<string | null>(null);
-  let fpsOn = $state(false);
   // Amiga only: default is an accelerated 68030 (smooth for heavy AGA demos, as
   // on the target hardware / capture videos). This toggle switches to authentic
   // stock-A1200 cycle-exact 68020 timing for the few demos that require it.
@@ -259,20 +258,6 @@
     }
   }
 
-  // Toggle EmulatorJS's FPS overlay via its runtime settings API.
-  function toggleFps() {
-    const ci = w().EJS_emulator as
-      | {
-          getSettingValue?: (k: string) => string;
-          changeSettingOption?: (k: string, v: string) => void;
-        }
-      | undefined;
-    if (!ci?.changeSettingOption) return;
-    const next = ci.getSettingValue?.("fps") === "show" ? "hide" : "show";
-    ci.changeSettingOption("fps", next);
-    fpsOn = next === "show";
-  }
-
   // Amiga: flip the 68020 between the JIT/'normal' default and authentic
   // cycle-exact 020 timing (for the few demos that need exact copper/blitter
   // timing), then reset so PUAE re-reads the variables. Each change pushes to the
@@ -320,31 +305,40 @@
 <div class="emu" class:fs={pseudoFs}>
   {#if error}<p class="err">{error}</p>{/if}
   <div class="bar">
-    <button
-      class:on={forceDefaults}
-      onclick={toggleForceDefaults}
-      title={forceDefaults
-        ? "Recommended settings: booting with the app defaults (ignoring any settings you saved). Toggle off to use your saved settings."
-        : "Using your saved settings. Toggle on to force the recommended defaults (fixes a laggy/broken setup). Restarts the demo."}
-    >
-      Recommended
-    </button>
-    {#if core === "amiga"}
+    <!-- settings toggles (left): pressed = on -->
+    <div class="grp">
       <button
-        class:on={accurateMode}
-        onclick={toggleAccurate}
-        title="Accurate timing: cycle-exact 68020 (no JIT) — slower, for the few demos that need exact copper/blitter timing. Default is JIT-accelerated 68020 (restarts the demo)"
+        class="tgl"
+        class:on={forceDefaults}
+        aria-pressed={forceDefaults}
+        onclick={toggleForceDefaults}
+        title={forceDefaults
+          ? "Recommended settings are ON — booting with the app's tuned defaults, ignoring any settings you changed. Click to use your own saved settings instead."
+          : "Using your own saved settings. Click to switch back to the recommended defaults (fixes a laggy or broken setup). Restarts the demo."}
       >
-        Accurate
+        <Sparkles size={15} /> Recommended
       </button>
-    {/if}
-    <button class:on={fpsOn} onclick={toggleFps} title="Toggle FPS counter">FPS</button>
-    <button onclick={fullscreen} title="Fullscreen" aria-label="Fullscreen">
-      <Maximize size={16} /> Fullscreen
-    </button>
-    <button class="exit" onclick={stop} title="Stop the emulator">
-      <Power size={16} /> Stop
-    </button>
+      {#if core === "amiga"}
+        <button
+          class="tgl"
+          class:on={accurateMode}
+          aria-pressed={accurateMode}
+          onclick={toggleAccurate}
+          title="Accurate timing — cycle-exact 68020 (no JIT). Slower, but for the few demos that need exact copper/blitter timing. Off = JIT-accelerated (smooth). Restarts the demo."
+        >
+          <Gauge size={15} /> Accurate timing
+        </button>
+      {/if}
+    </div>
+    <!-- session actions (right) -->
+    <div class="grp">
+      <button onclick={fullscreen} title="Fullscreen">
+        <Maximize size={15} /> Fullscreen
+      </button>
+      <button class="exit" onclick={stop} title="Stop and reset to the Launch screen">
+        <Power size={15} /> Stop
+      </button>
+    </div>
   </div>
   <div id="ejs-player" class="screen" bind:this={host}></div>
 </div>
@@ -369,9 +363,15 @@
     color: #ff4136;
   }
   .bar {
-    align-self: flex-end;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .grp {
     display: flex;
     gap: 6px;
+    flex-wrap: wrap;
   }
   .bar button {
     display: inline-flex;
@@ -388,9 +388,15 @@
   .bar button:hover {
     border-color: var(--accent);
   }
-  .bar button.on {
-    color: var(--accent);
+  /* Toggles read as switches: dotted when off, solid-filled when on. */
+  .bar button.tgl {
+    border-style: dashed;
+  }
+  .bar button.tgl.on {
+    background: var(--accent);
     border-color: var(--accent);
+    border-style: solid;
+    color: var(--bg);
   }
   .bar button.exit:hover {
     border-color: #ff4136;
