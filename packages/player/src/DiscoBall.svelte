@@ -45,6 +45,7 @@
     // Modern-retro palette (synthwave magenta→cyan→violet).
     vec3 pal(float h) { return 0.5 + 0.5 * cos(6.2831 * (h + vec3(0.0, 0.33, 0.67)) + 3.6); }
 
+
     // Neon grid on a room surface, from the two coords tangent to its normal.
     float grid(vec3 p, vec3 n) {
       vec3 g = abs(fract(p * 0.5 + 0.5) - 0.5) / fwidth(p * 0.5); // crisp lines
@@ -154,17 +155,26 @@
         // True planar reflection: sample the room down the mirrored ray. Adjacent
         // tiles face differently → high contrast (some catch the light, most stay
         // dark) → the ball scintillates like real chrome.
-        vec3 mir = shadeRoom(P, reflect(rd, fn), rot, toLight);
-        mir += vec3(0.05, 0.06, 0.09); // ambient chrome sheen → tiles never read pure black
-        float fres = pow(1.0 - max(dot(-rd, N), 0.0), 4.0);
-        // Fake per-facet glow: each tile carries a faint colour of its own (keyed
-        // off its cell id, so neighbours differ), so dark away-facing facets read
-        // as softly glowing mirror tiles instead of near-black. Lifts with energy.
-        vec3 facetGlow = pal(fract(dot(cell, vec2(0.13, 0.071)) + 0.5)) * (0.09 + uGlow * 0.14);
-        col = mir * (0.25 + 0.75 * grout)         // mirror sample, dark grout lines
+        vec3 rdir = reflect(rd, fn);
+        vec3 mir = shadeRoom(P, rdir, rot, toLight);
+        // Chrome = high contrast: NO broad fill (that just fogs the ball into a flat
+        // white sheen). Keep most tiles dark like a real mirror in a dark room and
+        // punctuate with sharp bright glints — a tight hot spot of the key light + a
+        // small softer falloff, plus a bright reflected horizon line that sweeps
+        // across the tiles as the ball turns. Those crisp highlights read as polished
+        // chrome, where a uniform sheen reads as matte/faded.
+        float sdot = max(dot(rdir, toLight), 0.0);
+        mir += vec3(1.0, 0.97, 0.9) * (pow(sdot, 400.0) * 4.0 + pow(sdot, 40.0) * 0.3);
+        mir += vec3(0.8, 0.9, 1.0) * smoothstep(0.05, 0.0, abs(rdir.y)) * 0.5;
+        float fres = pow(1.0 - max(dot(-rd, N), 0.0), 5.0);
+        // Fake per-facet glow: each tile carries a faint colour of its own (keyed off
+        // its cell id, so neighbours differ), so the darkest facets read as faintly
+        // tinted mirror tiles rather than pure black. Lifts with energy.
+        vec3 facetGlow = pal(fract(dot(cell, vec2(0.13, 0.071)) + 0.5)) * (0.06 + uGlow * 0.12);
+        col = mir * (0.3 + 0.7 * grout)           // mirror sample, dark grout lines
             + facetGlow * grout                    // faint self-lit facet colour
-            + vec3(0.6, 0.75, 1.0) * fres * 0.4;   // cool fresnel rim
-        col *= 0.85 + uGlow * 0.5;                 // whole ball brightens with energy
+            + vec3(0.7, 0.85, 1.0) * fres * 0.5;   // cool chrome rim
+        col *= 0.9 + uGlow * 0.5;                  // whole ball brightens with energy
       } else {
         // --- room wall / floor: neon grid + the ball's swept disco spots ---
         col = shadeRoom(ro, rd, rot, toLight);
