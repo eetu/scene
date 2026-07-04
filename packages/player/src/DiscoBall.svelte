@@ -6,6 +6,7 @@
   // the ball itself sparkles. Spin speed, spot brightness and colour react to the
   // music (beat kick, energy, bass/treble, drops). CSP-safe (GLSL on the GPU).
   import { playback, sampleBands } from "./player.svelte";
+  import { driveFrames } from "./raf";
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -250,7 +251,10 @@
       uBurst = u("uBurst"),
       uLight = u("uLight");
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Cap the backing resolution at 1.5× rather than the full 2× retina: a
+    // raymarched ball is all smooth gradients, so 1.5× is visually identical but
+    // ~44% fewer fragment-shader invocations per frame (the main heat lever).
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     const ro = new ResizeObserver(() => {
       const rect = el.getBoundingClientRect();
       el.width = Math.max(1, Math.round(rect.width * dpr));
@@ -263,7 +267,6 @@
     // acceleration and the light's drift to a calm fraction. Read once at mount.
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0.35 : 1.0;
 
-    let raf = 0;
     let clock = 0;
     let spin = 0;
     let glow = 0;
@@ -275,67 +278,68 @@
     let prevEnergy = 0;
     let lastDrop = -1e9;
     let lastBeat = -1;
-    let prev = performance.now();
+    // Render through the shared driver: caps at ~60fps (a 120Hz ProMotion iPad
+    // won't raymarch twice as often for no visible gain) and pauses while the
+    // tab is hidden. dt is real elapsed seconds, so motion speed is unchanged.
+    const stop = driveFrames(
+      (dt: number, now: number) => {
+        clock += dt;
 
-    function frame(now: number) {
-      const dt = Math.min(0.05, (now - prev) / 1000);
-      prev = now;
-      clock += dt;
+        const energy = active && playback.vu.length ? Math.max(...playback.vu) : 0;
+        glow += (energy - glow) * 0.1;
+        const bands = active ? sampleBands() : { bass: 0, treble: 0 };
+        bass += (bands.bass - bass) * 0.2;
+        treble += (bands.treble - treble) * 0.2;
 
-      const energy = active && playback.vu.length ? Math.max(...playback.vu) : 0;
-      glow += (energy - glow) * 0.1;
-      const bands = active ? sampleBands() : { bass: 0, treble: 0 };
-      bass += (bands.bass - bass) * 0.2;
-      treble += (bands.treble - treble) * 0.2;
+        // Spin: a steady tumble; energy/beat speed it up (damped under reduced-motion).
+        spin += dt * (0.25 + (glow * 0.9 + pulse * 1.5) * motion);
 
-      // Spin: a steady tumble; energy/beat speed it up (damped under reduced-motion).
-      spin += dt * (0.25 + (glow * 0.9 + pulse * 1.5) * motion);
+        if (lastBeat < 0) lastBeat = playback.beat;
+        else if (playback.beat !== lastBeat) {
+          lastBeat = playback.beat;
+          pulse = 1;
+        }
+        pulse *= Math.exp(-dt / 0.2);
 
-      if (lastBeat < 0) lastBeat = playback.beat;
-      else if (playback.beat !== lastBeat) {
-        lastBeat = playback.beat;
-        pulse = 1;
-      }
-      pulse *= Math.exp(-dt / 0.2);
+        // Drop → burst flash.
+        energyBase += (energy - energyBase) * 0.02;
+        if (
+          active &&
+          energy > energyBase + 0.3 &&
+          energy > prevEnergy + 0.18 &&
+          now - lastDrop > 1200
+        ) {
+          lastDrop = now;
+          burst = 1;
+        }
+        prevEnergy = energy;
+        burst *= Math.exp(-dt / 0.45);
 
-      // Drop → burst flash.
-      energyBase += (energy - energyBase) * 0.02;
-      if (
-        active &&
-        energy > energyBase + 0.3 &&
-        energy > prevEnergy + 0.18 &&
-        now - lastDrop > 1200
-      ) {
-        lastDrop = now;
-        burst = 1;
-      }
-      prevEnergy = energy;
-      burst *= Math.exp(-dt / 0.45);
-
-      gl.uniform2f(uRes, el.width, el.height);
-      gl.uniform1f(uTime, clock);
-      gl.uniform1f(uSpin, spin);
-      gl.uniform1f(uGlow, glow);
-      gl.uniform1f(uPulse, pulse);
-      gl.uniform1f(uBass, bass);
-      gl.uniform1f(uTreble, treble);
-      gl.uniform1f(uBurst, burst);
-      // Key light drifts on a slow Lissajous around its base (damped for reduced
-      // motion) so the spots sweep with variety and the highlight/flare wander.
-      gl.uniform3f(
-        uLight,
-        -3.0 + Math.sin(clock * 0.3) * 2.5 * motion,
-        4.2 + Math.sin(clock * 0.21) * 0.7 * motion,
-        2.0 + Math.cos(clock * 0.3) * 2.0 * motion,
-      );
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-
-      raf = requestAnimationFrame(frame);
-    }
-    raf = requestAnimationFrame(frame);
+        gl.uniform2f(uRes, el.width, el.height);
+        gl.uniform1f(uTime, clock);
+        gl.uniform1f(uSpin, spin);
+        gl.uniform1f(uGlow, glow);
+        gl.uniform1f(uPulse, pulse);
+        gl.uniform1f(uBass, bass);
+        gl.uniform1f(uTreble, treble);
+        gl.uniform1f(uBurst, burst);
+        // Key light drifts on a slow Lissajous around its base (damped for reduced
+        // motion) so the spots sweep with variety and the highlight/flare wander.
+        gl.uniform3f(
+          uLight,
+          -3.0 + Math.sin(clock * 0.3) * 2.5 * motion,
+          4.2 + Math.sin(clock * 0.21) * 0.7 * motion,
+          2.0 + Math.cos(clock * 0.3) * 2.0 * motion,
+        );
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      },
+      // Idle down to 30fps while paused — the ball only drifts then, with no
+      // music to react to, so full 60fps is wasted GPU.
+      { fps: () => (active ? 60 : 30) },
+    );
 
     return () => {
-      cancelAnimationFrame(raf);
+      stop();
       ro.disconnect();
       gl.deleteProgram(prog);
       gl.deleteShader(vs);

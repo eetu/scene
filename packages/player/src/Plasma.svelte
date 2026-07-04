@@ -4,6 +4,7 @@
   // a cycling colour palette whose speed rides the music energy. Fills the whole
   // area, so the panel colour is irrelevant — looks the same in both themes.
   import { playback } from "./player.svelte";
+  import { driveFrames } from "./raf";
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -100,40 +101,40 @@
     }
 
     let t = 0;
-    let raf = 0;
-    function frame() {
-      const mode = document.documentElement.dataset.theme ?? "";
-      if (mode !== cachedMode) {
-        buildPalette();
-        cachedMode = mode;
-      }
-      const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
-      t += 0.02 + (active ? energy * 0.06 : 0.003);
-
-      let p = 0;
-      for (let y = 0; y < PH; y++) {
-        for (let x = 0; x < PW; x++) {
-          const v =
-            Math.sin(x * 0.06 + t) +
-            Math.sin(y * 0.07 - t * 0.8) +
-            Math.sin((x + y) * 0.05 + t * 0.6) +
-            Math.sin(Math.sqrt((x - PW / 2) ** 2 + (y - PH / 2) ** 2) * 0.08 - t);
-          const idx = (((v + 4) / 8) * 255) & 255;
-          const c = idx * 3;
-          data[p++] = palette[c];
-          data[p++] = palette[c + 1];
-          data[p++] = palette[c + 2];
-          data[p++] = 255;
+    const stopFrames = driveFrames(
+      () => {
+        const mode = document.documentElement.dataset.theme ?? "";
+        if (mode !== cachedMode) {
+          buildPalette();
+          cachedMode = mode;
         }
-      }
-      bctx.putImageData(img, 0, 0);
-      if (w > 0 && h > 0) g2.drawImage(buf, 0, 0, w, h);
-      raf = requestAnimationFrame(frame);
-    }
-    raf = requestAnimationFrame(frame);
+        const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
+        t += 0.02 + (active ? energy * 0.06 : 0.003);
+
+        let p = 0;
+        for (let y = 0; y < PH; y++) {
+          for (let x = 0; x < PW; x++) {
+            const v =
+              Math.sin(x * 0.06 + t) +
+              Math.sin(y * 0.07 - t * 0.8) +
+              Math.sin((x + y) * 0.05 + t * 0.6) +
+              Math.sin(Math.sqrt((x - PW / 2) ** 2 + (y - PH / 2) ** 2) * 0.08 - t);
+            const idx = (((v + 4) / 8) * 255) & 255;
+            const c = idx * 3;
+            data[p++] = palette[c];
+            data[p++] = palette[c + 1];
+            data[p++] = palette[c + 2];
+            data[p++] = 255;
+          }
+        }
+        bctx.putImageData(img, 0, 0);
+        if (w > 0 && h > 0) g2.drawImage(buf, 0, 0, w, h);
+      },
+      { fps: 60 },
+    );
 
     return () => {
-      cancelAnimationFrame(raf);
+      stopFrames();
       ro.disconnect();
     };
   });

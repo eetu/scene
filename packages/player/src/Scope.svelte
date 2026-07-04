@@ -3,6 +3,7 @@
   // AnalyserNode. (A first scope; per-channel FT2 scopes would need the worklet
   // to expose per-channel PCM.)
   import { playback, readScope, SCOPE_SIZE } from "./player.svelte";
+  import { driveFrames } from "./raf";
   import { theme } from "@scene/design";
 
   let canvas: HTMLCanvasElement | null = $state(null);
@@ -42,49 +43,49 @@
       cWave = cs.getPropertyValue("--accent").trim() || cWave;
     }
 
-    let raf = 0;
-    function frame() {
-      if (theme.mode !== cachedMode) {
-        refreshColors();
-        cachedMode = theme.mode;
-      }
-      if (w > 0 && h > 0) {
-        g2.fillStyle = cBg;
-        g2.fillRect(0, 0, w, h);
-        const mid = h / 2;
-        g2.strokeStyle = cGrid;
-        g2.lineWidth = 1;
-        g2.beginPath();
-        g2.moveTo(0, mid);
-        g2.lineTo(w, mid);
-        g2.stroke();
-
-        // Only trace the waveform while actually playing (paused/stopped =
-        // silence = flat); cap the point count so wide screens don't draw
-        // thousands of segments per frame.
-        if (playback.playing && !playback.paused && readScope(buf)) {
-          g2.strokeStyle = cWave; // halo accent
-          g2.lineWidth = 1.5;
-          g2.beginPath();
-          const points = Math.min(Math.floor(w), 512);
-          const sStep = buf.length / points;
-          const xStep = w / points;
-          for (let i = 0; i < points; i++) {
-            const v = buf[Math.floor(i * sStep)] / 128 - 1; // -1..1
-            const y = mid - v * (mid * 0.9);
-            const x = i * xStep;
-            if (i === 0) g2.moveTo(x, y);
-            else g2.lineTo(x, y);
-          }
-          g2.stroke();
+    const stopFrames = driveFrames(
+      () => {
+        if (theme.mode !== cachedMode) {
+          refreshColors();
+          cachedMode = theme.mode;
         }
-      }
-      raf = requestAnimationFrame(frame);
-    }
-    raf = requestAnimationFrame(frame);
+        if (w > 0 && h > 0) {
+          g2.fillStyle = cBg;
+          g2.fillRect(0, 0, w, h);
+          const mid = h / 2;
+          g2.strokeStyle = cGrid;
+          g2.lineWidth = 1;
+          g2.beginPath();
+          g2.moveTo(0, mid);
+          g2.lineTo(w, mid);
+          g2.stroke();
+
+          // Only trace the waveform while actually playing (paused/stopped =
+          // silence = flat); cap the point count so wide screens don't draw
+          // thousands of segments per frame.
+          if (playback.playing && !playback.paused && readScope(buf)) {
+            g2.strokeStyle = cWave; // halo accent
+            g2.lineWidth = 1.5;
+            g2.beginPath();
+            const points = Math.min(Math.floor(w), 512);
+            const sStep = buf.length / points;
+            const xStep = w / points;
+            for (let i = 0; i < points; i++) {
+              const v = buf[Math.floor(i * sStep)] / 128 - 1; // -1..1
+              const y = mid - v * (mid * 0.9);
+              const x = i * xStep;
+              if (i === 0) g2.moveTo(x, y);
+              else g2.lineTo(x, y);
+            }
+            g2.stroke();
+          }
+        }
+      },
+      { fps: 60 },
+    );
 
     return () => {
-      cancelAnimationFrame(raf);
+      stopFrames();
       ro.disconnect();
     };
   });

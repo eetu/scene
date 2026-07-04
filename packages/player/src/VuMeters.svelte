@@ -5,6 +5,7 @@
   // VU channels) with meter ballistics — eased attack + slower release. The dial
   // is self-coloured, so it reads identically in both themes.
   import { playback } from "./player.svelte";
+  import { driveFrames } from "./raf";
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -174,29 +175,29 @@
       }
     }
 
-    let raf = 0;
-    function frame() {
-      const tL = active ? bank(0, 0.5) : 0;
-      const tR = active ? bank(0.5, 1) : 0;
-      // Eased attack, slower release (≈ VU ballistics).
-      posL += (tL - posL) * (tL > posL ? 0.3 : 0.1);
-      posR += (tR - posR) * (tR > posR ? 0.3 : 0.1);
+    const stopFrames = driveFrames(
+      () => {
+        const tL = active ? bank(0, 0.5) : 0;
+        const tR = active ? bank(0.5, 1) : 0;
+        // Eased attack, slower release (≈ VU ballistics).
+        posL += (tL - posL) * (tL > posL ? 0.3 : 0.1);
+        posR += (tR - posR) * (tR > posR ? 0.3 : 0.1);
 
-      if (w > 0 && h > 0) {
-        if (document.documentElement.dataset.theme === "light") drawBrushedSteel();
-        else {
-          g2.fillStyle = "#120d07";
-          g2.fillRect(0, 0, w, h);
+        if (w > 0 && h > 0) {
+          if (document.documentElement.dataset.theme === "light") drawBrushedSteel();
+          else {
+            g2.fillStyle = "#120d07";
+            g2.fillRect(0, 0, w, h);
+          }
+          meter(0, 0, w / 2, h, posL, "L");
+          meter(w / 2, 0, w / 2, h, posR, "R");
         }
-        meter(0, 0, w / 2, h, posL, "L");
-        meter(w / 2, 0, w / 2, h, posR, "R");
-      }
-      raf = requestAnimationFrame(frame);
-    }
-    raf = requestAnimationFrame(frame);
+      },
+      { fps: 60 },
+    );
 
     return () => {
-      cancelAnimationFrame(raf);
+      stopFrames();
       ro.disconnect();
     };
   });

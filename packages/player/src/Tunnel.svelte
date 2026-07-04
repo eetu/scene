@@ -10,6 +10,7 @@
   // the neon grid; walls flash/breathe on each musical beat; brightness + flight
   // speed track the music's energy. CSP-safe (GLSL compiles on the GPU, not eval).
   import { beatPhase, playback, sampleBands } from "./player.svelte";
+  import { driveFrames } from "./raf";
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -452,7 +453,10 @@
     const uSteps = gl.getUniformLocation(prog, "uSteps");
     const uBurst = gl.getUniformLocation(prog, "uBurst");
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Cap the backing resolution at 1.5× rather than full 2× retina: the tunnel
+    // is smooth gradients, so 1.5× looks identical for ~44% fewer fragment-shader
+    // invocations per frame (paired with the 60fps cap below, the main heat lever).
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     const ro = new ResizeObserver(() => {
       const rect = el.getBoundingClientRect();
       el.width = Math.max(1, Math.round(rect.width * dpr));
@@ -497,7 +501,6 @@
       return (((hsh >>> 0) % 100000) / 100000) * 12.0;
     };
 
-    let raf = 0;
     let camZ = 0;
     let speed = 0.4; // eased travel units/sec
     let glow = 0; // eased energy
@@ -510,7 +513,6 @@
     let seedVal = 0;
     let pathKey = "";
     let lastBeat = -1;
-    let prev = performance.now();
     const TAU = Math.PI * 2;
 
     // Accessibility: honour prefers-reduced-motion by damping the camera motion
@@ -540,110 +542,115 @@
       return Math.floor((s - Math.floor(s)) * THEMES.length);
     };
 
-    function frame(now: number) {
-      const dt = Math.min(0.05, (now - prev) / 1000);
-      prev = now;
-      clock += dt;
+    // Render through the shared driver: ~60fps cap + hidden-tab pause. dt is real
+    // elapsed seconds so travel/animation speed is unaffected by the cap.
+    const stop = driveFrames(
+      (dt: number, now: number) => {
+        clock += dt;
 
-      // Adaptive step cap from a 30-frame FPS window (with hysteresis).
-      fpsAcc += dt;
-      if (++fpsN >= 30) {
-        const avg = fpsAcc / fpsN;
-        if (avg > 1 / 48 && steps > 48) steps -= 12;
-        else if (avg < 1 / 58 && steps < 104) steps += 12;
-        fpsAcc = 0;
-        fpsN = 0;
-      }
-
-      const key = playback.current?.filename ?? "";
-      if (key !== pathKey) {
-        pathKey = key;
-        seedVal = seedFor(key);
-      }
-
-      const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
-      // Drop detection: a big jump above the slow energy floor fires a burst
-      // (screen flash) and, spaced out, a theme switch — synced to musical drops.
-      energyBase += ((active ? energy : 0) - energyBase) * 0.02;
-      if (
-        active &&
-        energy > energyBase + 0.3 &&
-        energy > prevEnergy + 0.18 &&
-        now - lastDrop > 1200
-      ) {
-        lastDrop = now;
-        burst = 1;
-        // A drop only *lands* a theme change on the beat — gated to ~one slot
-        // apart so drops sync the timing without switching every few seconds.
-        if (!locked && now - lastThemeJump > SLOT * 1000) {
-          themeTime = (Math.floor(themeTime / SLOT) + 1) * SLOT;
-          lastThemeJump = now;
+        // Adaptive step cap from a 30-frame window: shed steps on a client that
+        // can't hold the cap (weak phone / the Pi-served build). The raise arm only
+        // fires below ~1/70s, which can't happen under the 60fps cap — so on capable
+        // hardware the cap takes the headroom as fewer frames, not extra steps/heat.
+        fpsAcc += dt;
+        if (++fpsN >= 30) {
+          const avg = fpsAcc / fpsN;
+          if (avg > 1 / 48 && steps > 48) steps -= 12;
+          else if (avg < 1 / 70 && steps < 104) steps += 12;
+          fpsAcc = 0;
+          fpsN = 0;
         }
-      }
-      prevEnergy = energy;
-      burst *= Math.exp(-dt / 0.45);
 
-      // Pick the wall theme (+ crossfade) in JS. The on-screen label is not shown
-      // on this automatic rotation — only on a manual advance (see nextTheme).
-      if (!locked) themeTime += dt;
-      const tp = themeTime / SLOT;
-      const nSlot = Math.floor(tp);
-      let idA = themeSlot(nSlot);
-      let idB = themeSlot(nSlot + 1);
-      if (idA === idB) idB = (idB + 1) % THEMES.length;
-      const kk = smooth01(0.82, 1.0, tp - nSlot);
+        const key = playback.current?.filename ?? "";
+        if (key !== pathKey) {
+          pathKey = key;
+          seedVal = seedFor(key);
+        }
 
-      glow += ((active ? energy : 0) - glow) * 0.1;
-      // Per-band levels (bass drives the beat punch/pulse, treble the sparkle).
-      const b = active ? sampleBands() : { bass: 0, treble: 0 };
-      bass += (b.bass - bass) * 0.2;
-      treble += (b.treble - treble) * 0.2;
-      // Slower envelope so the tube's bendiness breathes with the music rather
-      // than twitching per frame; gentle baseline so it's never dead straight.
-      bendEnv += ((active ? energy : 0) - bendEnv) * 0.03;
-      const targetSpeed = active ? 3 + energy * 8 : 0.3;
-      speed += (targetSpeed - speed) * 0.05;
-      // Beat punch nudges forward briefly; slow barrel roll drifts with energy.
-      // Both damped by `motion` for prefers-reduced-motion.
-      camZ += speed * (1 + punch * 0.4) * dt;
-      spin = (spin + dt * (0.05 + glow * 0.15) * motion) % TAU;
+        const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
+        // Drop detection: a big jump above the slow energy floor fires a burst
+        // (screen flash) and, spaced out, a theme switch — synced to musical drops.
+        energyBase += ((active ? energy : 0) - energyBase) * 0.02;
+        if (
+          active &&
+          energy > energyBase + 0.3 &&
+          energy > prevEnergy + 0.18 &&
+          now - lastDrop > 1200
+        ) {
+          lastDrop = now;
+          burst = 1;
+          // A drop only *lands* a theme change on the beat — gated to ~one slot
+          // apart so drops sync the timing without switching every few seconds.
+          if (!locked && now - lastThemeJump > SLOT * 1000) {
+            themeTime = (Math.floor(themeTime / SLOT) + 1) * SLOT;
+            lastThemeJump = now;
+          }
+        }
+        prevEnergy = energy;
+        burst *= Math.exp(-dt / 0.45);
 
-      if (lastBeat < 0)
-        lastBeat = playback.beat; // first frame: adopt, don't flash/punch
-      else if (playback.beat !== lastBeat) {
-        lastBeat = playback.beat;
-        pulse = 1;
-        punch = (0.3 + bass * 0.3) * motion; // bassier beats kick a little harder
-      }
-      pulse *= Math.exp(-dt / 0.22);
-      punch *= Math.exp(-dt / 0.4); // slow decay → smooth push, not a jolt
+        // Pick the wall theme (+ crossfade) in JS. The on-screen label is not shown
+        // on this automatic rotation — only on a manual advance (see nextTheme).
+        if (!locked) themeTime += dt;
+        const tp = themeTime / SLOT;
+        const nSlot = Math.floor(tp);
+        let idA = themeSlot(nSlot);
+        let idB = themeSlot(nSlot + 1);
+        if (idA === idB) idB = (idB + 1) % THEMES.length;
+        const kk = smooth01(0.82, 1.0, tp - nSlot);
 
-      gl.uniform2f(uRes, el.width, el.height);
-      gl.uniform1f(uCamZ, camZ);
-      gl.uniform1f(uSeed, seedVal);
-      gl.uniform1f(uPulse, pulse);
-      gl.uniform1f(uGlow, glow);
-      gl.uniform1f(uBend, (0.6 + bendEnv * 0.9) * motion); // straighter under reduced-motion
-      gl.uniform1f(uTime, clock);
-      gl.uniform1f(uScan, scanOn ? 1 : 0);
-      gl.uniform1f(uFov, 1.35 + punch * 0.14); // gentle zoom-push on the beat
-      gl.uniform1f(uWave, active ? beatPhase(now) : 1); // 1 = no wave when idle
-      gl.uniform1f(uSpin, spin);
-      gl.uniform1f(uBass, bass);
-      gl.uniform1f(uTreble, treble);
-      gl.uniform1f(uIdA, idA);
-      gl.uniform1f(uIdB, idB);
-      gl.uniform1f(uK, kk);
-      gl.uniform1f(uSteps, steps);
-      gl.uniform1f(uBurst, burst);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+        glow += ((active ? energy : 0) - glow) * 0.1;
+        // Per-band levels (bass drives the beat punch/pulse, treble the sparkle).
+        const b = active ? sampleBands() : { bass: 0, treble: 0 };
+        bass += (b.bass - bass) * 0.2;
+        treble += (b.treble - treble) * 0.2;
+        // Slower envelope so the tube's bendiness breathes with the music rather
+        // than twitching per frame; gentle baseline so it's never dead straight.
+        bendEnv += ((active ? energy : 0) - bendEnv) * 0.03;
+        const targetSpeed = active ? 3 + energy * 8 : 0.3;
+        speed += (targetSpeed - speed) * 0.05;
+        // Beat punch nudges forward briefly; slow barrel roll drifts with energy.
+        // Both damped by `motion` for prefers-reduced-motion.
+        camZ += speed * (1 + punch * 0.4) * dt;
+        spin = (spin + dt * (0.05 + glow * 0.15) * motion) % TAU;
 
-      raf = requestAnimationFrame(frame);
-    }
-    raf = requestAnimationFrame(frame);
+        if (lastBeat < 0)
+          lastBeat = playback.beat; // first frame: adopt, don't flash/punch
+        else if (playback.beat !== lastBeat) {
+          lastBeat = playback.beat;
+          pulse = 1;
+          punch = (0.3 + bass * 0.3) * motion; // bassier beats kick a little harder
+        }
+        pulse *= Math.exp(-dt / 0.22);
+        punch *= Math.exp(-dt / 0.4); // slow decay → smooth push, not a jolt
+
+        gl.uniform2f(uRes, el.width, el.height);
+        gl.uniform1f(uCamZ, camZ);
+        gl.uniform1f(uSeed, seedVal);
+        gl.uniform1f(uPulse, pulse);
+        gl.uniform1f(uGlow, glow);
+        gl.uniform1f(uBend, (0.6 + bendEnv * 0.9) * motion); // straighter under reduced-motion
+        gl.uniform1f(uTime, clock);
+        gl.uniform1f(uScan, scanOn ? 1 : 0);
+        gl.uniform1f(uFov, 1.35 + punch * 0.14); // gentle zoom-push on the beat
+        gl.uniform1f(uWave, active ? beatPhase(now) : 1); // 1 = no wave when idle
+        gl.uniform1f(uSpin, spin);
+        gl.uniform1f(uBass, bass);
+        gl.uniform1f(uTreble, treble);
+        gl.uniform1f(uIdA, idA);
+        gl.uniform1f(uIdB, idB);
+        gl.uniform1f(uK, kk);
+        gl.uniform1f(uSteps, steps);
+        gl.uniform1f(uBurst, burst);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      },
+      // Idle down to 30fps while paused — the tunnel only coasts then, with no
+      // music to react to, so full 60fps is wasted GPU.
+      { fps: () => (active ? 60 : 30) },
+    );
 
     return () => {
-      cancelAnimationFrame(raf);
+      stop();
       ro.disconnect();
       window.removeEventListener("keydown", onKey);
       el.removeEventListener("click", onTap);
