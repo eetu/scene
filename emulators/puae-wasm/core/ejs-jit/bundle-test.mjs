@@ -92,7 +92,12 @@ function term() {
 }
 
 // ---- fake core Module ----
-const mem = new WebAssembly.Memory({ initial: 4 });
+// --shared uses a SharedArrayBuffer memory (the threaded core) → the bundle must
+// emit shared memory imports or WebAssembly.Instance LinkErrors.
+const SHARED = process.argv.includes("--shared");
+const mem = new WebAssembly.Memory(
+  SHARED ? { initial: 4, maximum: 65536, shared: true } : { initial: 4 },
+);
 const dvm = new DataView(mem.buffer);
 const REGS = 4096,
   FLAGS = REGS + 64;

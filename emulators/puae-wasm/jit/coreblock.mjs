@@ -630,16 +630,19 @@ export function makeCodegen(abi) {
   return { emitInstr, emitTerminator, condExpr };
 }
 
-function buildModule(bodyBytes) {
+function buildModule(bodyBytes, shared) {
   const types = w.section(
     w.S.TYPE,
     w.vec([w.funcType([w.I32], [w.I32]), w.funcType([w.I32, w.I32], []), w.funcType([], [w.I32])]),
   );
   const imp = (name, tIdx) => w.concat(w.str("env"), w.str(name), [0x00], w.uleb(tIdx));
+  // The imported memory must match the core's: shared (SharedArrayBuffer) for the
+  // threaded core, plain otherwise — else WebAssembly.Instance LinkErrors.
+  const memImport = shared ? { min: 1, max: 65536, shared: true } : { min: 1 };
   const imports = w.section(
     w.S.IMPORT,
     w.vec([
-      w.concat(w.str("env"), w.str("memory"), [0x02], w.memType({ min: 1 })),
+      w.concat(w.str("env"), w.str("memory"), [0x02], w.memType(memImport)),
       imp("get_byte", 0),
       imp("get_word", 0),
       imp("get_long", 0),
@@ -654,12 +657,13 @@ function buildModule(bodyBytes) {
   return w.module([types, imports, funcs, exports, code]);
 }
 
-/** Basic block (from blockAt) + abi → WASM module exporting block():i32 (next PC). */
+/** Basic block (from blockAt) + abi → WASM module exporting block():i32 (next PC).
+ *  abi.shared === true emits a shared memory import (threaded core). */
 export function recompileCoreBlock(block, abi) {
   const cg = makeCodegen(abi);
   const body = [
     ...block.instrs.flatMap(cg.emitInstr),
     ...cg.emitTerminator(block.term, block.fallPC),
   ];
-  return buildModule(body);
+  return buildModule(body, abi && abi.shared);
 }

@@ -140,6 +140,10 @@
     abi = {
       regsBase: Module._jit_abi_regs() >>> 0,
       regflagsBase: Module._jit_abi_regflags() >>> 0,
+      // threaded core → shared memory; block modules must import it as shared
+      shared:
+        typeof SharedArrayBuffer !== "undefined" &&
+        Module.wasmMemory.buffer instanceof SharedArrayBuffer,
     };
     words = guestWords();
     table = Module.wasmTable;

@@ -330,6 +330,9 @@ export function installJit(Module, opts = {}) {
   const abi = {
     regsBase: Module._jit_abi_regs() >>> 0,
     regflagsBase: Module._jit_abi_regflags() >>> 0,
+    shared:
+      typeof SharedArrayBuffer !== "undefined" &&
+      Module.wasmMemory.buffer instanceof SharedArrayBuffer,
   };
   const words = guestWords(Module);
   const table = Module.wasmTable;
@@ -394,6 +397,9 @@ export function installJitChained(Module, opts = {}) {
   const abi = {
     regsBase: Module._jit_abi_regs() >>> 0,
     regflagsBase: Module._jit_abi_regflags() >>> 0,
+    shared:
+      typeof SharedArrayBuffer !== "undefined" &&
+      Module.wasmMemory.buffer instanceof SharedArrayBuffer,
   };
   const words = guestWords(Module);
   const table = Module.wasmTable;

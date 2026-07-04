@@ -53,9 +53,14 @@ export const S = {
   CODE: 10,
 };
 
-// limits: {min} (growable, no max) or {min,max}
+// limits: {min} (growable, no max) | {min,max} | {min,max,shared} (threads).
+// flags byte: bit0 = has-max, bit1 = shared (shared requires a max).
 export const limits = (l) =>
-  l.max == null ? concat([0x00], uleb(l.min)) : concat([0x01], uleb(l.min), uleb(l.max));
+  l.shared
+    ? concat([0x03], uleb(l.min), uleb(l.max))
+    : l.max == null
+      ? concat([0x00], uleb(l.min))
+      : concat([0x01], uleb(l.min), uleb(l.max));
 export const memType = (l) => limits(l);
 export const tableType = (l) => concat([FUNCREF], limits(l));
 
