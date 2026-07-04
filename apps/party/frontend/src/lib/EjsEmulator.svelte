@@ -43,6 +43,7 @@
   // back to a CSS "pseudo fullscreen" (fixed overlay), as the DOS surface does.
   let pseudoFs = $state(false);
   let scriptEl: HTMLScriptElement | null = null;
+  let announceTimer: ReturnType<typeof setInterval> | null = null;
 
   const w = () => window as unknown as Record<string, unknown>;
 
@@ -149,9 +150,59 @@
     scriptEl.src = `/vendor/emulatorjs/loader.js?n=${Date.now()}`;
     scriptEl.onerror = () => (error = "failed to load emulator");
     document.body.appendChild(scriptEl);
+    if (core === "amiga") announceJit();
+  }
+
+  // Log to the console whether the vendored PUAE core is the JIT build and, once
+  // it runs, how much of the demo is going through the recompiler — so it's
+  // obvious the custom core is in use and enabled. Reads gameManager.Module (the
+  // emulation thread's module, page-reachable), stops once the JIT is active.
+  function announceJit() {
+    let saidCore = false;
+    let tries = 0;
+    if (announceTimer) clearInterval(announceTimer);
+    announceTimer = setInterval(() => {
+      const M = (w().EJS_emulator as { gameManager?: { Module?: Record<string, unknown> } })
+        ?.gameManager?.Module;
+      if (M) {
+        if (!saidCore) {
+          saidCore = true;
+          const hasJit = typeof M.ejsJitGet === "function";
+          console.log(
+            `%c[PUAE] ${hasJit ? "68k→WASM JIT core in use ⚡" : "vanilla core (no JIT)"}`,
+            `color:${hasJit ? "#2ecc40" : "#f78f08"};font-weight:bold`,
+          );
+          if (!hasJit) {
+            clearInterval(announceTimer!);
+            return;
+          }
+        }
+        const st = M.__ejsJitStats as
+          | { activated: number; compiled: number; gateFail: number }
+          | undefined;
+        if (st && st.activated > 0) {
+          let share = "";
+          try {
+            const tot = (M._jit_insn_total as (() => number) | undefined)?.();
+            const jit = (M._jit_insn_jit as (() => number) | undefined)?.();
+            if (tot) share = ` · ${((100 * (jit ?? 0)) / tot).toFixed(0)}% of instructions via JIT`;
+          } catch {
+            /* counters not readable across threads — skip */
+          }
+          console.log(
+            `%c[PUAE] JIT active: ${st.activated} blocks live, ${st.gateFail} gate-fails${share}`,
+            "color:#2ecc40",
+          );
+          clearInterval(announceTimer!);
+        }
+      }
+      if (++tries > 240) clearInterval(announceTimer!); // ~120s cap
+    }, 500);
   }
 
   function teardown() {
+    if (announceTimer) clearInterval(announceTimer);
+    announceTimer = null;
     const g = w();
     try {
       (g.EJS_emulator as { pause?: () => void } | undefined)?.pause?.();

@@ -151,6 +151,13 @@
     jsCache = new Map();
     Module.__ejsJitStats = stats;
     if (typeof Module.ejsJitGate !== "undefined") GATE = !!Module.ejsJitGate;
+    try {
+      console.log(
+        "[ejs-jit] 68k→WASM JIT installed (baked, gate=" + GATE + ", shared=" + abi.shared + ")",
+      );
+    } catch (_) {
+      /* some worker contexts have no console */
+    }
   }
   // The M3 C hook calls this every miss; returns packed (len<<24)|slot, or -1.
   Module.ejsJitGet = function (pc) {
