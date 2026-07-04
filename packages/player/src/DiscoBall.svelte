@@ -121,7 +121,10 @@
     }
 
     void main() {
-      vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+      // Normalise by the SMALLER dimension so the ball keeps a fixed fraction of
+      // whichever axis is shorter — otherwise a tall (portrait / mobile) viewport
+      // squeezes the horizontal FOV and clips the ball off the left/right edges.
+      vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / min(uRes.x, uRes.y);
       vec3 ro = vec3(0.0, 0.0, 0.0);
       vec3 rd = normalize(vec3(uv, 1.5));
       mat3 rot = rotY(uSpin) * rotX(uSpin * 0.5);
@@ -157,24 +160,25 @@
         // dark) → the ball scintillates like real chrome.
         vec3 rdir = reflect(rd, fn);
         vec3 mir = shadeRoom(P, rdir, rot, toLight);
-        // Chrome = high contrast: NO broad fill (that just fogs the ball into a flat
-        // white sheen). Keep most tiles dark like a real mirror in a dark room and
-        // punctuate with sharp bright glints — a tight hot spot of the key light + a
-        // small softer falloff, plus a bright reflected horizon line that sweeps
-        // across the tiles as the ball turns. Those crisp highlights read as polished
-        // chrome, where a uniform sheen reads as matte/faded.
+        // Silver chrome: the tile isn't coloured itself — it borrows brightness from
+        // what it reflects. Pull the reflection toward luminance so it reads as
+        // polished metal (a hint of the room's colour survives) rather than a rainbow
+        // tile, then punctuate with hard, hot white glints of the key light + a bright
+        // reflected horizon line that sweeps across as the ball turns. High contrast +
+        // crisp white highlights = chrome; a uniform coloured fill = matte/faded.
+        float lum = dot(mir, vec3(0.299, 0.587, 0.114));
+        mir = mix(mir, vec3(lum), 0.7);
         float sdot = max(dot(rdir, toLight), 0.0);
-        mir += vec3(1.0, 0.97, 0.9) * (pow(sdot, 400.0) * 4.0 + pow(sdot, 40.0) * 0.3);
-        mir += vec3(0.8, 0.9, 1.0) * smoothstep(0.05, 0.0, abs(rdir.y)) * 0.5;
+        mir += vec3(1.0, 0.98, 0.95) * (pow(sdot, 500.0) * 5.0 + pow(sdot, 60.0) * 0.4);
+        mir += vec3(0.9, 0.95, 1.0) * smoothstep(0.04, 0.0, abs(rdir.y)) * 0.6;
         float fres = pow(1.0 - max(dot(-rd, N), 0.0), 5.0);
-        // Fake per-facet glow: each tile carries a faint colour of its own (keyed off
-        // its cell id, so neighbours differ), so the darkest facets read as faintly
-        // tinted mirror tiles rather than pure black. Lifts with energy.
-        vec3 facetGlow = pal(fract(dot(cell, vec2(0.13, 0.071)) + 0.5)) * (0.06 + uGlow * 0.12);
-        col = mir * (0.3 + 0.7 * grout)           // mirror sample, dark grout lines
-            + facetGlow * grout                    // faint self-lit facet colour
-            + vec3(0.7, 0.85, 1.0) * fres * 0.5;   // cool chrome rim
-        col *= 0.9 + uGlow * 0.5;                  // whole ball brightens with energy
+        // Neutral metal fill so the darkest facets read as dark chrome — a faint cool
+        // grey lifting with energy — instead of pure black or the old rainbow tint.
+        vec3 metalFill = vec3(0.09, 0.1, 0.13) * (0.7 + uGlow * 0.9);
+        col = mir * (0.32 + 0.68 * grout)          // mirror sample, dark grout lines
+            + metalFill * grout                    // neutral dark-chrome fill
+            + vec3(0.8, 0.9, 1.0) * fres * 0.55;   // cool white chrome rim
+        col *= 0.92 + uGlow * 0.5;                 // whole ball brightens with energy
       } else {
         // --- room wall / floor: neon grid + the ball's swept disco spots ---
         col = shadeRoom(ro, rd, rot, toLight);
