@@ -42,6 +42,46 @@ launches as `.hdf`). All 36 `(AGA)` ADFs across the four parties were converted;
 the `.support/AGA-images-README.md` in each party's data tree documents the rule +
 recipe. `jit-runtime/batch.mjs` is the headless launch-checker that found it.
 
+### Operational finding — force the WebGL2 core (the legacy WebGL1 core renders AGA black)
+
+EmulatorJS ships each core in **four builds** — {non-threaded, threaded} ×
+{modern (WebGL2), `-legacy` (WebGL1)} — and picks one at load time:
+
+```js
+s = (supportsWebgl2 && webgl2Enabled) ? "" : "-legacy";   // → puae[-thread][-legacy]-wasm.data
+```
+
+`webgl2Enabled` resolves to `null` unless a **saved per-origin setting** or the
+core's **report JSON** (`cores/reports/puae.json` → `options.defaultWebGL2`)
+supplies a value. Our vendored report has no such key — and it 404s under the
+backend's SPA fallback in prod anyway — so **every fresh origin (i.e. any real
+deployment) fell back to the `-legacy` WebGL1 core, which renders AGA demos
+black.** Dev only ever worked because `localhost`'s localStorage happened to have
+WebGL2 persisted. Fix: `EjsEmulator.svelte` pins `webgl2Enabled: "enabled"` in
+`EJS_defaultOptions`, so `preGetSetting` returns it (even with "Recommended
+settings" on, which sets `disableLocalStorage`) and the modern core loads
+everywhere. A/B on a fresh origin: without the pin →
+`puae-thread-legacy-wasm.data` (black); with it → `puae-thread-wasm.data`.
+
+**The JIT is renderer-independent — it is already in every build, legacy
+included.** The recompiler is baked in via a *source* patch to `newcpu.c`
+(`m3-jit-scaffold.py`, the C dispatch/chaining hook) plus `--post-js` on the
+shared `Makefile.emulatorjs` (`m4-postjs.py` + `core/ejs-jit/ejs-jit.js`) — both
+variant-agnostic — and it self-installs `Module.ejsJitGet` on whatever thread the
+m68k loop runs on, no matter which renderer was chosen. Verified: `ejsJitGet` is
+present in all four `puae-*.data`, and the *legacy* core in production logged
+`JIT active`. So there is nothing to "enable" for the legacy path — `webgl2Enabled`
+only selects the graphics backend. We force WebGL2 for the working renderer, which
+keeps the JIT along for the ride. (A browser with no WebGL2 at all still falls to
+legacy and would show AGA black — the JIT runs, but WebGL1 can't present these
+demos; not worth special-casing. The exact reason WebGL1 fails for AGA —
+renderer limitation vs the legacy build — was not isolated.)
+
+> Why this shipped undetected: `jit-runtime/batch.mjs` verifies *boot + vblank*,
+> never pixels (headless swiftshader freezes the GL canvas, so every screenshot is
+> black regardless). It validated the demos run; it could not see that the legacy
+> renderer drew nothing. Rendering still needs a real-GL eyeball.
+
 ## Why
 
 The vendored PUAE core (`apps/party/frontend/static/vendor/emulatorjs/cores/
