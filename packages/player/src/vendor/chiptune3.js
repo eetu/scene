@@ -45,6 +45,10 @@ export class ChiptuneJsPlayer {
 
 		this.gain = this.context.createGain();
 		this.gain.gain.value = 1;
+		// All audible output flows gain → monoNode → sinks. Toggling monoNode to
+		// an explicit single channel collapses the mix to mono (accessibility:
+		// one-earphone / hearing-impaired listening) without reconnecting.
+		this.monoNode = this.context.createGain();
 
 		this.handlers = [];
 		this.gen = 0;
@@ -88,7 +92,8 @@ export class ChiptuneJsPlayer {
 				);
 
 				this.processNode.connect(this.gain);
-				if (this.destination) this.gain.connect(this.destination);
+				this.gain.connect(this.monoNode);
+				if (this.destination) this.monoNode.connect(this.destination);
 
 				this.nodeReady = true;
 				this.maybeInit_();
@@ -237,6 +242,16 @@ export class ChiptuneJsPlayer {
 	}
 	setVol(val) {
 		this.gain.gain.value = val;
+	}
+	/** Collapse output to mono (true) or pass stereo through (false). */
+	setMono(on) {
+		if (on) {
+			this.monoNode.channelCountMode = 'explicit';
+			this.monoNode.channelCount = 1;
+		} else {
+			this.monoNode.channelCountMode = 'max';
+			this.monoNode.channelCount = 2;
+		}
 	}
 	selectSubsong(val) {
 		this.worker.postMessage({ cmd: 'selectSubsong', val });

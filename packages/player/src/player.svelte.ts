@@ -206,6 +206,9 @@ export const playback = $state({
   samples: [] as string[],
   instruments: [] as string[],
   muted: false,
+  // Downmix output to mono (accessibility). Persisted; applied once the engine
+  // is ready. Read at startup so the choice survives reloads.
+  mono: typeof localStorage !== "undefined" && localStorage.getItem("player:mono") === "1",
   shuffle: false,
   repeat: false, // loop the current module forever (libopenmpt repeat_count = -1)
   // Position in the play queue (the ordered list the current track was opened
@@ -257,6 +260,7 @@ function ensurePlayer(): Promise<void> {
   // tap it for the background-capable media-element route.
   void ready.then(() => {
     playback.canReadSamples = player.capabilities?.canReadSamples ?? false;
+    if (playback.mono) player.setMono(true); // restore persisted mono downmix
     // Tap the song's output PRE-jam (on the worklet node, before jamGain joins
     // player.gain) so measuring it to auto-balance the jam can't feed back.
     if (player.processNode) {
@@ -459,7 +463,7 @@ function setupMediaElementRoute() {
   if (!player || streamDest || typeof Audio === "undefined") return;
   try {
     const dest: MediaStreamAudioDestinationNode = player.context.createMediaStreamDestination();
-    player.gain.connect(dest);
+    player.monoNode.connect(dest); // after the mono downmix, like the speaker path
     const el = new Audio();
     el.srcObject = dest.stream;
     el.setAttribute("playsinline", "");
@@ -482,7 +486,7 @@ async function routeAudioToElement() {
   try {
     await mediaEl.play();
     try {
-      player.gain.disconnect(player.context.destination);
+      player.monoNode.disconnect(player.context.destination);
     } catch {
       /* wasn't connected to the speakers */
     }
@@ -673,6 +677,17 @@ export function setMuted(m: boolean) {
   if (!player) return;
   player.setVol(m ? 0 : 1);
   playback.muted = m;
+}
+
+/** Toggle mono downmix of the output (accessibility); persisted. */
+export function setMono(on: boolean) {
+  playback.mono = on;
+  player?.setMono(on);
+  try {
+    localStorage.setItem("player:mono", on ? "1" : "0");
+  } catch {
+    /* storage unavailable — non-fatal */
+  }
 }
 
 /** Parse a module's metadata without playing it (bulk library enrichment). */

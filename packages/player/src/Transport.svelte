@@ -19,6 +19,7 @@
     playNext,
     playPrev,
     seekSeconds,
+    setMono,
     toggleRepeat,
     toggleShuffle,
     transportToggle,
@@ -174,6 +175,26 @@
       >
         <Repeat size={16} />
       </button>
+      <div class="t-seg" role="group" aria-label="output channels">
+        <button
+          type="button"
+          class:on={!playback.mono}
+          aria-pressed={!playback.mono}
+          onclick={() => setMono(false)}
+          title="stereo output"
+        >
+          stereo
+        </button>
+        <button
+          type="button"
+          class:on={playback.mono}
+          aria-pressed={playback.mono}
+          onclick={() => setMono(true)}
+          title="mono — the full mix in one earphone (accessibility)"
+        >
+          mono
+        </button>
+      </div>
       <div class="t-time">
         {playback.duration
           ? `${fmtTime(playback.position)} / ${fmtTime(playback.duration)}`
@@ -301,6 +322,36 @@
     color: var(--accent);
     background: none;
     border-color: transparent;
+  }
+  /* Output-channel segmented control — shows both options, active one lit, so
+     it's unambiguous which mode you're in (vs a single toggle's mystery label). */
+  .t-seg {
+    flex: 0 0 auto;
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .t-seg button {
+    padding: 5px 9px;
+    font: inherit;
+    font-size: 11px;
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
+    background: var(--panel-hi);
+    color: var(--muted);
+    border: 0;
+    cursor: pointer;
+  }
+  .t-seg button + button {
+    border-left: 1px solid var(--border);
+  }
+  .t-seg button.on {
+    color: var(--bg);
+    background: var(--accent);
+  }
+  .t-seg button:not(.on):hover {
+    color: var(--text);
   }
   .t-btn :global(svg) {
     display: block;
