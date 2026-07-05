@@ -83,6 +83,14 @@ EM_JS(int, ejs_jit_bytelen, (unsigned pc), {
  * stale block comparing the wrong value → infinite loop → black. */
 struct ejs_jit_entry { unsigned tag; int slot; unsigned len; unsigned blen; unsigned csum; unsigned char valid; };
 static struct ejs_jit_entry ejs_jit_cache[JIT_CACHE_SIZE];
+/* Hot threshold: only JIT a block after it's been executed this many times on the
+ * interpreter. Timing-sensitive one-shot code (boot / decrunch / chipset setup) runs
+ * few times and stays interpreted (driving the chipset with correct per-instruction
+ * timing); only steady-state hot loops cross the threshold and get compiled. This is
+ * standard dynarec practice and avoids JITing the setup code whose divergence left
+ * the demo hung in a never-satisfied scan loop. */
+#define JIT_HOT_THRESHOLD 50
+static unsigned char ejs_hits[JIT_CACHE_SIZE];
 static unsigned long long ejs_insn_total = 0; /* guest instructions retired */
 static unsigned long long ejs_insn_jit   = 0; /* of which via a JIT block */
 static unsigned long long ejs_smc_hits   = 0; /* stale-block recompiles (SMC) */
@@ -121,14 +129,6 @@ static struct ejs_jit_entry* ejs_jit_obtain(unsigned pc) {
   }
   return e;
 }
-/* Return a runnable entry for pc, recompiling first if any block byte changed (SMC). */
-static struct ejs_jit_entry* ejs_jit_live(unsigned pc) {
-  struct ejs_jit_entry* e = ejs_jit_obtain(pc);
-  if (e->slot >= 0 && e->csum != ejs_csum(pc, e->blen)) {
-    ejs_smc_hits++; e->valid = 0; e = ejs_jit_obtain(pc);
-  }
-  return e;
-}
 /* ------------------------------------------------------------- */
 
 """
@@ -149,8 +149,11 @@ j = s.index("r->opcode = x_get_iword(0);", f)
 line_start = s.rfind("\n", 0, j) + 1
 I = s[line_start:j]  # indent (tabs) before the fetch
 hook = (
-    I + "{ struct ejs_jit_entry* __e = ejs_jit_live((unsigned)r->instruction_pc);\n"
-    + I + "  if (__e->slot >= 0) {\n"
+    I + "{ unsigned __pc0 = (unsigned)r->instruction_pc;\n"
+    + I + "  struct ejs_jit_entry* __e = ejs_jit_probe(__pc0);\n"
+    + I + "  if (!__e) { if (++ejs_hits[(__pc0 >> 1) & JIT_CACHE_MASK] >= JIT_HOT_THRESHOLD) __e = ejs_jit_obtain(__pc0); }\n"
+    + I + "  else if (__e->slot >= 0 && __e->csum != ejs_csum(__pc0, __e->blen)) { ejs_smc_hits++; __e->valid = 0; __e = ejs_jit_obtain(__pc0); }\n"
+    + I + "  if (__e && __e->slot >= 0) {\n"
     + I + "    do {\n"
     + I + "      unsigned __npc = ((unsigned(*)(void))(uintptr_t)__e->slot)();\n"
     + I + "      ejs_insn_total += __e->len; ejs_insn_jit += __e->len;\n"
