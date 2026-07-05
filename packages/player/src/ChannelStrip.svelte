@@ -92,7 +92,9 @@
     border: 1px solid var(--surface-line);
     border-radius: 2px;
     background: var(--surface);
-    color: var(--surface-fg-dim);
+    /* --surface-fg (muted), NOT --surface-fg-dim — the dim token is halo's
+       lightest text and is near-invisible on the light theme's pale strip. */
+    color: var(--surface-fg);
     cursor: pointer;
   }
   .ms:hover {
