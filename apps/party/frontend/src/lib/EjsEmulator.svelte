@@ -55,6 +55,7 @@
   };
   // ROMs the visitor supplied in-browser (filename → bytes), loaded from IndexedDB.
   let userRoms = $state<Record<string, Uint8Array>>({});
+  let romsLoaded = $state(false); // IndexedDB load finished (so "no ROM" is real)
   let romError = $state<string | null>(null);
   let injectTimer: ReturnType<typeof setInterval> | null = null;
   let injectedRom: string | null = null; // ROM name already written to the FS this run
@@ -267,7 +268,10 @@
     const r = neededRom();
     if (!r || r.backendUrl) return true; // server provides it — EmulatorJS handles it
     const bytes = userRoms[r.name];
-    if (!bytes) return true; // no user ROM yet (upload button is shown)
+    // No user ROM: done only once the IndexedDB load has resolved (else keep
+    // polling — on reload the stored ROM lands a moment after launch, and we must
+    // still inject it or PUAE boots to "ROM not found").
+    if (!bytes) return romsLoaded;
     if (injectedRom === r.name) return true; // already injected this run
     const gm = (
       w().EJS_emulator as
@@ -469,9 +473,16 @@
   }
 
   onMount(() => {
-    // Load any ROMs the visitor supplied on a previous visit, then launch. (If it
-    // resolves after launch, tryInjectRom's poll picks them up.)
-    if (core === "amiga") void loadStoredRoms().then((r) => (userRoms = r));
+    // Load any ROMs the visitor supplied on a previous visit, then launch. This
+    // resolves after launch(), so tryInjectRom's poll keeps waiting (romsLoaded)
+    // and injects the stored ROM once it lands (then reboots if the core already
+    // came up to "ROM not found").
+    if (core === "amiga")
+      void loadStoredRoms().then((r) => {
+        userRoms = r;
+        romsLoaded = true;
+      });
+    else romsLoaded = true;
     void launch();
   });
   onDestroy(() => teardown());
