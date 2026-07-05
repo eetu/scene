@@ -1,0 +1,4 @@
+# cloned upstream + build artifacts — reproduced by build.sh, never committed.
+external/
+out/
+*.log

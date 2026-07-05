@@ -1,0 +1,71 @@
+name: Build libopenmpt-ext (WASM)
+
+# Builds the custom libopenmpt WASM (keyboard jamming + sample extraction) on a
+# NATIVE amd64 runner. Locally we build under podman's amd64 emulation on Apple
+# Silicon (fine here — we disable -flto, whose link step deadlocks under
+# qemu-TCG, same wall the puae core hit). ubuntu-latest is native amd64, so it
+# runs the identical compile.sh cleanly and uploads the drop-in module as an
+# artifact to vendor into apps/tracker.
+#
+# Branch-only workflow → triggers on push to the feature branch when the build
+# inputs change. workflow_dispatch is kept for once this lands on main.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [tracker-jam-samples, worktree-tracker-jam-samples]
+    paths:
+      - ".github/workflows/libopenmpt-ext.yml"
+      - "wasm/libopenmpt-ext/**"
+
+env:
+  OMPT_REF: libopenmpt-0.7.13
+
+jobs:
+  build-libopenmpt-ext:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3 git ca-certificates xz-utils
+
+      - name: Set up emsdk 3.1.74 (same pin as emulators/puae-wasm)
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install 3.1.74
+          ./emsdk activate 3.1.74
+
+      - name: Clone OpenMPT @ ${{ env.OMPT_REF }}
+        run: git clone --depth 1 --branch "$OMPT_REF" https://github.com/OpenMPT/openmpt openmpt
+
+      - name: Compile
+        run: |
+          source emsdk/emsdk_env.sh
+          em++ --version | head -1
+          mkdir -p out
+          cd openmpt
+          # Native amd64 → full LTO + size opt are safe (no qemu deadlock).
+          WORK="$GITHUB_WORKSPACE/wasm/libopenmpt-ext" OUT="$GITHUB_WORKSPACE/out" \
+            OPTFLAGS="-Oz -flto" \
+            bash "$GITHUB_WORKSPACE/wasm/libopenmpt-ext/compile.sh"
+
+      - name: Verify exports are present
+        run: |
+          f=out/libopenmpt.worklet.js
+          ls -la "$f"
+          for sym in _jam_create _jam_play_note _smp_read _openmpt_module_read_float_stereo; do
+            grep -q "$sym" "$f" || { echo "MISSING export: $sym"; exit 1; }
+          done
+          echo "all expected exports present"
+
+      - name: Upload module
+        uses: actions/upload-artifact@v4
+        with:
+          name: libopenmpt-ext-wasm
+          path: out/libopenmpt.worklet.js
+          if-no-files-found: error

@@ -39,9 +39,12 @@ Cargo workspace = `backend` + `e2e`.
   …) and hidden dirs are skipped.
 - **One engine, in the browser.** The backend is pure Rust (no native
   libopenmpt → clean scratch container). Playback **and** metadata extraction
-  run in the SPA via libopenmpt WASM (chiptune3's prebuilt build includes
-  `libopenmpt_ext`, so keyboard `play_note` works — vendor + patch its worklet).
-  The frontend POSTs parsed metadata back to `/api/meta/:hash`.
+  run in the SPA via libopenmpt WASM. This app vendors a **custom from-source
+  libopenmpt build** (`wasm/libopenmpt-ext/`) that adds keyboard jamming
+  (`play_note` via the ext interactive interface) + raw sample extraction
+  (`smp_*` shim → `CSoundFile`) — the stock chiptune3 build exports neither.
+  Party keeps the smaller stock build. The frontend POSTs parsed metadata back
+  to `/api/meta/:hash`.
 - **Auth is the edge's job.** Sits behind oauth2-proxy forward-auth; the binary
   only asserts `X-Auth-Request-User` is present (401 otherwise) — no per-user
   state, no own login. `DEV_AUTH=1` bypasses for local work. `/status` is unauth.
@@ -142,11 +145,24 @@ Cargo workspace = `backend` + `e2e`.
   visible order), seek bar, shuffle, repeat, keyboard shortcuts, and **enrich-all**
   (parse every un-enriched module's metadata via a parse-only worklet command →
   POST /api/meta, with progress + cancel).
-- **Keyboard jamming is BLOCKED** on the stock chiptune3 wasm: it exports
-  `ext_create_from_memory`/`ext_get_interface` but NOT
-  `openmpt_module_ext_get_module_handle`, so the ext module can't be rendered and
-  `play_note` can't reach the audio path. Needs a custom emscripten libopenmpt
-  build (emcc not installed). Don't retry on the stock build.
+- **Keyboard jamming + sample extraction (done).** A **custom libopenmpt WASM**
+  (`wasm/libopenmpt-ext/` — a from-source emscripten build, mirroring the
+  `emulators/puae-wasm` container/CI pattern; the old "emcc not installed" note is
+  stale) adds a tiny `smp_*` C ABI that reads **raw sample PCM + loop points** off
+  a module (reaching the internal `CSoundFile` via a one-line accessor patch —
+  libopenmpt's public API exposes sample *names* only). **Jamming is then pure Web
+  Audio**: `packages/player`'s store builds an `AudioBuffer` from that PCM and
+  plays it pitched to the key, looped at the sample's loop points — no libopenmpt
+  playback engine, worker render-loop, or worklet involvement, and fully
+  independent of the song's transport (`jamNote`/`jamStop` in `player.svelte.ts`;
+  `JamKeyboard` + `SampleWave` UI gated on `playback.canReadSamples`, so party's
+  stock build hides them). `decoder.worker.js` gained a `readSample` command
+  (`smp_*` off the song module) — everything else is unchanged. Gate:
+  `node wasm/libopenmpt-ext/spike/spike.mjs <mod>` (real PCM + loop points, MOD/XM/IT).
+  **To bump libopenmpt:** `OMPT_REF=… ./build.sh` + re-run the gate (see
+  `wasm/libopenmpt-ext/README.md`). **Caveat:** the chiptune3 *JS* layer
+  (`chiptune3.js`/`decoder.worker.js`/`chiptune3.worklet.js`) is a hard fork — no
+  upstream auto-sync; updates are a manual merge.
 - **Player view modes:** pattern (toggle: locked fixed-centerline + vertical
   gradient VU, or free-scroll + header VU — persisted), samples, and a Boing-ball
   visualizer (reacts to channel VU). Per-channel VU is the only per-channel signal
@@ -209,10 +225,16 @@ Cargo workspace = `backend` + `e2e`.
     `localStorage`, restore on load (tap-to-resume on iOS).
   - **Faceted/sortable library** — sort by duration/channels/play-count, filter
     by tracker/format, using the enrichment already collected.
-  - **Sample waveform pane** — render-captured PCM on the samples tab (no loop
-    markers — libopenmpt doesn't expose them).
+  - ~~**Sample waveform pane**~~ — DONE, and better than the original idea: the
+    custom build reads the *stored* sample PCM + loop/sustain points directly
+    (`SampleWave.svelte`), so the pane draws real waveforms with loop markers
+    (no render-capture needed).
 
-Out of scope: editing module *contents* (notes/samples), true stored-sample
-waveforms + loop points (libopenmpt exposes neither — waveforms are
-render-captured). Renaming/moving files *is* in scope (see above). See
-`/Users/eetu/.claude/plans/magical-floating-toucan.md` for the full plan.
+Out of scope: editing module *contents* (notes/samples) + saving new modules —
+libopenmpt is read-only; a real tune-creating tracker would need a separate
+engine (a sketched later phase, built on the jam/sample primitives). Note:
+stored-sample waveforms + loop points are **now in scope** (the custom build
+exposes them); true per-channel *output* scopes remain impossible (per-channel VU
+is the only per-channel signal libopenmpt gives). Renaming/moving files *is* in
+scope (see above). See `/Users/eetu/.claude/plans/magical-floating-toucan.md` for
+the full plan.

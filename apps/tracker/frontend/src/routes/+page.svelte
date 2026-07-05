@@ -27,7 +27,9 @@
     playInOrder,
     playNext,
     playPrev,
+    SampleBrowser,
     Scope,
+    setJamLevel,
     Starfield,
     Transport,
     transportToggle,
@@ -61,6 +63,11 @@
   const listView = $derived(activeTab === "library" || activeTab === "favourites");
 
   let showPattern = $state(false);
+  // Measured height of the fixed transport dock, so the player view reserves
+  // exactly that much at the bottom (the dock overlays content; on mobile it
+  // wraps to two rows, which a fixed padding can't track). Fixes the jam
+  // keyboard being clipped behind the transport.
+  let transportH = $state(56);
   let showSettings = $state(false);
   let showHelp = $state(false);
   // The viz-view container — pressing 'f' while the viz tab is open toggles
@@ -98,6 +105,7 @@
     };
   });
   let pvTab = $state<"pattern" | "samples" | "viz">("pattern");
+
   // Which visualizer the "viz" tab shows. Persists across tab switches.
   type VizMode =
     | "vu"
@@ -139,10 +147,6 @@
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
-  }
-
-  function hex2(n: number): string {
-    return n.toString(16).toUpperCase().padStart(2, "0");
   }
 
   let tracks = $state<Track[]>([]);
@@ -635,13 +639,27 @@
       return;
     }
     if (!playback.current) return;
+    // In the samples view, left/right set the jam level (not the track) — a
+    // keyboard shortcut for the "vol" slider, and it keeps arrows from switching
+    // tracks mid-jam.
+    const inSamples = showPattern && pvTab === "samples" && playback.canReadSamples;
     if (e.key === " ") {
       e.preventDefault();
       transportToggle();
-    } else if (e.key === "ArrowRight" && hasNext) {
-      playNext();
-    } else if (e.key === "ArrowLeft" && hasPrev) {
-      playPrev();
+    } else if (e.key === "ArrowRight") {
+      if (inSamples) {
+        setJamLevel(playback.jamLevel + 0.05);
+        e.preventDefault();
+      } else if (hasNext) {
+        playNext();
+      }
+    } else if (e.key === "ArrowLeft") {
+      if (inSamples) {
+        setJamLevel(playback.jamLevel - 0.05);
+        e.preventDefault();
+      } else if (hasPrev) {
+        playPrev();
+      }
     }
   }
 
@@ -1239,7 +1257,7 @@
         </button>
       </div>
     </div>
-    <div class="pv-wrap">
+    <div class="pv-wrap" style:padding-bottom="{transportH + 8}px">
       {#if pvTab === "pattern"}
         <div class="scope-strip"><Scope /></div>
         <div class="pfill">
@@ -1276,24 +1294,7 @@
           </div>
         </div>
       {:else}
-        <div class="samples">
-          {#if (playback.song?.instruments?.length ?? 0) > 0}
-            <h4>Instruments</h4>
-            <ol>
-              {#each playback.song?.instruments ?? [] as name, i (i)}
-                <li><span class="sx">{hex2(i + 1)}</span><span class="sn">{name || "—"}</span></li>
-              {/each}
-            </ol>
-          {/if}
-          <h4>Samples</h4>
-          <ol>
-            {#each playback.song?.samples ?? [] as name, i (i)}
-              <li><span class="sx">{hex2(i + 1)}</span><span class="sn">{name || "—"}</span></li>
-            {:else}
-              <li class="none">no samples</li>
-            {/each}
-          </ol>
-        </div>
+        <SampleBrowser />
       {/if}
     </div>
   </div>
@@ -1345,7 +1346,7 @@
 {/if}
 
 {#if playback.current}
-  <div class="transport-dock">
+  <div class="transport-dock" bind:clientHeight={transportH}>
     <!-- The dock sits above the player overlay (z 5 > 4), so only offer "open
          player view" while it's closed — otherwise the expand affordance is a
          no-op over the very view it claims to open. -->
@@ -2051,49 +2052,6 @@
     color: var(--bg);
     background: var(--accent);
     border-color: var(--accent);
-  }
-  .samples {
-    flex: 1;
-    min-height: 0;
-    overflow: auto;
-    /* Generous bottom padding so the last sample row always scrolls clear of
-		   the floating transport bar (whose height varies / can exceed the wrap's
-		   reserve). Scroll padding is only felt at the bottom — no wasted space. */
-    padding: 8px 12px 64px;
-    font-family: var(--font-mono-retro);
-    font-size: 16px;
-    -webkit-overflow-scrolling: touch;
-  }
-  .samples h4 {
-    color: var(--accent);
-    margin: 12px 0 6px;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-  .samples ol {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  .samples li {
-    display: flex;
-    gap: 10px;
-    padding: 2px 0;
-    border-bottom: 1px solid var(--surface-line);
-  }
-  .samples .sx {
-    color: var(--surface-fg-dim);
-    flex: 0 0 auto;
-    width: 24px;
-  }
-  .samples .sn {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .samples .none {
-    color: var(--muted);
   }
   .pv-wrap {
     flex: 1;

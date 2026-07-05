@@ -45,6 +45,7 @@
   import PatternView from "./PatternView.svelte";
   import { playback } from "./player.svelte";
   import Plasma from "./Plasma.svelte";
+  import SampleBrowser from "./SampleBrowser.svelte";
   import Scope from "./Scope.svelte";
   import Starfield from "./Starfield.svelte";
   import Tunnel from "./Tunnel.svelte";
@@ -63,7 +64,6 @@
 
   const energy = $derived(playback.vu.length ? Math.max(...playback.vu) : 0);
   const playing = $derived(playback.playing && !playback.paused);
-  const hex2 = (n: number) => n.toString(16).toUpperCase().padStart(2, "0");
 
   // Module format (file extension) — drives the boing ball's pixelation.
   const format = $derived.by(() => {
@@ -158,24 +158,7 @@
         </div>
       </div>
     {:else}
-      <div class="samples">
-        {#if (playback.song?.instruments?.length ?? 0) > 0}
-          <h4>Instruments</h4>
-          <ol>
-            {#each playback.song?.instruments ?? [] as name, i (i)}
-              <li><span class="sx">{hex2(i + 1)}</span><span class="sn">{name || "—"}</span></li>
-            {/each}
-          </ol>
-        {/if}
-        <h4>Samples</h4>
-        <ol>
-          {#each playback.song?.samples ?? [] as name, i (i)}
-            <li><span class="sx">{hex2(i + 1)}</span><span class="sn">{name || "—"}</span></li>
-          {:else}
-            <li class="none">no samples</li>
-          {/each}
-        </ol>
-      </div>
+      <SampleBrowser />
     {/if}
   </div>
 </div>
@@ -276,44 +259,5 @@
     flex: 1;
     min-height: 0;
   }
-  .samples {
-    flex: 1;
-    min-height: 0;
-    overflow: auto;
-    padding: 8px 12px 48px;
-    font-family: var(--tracker-font, var(--font-mono-retro, ui-monospace, monospace));
-    font-size: 16px;
-    -webkit-overflow-scrolling: touch;
-  }
-  .samples h4 {
-    color: var(--accent);
-    margin: 12px 0 6px;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-  .samples ol {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  .samples li {
-    display: flex;
-    gap: 10px;
-    padding: 2px 0;
-    border-bottom: 1px solid var(--surface-line, var(--border));
-  }
-  .samples .sx {
-    color: var(--surface-fg-dim, var(--muted));
-    flex: 0 0 auto;
-    width: 24px;
-  }
-  .samples .sn {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .samples .none {
-    color: var(--muted);
-  }
+  /* The samples view is the shared <SampleBrowser/> (own scoped styles). */
 </style>

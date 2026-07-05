@@ -53,6 +53,17 @@ export class ChiptuneJsPlayer {
 		this.nodeReady = false;
 		this.initFired = false;
 
+		// Custom-build capability (sample extraction). Reported by the worker's
+		// `ready` message; false on the stock build so UI degrades cleanly.
+		this.capabilities = { canReadSamples: false };
+		// Pending request/response tables for async sample reads.
+		this.sampleReqId = 0;
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		this.pendingSample = new Map();
+		this.rawReqId = 0;
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		this.pendingRaw = new Map();
+
 		// Decoder Worker (module worker → can `import` the libopenmpt glue).
 		this.worker = new Worker(workerUrl, { type: 'module' });
 		this.worker.onmessage = (e) => this.handleWorkerMessage_(e.data);
@@ -96,8 +107,25 @@ export class ChiptuneJsPlayer {
 		switch (d.cmd) {
 			case 'ready':
 				this.workerReady = true;
+				if (d.caps) this.capabilities = d.caps;
 				this.maybeInit_();
 				break;
+			case 'sample': {
+				const r = this.pendingSample.get(d.id);
+				if (r) {
+					this.pendingSample.delete(d.id);
+					r(d.info ? { info: d.info, pcm: d.pcm } : null);
+				}
+				break;
+			}
+			case 'sampleRaw': {
+				const r = this.pendingRaw.get(d.id);
+				if (r) {
+					this.pendingRaw.delete(d.id);
+					r(d.info ? { info: d.info, raw: d.raw } : null);
+				}
+				break;
+			}
 			case 'meta':
 				this.meta = d.meta;
 				this.duration = d.meta.dur;
@@ -224,5 +252,27 @@ export class ChiptuneJsPlayer {
 	}
 	parse(id, ab) {
 		this.worker.postMessage({ cmd: 'parse', id, file: ab });
+	}
+
+	/** Read one sample's PCM + metadata (1-based index). Resolves with
+	 *  { info, pcm:Float32Array } or null. (Jamming plays this PCM via Web Audio
+	 *  in the store — no engine round-trip needed.) */
+	readSample(idx) {
+		if (!this.capabilities.canReadSamples) return Promise.resolve(null);
+		const id = ++this.sampleReqId;
+		return new Promise((resolve) => {
+			this.pendingSample.set(id, resolve);
+			this.worker.postMessage({ cmd: 'readSample', id, idx });
+		});
+	}
+	/** Read a sample's RAW bytes (native format) + info, for WAV export. Resolves
+	 *  with { info, raw:Uint8Array } or null. */
+	readSampleRaw(idx) {
+		if (!this.capabilities.canReadSamples) return Promise.resolve(null);
+		const id = ++this.rawReqId;
+		return new Promise((resolve) => {
+			this.pendingRaw.set(id, resolve);
+			this.worker.postMessage({ cmd: 'readSampleRaw', id, idx });
+		});
 	}
 }
