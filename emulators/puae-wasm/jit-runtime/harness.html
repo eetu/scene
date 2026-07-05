@@ -217,6 +217,8 @@
           const insnTotal = M && M._jit_insn_total ? M._jit_insn_total() : null;
           const insnJit = M && M._jit_insn_jit ? M._jit_insn_jit() : null;
           const smcHits = M && M._jit_smc_hits ? M._jit_smc_hits() : null;
+          const interpCyc = M && M._jit_interp_cyc ? M._jit_interp_cyc() : null;
+          const jitCyc = M && M._jit_jit_cyc ? M._jit_jit_cyc() : null;
           const now = performance.now();
 
           eWin.push({ t: now, d: distinct });
@@ -241,6 +243,8 @@
             insnTotal,
             insnJit,
             smcHits,
+            interpCyc,
+            jitCyc,
             selfTest: t || null,
             probe: pr || null,
             jitStats: js || null,

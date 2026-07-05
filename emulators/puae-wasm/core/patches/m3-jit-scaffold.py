@@ -64,9 +64,17 @@ static struct ejs_jit_entry ejs_jit_cache[JIT_CACHE_SIZE];
 static unsigned long long ejs_insn_total = 0; /* guest instructions retired */
 static unsigned long long ejs_insn_jit   = 0; /* of which via a JIT block */
 static unsigned long long ejs_smc_hits   = 0; /* stale-block recompiles (SMC) */
+/* DIAGNOSTIC: sum the RAW pre-adjust_cycles charge on each path, to compare the
+ * per-instruction cycle MAGNITUDE the JIT feeds do_cycles (flat len*4*CYCLE_UNIT)
+ * vs the interpreter's real per-opcode value (cpufunctbl()>>16). If the averages
+ * differ a lot, the JIT's chipset timing is mis-scaled → the black screen. */
+static unsigned long long ejs_interp_cyc = 0; /* Σ (handler>>16) over interp instrs */
+static unsigned long long ejs_jit_cyc    = 0; /* Σ (len*4*CYCLE_UNIT) over JIT blocks */
 EMSCRIPTEN_KEEPALIVE double jit_insn_total(void) { return (double)ejs_insn_total; }
 EMSCRIPTEN_KEEPALIVE double jit_insn_jit(void)   { return (double)ejs_insn_jit; }
 EMSCRIPTEN_KEEPALIVE double jit_smc_hits(void)   { return (double)ejs_smc_hits; }
+EMSCRIPTEN_KEEPALIVE double jit_interp_cyc(void) { return (double)ejs_interp_cyc; }
+EMSCRIPTEN_KEEPALIVE double jit_jit_cyc(void)    { return (double)ejs_jit_cyc; }
 
 static inline struct ejs_jit_entry* ejs_jit_probe(unsigned pc) {
   struct ejs_jit_entry* e = &ejs_jit_cache[(pc >> 1) & JIT_CACHE_MASK];
@@ -116,6 +124,7 @@ hook = (
     + I + "      unsigned __npc = ((unsigned(*)(void))(uintptr_t)__e->slot)();\n"
     + I + "      ejs_insn_total += __e->len; ejs_insn_jit += __e->len;\n"
     + I + "      m68k_setpc(__npc);\n"
+    + I + "      ejs_jit_cyc += (unsigned long long)((__e->len ? __e->len : 1) * 4 * CYCLE_UNIT);\n"
     + I + "      cpu_cycles = adjust_cycles((__e->len ? __e->len : 1) * 4 * CYCLE_UNIT);\n"
     + I + "      do_cycles(cpu_cycles);\n"
     + I + "      if (r->spcflags) { if (do_specialties(cpu_cycles)) { exit = true; break; } }\n"
@@ -130,6 +139,17 @@ hook = (
     + I + "ejs_insn_total++; /* interpreted instruction */\n"
 )
 s = s[:line_start] + hook + s[line_start:]
+
+# 3) DIAGNOSTIC: sum the interpreter's raw per-instruction cycle charge (the value
+#    that feeds adjust_cycles+do_cycles) so we can compare its per-instruction
+#    magnitude to the JIT's flat len*4*CYCLE_UNIT. Unique anchor in m68k_run_2_020.
+anchor2 = "cpu_cycles = (*cpufunctbl[r->opcode])(r->opcode) >> 16;"
+assert anchor2 in s, "interp cycle anchor not found"
+s = s.replace(
+    anchor2,
+    anchor2 + "\n\t\t\t\tejs_interp_cyc += (unsigned long long)(unsigned)cpu_cycles;",
+    1,
+)
 
 open(path, "w", encoding="utf-8", errors="surrogateescape").write(s)
 print("patched:", path)
