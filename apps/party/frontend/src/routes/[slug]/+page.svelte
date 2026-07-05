@@ -36,6 +36,7 @@
   let prods = $state<Production[]>([]);
   let kickstart = $state<string | null>(null);
   let kickstartA500 = $state<string | null>(null);
+  let kickstartA4000 = $state<string | null>(null);
   let error = $state<string | null>(null);
   let selected = $state<Production | null>(null);
   let detail = $state<ProductionDetail | null>(null);
@@ -80,6 +81,7 @@
         prods = r.productions;
         kickstart = r.kickstart_url;
         kickstartA500 = r.kickstart_a500_url;
+        kickstartA4000 = r.kickstart_a4000_url;
       })
       .catch((e) => (error = String(e)));
   });
@@ -397,6 +399,7 @@
             prodId={prod.id}
             {kickstart}
             {kickstartA500}
+            {kickstartA4000}
             initialFile={fileParam}
             onfile={(relPath) => nav({ f: relPath })}
           />

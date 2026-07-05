@@ -3,25 +3,71 @@
   // and Amiga (puae). EmulatorJS shows its own themed "Start Game" button and
   // only downloads the core on that click, so it's already lazy + provides the
   // audio gesture — no separate launch button needed. We add Fullscreen + Stop.
-  import { Gauge, Maximize, Power, Sparkles } from "@lucide/svelte";
+  import { Gauge, Maximize, Power, Sparkles, Upload } from "@lucide/svelte";
   import { onDestroy, onMount, tick } from "svelte";
+
+  import { crc32, KNOWN_ROMS, loadStoredRoms, storeRom } from "./amigaRoms";
 
   let {
     core,
     gameUrl,
     biosUrl,
     biosA500Url,
+    biosA4000Url,
   }: {
     core: "c64" | "amiga";
     gameUrl: string;
     biosUrl?: string;
     /** A500 Kickstart 1.3 ROM — used instead of biosUrl for OCS/ECS disks. */
     biosA500Url?: string;
+    /** A4000 Kickstart 3.1 ROM — used for (030)/(040) demos (an A4000/030|040).
+     * It's a DIFFERENT ROM from the A1200 KS3.1; without it PUAE falls back to
+     * AROS on the A4000 model and demos misbehave. */
+    biosA4000Url?: string;
   } = $props();
 
   // Amiga disks tagged (A500)/(OCS)/(ECS) boot a 68000 + original chipset (see
   // the model block below); PUAE then needs the KS1.3 ROM, not the A1200 KS3.1.
   const amigaA500 = () => core === "amiga" && /\((?:a500|ocs|ecs)\)/i.test(gameUrl);
+  // Disks tagged (030)/(A4030) or (040)/(A4040) need an accelerated A4000/030|040
+  // (68030/68040 + FPU): some AGA demos require a real 68030/40 and/or an FPU and
+  // die (Line-F / illegal instruction) on the base A1200 68020. Returns the PUAE
+  // model preset or null. These need the A4000 KS3.1 ROM (biosA4000Url).
+  const amigaAccel = (): "A4040" | "A4030" | null => {
+    if (core !== "amiga") return null;
+    if (/\((?:040|a4040)\)/i.test(gameUrl)) return "A4040";
+    if (/\((?:030|a4030)\)/i.test(gameUrl)) return "A4030";
+    return null;
+  };
+  // The Kickstart this demo needs: the exact PUAE ROM filename, the server URL for
+  // it (null if the server doesn't ship it), and the expected CRC/size for
+  // validating a user-supplied file. PUAE reads the ROM by filename from the
+  // emulator FS root, so a user ROM is injected there (see tryInjectRom).
+  const neededRom = () => {
+    if (core !== "amiga") return null;
+    const name = amigaA500()
+      ? "kick34005.A500"
+      : amigaAccel()
+        ? "kick40068.A4000"
+        : "kick40068.A1200";
+    const backendUrl = amigaA500() ? biosA500Url : amigaAccel() ? biosA4000Url : biosUrl;
+    return { name, backendUrl, ...KNOWN_ROMS[name] };
+  };
+  // ROMs the visitor supplied in-browser (filename → bytes), loaded from IndexedDB.
+  let userRoms = $state<Record<string, Uint8Array>>({});
+  let romError = $state<string | null>(null);
+  let injectTimer: ReturnType<typeof setInterval> | null = null;
+  let injectedRom: string | null = null; // ROM name already written to the FS this run
+  // Show the upload control when the demo needs a ROM the server lacks and the user
+  // hasn't provided it yet.
+  const romMissing = () => {
+    const r = neededRom();
+    return !!r && !r.backendUrl && !userRoms[r.name];
+  };
+  const havingUserRom = () => {
+    const r = neededRom();
+    return !!r && !r.backendUrl && !!userRoms[r.name];
+  };
 
   let host = $state<HTMLDivElement | null>(null);
   let error = $state<string | null>(null);
@@ -91,8 +137,11 @@
     g.EJS_pathtodata = "/vendor/emulatorjs/";
     g.EJS_core = core;
     g.EJS_gameUrl = gameUrl;
-    // A500 disks need the KS1.3 ROM; everything else the A1200 KS3.1.
-    g.EJS_biosUrl = (amigaA500() ? biosA500Url : biosUrl) ?? undefined;
+    // Pick the ROM by machine: A500 disks → KS1.3; (030)/(040) → A4000 KS3.1;
+    // everything else → A1200 KS3.1. PUAE auto-selects by the model's expected
+    // filename, so the model set below and this ROM must match.
+    g.EJS_biosUrl =
+      (amigaA500() ? biosA500Url : amigaAccel() ? biosA4000Url : biosUrl) ?? undefined;
     g.EJS_startOnLoaded = false; // its Start Game click is the audio gesture
     g.EJS_startButtonName = "Launch"; // override the default "Start Game"
     g.EJS_language = "en"; // vendored locales don't include fi
@@ -157,11 +206,22 @@
       // A1200; OCS/ECS demos (State of the Art, Desert Dream, Enigma…) need a
       // 68000 + original chipset — a 68020/AGA A1200 runs them too fast or
       // glitches. `… (A500).adf` (or (OCS)/(ECS)) picks the classic path.
+      const accel = amigaAccel();
       if (amigaA500()) {
         opts.puae_model = "A500"; // OCS, 68000, original chipset
         opts.puae_cpu_compatibility = "exact"; // 68000-accurate timing (demos need it)
         opts.puae_fastmem_size = "0"; // an A500 has no fast RAM
         opts.puae_bogomem_size = "2"; // + 512K slow RAM → 1 MB, what most 1990–93 OCS demos want
+      } else if (accel) {
+        // (030)/(040) demos: an accelerated A4000/030|040 — a real 68030/68040 with
+        // an FPU. Some AGA demos require a 68030/40 and/or an FPU and die (Line-F /
+        // illegal instruction) on the base A1200 68020; this preset (which auto-
+        // selects the A4000 KS3.1 ROM set above) runs them. Still AGA + 2M Chip +
+        // 8M Fast. NOTE: needs kick40068.A4000 present, else PUAE falls back to AROS.
+        opts.puae_model = accel; // "A4030" or "A4040"
+        opts.puae_cpu_compatibility = accurateMode ? "exact" : "normal";
+        opts.puae_immediate_blits = accurateMode ? "waiting" : "immediate";
+        opts.puae_fastmem_size = "8";
       } else {
         opts.puae_model = "A1200"; // force AGA — our Amiga content is AGA demos
         opts.puae_cpu_model = "68020"; // authentic A1200 CPU; the JIT supplies the speed (see note)
@@ -193,7 +253,93 @@
     scriptEl.src = `/vendor/emulatorjs/loader.js?n=${Date.now()}`;
     scriptEl.onerror = () => (error = "failed to load emulator");
     document.body.appendChild(scriptEl);
-    if (core === "amiga") announceJit();
+    if (core === "amiga") {
+      announceJit();
+      startRomInjection();
+    }
+  }
+
+  // Write a user-supplied ROM into the emulator FS so PUAE finds it. The ROM lives
+  // at the FS root under its exact PUAE filename (that's where EmulatorJS puts a
+  // server ROM too); the model auto-selects it by name. Returns true when there's
+  // nothing left to do (server has it / no user ROM / already written / done).
+  function tryInjectRom(): boolean {
+    const r = neededRom();
+    if (!r || r.backendUrl) return true; // server provides it — EmulatorJS handles it
+    const bytes = userRoms[r.name];
+    if (!bytes) return true; // no user ROM yet (upload button is shown)
+    if (injectedRom === r.name) return true; // already injected this run
+    const gm = (
+      w().EJS_emulator as
+        | {
+            started?: boolean;
+            gameManager?: {
+              FS?: { writeFile: (p: string, d: Uint8Array) => void };
+              Module?: { FS?: { writeFile: (p: string, d: Uint8Array) => void } };
+              restart?: () => void;
+            };
+          }
+        | undefined
+    )?.gameManager;
+    const FS = gm?.FS ?? gm?.Module?.FS;
+    if (!FS) return false; // core not ready yet — keep polling
+    try {
+      FS.writeFile(`/${r.name}`, bytes);
+      injectedRom = r.name;
+      // If the core already booted without the ROM (→ AROS), reboot so it re-reads
+      // the now-present Kickstart. If it hasn't started yet, the pending start picks
+      // it up with no reboot.
+      if ((w().EJS_emulator as { started?: boolean } | undefined)?.started) gm?.restart?.();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Poll until the injected ROM is in place (or there's nothing to inject).
+  function startRomInjection() {
+    if (injectTimer) clearInterval(injectTimer);
+    injectedRom = null;
+    if (tryInjectRom()) return;
+    let tries = 0;
+    injectTimer = setInterval(() => {
+      if (tryInjectRom() || ++tries > 240) {
+        clearInterval(injectTimer!);
+        injectTimer = null;
+      }
+    }, 300);
+  }
+
+  // Let the visitor supply the Kickstart the server doesn't ship. Validated by
+  // CRC32 + size (a wrong ROM would silently fall back to AROS), kept in IndexedDB
+  // (never uploaded), and injected into the running emulator.
+  async function pickRom() {
+    const r = neededRom();
+    if (!r) return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".rom,.a500,.a600,.a1200,.a4000,application/octet-stream";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const hex = (n: number) => (n >>> 0).toString(16).padStart(8, "0");
+      if (bytes.length !== r.size || crc32(bytes) !== r.crc) {
+        romError =
+          `That file isn't ${r.name} (${r.label}). Expected ${r.size} bytes, CRC ${hex(r.crc)}; ` +
+          `got ${bytes.length} bytes, CRC ${hex(crc32(bytes))}.`;
+        return;
+      }
+      romError = null;
+      userRoms = { ...userRoms, [r.name]: bytes };
+      try {
+        await storeRom(r.name, bytes);
+      } catch {
+        /* IDB blocked — kept for this session only */
+      }
+      startRomInjection(); // inject into the running core (+ reboot if needed)
+    };
+    input.click();
   }
 
   // Log to the console whether the vendored PUAE core is the JIT build and, once
@@ -260,6 +406,9 @@
   function teardown() {
     if (announceTimer) clearInterval(announceTimer);
     announceTimer = null;
+    if (injectTimer) clearInterval(injectTimer);
+    injectTimer = null;
+    injectedRom = null;
     const g = w();
     try {
       (g.EJS_emulator as { pause?: () => void } | undefined)?.pause?.();
@@ -320,6 +469,9 @@
   }
 
   onMount(() => {
+    // Load any ROMs the visitor supplied on a previous visit, then launch. (If it
+    // resolves after launch, tryInjectRom's poll picks them up.)
+    if (core === "amiga") void loadStoredRoms().then((r) => (userRoms = r));
     void launch();
   });
   onDestroy(() => teardown());
@@ -327,6 +479,7 @@
 
 <div class="emu" class:fs={pseudoFs}>
   {#if error}<p class="err">{error}</p>{/if}
+  {#if romError}<p class="err">{romError}</p>{/if}
   <div class="bar">
     <!-- settings toggles (left): pressed = on -->
     <div class="grp">
@@ -351,6 +504,23 @@
         >
           <Gauge size={15} /> Accurate timing
         </button>
+      {/if}
+      {#if romMissing()}
+        <button
+          class="rom-need"
+          onclick={pickRom}
+          title="This demo needs the {neededRom()
+            ?.label} Kickstart ROM, which this server doesn't provide. Load your own ROM file — it stays in your browser (never uploaded) and is remembered for next time."
+        >
+          <Upload size={15} /> Provide {neededRom()?.label}
+        </button>
+      {:else if havingUserRom()}
+        <span
+          class="rom-ok"
+          title="Using your {neededRom()?.label} ROM, stored in this browser (never uploaded)."
+        >
+          {neededRom()?.label}: your ROM ✓
+        </span>
       {/if}
     </div>
     <!-- session actions (right) -->
@@ -424,6 +594,20 @@
   .bar button.exit:hover {
     border-color: #ff4136;
     color: #ff4136;
+  }
+  /* "Provide ROM" stands out (a required action), like the on-toggle accent. */
+  .bar button.rom-need {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    font-weight: 600;
+  }
+  .rom-ok {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 8px;
+    font-size: 12px;
+    color: var(--muted, #8a8);
   }
   .screen {
     width: 100%;

@@ -36,6 +36,7 @@
     prodId,
     kickstart = null,
     kickstartA500 = null,
+    kickstartA4000 = null,
     initialFile = null,
     onfile,
   }: {
@@ -45,6 +46,8 @@
     prodId: string;
     kickstart?: string | null;
     kickstartA500?: string | null;
+    /** A4000 Kickstart 3.1 ROM — used for demos tagged (030)/(040). */
+    kickstartA4000?: string | null;
     /** rel_path to pre-select (from the URL ?f param); used on load/restore. */
     initialFile?: string | null;
     /** Called when the user picks a file, so the URL can reflect it. */
@@ -275,6 +278,7 @@
             gameUrl={diskUrl(selected.hash, selected.filename)}
             biosUrl={kickstart ?? undefined}
             biosA500Url={kickstartA500 ?? undefined}
+            biosA4000Url={kickstartA4000 ?? undefined}
           />
         {/key}
       {:else if selected.kind === "music"}
