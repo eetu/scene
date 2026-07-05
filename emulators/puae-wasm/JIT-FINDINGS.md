@@ -29,7 +29,8 @@ missing — `batch.mjs` only measured `vblankFps`, which ticks even on a black h
 | Cycle/interrupt batching (granularity) | ❌ | capped blocks to 1 instruction (per-instruction `do_cycles` + `do_specialties`) with correct cycles → **still black** |
 | Dispatch scaffolding | ❌ | `ramMax=0` (scaffolding runs, **zero blocks compiled**) → **RENDERS** (295 colours). The `m68k_run_2_020` weaving is benign |
 | JIT block codegen | ❌ **PROVEN CORRECT** | difftested vs a real 68020 (Musashi), 40000+ cases, 0 real failures |
-| **JIT↔interpreter integration/handoff** | ✅ **remaining suspect** | codegen + ABI + memory routing all match, yet blocks-on is black → a real-core-only handoff bug |
+| JIT→interpreter handoff | ❌ ruled out | instrumented: npc always correct, 0 odd, opcodes valid — no derail |
+| **chipset/DMA/interrupt timing** | ✅ **root cause** | demo hangs in a scan/wait loop for a value the cycle-driven chipset never produces under JIT timing |
 
 ## The Musashi oracle result — the codegen is NOT the bug
 
@@ -52,27 +53,47 @@ packing (`N15 Z14 C8 V0`, X@bit8 of x; WASM → not `__x86_64__` → `md-generic
 the JIT's `get_word`/`put_word` are the *same* accessors the mode-0 interpreter
 handlers (`cpuemu_0.c`) use.
 
-## Remaining suspect — the JIT→interpreter handoff (real-core only)
+## Root cause — a chipset/timing hang, NOT the handoff (confirmed by instrumentation)
 
-Codegen ✅, ABI ✅, memory routing ✅ — yet `ramMax=0` (no blocks) renders and
-blocks-on is black. So the corruption is a side effect of the *block execution path*
-in the running core, not the instruction semantics: some CPU-loop state the block
-path doesn't reproduce that the next interpreted instruction (or the chipset) needs
-— e.g. prefetch/`pc_p` vs `pc` consistency after `m68k_setpc`, `ipl`/interrupt
-latch state, or a chip-side effect of the fetch the block skips. **This is invisible
-offline** (Musashi runs instructions in isolation); it needs real-core runtime
-debugging.
+Handoff instrumentation (logging entry pc → returned npc, spcflags, opcode-at-npc
+for the first ~120 block executions) shows the handoff is **completely sane**: npc
+is always correct, **0 odd/misaligned**, opcodes valid — no derail. Instead the demo
+is **stuck in a tight loop forever**, bouncing between two blocks with `spcflags=1`:
+
+```
+pc=221624 len=7 → npc=221624   op@npc=0x0c92 = CMPI.L #imm,(A2)
+pc=2219b0 len=2 → npc=2219b0   op@npc=0x588a = ADDQ.L #4,A2
+```
+
+i.e. `while ((A2).L != IMM) A2 += 4` — a memory scan/wait loop spinning forever. The
+codegen is correct and the loop executes exactly right; it is **waiting for a value
+that never arrives**. Under the interpreter (`ramMax=0`) the value arrives and the
+demo proceeds; under the JIT it never does.
+
+So the black screen is a **chipset/DMA/interrupt-timing interaction**: the demo
+waits for something the cycle-driven chipset produces (a DMA/blitter result, or a
+flag set by a copper/vblank interrupt handler), and under the JIT's block-execution
+timing that value/event never materializes as the demo expects → infinite wait →
+black. This matches the day-one signature (clean uniform hang, vblank ticking, 0
+gate-fails) and is now pinned to a concrete stuck loop. It is likely **fundamental
+to block-JIT-ing a cycle-timing-sensitive Amiga** (the interpreter interleaves
+CPU↔chipset per instruction; a block dynarec cannot without defeating its own
+purpose), which is also why even 1-instruction blocks hang.
 
 ## What a real fix requires now
 
-Real-core runtime bisection (each is a ~16-min CI build):
-1. **Runtime gate vs the real interpreter** — run a block, then run the real
-   `cpufunctbl` handlers for the same instructions and compare regs/mem; fall back +
-   log on mismatch. Finds *and* fixes, but hard in C (side-effect isolation).
-2. **`ramMax` address bisection** — narrow which code region's blocks break it, then
-   read that code.
-3. **Handoff instrumentation** — after each block, log pc/pc_p/prefetch/spcflags and
-   compare to the interpreter's expectations.
+The fix is no longer about the recompiler — it's about giving JIT-executed code the
+**same fine-grained CPU↔chipset timing the interpreter provides**, so waited-for
+DMA/blitter/interrupt results actually appear. That likely means either:
+- confirming the exact wait (instrument the stuck loop: dump A2 + `(A2)` + who writes
+  the target — a DMA/blitter/interrupt), then
+- making the JIT interleave chipset/event processing at (near) per-instruction
+  granularity while executing blocks — which erodes the JIT's speed advantage, the
+  core tension of block-JIT-ing a cycle-exact-ish Amiga.
+
+Given that, the honest recommendation is to **keep the JIT shelved**: the recompiler
+is validated and reusable, but making the chipset timing match is deep and the
+speed payoff is unproven.
 
 Weigh against payoff: **the JIT's speedup was never measured on a rendered demo**
 (the old "~2.5×" was `vblankFps` on a black screen). Kept as genuine improvements:
