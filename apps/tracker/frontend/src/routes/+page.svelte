@@ -9,6 +9,7 @@
     RefreshCw,
     ScanLine,
     Settings,
+    Square,
     Star,
     Sun,
     X,
@@ -16,7 +17,6 @@
   import { setAccent, setTheme, theme, trapFocus } from "@scene/design";
   import {
     BoingBall,
-    ChannelStrip,
     CopperBars,
     DiscoBall,
     Equalizer,
@@ -31,6 +31,12 @@
     SampleBrowser,
     Scope,
     seekToOrder,
+    seqToggle,
+    setEditing,
+    setEditInst,
+    setEditOctave,
+    setEditStep,
+    setFollowPlay,
     setJamLevel,
     Starfield,
     Transport,
@@ -139,6 +145,21 @@
       ? "scroll"
       : "locked",
   );
+  // Legacy tracker editing is keyboard-first (QWERTY note entry, hex fields), so
+  // gate edit mode to real pointer+keyboard devices. Touch note entry needs a
+  // purpose-built UI (future: the on-screen JamKeyboard feeding cells).
+  let isDesktop = $state(true);
+  $effect(() => {
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const apply = () => {
+      isDesktop = mq.matches;
+      if (!mq.matches && playback.editing) setEditing(false);
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  });
+
   function setPatternMode(m: "locked" | "scroll") {
     patternMode = m;
     if (typeof localStorage !== "undefined") localStorage.setItem("tracker:patternMode", m);
@@ -648,9 +669,15 @@
     // keyboard shortcut for the "vol" slider, and it keeps arrows from switching
     // tracks mid-jam.
     const inSamples = showPattern && pvTab === "samples" && playback.canReadSamples;
+    // Edit mode is modal: the focused grid owns row/field arrows (and stops their
+    // propagation); globally, arrows must NOT switch tracks. Space still toggles —
+    // transportToggle drives the pattern loop while editing.
+    const inEdit = showPattern && pvTab === "pattern" && playback.editing;
     if (e.key === " ") {
       e.preventDefault();
       transportToggle();
+    } else if (inEdit) {
+      return;
     } else if (e.key === "ArrowRight") {
       if (inSamples) {
         setJamLevel(playback.jamLevel + 0.05);
@@ -1234,6 +1261,27 @@
         <button class:on={pvTab === "samples"} onclick={() => (pvTab = "samples")}>samples</button>
         <button class:on={pvTab === "viz"} onclick={() => (pvTab = "viz")}>viz</button>
       </div>
+      {#if pvTab === "pattern" && playback.canReadCells && isDesktop}
+        <!-- Pattern surface mode: view vs edit (a mode of the pattern tab, kept
+             clear of the file-action pencil in the right cluster). Editing is
+             keyboard-first, so it's gated to pointer+keyboard devices. -->
+        <div class="pv-mode" role="group" aria-label="pattern mode">
+          <button class:on={!playback.editing} onclick={() => setEditing(false)}>view</button>
+          <button class:on={playback.editing} onclick={() => setEditing(true)}>edit</button>
+        </div>
+        {#if playback.editing}
+          <button
+            class="icon-btn seq"
+            class:on={playback.seqPlaying}
+            onclick={() => seqToggle()}
+            title={playback.seqPlaying ? "stop pattern" : "play pattern (editor)"}
+            aria-label="play or stop the edited pattern"
+            aria-pressed={playback.seqPlaying}
+          >
+            {#if playback.seqPlaying}<Square size={16} />{:else}<Play size={16} />{/if}
+          </button>
+        {/if}
+      {/if}
       <div class="pv-actions">
         {#if currentTrack}
           {@const ct = currentTrack}
@@ -1292,7 +1340,48 @@
             {/each}
           </div>
         {/if}
-        <ChannelStrip />
+        {#if playback.editing}
+          <div class="editbar">
+            <span class="lab">oct</span>
+            <button onclick={() => setEditOctave(playback.editOctave - 1)} aria-label="octave down"
+              >−</button
+            >
+            <span class="val">{playback.editOctave}</span>
+            <button onclick={() => setEditOctave(playback.editOctave + 1)} aria-label="octave up"
+              >+</button
+            >
+            <span class="lab">step</span>
+            <button onclick={() => setEditStep(playback.editStep - 1)} aria-label="step down"
+              >−</button
+            >
+            <span class="val">{playback.editStep}</span>
+            <button onclick={() => setEditStep(playback.editStep + 1)} aria-label="step up"
+              >+</button
+            >
+            <span class="lab">inst</span>
+            <button onclick={() => setEditInst(playback.editInst - 1)} aria-label="instrument down"
+              >−</button
+            >
+            <span class="val inst"
+              >{String(playback.editInst).padStart(2, "0")}
+              {playback.samples[playback.editInst - 1] ?? ""}</span
+            >
+            <button onclick={() => setEditInst(playback.editInst + 1)} aria-label="instrument up"
+              >+</button
+            >
+            <button
+              class="follow"
+              class:on={playback.followPlay}
+              aria-pressed={playback.followPlay}
+              title="follow playback: view + cursor ride the playing row"
+              onclick={() => setFollowPlay(!playback.followPlay)}>follow</button
+            >
+            {#if playback.seqPlaying}
+              <span class="lab">play</span>
+              <span class="val play">{hex2(playback.seqRow)}</span>
+            {/if}
+          </div>
+        {/if}
         <div class="pfill">
           {#if patternMode === "locked"}<PatternView />{:else}<PatternViewScroll />{/if}
         </div>
@@ -1413,6 +1502,12 @@
     align-items: center;
     justify-content: center;
     padding: 5px;
+  }
+  /* Active toggle (edit mode on, sequencer playing). */
+  .icon-btn.on {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
   }
   .filter {
     flex: 1;
@@ -2092,6 +2187,25 @@
     background: var(--accent);
     border-color: var(--accent);
   }
+  /* Segmented view|edit control — a mode of the pattern surface. */
+  .pv-mode {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .pv-mode button {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: none;
+    border-radius: 0;
+    background: var(--panel-hi);
+    color: var(--muted);
+  }
+  .pv-mode button.on {
+    color: var(--bg);
+    background: var(--accent);
+  }
   .pv-wrap {
     flex: 1;
     min-height: 0;
@@ -2141,6 +2255,49 @@
   .pfill {
     flex: 1;
     min-height: 0;
+  }
+  /* Edit status bar: base octave, cursor step, current instrument for entry. */
+  .editbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--surface-bar);
+    border-bottom: 1px solid var(--surface-line-2);
+    font-family: var(--font-retro);
+    font-size: 12px;
+    color: var(--surface-fg);
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .editbar .lab {
+    color: var(--muted);
+  }
+  .editbar .val {
+    min-width: 1.5ch;
+    text-align: center;
+  }
+  .editbar .val.inst {
+    min-width: 6ch;
+    max-width: 16ch;
+    text-align: left;
+    color: var(--accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .editbar button {
+    padding: 2px 8px;
+    font-size: 12px;
+  }
+  .editbar .follow.on {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .editbar .val.play {
+    color: var(--accent);
+    min-width: 2ch;
   }
   .viz-view {
     flex: 1;
