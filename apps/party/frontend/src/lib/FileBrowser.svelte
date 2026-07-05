@@ -337,6 +337,9 @@
               ? fileUrl(selected.hash)
               : assetUrl(selected.hash, "png")}
             alt={selected.filename}
+            onprev={images.length > 1 ? () => stepImage(-1) : undefined}
+            onnext={images.length > 1 ? () => stepImage(1) : undefined}
+            navLabel={images.length > 1 ? `${imgIndex + 1} / ${images.length}` : ""}
           />
           {#if images.length > 1}
             <button
