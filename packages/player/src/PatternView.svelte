@@ -35,9 +35,12 @@
   const vu = $derived(playback.vu);
   const contentW = $derived(ROWNUM_W + channels.length * CELL_W);
 
-  // Translate the rows so the current row sits on the fixed centerline; the
-  // pattern moves under the line "like a stick in the river".
-  const translateY = $derived(vpH / 2 - (playback.row + 0.5) * ROW_H);
+  // Translate the rows so the tracked row sits on the fixed centerline; the
+  // pattern moves under the line "like a stick in the river". In edit mode the
+  // centerline follows the EDIT CURSOR (so entered notes stay in view); otherwise
+  // it follows the playing row.
+  const centerRow = $derived(playback.editing ? playback.cursorRow : playback.row);
+  const translateY = $derived(vpH / 2 - (centerRow + 0.5) * ROW_H);
 
   function hex2(n: number): string {
     return n.toString(16).toUpperCase().padStart(2, "0");

@@ -72,10 +72,12 @@
     if (playback.editing) scroller?.focus();
   });
 
-  // Keep the playing row centred as it advances. Direct scrollTop (not smooth)
-  // so it tracks fast tempos without lagging behind.
+  // Keep the tracked row centred as it advances. Direct scrollTop (not smooth)
+  // so it tracks fast tempos without lagging behind. In edit mode this follows
+  // the EDIT CURSOR (so entered notes stay in view); otherwise the playing row.
+  // Between moves it doesn't re-run, so manual scrolling still works.
   $effect(() => {
-    const r = playback.row;
+    const r = playback.editing ? playback.cursorRow : playback.row;
     const el = scroller;
     if (!el) return;
     const rows = el.querySelectorAll<HTMLElement>(".prow");
