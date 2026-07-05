@@ -169,12 +169,7 @@
     var packed = -1;
     if (pc < ramMax) {
       try {
-        // DIAGNOSTIC: cap blocks to 1 instruction so do_cycles + the spcflags/
-        // do_specialties check run per-instruction (interpreter granularity), with the
-        // now-correct 8*CYCLE_UNIT charge. Only the codegen execution path then differs
-        // from the interpreter. Renders → per-block batching of cycles/interrupts was
-        // the bug; still black → the block codegen corrupts per-instruction. Restore 64.
-        var blk = D.blockAt(words, pc, 1);
+        var blk = D.blockAt(words, pc, 64);
         var ct =
           blk.term && (blk.term.op === "bcc" || blk.term.op === "dbcc" || blk.term.op === "halt");
         if (!blk.instrs.length && !ct) stats.empty++;

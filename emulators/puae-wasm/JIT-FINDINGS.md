@@ -20,39 +20,52 @@ histogram**. Verdict from distinct-colour count. On ZIF: stock core → **292**
 colours (RENDERED); JIT core → **2** (BLACK). This is the test the project was
 missing — `batch.mjs` only measured `vblankFps`, which ticks even on a black hang.
 
-## What was ruled out (each via a CI rebuild + render-check)
+## What was ruled out (each via a CI rebuild + render-check, real-GL pixels)
 
 | suspect | verdict | evidence |
 | --- | --- | --- |
-| Codegen | ❌ | 60000/60000 difftests; `0` runtime gate-fails |
-| Self-modifying code | ❌ | added code-write invalidation (`m3-jit-scaffold.py` `code0`/`ejs_smc_hits`) → still black, only 2–19 SMC hits |
-| Cycle-timing granularity | ❌ | capped blocks to 1 instruction (per-instruction `do_cycles`) → still black (but vblank moved 60→38, so the cycle model *does* matter) |
+| Self-modifying code | ❌ | added code-write invalidation (`code0`/`ejs_smc_hits`) → still black, only 2–19 SMC hits |
+| Cycle magnitude | ❌ (real, insufficient) | measured JIT charged **0.49×** the interpreter (we apply `adjust_cycles` on `4×CYCLE_UNIT`; the interpreter feeds `handler>>16 ≈ 8×CYCLE_UNIT`). Fixed to `8×CYCLE_UNIT` → ratio **0.99×**, **still black** |
+| Cycle/interrupt batching (granularity) | ❌ | capped blocks to 1 instruction (per-instruction `do_cycles` + `do_specialties`) with correct cycles → **still black** |
+| Dispatch scaffolding | ❌ | `ramMax=0` (scaffolding runs, **zero blocks compiled**) → **RENDERS** (295 colours). The `m68k_run_2_020` weaving is benign |
+| **JIT block codegen** | ✅ **root cause** | blocks on → black; blocks off → renders. The compiled blocks corrupt at runtime |
 
-## Root cause — cycle accounting is incompatible with UAE's
+## Root cause — block codegen diverges from the real 68020, and our tests can't see it
 
-The interpreter charges cycles **per opcode**: `cpu_cycles = (*cpufunctbl[op])(op)
->> 16; adjust_cycles(cpu_cycles); do_cycles(...)` (`newcpu.c` `m68k_run_2_020`).
-The value comes from UAE's gencpu 020 cycle tables and is specific per instruction.
+With every other factor eliminated (`ramMax=0` renders, blocks-on is black), the
+**compiled blocks themselves are wrong at runtime** — yet difftests are 60000/60000
+and the in-core gate reports `0` failures. The reason both are blind:
 
-The JIT (`m3-jit-scaffold.py` dispatch hook) throws that away and charges a **flat
-`len × 4 × CYCLE_UNIT`** per block, then `do_cycles` once. That is the wrong
-magnitude/encoding, so the chipset (copper/blitter/DMA) advances out of sync with
-the CPU. AGA demos are raster/DMA-timed to the cycle, so their render collapses →
-black. The block-size experiment confirms it: changing the JIT-vs-interp cycle
-ratio changed the emulated timing but never rendered — wrong in magnitude, not just
-granularity.
+> **The difftests *and* the in-core parity gate (`install-src.js` `parityOk`) both
+> compare the JIT codegen against our OWN JS reference interpreter (`interp.mjs`),
+> not against the real UAE interpreter.** A *shared misunderstanding* — the same
+> wrong 68020 semantics in both the codegen (`coreblock.mjs`) and the JS interp —
+> passes every test but diverges from the real `cpufunctbl` handlers at runtime →
+> corruption → black.
+
+The arithmetic/flag codegen (N/Z/V/C/X, add/sub overflow, carry/borrow) was reviewed
+and looks correct, so the culprit is a subtler or specific opcode/addressing-mode
+case the self-referential tests don't exercise.
 
 ## What a real fix requires
 
-Make each compiled block charge the **sum of the real per-instruction 020 cycle
-costs** the interpreter would (matching gencpu's tables + the `>>16`/`adjust_cycles`
-convention), not a flat constant — computed at compile time and returned alongside
-the block. Non-trivial (essentially porting UAE's 020 timing into the recompiler).
+An **independent 68020 oracle** to locate the diverging opcode — the current tests
+can't, by construction. Options, cheapest first:
+1. **Offline**: difftest the exact opcodes ZIF compiles against a real 68k reference
+   (e.g. Musashi built to WASM/native, or captured golden traces). Finds the bug
+   *if* it's also reproducible offline.
+2. **Runtime gate vs the real interpreter**: run each block, then run the real
+   `cpufunctbl` interpreter for the same instructions on shadow memory and compare;
+   fall back + log on mismatch. Powerful (finds *and* fixes) but hard in C
+   (side-effect isolation).
+3. **Bisect opcode coverage** across CI builds (disable JIT for opcode classes until
+   it renders) — many 16-min builds.
 
-Weigh it against the payoff: **the JIT's speedup was never actually measured** — no
-demo has rendered under it, and the old "~2.5×" numbers were `vblankFps` on a black
-screen. Measure a real, rendered speedup on a couple of demos before investing in
-the cycle-accounting port.
+Weigh against payoff: **the JIT's speedup was never measured on a rendered demo**
+(the old "~2.5×" was `vblankFps` on a black screen). The cycle magnitude fix
+(`8×CYCLE_UNIT`) and SMC guard are genuine and kept, but the codegen bug blocks any
+real measurement. Recommend building the oracle (option 1/2) only if the JIT is
+worth reviving; otherwise the stock core ships and this stays shelved.
 
 ## Kept for a future attempt
 
@@ -60,4 +73,6 @@ the cycle-accounting port.
   vblank again).
 - SMC invalidation in `m3-jit-scaffold.py` (`code0` + `ejs_smc_hits`) — correct and
   worth keeping even though it wasn't the bug.
-- This document + the `fix/emu-render-truth` branch history (the diagnostic builds).
+- This document + the `puae-jit-investigation` branch history (the diagnostic builds:
+  cycle magnitude, SMC guard, 1-instr blocks, `ramMax=0`, and the interp-vs-JIT cycle
+  instrumentation).
