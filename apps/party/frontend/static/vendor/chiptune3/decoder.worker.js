@@ -27,10 +27,16 @@ let lib = null;
 let sampleRate = 48000;
 let config = { repeatCount: -1, stereoSeparation: 100, interpolationFilter: 0 };
 
-let modulePtr = 0;
+let modulePtr = 0; // the song being played (a plain module)
 let leftPtr = 0;
 let rightPtr = 0;
 let channels = 0;
+
+// Custom-build capability: this app vendors a libopenmpt WASM carrying the smp_*
+// shim (the stock build lacks it), which reads raw sample data off the module.
+// Detected once at init; the sample/jam UI gates on it. (Jamming itself is pure
+// Web Audio in the store — the worker only extracts sample data here.)
+let caps = { canReadSamples: false, canMuteChannels: false, canReadCells: false };
 
 let gen = 0; // current playback generation (bumped on load/seek)
 let playing = false;
@@ -58,7 +64,12 @@ libopenmptPromise()
 			lib.build = lib.UTF8ToString(lib._openmpt_get_string(asciiToStack('build')));
 			lib.stackRestore(stack);
 		}
-		self.postMessage({ cmd: 'ready' });
+		caps = {
+			canReadSamples: typeof lib._smp_read === 'function' && typeof lib._smp_info === 'function',
+			canMuteChannels: typeof lib._chan_mute === 'function',
+			canReadCells: typeof lib._openmpt_module_get_pattern_row_channel_command === 'function'
+		};
+		self.postMessage({ cmd: 'ready', caps });
 	})
 	.catch((e) => self.postMessage({ cmd: 'err', val: String(e) }));
 
@@ -155,6 +166,62 @@ function pump() {
 	}
 }
 
+// Read one sample's PCM + metadata out of the loaded module (custom build only).
+// Returns { info, pcm:Float32Array } or null. Sample index is 1-based.
+function sampleInfo(idx) {
+	if (!modulePtr || !caps.canReadSamples) return null;
+	const infoPtr = lib._malloc(16 * 4);
+	if (!lib._smp_info(modulePtr, idx, infoPtr)) {
+		lib._free(infoPtr);
+		return null;
+	}
+	const I = lib.HEAP32.subarray(infoPtr >> 2, (infoPtr >> 2) + 16);
+	const info = {
+		length: I[0],
+		loopStart: I[1],
+		loopEnd: I[2],
+		sustainStart: I[3],
+		sustainEnd: I[4],
+		rate: I[5],
+		channels: I[6],
+		bits: I[7],
+		flags: I[8], // bit0 loop | bit1 pingpong | bit2 sustain | bit3 sustain-pingpong
+		volume: I[9],
+		panning: I[10], // -1 if no pan flag
+		finetune: I[11],
+		relativeNote: I[12],
+		globalVol: I[13]
+	};
+	lib._free(infoPtr);
+	return info;
+}
+
+function readSample(idx) {
+	const info = sampleInfo(idx);
+	if (!info) return null;
+	const len = info.length;
+	if (len <= 0) return { info, pcm: new Float32Array(0) };
+	const bufPtr = lib._malloc(4 * len);
+	const frames = lib._smp_read(modulePtr, idx, bufPtr, len);
+	const pcm = lib.HEAPF32.slice(bufPtr >> 2, (bufPtr >> 2) + frames); // copy out of heap
+	lib._free(bufPtr);
+	return { info, pcm };
+}
+
+// Raw sample bytes (native bit-depth, interleaved) for a bit-exact WAV export.
+// Returns { info, raw:Uint8Array } or null.
+function readSampleRaw(idx) {
+	const info = sampleInfo(idx);
+	if (!info) return null;
+	const bytes = info.length * (info.bits / 8) * info.channels;
+	if (bytes <= 0) return { info, raw: new Uint8Array(0) };
+	const bufPtr = lib._malloc(bytes);
+	const n = lib._smp_raw(modulePtr, idx, bufPtr, bytes);
+	const raw = lib.HEAPU8.slice(bufPtr, bufPtr + n); // copy out of heap
+	lib._free(bufPtr);
+	return { info, raw };
+}
+
 // Lightweight parse for bulk metadata enrichment — its own throwaway module, so
 // it never disturbs playback.
 function parse(id, file) {
@@ -204,16 +271,35 @@ function getSong() {
 			name: lib.UTF8ToString(lib._openmpt_module_get_order_name(modulePtr, i)),
 			pat: lib._openmpt_module_get_order_pattern(modulePtr, i)
 		});
+	// Structured per-cell fields (note/inst/volcmd/vol/fx/param) for the editor —
+	// only when the custom build exports the getter (else `cells` stays absent and
+	// the app falls back to the formatted `rows` strings; party is unaffected). The
+	// libopenmpt command indices: NOTE 0, INSTRUMENT 1, VOLUMEEFFECT 2, EFFECT 3,
+	// VOLUME 4, PARAMETER 5. Each cell is a compact [note,inst,volcmd,vol,fx,param].
+	const cmd = lib._openmpt_module_get_pattern_row_channel_command;
+	const wantCells = typeof cmd === 'function';
 	for (let pi = 0, pn = lib._openmpt_module_get_num_patterns(modulePtr); pi < pn; pi++) {
 		const pattern = { name: lib.UTF8ToString(lib._openmpt_module_get_pattern_name(modulePtr, pi)), rows: [] };
+		if (wantCells) pattern.cells = [];
 		for (let ri = 0, rn = lib._openmpt_module_get_pattern_num_rows(modulePtr, pi); ri < rn; ri++) {
 			const rowArr = [];
+			const cellArr = wantCells ? [] : null;
 			for (let ci = 0; ci < chNum; ci++) {
 				const cell = lib._openmpt_module_format_pattern_row_channel(modulePtr, pi, ri, ci, 0, 0);
 				rowArr.push(lib.UTF8ToString(cell));
 				lib._openmpt_free_string(cell);
+				if (wantCells)
+					cellArr.push([
+						cmd(modulePtr, pi, ri, ci, 0), // note
+						cmd(modulePtr, pi, ri, ci, 1), // instrument
+						cmd(modulePtr, pi, ri, ci, 2), // volume effect
+						cmd(modulePtr, pi, ri, ci, 4), // volume
+						cmd(modulePtr, pi, ri, ci, 3), // effect
+						cmd(modulePtr, pi, ri, ci, 5) // parameter
+					]);
 			}
 			pattern.rows.push(rowArr);
+			if (wantCells) pattern.cells.push(cellArr);
 		}
 		song.patterns.push(pattern);
 	}
@@ -318,9 +404,32 @@ self.onmessage = (e) => {
 		case 'selectSubsong':
 			if (modulePtr) lib._openmpt_module_select_subsong(modulePtr, d.val);
 			break;
+		case 'muteChannel':
+			// Mute/unmute a pattern channel on the live module (editor solo/mute).
+			if (modulePtr && typeof lib._chan_mute === 'function')
+				lib._chan_mute(modulePtr, d.ch | 0, d.on ? 1 : 0);
+			break;
 		case 'parse':
 			if (lib) parse(d.id, d.file);
 			break;
+		case 'readSample': {
+			const res = readSample(d.idx | 0);
+			if (res)
+				self.postMessage({ cmd: 'sample', id: d.id, idx: d.idx, info: res.info, pcm: res.pcm }, [
+					res.pcm.buffer
+				]);
+			else self.postMessage({ cmd: 'sample', id: d.id, idx: d.idx, info: null, pcm: null });
+			break;
+		}
+		case 'readSampleRaw': {
+			const res = readSampleRaw(d.idx | 0);
+			if (res)
+				self.postMessage({ cmd: 'sampleRaw', id: d.id, idx: d.idx, info: res.info, raw: res.raw }, [
+					res.raw.buffer
+				]);
+			else self.postMessage({ cmd: 'sampleRaw', id: d.id, idx: d.idx, info: null, raw: null });
+			break;
+		}
 		default:
 			break;
 	}

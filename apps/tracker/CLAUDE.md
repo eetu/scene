@@ -46,9 +46,12 @@ Cargo workspace = `backend` + `e2e`.
   `set_channel_mute_status` via the same `CSoundFile` accessor — no ext module),
   and **structured pattern cells** (the `_openmpt_module_get_pattern_row_channel_command`
   export). Jamming itself is **pure Web Audio** (`AudioBufferSource` on the
-  extracted PCM — no libopenmpt playback/ext engine). Party keeps the smaller
-  stock build (these capabilities gate off cleanly). The frontend POSTs parsed
-  metadata back to `/api/meta/:hash`.
+  extracted PCM — no libopenmpt playback/ext engine). **Party vendors the same
+  custom build** for sample jamming (its shared `PlayerStage` shows the
+  `SampleBrowser`); the **pattern editor UI is tracker-only** — it lives in this
+  app's `+page.svelte`, not in `PlayerStage`, so party never surfaces it even
+  though its build reports `canReadCells`. The frontend POSTs parsed metadata
+  back to `/api/meta/:hash`.
 - **Auth is the edge's job.** Sits behind oauth2-proxy forward-auth; the binary
   only asserts `X-Auth-Request-User` is present (401 otherwise) — no per-user
   state, no own login. `DEV_AUTH=1` bypasses for local work. `/status` is unauth.
@@ -159,8 +162,9 @@ Cargo workspace = `backend` + `e2e`.
   plays it pitched to the key, looped at the sample's loop points — no libopenmpt
   playback engine, worker render-loop, or worklet involvement, and fully
   independent of the song's transport (`jamNote`/`jamStop` in `player.svelte.ts`;
-  `JamKeyboard` + `SampleWave` UI gated on `playback.canReadSamples`, so party's
-  stock build hides them). `decoder.worker.js` gained a `readSample` command
+  `JamKeyboard` + `SampleWave` UI gated on `playback.canReadSamples`). Party now
+  vendors the same custom build, so it gets sample jamming too (the editor UI is
+  tracker-only — see the engine note above). `decoder.worker.js` gained a `readSample` command
   (`smp_*` off the song module) — everything else is unchanged. Gate:
   `node wasm/libopenmpt-ext/spike/spike.mjs <mod>` (real PCM + loop points, MOD/XM/IT).
   **To bump libopenmpt:** `OMPT_REF=… ./build.sh` + re-run the gate (see
