@@ -707,11 +707,13 @@ export function toggleRepeat() {
  *  track from the top; otherwise toggle play ↔ pause in place. */
 export function transportToggle() {
   if (!playback.current) return;
+  if (playback.seqPlaying) seqStop(); // the pattern loop and the song don't fight
   if (!playback.playing) void playTrack(playback.current);
   else togglePause();
 }
 
 export function togglePause() {
+  if (playback.seqPlaying) seqStop(); // stop the editor pattern loop first
   if (!player || !playback.current || !playback.playing) return;
   player.togglePause();
   playback.paused = !playback.paused;
@@ -735,6 +737,7 @@ export function togglePause() {
  *  player view open — the transport flips to ▶ (restart). */
 export function stop() {
   if (!player) return;
+  if (playback.seqPlaying) seqStop();
   player.stop();
   playback.playing = false;
   playback.paused = false;
@@ -1217,6 +1220,11 @@ function seqRowDur(): number {
 function seqSetup(nch: number) {
   const ctx = player.context as AudioContext;
   seqOut = ctx.createGain();
+  // Mix headroom so the summed channels sit near libopenmpt's own output level
+  // (which mixes with gain staging) instead of full-scale-per-channel — matches
+  // playback loudness and prevents clipping as channel count grows. ~1/sqrt(N)
+  // is the standard uncorrelated-sum headroom.
+  seqOut.gain.value = Math.min(0.85, 1.4 / Math.sqrt(Math.max(1, nch)));
   seqOut.connect(player.gain);
   seqChanGain = [];
   seqChanScope = [];
