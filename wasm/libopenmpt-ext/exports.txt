@@ -25,6 +25,7 @@
 "_openmpt_module_get_order_pattern",
 "_openmpt_module_get_pattern_name",
 "_openmpt_module_get_pattern_num_rows",
+"_openmpt_module_get_pattern_row_channel_command",
 "_openmpt_module_get_position_seconds",
 "_openmpt_module_get_sample_name",
 "_openmpt_module_read_float_stereo",
@@ -36,5 +37,6 @@
 "_smp_count",
 "_smp_info",
 "_smp_read",
-"_smp_raw"
+"_smp_raw",
+"_chan_mute"
 ]

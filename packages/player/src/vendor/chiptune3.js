@@ -59,7 +59,7 @@ export class ChiptuneJsPlayer {
 
 		// Custom-build capability (sample extraction). Reported by the worker's
 		// `ready` message; false on the stock build so UI degrades cleanly.
-		this.capabilities = { canReadSamples: false };
+		this.capabilities = { canReadSamples: false, canMuteChannels: false, canReadCells: false };
 		// Pending request/response tables for async sample reads.
 		this.sampleReqId = 0;
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
@@ -255,6 +255,12 @@ export class ChiptuneJsPlayer {
 	}
 	selectSubsong(val) {
 		this.worker.postMessage({ cmd: 'selectSubsong', val });
+	}
+	/** Mute/unmute pattern channel `ch` (0-based) on the live module — for editor
+	 *  solo/mute. No-op on the stock build (canMuteChannels false). */
+	muteChannel(ch, on) {
+		if (!this.capabilities.canMuteChannels) return;
+		this.worker.postMessage({ cmd: 'muteChannel', ch, on });
 	}
 	seek(val) {
 		this.setPos(val);

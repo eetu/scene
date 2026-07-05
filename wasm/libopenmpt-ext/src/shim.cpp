@@ -91,4 +91,24 @@ int smp_read( openmpt_module * mod, int index, float * out, int maxFrames ) {
 	return frames;
 }
 
+/* Mute/unmute pattern channel `ch` (0-based) on the LIVE module, so the song's
+ * own render drops/keeps that channel — for editor solo/mute. Mirrors
+ * libopenmpt_ext's module_ext_impl::set_channel_mute_status: set CHN_MUTE|
+ * CHN_SYNCMUTE on the channel's settings + play-state, and on any NNA/virtual
+ * channels mastered to it. Reached via the same CSoundFile accessor as smp_*;
+ * no ext module needed. Returns 1 on success. */
+int chan_mute( openmpt_module * mod, int ch, int on ) {
+	OPENMPT_NAMESPACE::CSoundFile * sf = sf_of( mod );
+	if ( !sf || ch < 0 || ch >= (int) sf->GetNumChannels() ) return 0;
+	const bool mute = on ? true : false;
+	const auto flags = OPENMPT_NAMESPACE::CHN_MUTE | OPENMPT_NAMESPACE::CHN_SYNCMUTE;
+	sf->ChnSettings[ch].dwFlags.set( flags, mute );
+	sf->m_PlayState.Chn[ch].dwFlags.set( flags, mute );
+	for ( OPENMPT_NAMESPACE::CHANNELINDEX i = sf->GetNumChannels(); i < OPENMPT_NAMESPACE::MAX_CHANNELS; i++ ) {
+		if ( sf->m_PlayState.Chn[i].nMasterChn == (OPENMPT_NAMESPACE::CHANNELINDEX) ( ch + 1 ) )
+			sf->m_PlayState.Chn[i].dwFlags.set( flags, mute );
+	}
+	return 1;
+}
+
 } /* extern "C" */

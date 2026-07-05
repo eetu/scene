@@ -16,6 +16,7 @@
   import { setAccent, setTheme, theme, trapFocus } from "@scene/design";
   import {
     BoingBall,
+    ChannelStrip,
     CopperBars,
     DiscoBall,
     Equalizer,
@@ -1291,6 +1292,7 @@
             {/each}
           </div>
         {/if}
+        <ChannelStrip />
         <div class="pfill">
           {#if patternMode === "locked"}<PatternView />{:else}<PatternViewScroll />{/if}
         </div>

@@ -1,14 +1,24 @@
-# libopenmpt-ext — custom libopenmpt WASM (sample extraction)
+# libopenmpt-ext — custom libopenmpt WASM (editor/sample capabilities)
 
-A from-source **emscripten build of libopenmpt** that adds one capability the
+A from-source **emscripten build of libopenmpt** that adds capabilities the
 stock chiptune3 WASM cannot do, as a **drop-in replacement** for
 `apps/tracker/frontend/static/vendor/chiptune3/libopenmpt.worklet.js`:
 
-**Sample extraction** — flat `smp_*` functions returning raw sample PCM
-(`smp_read`, normalized f32) + metadata (`smp_info`: length, loop/sustain points,
-rate, channels, bit-depth). libopenmpt's **public** API exposes sample *names*
-only; the data lives in the internal `CSoundFile`, reached here via a one-line
-accessor patch (`patches/patch.py`).
+- **Sample extraction** — flat `smp_*` functions returning raw sample PCM
+  (`smp_read`, normalized f32) + metadata (`smp_info`: length, loop/sustain
+  points, rate, channels, bit-depth). libopenmpt's **public** API exposes sample
+  *names* only; the data lives in the internal `CSoundFile`, reached here via a
+  one-line accessor patch (`patches/patch.py`).
+- **Channel mute/solo** — `chan_mute(mod, ch, on)` mutes a pattern channel on the
+  live module so the song's own render drops it. Mirrors libopenmpt_ext's
+  `module_ext_impl::set_channel_mute_status` (`CHN_MUTE|CHN_SYNCMUTE` on the
+  channel + NNA channels) via the **same** `CSoundFile` accessor — so no ext
+  module / interactive interface is compiled or wired.
+- **Structured pattern cells** — the stock build only formats a cell to a display
+  string (`format_pattern_row_channel`); here we also export
+  `openmpt_module_get_pattern_row_channel_command` (already in libopenmpt — an
+  export-list add, no C code) so the editor can read numeric note / instrument /
+  volume / effect / param per cell. Still read-only (libopenmpt has no write API).
 
 That's all the engine needs: **keyboard jamming is done in the browser with the
 Web Audio API** — the tracker builds an `AudioBuffer` from `smp_read`'s PCM and
@@ -49,7 +59,7 @@ like `emulators/puae-wasm`.
 ```sh
 ./build.sh                       # clone + image + compile → out/libopenmpt.worklet.js
 OMPT_REF=libopenmpt-0.8.7 ./build.sh
-node spike/spike.mjs <module>    # the Phase-2 gate (jam audio + sample PCM)
+node spike/spike.mjs <module>    # gate: sample PCM + channel mute + structured cells
 ```
 
 Vendor the artifact **into the tracker app only** (party keeps the smaller stock
@@ -61,14 +71,19 @@ cp out/libopenmpt.worklet.js ../../apps/tracker/frontend/static/vendor/chiptune3
 
 ## Flat C ABI (the shim)
 
-Three stateless helpers, each taking an existing `openmpt_module*` handle (the
-one the worker already holds for the playing module):
+Stateless helpers, each taking an existing `openmpt_module*` handle (the one the
+worker already holds for the playing module):
 
 | function | meaning |
 | --- | --- |
 | `int smp_count(openmpt_module* mod)` | number of samples |
-| `int smp_info(openmpt_module* mod, int idx1, int* out10)` | fill `[len, loopS, loopE, sustS, sustE, rate, ch, bits, flags, _]`; idx is 1-based |
+| `int smp_info(openmpt_module* mod, int idx1, int* out16)` | fill `[len, loopS, loopE, sustS, sustE, rate, ch, bits, flags, vol, pan, finetune, relnote, globalvol, _, _]`; idx is 1-based |
 | `int smp_read(openmpt_module* mod, int idx1, float* out, int maxFrames)` | mono f32 `[-1,1]`; → frames written |
+| `int smp_raw(openmpt_module* mod, int idx1, unsigned char* out, int maxBytes)` | raw native-format bytes (WAV export); → bytes written |
+| `int chan_mute(openmpt_module* mod, int ch, int on)` | mute/unmute pattern channel `ch` on the live module; → 1 on success |
+
+(Structured cells use the stock libopenmpt export
+`openmpt_module_get_pattern_row_channel_command`, not a shim function.)
 
 ## Bumping libopenmpt (upstream updates)
 
