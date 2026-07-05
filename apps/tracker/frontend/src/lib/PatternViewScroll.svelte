@@ -2,9 +2,35 @@
   // Alternate pattern view: free-scrolling rows (current row auto-centred) with
   // per-channel VU bars in the sticky channel header. Toggle against the locked
   // centerline view (PatternView.svelte) in the player bar.
-  import { playback } from "@scene/player";
+  import { moveCursor, playback, seekToCursor, setCursor } from "@scene/player";
 
   let scroller = $state<HTMLDivElement | null>(null);
+
+  // Cursor nav — mirrors PatternView (stops handled keys from reaching the
+  // app's global arrows; unhandled keys still bubble).
+  function onGridKey(e: KeyboardEvent) {
+    const d: Record<string, [number, number]> = {
+      ArrowUp: [-1, 0],
+      ArrowDown: [1, 0],
+      ArrowLeft: [0, -1],
+      ArrowRight: [0, 1],
+    };
+    if (e.key in d) {
+      moveCursor(...d[e.key]);
+    } else if (e.key === "Enter") {
+      seekToCursor();
+    } else return;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  function onGridClick(e: MouseEvent) {
+    const t = e.target as HTMLElement;
+    const rowEl = t.closest?.("[data-r]");
+    const cellEl = t.closest?.("[data-c]");
+    if (rowEl && cellEl) {
+      setCursor(Number(rowEl.getAttribute("data-r")), Number(cellEl.getAttribute("data-c")), true);
+    }
+  }
 
   const pattern = $derived(playback.song?.patterns?.[playback.pattern] ?? null);
   const channels = $derived(playback.song?.channels ?? []);
@@ -27,7 +53,14 @@
 </script>
 
 {#if pattern}
-  <div class="pv" bind:this={scroller}>
+  <div
+    class="pv"
+    role="grid"
+    tabindex="0"
+    bind:this={scroller}
+    onkeydown={onGridKey}
+    onclick={onGridClick}
+  >
     <div class="phead">
       <span class="rownum">··</span>
       {#each channels as ch, i (i)}
@@ -43,10 +76,15 @@
         class:active={r === playback.row}
         class:beat={r % 4 === 0}
         class:measure={r % 16 === 0}
+        data-r={r}
       >
         <span class="rownum">{hex2(r)}</span>
         {#each cells as cell, c (c)}
-          <span class="cell">{cell}</span>
+          <span
+            class="cell"
+            class:cursor={r === playback.cursorRow && c === playback.cursorCh}
+            data-c={c}>{cell}</span
+          >
         {/each}
       </div>
     {/each}
@@ -117,6 +155,14 @@
     border-left: 1px solid var(--surface-line);
     letter-spacing: 0.02em;
     scroll-snap-align: start;
+  }
+  .cell.cursor {
+    box-shadow: inset 0 0 0 1px var(--accent);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .pv:focus-visible {
+    outline: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+    outline-offset: -1px;
   }
   .cell.head {
     display: flex;

@@ -195,6 +195,11 @@ export const playback = $state({
   order: 0,
   pattern: 0,
   row: 0,
+  // Edit/inspect cursor in the pattern grid (row + channel) — groundwork for the
+  // editor; today it highlights a cell, navigates by arrows, and can seek to its
+  // row. Independent of the playing row.
+  cursorRow: 0,
+  cursorCh: 0,
   beat: 0, // bumps once per musical beat (see noteRow) — a reactive on-beat tick
   vu: [] as number[],
   song: null as Song | null,
@@ -699,6 +704,34 @@ export function seekToOrder(o: number) {
   player.setOrderRow(o, 0);
   playback.order = o;
   playback.row = 0;
+}
+
+// --- pattern cursor (editor groundwork; read-only today) --------------------
+function patternDims() {
+  const rows = playback.song?.patterns?.[playback.pattern]?.rows.length ?? 0;
+  const chans = playback.song?.channels?.length ?? 0;
+  return { rows, chans };
+}
+
+/** Place the cursor at (row, channel), clamped. Optionally seek playback there. */
+export function setCursor(row: number, ch: number, seek = false) {
+  const { rows, chans } = patternDims();
+  if (!rows || !chans) return;
+  playback.cursorRow = Math.max(0, Math.min(rows - 1, row));
+  playback.cursorCh = Math.max(0, Math.min(chans - 1, ch));
+  if (seek) seekToCursor();
+}
+
+/** Move the cursor by (drow, dchannel), clamped. */
+export function moveCursor(dr: number, dc: number) {
+  setCursor(playback.cursorRow + dr, playback.cursorCh + dc);
+}
+
+/** Jump playback to the cursor's row (Enter in the pattern grid). */
+export function seekToCursor() {
+  if (!player || !playback.current) return;
+  player.setOrderRow(playback.order, playback.cursorRow);
+  playback.row = playback.cursorRow;
 }
 
 // --- Jamming (Web Audio sampler) + sample extraction ------------------------
