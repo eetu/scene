@@ -251,6 +251,9 @@ export const playback = $state({
   // to a structured, per-field-editable render and enables note/hex entry.
   cursorField: 0,
   editing: false,
+  editOctave: 5, // base octave for QWERTY note entry (C-5 = middle C)
+  editStep: 1, // rows the cursor advances after entering a note
+  editInst: 1, // instrument written with a newly entered note
   // Editor sequencer (our own Web Audio playback of the edited pattern, so edits
   // are audible independently of libopenmpt). Loops the current pattern.
   seqPlaying: false,
@@ -1194,6 +1197,198 @@ export function setEditing(on: boolean) {
   if (!playback.canReadCells) return;
   playback.editing = on;
   if (!on) seqStop();
+}
+
+// -- cell editing (note / hex-field entry) --
+/** Editable cursor columns (index into a structured cell). */
+export const FIELD = { note: 0, inst: 1, vol: 2, fx: 3, param: 4 } as const;
+export const NUM_FIELDS = 5;
+const EDIT_FIELDS = [CELL.note, CELL.inst, CELL.vol, CELL.fx, CELL.param]; // cursor field → cell index
+
+// QWERTY → semitone offset from the base octave's C (two-octave tracker layout,
+// same map as JamKeyboard). Bottom row 0..12, top row 12..24.
+const NOTE_KEYS: Record<string, number> = {
+  z: 0,
+  s: 1,
+  x: 2,
+  d: 3,
+  c: 4,
+  v: 5,
+  g: 6,
+  b: 7,
+  h: 8,
+  n: 9,
+  j: 10,
+  m: 11,
+  ",": 12,
+  q: 12,
+  "2": 13,
+  w: 14,
+  "3": 15,
+  e: 16,
+  r: 17,
+  "5": 18,
+  t: 19,
+  "6": 20,
+  y: 21,
+  "7": 22,
+  u: 23,
+  i: 24,
+};
+const HEX: Record<string, number> = {
+  "0": 0,
+  "1": 1,
+  "2": 2,
+  "3": 3,
+  "4": 4,
+  "5": 5,
+  "6": 6,
+  "7": 7,
+  "8": 8,
+  "9": 9,
+  a: 10,
+  b: 11,
+  c: 12,
+  d: 13,
+  e: 14,
+  f: 15,
+};
+
+function hx(n: number, w: number): string {
+  return n.toString(16).toUpperCase().padStart(w, "0");
+}
+
+/** Display text for one field of a structured cell (editor render). */
+export function cellFieldText(cell: number[], field: number): string {
+  switch (field) {
+    case FIELD.note:
+      return noteName(cell[CELL.note]);
+    case FIELD.inst:
+      return cell[CELL.inst] ? hx(cell[CELL.inst], 2) : "··";
+    case FIELD.vol:
+      return cell[CELL.volcmd] ? hx(cell[CELL.vol], 2) : "··";
+    case FIELD.fx:
+      return cell[CELL.fx] || cell[CELL.param] ? hx(cell[CELL.fx], 1) : "·";
+    case FIELD.param:
+      return cell[CELL.fx] || cell[CELL.param] ? hx(cell[CELL.param], 2) : "··";
+    default:
+      return "";
+  }
+}
+
+function editCursorCell(): number[] | null {
+  const cells = ensureEditable(playback.pattern);
+  return cells?.[playback.cursorRow]?.[playback.cursorCh] ?? null;
+}
+
+function advanceRow() {
+  const { rows } = patternDims();
+  if (rows) playback.cursorRow = Math.min(rows - 1, playback.cursorRow + playback.editStep);
+}
+
+let auditionVoice = -1;
+async function auditionNote(inst: number, note: number) {
+  if (auditionVoice >= 0) jamStop(auditionVoice);
+  const id = await jamNote(inst, noteToJam(note));
+  auditionVoice = id;
+  if (id >= 0) setTimeout(() => jamStop(id), 350); // short audition, even for looped samples
+}
+
+/** Move the cursor between fields, wrapping across channels. */
+export function moveField(dir: number) {
+  const { chans } = patternDims();
+  if (!chans) return;
+  let f = playback.cursorField + dir;
+  let ch = playback.cursorCh;
+  while (f < 0) {
+    ch -= 1;
+    f += NUM_FIELDS;
+  }
+  while (f >= NUM_FIELDS) {
+    ch += 1;
+    f -= NUM_FIELDS;
+  }
+  if (ch < 0) {
+    ch = 0;
+    f = 0;
+  } else if (ch > chans - 1) {
+    ch = chans - 1;
+    f = NUM_FIELDS - 1;
+  }
+  playback.cursorCh = ch;
+  playback.cursorField = f;
+}
+
+function enterNote(note: number) {
+  const cell = editCursorCell();
+  if (!cell) return;
+  cell[CELL.note] = note;
+  if (isRealNote(note)) {
+    if (!cell[CELL.inst]) cell[CELL.inst] = playback.editInst || 1;
+    else playback.editInst = cell[CELL.inst];
+    void auditionNote(cell[CELL.inst], note);
+  }
+  advanceRow();
+}
+
+let lastHexPos = "";
+function enterHex(digit: number) {
+  const cell = editCursorCell();
+  if (!cell) return;
+  const idx = EDIT_FIELDS[playback.cursorField];
+  const pos = `${playback.pattern}:${playback.cursorRow}:${playback.cursorCh}:${playback.cursorField}`;
+  // Second consecutive digit on the same field shifts in a low nibble; a fresh
+  // field starts over.
+  cell[idx] = pos === lastHexPos ? ((cell[idx] << 4) | digit) & 0xff : digit;
+  lastHexPos = pos;
+  if (playback.cursorField === FIELD.vol) cell[CELL.volcmd] ||= 1; // mark a volume-column value present
+  if (playback.cursorField === FIELD.inst) playback.editInst = cell[CELL.inst] || playback.editInst;
+}
+
+/** Clear the cursor cell (all fields) and advance by the edit step. */
+export function clearCellAtCursor() {
+  const cell = editCursorCell();
+  if (!cell) return;
+  for (let i = 0; i < cell.length; i++) cell[i] = 0;
+  advanceRow();
+}
+
+export function setEditOctave(o: number) {
+  playback.editOctave = Math.max(0, Math.min(9, o));
+}
+export function setEditStep(s: number) {
+  playback.editStep = Math.max(0, Math.min(16, s));
+}
+export function setEditInst(i: number) {
+  playback.editInst = Math.max(1, i);
+}
+
+/** Handle a keydown while a pattern grid is focused in edit mode. Returns true if
+ *  it consumed the key (the grid then prevents default + stops propagation). */
+export function handleEditKey(e: KeyboardEvent): boolean {
+  if (!playback.editing) return false;
+  const k = e.key;
+  // Navigation (repeat allowed).
+  if (k === "ArrowUp") return (moveCursor(-1, 0), true);
+  if (k === "ArrowDown") return (moveCursor(1, 0), true);
+  if (k === "ArrowLeft") return (moveField(-1), true);
+  if (k === "ArrowRight") return (moveField(1), true);
+  if (k === "Tab") return (moveField(e.shiftKey ? -1 : 1), true);
+  if (e.repeat) return true; // don't machine-gun entry on auto-repeat
+  if (k === "Delete" || k === "Backspace") return (clearCellAtCursor(), true);
+  if (playback.cursorField === FIELD.note) {
+    if (k === "`") return (enterNote(NOTE_OFF), true); // note-off (===)
+    const off = NOTE_KEYS[k.toLowerCase()];
+    if (off !== undefined) {
+      const n = playback.editOctave * 12 + off + 1;
+      if (n >= 1 && n <= 120) enterNote(n);
+      return true;
+    }
+    return false;
+  }
+  const d = HEX[k.toLowerCase()];
+  if (d !== undefined) return (enterHex(d), true);
+  return false;
 }
 
 // -- sequencer engine --

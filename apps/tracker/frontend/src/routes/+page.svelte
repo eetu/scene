@@ -34,6 +34,9 @@
     SeqScopes,
     seqToggle,
     setEditing,
+    setEditInst,
+    setEditOctave,
+    setEditStep,
     setJamLevel,
     Starfield,
     Transport,
@@ -1315,7 +1318,38 @@
             {/each}
           </div>
         {/if}
-        {#if playback.editing}<SeqScopes />{/if}
+        {#if playback.editing}
+          <div class="editbar">
+            <span class="lab">oct</span>
+            <button onclick={() => setEditOctave(playback.editOctave - 1)} aria-label="octave down"
+              >−</button
+            >
+            <span class="val">{playback.editOctave}</span>
+            <button onclick={() => setEditOctave(playback.editOctave + 1)} aria-label="octave up"
+              >+</button
+            >
+            <span class="lab">step</span>
+            <button onclick={() => setEditStep(playback.editStep - 1)} aria-label="step down"
+              >−</button
+            >
+            <span class="val">{playback.editStep}</span>
+            <button onclick={() => setEditStep(playback.editStep + 1)} aria-label="step up"
+              >+</button
+            >
+            <span class="lab">inst</span>
+            <button onclick={() => setEditInst(playback.editInst - 1)} aria-label="instrument down"
+              >−</button
+            >
+            <span class="val inst"
+              >{String(playback.editInst).padStart(2, "0")}
+              {playback.samples[playback.editInst - 1] ?? ""}</span
+            >
+            <button onclick={() => setEditInst(playback.editInst + 1)} aria-label="instrument up"
+              >+</button
+            >
+          </div>
+          <SeqScopes />
+        {/if}
         <div class="pfill">
           {#if patternMode === "locked"}<PatternView />{:else}<PatternViewScroll />{/if}
         </div>
@@ -2189,6 +2223,40 @@
   .pfill {
     flex: 1;
     min-height: 0;
+  }
+  /* Edit status bar: base octave, cursor step, current instrument for entry. */
+  .editbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--surface-bar);
+    border-bottom: 1px solid var(--surface-line-2);
+    font-family: var(--font-retro);
+    font-size: 12px;
+    color: var(--surface-fg);
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .editbar .lab {
+    color: var(--muted);
+  }
+  .editbar .val {
+    min-width: 1.5ch;
+    text-align: center;
+  }
+  .editbar .val.inst {
+    min-width: 6ch;
+    max-width: 16ch;
+    text-align: left;
+    color: var(--accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .editbar button {
+    padding: 2px 8px;
+    font-size: 12px;
   }
   .viz-view {
     flex: 1;

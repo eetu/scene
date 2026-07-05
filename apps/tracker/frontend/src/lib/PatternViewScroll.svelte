@@ -3,8 +3,11 @@
   // per-channel VU bars in the sticky channel header. Toggle against the locked
   // centerline view (PatternView.svelte) in the player bar.
   import {
+    cellFieldText,
+    handleEditKey,
     isChannelSolo,
     moveCursor,
+    patternCells,
     playback,
     seekToCursor,
     setCursor,
@@ -12,11 +15,19 @@
     toggleChannelMute,
   } from "@scene/player";
 
+  const FIELDS = [0, 1, 2, 3, 4]; // note, inst, vol, fx, param
+
   let scroller = $state<HTMLDivElement | null>(null);
 
   // Cursor nav — mirrors PatternView (stops handled keys from reaching the
   // app's global arrows; unhandled keys still bubble).
   function onGridKey(e: KeyboardEvent) {
+    // Edit mode: note/hex/field-nav entry (consumes the key if handled).
+    if (playback.editing && handleEditKey(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     const d: Record<string, [number, number]> = {
       ArrowUp: [-1, 0],
       ArrowDown: [1, 0],
@@ -35,12 +46,20 @@
     const t = e.target as HTMLElement;
     const rowEl = t.closest?.("[data-r]");
     const cellEl = t.closest?.("[data-c]");
-    if (rowEl && cellEl) {
-      setCursor(Number(rowEl.getAttribute("data-r")), Number(cellEl.getAttribute("data-c")), true);
+    if (!rowEl || !cellEl) return;
+    const r = Number(rowEl.getAttribute("data-r"));
+    const c = Number(cellEl.getAttribute("data-c"));
+    if (playback.editing) {
+      const fldEl = t.closest?.("[data-field]");
+      setCursor(r, c); // place cursor, don't seek while editing
+      if (fldEl) playback.cursorField = Number(fldEl.getAttribute("data-field"));
+    } else {
+      setCursor(r, c, true);
     }
   }
 
   const pattern = $derived(playback.song?.patterns?.[playback.pattern] ?? null);
+  const editCells = $derived(playback.editing ? patternCells(playback.pattern) : null);
   const channels = $derived(playback.song?.channels ?? []);
   const vu = $derived(playback.vu);
 
@@ -108,12 +127,29 @@
       >
         <span class="rownum">{hex2(r)}</span>
         {#each cells as cell, c (c)}
-          <span
-            class="cell"
-            class:cursor={r === playback.cursorRow && c === playback.cursorCh}
-            class:muted={playback.channelMutes[c]}
-            data-c={c}>{cell}</span
-          >
+          {#if editCells}
+            {@const ec = editCells[r]?.[c]}
+            <span class="cell ecell" class:muted={playback.channelMutes[c]} data-c={c}>
+              {#if ec}
+                {#each FIELDS as f (f)}
+                  <span
+                    class="fld"
+                    class:cursor={r === playback.cursorRow &&
+                      c === playback.cursorCh &&
+                      f === playback.cursorField}
+                    data-field={f}>{cellFieldText(ec, f)}</span
+                  >
+                {/each}
+              {/if}
+            </span>
+          {:else}
+            <span
+              class="cell"
+              class:cursor={r === playback.cursorRow && c === playback.cursorCh}
+              class:muted={playback.channelMutes[c]}
+              data-c={c}>{cell}</span
+            >
+          {/if}
         {/each}
       </div>
     {/each}
@@ -191,6 +227,19 @@
   }
   .cell.muted {
     opacity: 0.34;
+  }
+  /* Edit mode: per-field spans so the cursor can target note/inst/vol/fx/param. */
+  .ecell {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .fld {
+    padding: 0 1px;
+  }
+  .fld.cursor {
+    box-shadow: inset 0 0 0 1px var(--accent);
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
   }
   .pv:focus-visible {
     outline: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
