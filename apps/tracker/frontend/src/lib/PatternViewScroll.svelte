@@ -4,6 +4,7 @@
   // centerline view (PatternView.svelte) in the player bar.
   import {
     cellFieldText,
+    ChannelScope,
     handleEditKey,
     isChannelSolo,
     moveCursor,
@@ -120,7 +121,12 @@
               </span>
             {/if}
           </span>
-          <span class="vu"><span class="vu-fill" style:width="{(vu[i] ?? 0) * 100}%"></span></span>
+          {#if playback.editing}
+            <ChannelScope ch={i} />
+          {:else}
+            <span class="vu"><span class="vu-fill" style:width="{(vu[i] ?? 0) * 100}%"></span></span
+            >
+          {/if}
         </span>
       {/each}
     </div>

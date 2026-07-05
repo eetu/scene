@@ -1494,6 +1494,15 @@ function scheduleSeqRow(cells: number[][][], row: number, when: number) {
 
 function seqSchedule() {
   if (!player || !seqOut) return;
+  // Follow the pattern selected in the UI: if it changed, switch the loop to it
+  // (reset to row 0 and cut hanging voices) so selecting a pattern plays it.
+  if (playback.pattern !== seqPattern) {
+    seqPattern = playback.pattern;
+    seqNextRow = 0;
+    seqNextTime = player.context.currentTime + 0.02;
+    for (let c = 0; c < seqChanGain.length; c++) stopSeqVoice(c, seqNextTime);
+    seqChanInst = seqChanInst.map(() => 0);
+  }
   const cells = patternCells(seqPattern);
   if (!cells || !cells.length) return;
   const now = player.context.currentTime;
@@ -1522,13 +1531,13 @@ export async function seqPlay() {
   if (!nch || !cells) return;
   await wakeAudio();
   seqStop();
-  // Preload every instrument the pattern references (async worker reads) so row
-  // scheduling is synchronous. Read WITHOUT stopping libopenmpt — player.stop()
-  // destroys the worker's module, which would make smp_read (and note
-  // auditioning) return nothing. The song is already paused by setEditing.
-  const insts = new Set<number>();
-  for (const row of cells) for (const cell of row) if (cell[CELL.inst]) insts.add(cell[CELL.inst]);
-  await Promise.all([...insts].map((i) => sampleBuffer(i)));
+  // Preload ALL samples (async worker reads) so row scheduling is synchronous and
+  // switching the selected pattern mid-loop plays instantly. Read WITHOUT stopping
+  // libopenmpt — player.stop() destroys the worker's module, which would make
+  // smp_read (and auditioning) return nothing. The song is already paused by
+  // setEditing.
+  const nsmp = playback.samples.length;
+  await Promise.all(Array.from({ length: nsmp }, (_, i) => sampleBuffer(i + 1)));
   seqSetup(nch);
   seqPattern = playback.pattern;
   seqNextRow = 0;

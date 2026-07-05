@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ChannelScope from "./ChannelScope.svelte";
   import {
     cellFieldText,
     handleEditKey,
@@ -102,27 +103,30 @@
     <div class="content" style:width="{contentW}px">
       {#if playback.canMuteChannels}
         <!-- Column-aligned channel header (mute/solo), scrolls with the columns. -->
-        <div class="phead">
+        <div class="phead" class:edit={playback.editing}>
           <span class="hgutter" style:width="{ROWNUM_W}px"></span>
           {#each channels as _ch, i (i)}
             <span class="chead" class:muted={playback.channelMutes[i]} style:width="{CELL_W}px">
-              <span class="chnum">{String(i + 1).padStart(2, "0")}</span>
-              <span class="ms-wrap">
-                <button
-                  class="ms m"
-                  class:on={playback.channelMutes[i]}
-                  aria-pressed={playback.channelMutes[i]}
-                  title="mute channel {i + 1}"
-                  onclick={() => toggleChannelMute(i)}>M</button
-                >
-                <button
-                  class="ms s"
-                  class:on={isChannelSolo(i)}
-                  aria-pressed={isChannelSolo(i)}
-                  title="solo channel {i + 1}"
-                  onclick={() => soloChannel(i)}>S</button
-                >
+              <span class="chead-top">
+                <span class="chnum">{String(i + 1).padStart(2, "0")}</span>
+                <span class="ms-wrap">
+                  <button
+                    class="ms m"
+                    class:on={playback.channelMutes[i]}
+                    aria-pressed={playback.channelMutes[i]}
+                    title="mute channel {i + 1}"
+                    onclick={() => toggleChannelMute(i)}>M</button
+                  >
+                  <button
+                    class="ms s"
+                    class:on={isChannelSolo(i)}
+                    aria-pressed={isChannelSolo(i)}
+                    title="solo channel {i + 1}"
+                    onclick={() => soloChannel(i)}>S</button
+                  >
+                </span>
               </span>
+              {#if playback.editing}<ChannelScope ch={i} h={14} />{/if}
             </span>
           {/each}
         </div>
@@ -236,6 +240,9 @@
     height: 22px;
     z-index: 3;
   }
+  .phead.edit {
+    height: 40px; /* room for the per-channel scope under the number/mute row */
+  }
   .hgutter {
     flex: 0 0 auto;
     position: sticky;
@@ -247,16 +254,22 @@
   .chead {
     flex: 0 0 auto;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px;
-    padding: 0 6px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 2px 6px;
     border-left: 1px solid var(--surface-line);
     border-bottom: 1px solid var(--surface-line-2);
     background: var(--surface-bar);
     color: var(--accent);
     font-size: 11px;
     line-height: 1;
+  }
+  .chead-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
   }
   .chead.muted {
     opacity: 0.55;

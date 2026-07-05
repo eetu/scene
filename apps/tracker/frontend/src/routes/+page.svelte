@@ -31,7 +31,6 @@
     SampleBrowser,
     Scope,
     seekToOrder,
-    SeqScopes,
     seqToggle,
     setEditing,
     setEditInst,
@@ -146,6 +145,21 @@
       ? "scroll"
       : "locked",
   );
+  // Legacy tracker editing is keyboard-first (QWERTY note entry, hex fields), so
+  // gate edit mode to real pointer+keyboard devices. Touch note entry needs a
+  // purpose-built UI (future: the on-screen JamKeyboard feeding cells).
+  let isDesktop = $state(true);
+  $effect(() => {
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const apply = () => {
+      isDesktop = mq.matches;
+      if (!mq.matches && playback.editing) setEditing(false);
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  });
+
   function setPatternMode(m: "locked" | "scroll") {
     patternMode = m;
     if (typeof localStorage !== "undefined") localStorage.setItem("tracker:patternMode", m);
@@ -1247,9 +1261,10 @@
         <button class:on={pvTab === "samples"} onclick={() => (pvTab = "samples")}>samples</button>
         <button class:on={pvTab === "viz"} onclick={() => (pvTab = "viz")}>viz</button>
       </div>
-      {#if pvTab === "pattern" && playback.canReadCells}
+      {#if pvTab === "pattern" && playback.canReadCells && isDesktop}
         <!-- Pattern surface mode: view vs edit (a mode of the pattern tab, kept
-             clear of the file-action pencil in the right cluster). -->
+             clear of the file-action pencil in the right cluster). Editing is
+             keyboard-first, so it's gated to pointer+keyboard devices. -->
         <div class="pv-mode" role="group" aria-label="pattern mode">
           <button class:on={!playback.editing} onclick={() => setEditing(false)}>view</button>
           <button class:on={playback.editing} onclick={() => setEditing(true)}>edit</button>
@@ -1366,7 +1381,6 @@
               <span class="val play">{hex2(playback.seqRow)}</span>
             {/if}
           </div>
-          <SeqScopes />
         {/if}
         <div class="pfill">
           {#if patternMode === "locked"}<PatternView />{:else}<PatternViewScroll />{/if}
