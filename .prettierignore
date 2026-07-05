@@ -5,6 +5,9 @@
 # Dependencies & package-manager internals
 **/node_modules/
 .yarn/
+# Claude Code scratch + agent worktrees (they vendor third-party trees that aren't
+# project source and break the repo-wide format check)
+.claude/
 .pnp.*
 yarn.lock
 .yarnrc.yml
