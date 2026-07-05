@@ -36,6 +36,28 @@ type Meta = {
   song?: Song;
 };
 
+/** One sample's shape, from the custom build's smp_info (frame counts + props). */
+export type SampleInfo = {
+  length: number;
+  loopStart: number;
+  loopEnd: number;
+  sustainStart: number;
+  sustainEnd: number;
+  rate: number;
+  channels: number;
+  bits: number;
+  flags: number; // bit0 loop | bit1 pingpong | bit2 sustain | bit3 sustain-pingpong
+  volume: number; // 0..256
+  panning: number; // 0..256, or -1 if the sample sets no default pan
+  finetune: number;
+  relativeNote: number;
+  globalVol: number; // 0..64
+};
+/** A sample's metadata + its raw waveform (mono f32 [-1,1]). */
+export type SampleData = { info: SampleInfo; pcm: Float32Array };
+/** A sample's metadata + its raw bytes (native bit-depth, interleaved). */
+export type SampleRaw = { info: SampleInfo; raw: Uint8Array };
+
 /** Lightweight metadata from a parse-only (no-audio) load, for bulk enrichment. */
 export type ParsedMeta = {
   title?: string;
@@ -184,6 +206,22 @@ export const playback = $state({
   queueIndex: -1,
   queueLength: 0,
   error: null as string | null,
+  // Custom-build capability (this app's vendored WASM carries the sample-read
+  // shim; party's stock build doesn't). Set once the engine reports ready. UI
+  // (keyboard, waveform pane) gates on it so the shared package degrades.
+  canReadSamples: false,
+  // Live sample-frame position of the current jammed note (-1 = none), for the
+  // waveform play cursor. Reported by the worker synced to audio.
+  jamPos: -1,
+  // How many jam keys are currently held — lets the UI suppress track-switch
+  // arrows while jamming so you can navigate samples without changing tracks.
+  jamHeld: 0,
+  // Jam level (0..2): a trim on the song-matched level in auto mode, else a
+  // plain fader. And whether to auto-balance to the song (default on).
+  jamLevel: 1,
+  jamAutoLevel: true,
+  // Force one-shot playback (ignore the sample's loop) when auditioning/jamming.
+  jamOneShot: false,
 });
 
 let queue: Track[] = [];
@@ -208,8 +246,21 @@ function ensurePlayer(): Promise<void> {
   player.gain.connect(a);
   analyser = a;
   ready = new Promise<void>((resolve) => player.onInitialized(() => resolve()));
-  // Once the graph exists, tap it for the background-capable media-element route.
-  void ready.then(setupMediaElementRoute);
+  // Once the graph exists: reflect the engine's capabilities (jam/samples), then
+  // tap it for the background-capable media-element route.
+  void ready.then(() => {
+    playback.canReadSamples = player.capabilities?.canReadSamples ?? false;
+    // Tap the song's output PRE-jam (on the worklet node, before jamGain joins
+    // player.gain) so measuring it to auto-balance the jam can't feed back.
+    if (player.processNode) {
+      const an: AnalyserNode = player.context.createAnalyser();
+      an.fftSize = 1024;
+      songBuf = new Uint8Array(an.fftSize);
+      player.processNode.connect(an);
+      songAnalyser = an;
+    }
+    setupMediaElementRoute();
+  });
   player.onProgress((d: ProgressMsg) => {
     consecutiveErrors = 0; // a frame arrived → this track plays; clear the skip guard
     playback.position = d.pos ?? 0;
@@ -217,6 +268,7 @@ function ensurePlayer(): Promise<void> {
     playback.pattern = d.pattern ?? 0;
     playback.row = d.row ?? 0;
     playback.vu = d.vu ?? [];
+    sampleSongLevel(); // keep the jam auto-balance tracking the song's loudness
     noteRow(playback.order, playback.pattern, playback.row);
     maybeCountPlay(d.pos ?? 0);
     // Keep the OS scrubber roughly in step (throttled to ~1s of playback).
@@ -462,6 +514,7 @@ async function wakeAudio() {
 export async function playTrack(track: Track) {
   // Stop the current module so the worklet drops it before we load the next.
   if (player) player.stop();
+  resetJam(); // drop cached sample buffers + any live jam voices from the old module
   playback.error = null;
   playback.current = track;
   playback.playing = true;
@@ -636,6 +689,287 @@ export function seekSeconds(sec: number) {
   if (!player || !playback.current) return;
   player.setPos(sec);
   playback.position = sec;
+}
+
+// --- Jamming (Web Audio sampler) + sample extraction ------------------------
+// Jamming plays a sample's raw PCM directly through Web Audio — a plain
+// AudioBufferSource pitched to the key and looped at the sample's loop points.
+// We already have the data via readSample(), so a note needs no libopenmpt
+// playback engine at all: it's independent of the song (never touches the
+// transport; works stopped/paused/playing) and dead simple. Requires the custom
+// build (canReadSamples); no-ops otherwise.
+
+/** Read one sample's PCM + metadata (1-based index) — for the waveform pane and
+ *  the sampler. Goes through the worker's smp_read. */
+export async function readSample(idx: number): Promise<SampleData | null> {
+  if (!player || !playback.canReadSamples) return null;
+  return player.readSample(idx) as Promise<SampleData | null>;
+}
+
+/** Export sample `idx` (1-based) as a WAV, in its ORIGINAL specs — native
+ *  bit-depth, sample rate, and channel count, no resampling/requantization. */
+export async function exportSampleWav(idx: number, name?: string) {
+  if (!player || !playback.canReadSamples) return;
+  const data = (await player.readSampleRaw(idx)) as SampleRaw | null;
+  if (!data || data.raw.length === 0) return;
+  const blob = buildWav(data.raw, data.info);
+  const base = (name || `sample-${idx}`).replace(/[^\w.-]+/g, "_").slice(0, 64) || `sample-${idx}`;
+  triggerDownload(blob, `${base}.wav`);
+}
+
+// Build a PCM WAV from the sample's raw bytes at its native format. 16-bit data
+// is already little-endian signed (matches WAV); 8-bit is signed in the module
+// but WAV 8-bit is unsigned, so shift by 128 (bit-exact, just the format's
+// convention). Stereo bytes are already interleaved as WAV wants.
+function buildWav(raw: Uint8Array, info: SampleInfo): Blob {
+  const { bits, channels: ch, rate } = info;
+  let data = raw;
+  if (bits === 8) {
+    data = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) data[i] = (raw[i] + 128) & 0xff;
+  }
+  const blockAlign = ch * (bits >> 3);
+  const buf = new ArrayBuffer(44 + data.length);
+  const dv = new DataView(buf);
+  let o = 0;
+  const str = (s: string) => {
+    for (let i = 0; i < s.length; i++) dv.setUint8(o++, s.charCodeAt(i));
+  };
+  str("RIFF");
+  dv.setUint32(o, 36 + data.length, true);
+  o += 4;
+  str("WAVE");
+  str("fmt ");
+  dv.setUint32(o, 16, true);
+  o += 4;
+  dv.setUint16(o, 1, true); // PCM
+  o += 2;
+  dv.setUint16(o, ch, true);
+  o += 2;
+  dv.setUint32(o, rate, true);
+  o += 4;
+  dv.setUint32(o, rate * blockAlign, true); // byte rate
+  o += 4;
+  dv.setUint16(o, blockAlign, true);
+  o += 2;
+  dv.setUint16(o, bits, true);
+  o += 2;
+  str("data");
+  dv.setUint32(o, data.length, true);
+  o += 4;
+  new Uint8Array(buf, 44).set(data);
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// AudioBuffers built from sample PCM, cached per index; invalidated on track load
+// (indices are reused for different samples across modules).
+// eslint-disable-next-line svelte/prefer-svelte-reactivity
+const bufCache = new Map<number, { buffer: AudioBuffer; info: SampleInfo } | null>();
+let bufGen = 0;
+
+type JamVoice = {
+  src: AudioBufferSourceNode;
+  start: number; // ctx time at start
+  startFrame: number; // sample-frame the playback started from (click-to-audition)
+  rate: number; // buffer sample rate (sample's middle-C freq)
+  speed: number; // playbackRate for the pressed note
+  length: number;
+  loop: boolean;
+  loopStart: number;
+  loopEnd: number;
+};
+// eslint-disable-next-line svelte/prefer-svelte-reactivity
+const voices = new Map<number, JamVoice>();
+let voiceId = 0;
+let lastVoice: JamVoice | null = null;
+let cursorRaf = 0;
+
+// Jammed samples play at full-scale PCM, but libopenmpt's song mix sits well
+// below full-scale (mixing headroom), so a raw note would drown the song. Route
+// all jam voices through one gain node (playback.jamLevel, user-tunable) so they
+// sit ON TOP of the song. Connected to player.gain, so it respects volume/mute.
+let jamGain: GainNode | null = null;
+// Song-only output tap (connected pre-jam, so measuring it can't feed back into
+// the jam gain) + a slow-smoothed RMS of it. The jam level auto-matches this so
+// a note sits consistently over ANY module, however hot or quiet its master is.
+let songAnalyser: AnalyserNode | null = null;
+let songLevel = 0; // smoothed RMS of the song output, 0..1
+let songBuf: Uint8Array<ArrayBuffer> | null = null;
+
+function jamOutput(): AudioNode {
+  if (!jamGain) {
+    jamGain = (player.context as AudioContext).createGain();
+    jamGain.connect(player.gain);
+    applyJamGain();
+  }
+  return jamGain;
+}
+
+// Auto (default): jamGain = song's running level × 2 × the user's trim
+// (playback.jamLevel, 1 = matched), so a note sits over any module. Manual:
+// jamGain = jamLevel/2 (a plain 0..1 fader). Clamped + ramped so it never clicks.
+function applyJamGain() {
+  if (!jamGain || !player) return;
+  const target = playback.jamAutoLevel
+    ? Math.min(1, Math.max(0.04, songLevel * 2 * playback.jamLevel))
+    : Math.min(1, Math.max(0, playback.jamLevel / 2));
+  jamGain.gain.setTargetAtTime(target, player.context.currentTime, 0.12);
+}
+
+function sampleSongLevel() {
+  if (!songAnalyser || !songBuf) return;
+  songAnalyser.getByteTimeDomainData(songBuf);
+  let sum = 0;
+  for (let i = 0; i < songBuf.length; i++) {
+    const v = (songBuf[i] - 128) / 128;
+    sum += v * v;
+  }
+  const rms = Math.sqrt(sum / songBuf.length);
+  songLevel += (rms - songLevel) * 0.06; // slow: tracks sections, not per-beat
+  applyJamGain();
+}
+
+/** Set the jam level (0..2). In auto mode it's a trim on the song-matched level
+ *  (1 = matched); in manual mode a plain fader. */
+export function setJamLevel(v: number) {
+  playback.jamLevel = Math.max(0, Math.min(2, v));
+  applyJamGain();
+}
+
+/** Toggle auto-balancing the jam level to the song (vs a manual fader). */
+export function setJamAuto(on: boolean) {
+  playback.jamAutoLevel = on;
+  applyJamGain();
+}
+
+/** Stop every sounding jam voice (e.g. when the selected sample changes). */
+export function jamStopAll() {
+  for (const v of voices.values())
+    try {
+      v.src.stop();
+    } catch {
+      /* already stopped */
+    }
+  voices.clear();
+  lastVoice = null;
+  playback.jamPos = -1;
+}
+
+/** Drop cached buffers + stop live voices (called on track change). */
+function resetJam() {
+  bufGen++;
+  bufCache.clear();
+  for (const v of voices.values())
+    try {
+      v.src.stop();
+    } catch {
+      /* already stopped */
+    }
+  voices.clear();
+  lastVoice = null;
+}
+
+async function sampleBuffer(idx: number) {
+  if (bufCache.has(idx)) return bufCache.get(idx) ?? null;
+  const gen = bufGen;
+  const data = await readSample(idx);
+  let entry: { buffer: AudioBuffer; info: SampleInfo } | null = null;
+  if (player && data && data.pcm.length > 0) {
+    const rate = data.info.rate || 8363;
+    const buffer = player.context.createBuffer(1, data.pcm.length, rate);
+    buffer.copyToChannel(data.pcm, 0);
+    entry = { buffer, info: data.info };
+  }
+  if (gen === bufGen) bufCache.set(idx, entry); // don't cache across a track change
+  return entry;
+}
+
+// Update the waveform play cursor (playback.jamPos) from the most recent voice.
+function tickCursor() {
+  if (!lastVoice || !player) {
+    playback.jamPos = -1;
+    cursorRaf = 0;
+    return;
+  }
+  const v = lastVoice;
+  let f = v.startFrame + (player.context.currentTime - v.start) * v.speed * v.rate;
+  if (v.loop && v.loopEnd > v.loopStart) {
+    if (f >= v.loopEnd) f = v.loopStart + ((f - v.loopStart) % (v.loopEnd - v.loopStart));
+    playback.jamPos = Math.floor(f);
+  } else {
+    playback.jamPos = f < v.length ? Math.floor(f) : -1;
+  }
+  cursorRaf = requestAnimationFrame(tickCursor);
+}
+
+/** Play sample `sampleIdx` (1-based) at `note` (60 = middle C), optionally from
+ *  `offsetFrames` into the sample (for click-to-audition). Returns a voice id to
+ *  stop on key-up, or -1. */
+export async function jamNote(sampleIdx: number, note: number, offsetFrames = 0): Promise<number> {
+  if (!player || !playback.canReadSamples) return -1;
+  await wakeAudio(); // resume a possibly-suspended context inside the key gesture
+  const sb = await sampleBuffer(sampleIdx);
+  if (!sb) return -1;
+  const src = player.context.createBufferSource();
+  src.buffer = sb.buffer;
+  const speed = Math.pow(2, (note - 60) / 12);
+  src.playbackRate.value = speed;
+  const loop = !playback.jamOneShot && !!(sb.info.flags & 1) && sb.info.loopEnd > sb.info.loopStart;
+  if (loop) {
+    src.loop = true;
+    src.loopStart = sb.info.loopStart / sb.info.rate;
+    src.loopEnd = sb.info.loopEnd / sb.info.rate;
+  }
+  src.connect(jamOutput());
+  const id = ++voiceId;
+  const voice: JamVoice = {
+    src,
+    start: player.context.currentTime,
+    startFrame: offsetFrames,
+    rate: sb.info.rate,
+    speed,
+    length: sb.info.length,
+    loop,
+    loopStart: sb.info.loopStart,
+    loopEnd: sb.info.loopEnd,
+  };
+  src.onended = () => dropVoice(id, voice);
+  voices.set(id, voice);
+  lastVoice = voice;
+  src.start(0, Math.max(0, offsetFrames) / sb.info.rate);
+  if (!cursorRaf) cursorRaf = requestAnimationFrame(tickCursor);
+  return id;
+}
+
+function dropVoice(id: number, voice: JamVoice) {
+  voices.delete(id);
+  if (lastVoice === voice) {
+    const rest = [...voices.values()];
+    lastVoice = rest.length ? rest[rest.length - 1] : null;
+  }
+}
+
+/** Stop a jammed voice (from jamNote) on key-up. */
+export function jamStop(id: number) {
+  const v = voices.get(id);
+  if (!v) return;
+  try {
+    v.src.stop();
+  } catch {
+    /* already stopped */
+  }
+  dropVoice(id, v);
 }
 
 /** Reflect parsed metadata in the playing track and persist it (best effort). */

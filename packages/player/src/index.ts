@@ -10,6 +10,7 @@ export { default as DiscoBall } from "./DiscoBall.svelte";
 export { default as Equalizer } from "./Equalizer.svelte";
 export { default as GlowWave } from "./GlowWave.svelte";
 export { default as PatternView } from "./PatternView.svelte";
+export { default as SampleBrowser } from "./SampleBrowser.svelte";
 export { default as Plasma } from "./Plasma.svelte";
 export { default as Starfield } from "./Starfield.svelte";
 export { default as Tunnel } from "./Tunnel.svelte";

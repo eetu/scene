@@ -1,0 +1,11 @@
+[
+"UTF8ToString",
+"stringToUTF8",
+"stackAlloc",
+"stackSave",
+"stackRestore",
+"HEAP8",
+"HEAPU8",
+"HEAP32",
+"HEAPF32"
+]
