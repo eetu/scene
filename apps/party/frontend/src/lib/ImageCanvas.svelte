@@ -7,14 +7,38 @@
   // fixed viewport overlay (iOS Safari blocks element fullscreen). Either way the
   // image scales up to fill the screen (aspect-preserved, still crisp); Esc or a
   // click closes it.
+  import { ChevronLeft, ChevronRight } from "@lucide/svelte";
   import { tick } from "svelte";
 
-  let { src, alt = "" }: { src: string; alt?: string } = $props();
+  // onprev/onnext (+ navLabel like "3 / 12") let the host wire gallery stepping;
+  // when both are present, fullscreen shows auto-hiding prev/next chevrons.
+  let {
+    src,
+    alt = "",
+    onprev,
+    onnext,
+    navLabel = "",
+  }: {
+    src: string;
+    alt?: string;
+    onprev?: () => void;
+    onnext?: () => void;
+    navLabel?: string;
+  } = $props();
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let overlay = $state<HTMLDivElement | null>(null);
   let error = $state(false);
   let fs = $state(false);
+
+  // Fullscreen controls auto-hide when the pointer is idle, reveal on movement.
+  let ctrlHot = $state(false);
+  let hideTimer: ReturnType<typeof setTimeout> | null = null;
+  function pokeControls() {
+    ctrlHot = true;
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => (ctrlHot = false), 2000);
+  }
 
   $effect(() => {
     const el = canvas;
@@ -51,6 +75,7 @@
 
   async function openFs() {
     fs = true;
+    pokeControls(); // show the controls briefly on entry
     await tick(); // let the overlay mount before requesting fullscreen on it
     try {
       // Throws / is absent on iOS Safari (no element fullscreen) → fall through to
@@ -95,8 +120,32 @@
 {/if}
 
 {#if fs}
-  <div bind:this={overlay} class="overlay" onclick={closeFs} role="presentation">
+  <div
+    bind:this={overlay}
+    class="overlay"
+    class:show-ctrl={ctrlHot}
+    onclick={closeFs}
+    onmousemove={pokeControls}
+    role="presentation"
+  >
     <img class="full" {src} {alt} />
+    {#if onprev && onnext}
+      <button
+        class="fnav prev"
+        aria-label="previous image"
+        onclick={(e) => (e.stopPropagation(), onprev())}
+      >
+        <ChevronLeft size={40} />
+      </button>
+      <button
+        class="fnav next"
+        aria-label="next image"
+        onclick={(e) => (e.stopPropagation(), onnext())}
+      >
+        <ChevronRight size={40} />
+      </button>
+      {#if navLabel}<span class="fcount">{navLabel}</span>{/if}
+    {/if}
     <span class="esc">Esc to close</span>
   </div>
 {/if}
@@ -138,5 +187,54 @@
     font-size: 12px;
     font-family: var(--font-mono-retro, ui-monospace, monospace);
     pointer-events: none;
+  }
+  /* Fullscreen gallery chevrons + counter — fade in on movement, hide when idle. */
+  .fnav,
+  .fcount {
+    position: fixed;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+  .overlay.show-ctrl .fnav,
+  .overlay.show-ctrl .fcount {
+    opacity: 1;
+  }
+  .overlay.show-ctrl .fnav {
+    pointer-events: auto;
+  }
+  .fnav {
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    cursor: pointer;
+  }
+  .fnav:hover {
+    background: rgba(0, 0, 0, 0.72);
+  }
+  .fnav.prev {
+    left: 20px;
+  }
+  .fnav.next {
+    right: 20px;
+  }
+  .fcount {
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 13px;
+    font-family: var(--font-mono-retro, ui-monospace, monospace);
   }
 </style>
