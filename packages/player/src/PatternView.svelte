@@ -135,6 +135,7 @@
             class:beat={r % 4 === 0}
             class:measure={r % 16 === 0}
             class:active={r === playback.row}
+            class:playhead={playback.seqPlaying && r === playback.seqRow}
             data-r={r}
             style:height="{ROW_H}px"
           >
@@ -305,6 +306,13 @@
     background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
   .prow.active {
+    color: var(--surface-fg-active);
+  }
+  /* Sequencer playhead — a bold, sweeping row bar, clearly distinct from the
+     per-cell edit cursor box (so both are legible at once in edit mode). */
+  .prow.playhead {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+    box-shadow: inset 3px 0 0 var(--accent);
     color: var(--surface-fg-active);
   }
   .rownum {

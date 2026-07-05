@@ -130,6 +130,7 @@
         class:active={r === playback.row}
         class:beat={r % 4 === 0}
         class:measure={r % 16 === 0}
+        class:playhead={playback.seqPlaying && r === playback.seqRow}
         data-r={r}
       >
         <span class="rownum">{hex2(r)}</span>
@@ -207,6 +208,13 @@
   }
   .prow.active {
     background: color-mix(in srgb, var(--accent) 28%, var(--surface-2));
+    color: var(--surface-fg-active);
+  }
+  /* Sequencer playhead — a bold, sweeping row bar, distinct from the per-cell
+     edit cursor box. */
+  .prow.playhead {
+    background: color-mix(in srgb, var(--accent) 34%, var(--surface-2));
+    box-shadow: inset 3px 0 0 var(--accent);
     color: var(--surface-fg-active);
   }
   .rownum {
