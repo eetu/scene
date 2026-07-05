@@ -278,6 +278,54 @@
     // Small per-cell hash (used by the voxel wall displacement).
     float rnd1(float n) { return fract(sin(n * 45.233) * 43758.5453); }
 
+    // --- Death Star trench run --------------------------------------------------
+    // Where the trench wall opens to space (see main), paint a star sky + green
+    // defence-turret tracers instead of the wall. Parameterized by (z along the
+    // trench, a around 0..1) like the wall themes, so it streams past as you fly.
+    // Star sky, keyed to VIEW DIRECTION (rolled screen dir) rather than position
+    // along the trench — so it rotates as the ship banks but barely translates as
+    // you fly, reading as deep space FAR beyond the ceiling (parallax vs the near
+    // wall). A tiny camZ drift keeps it alive without pulling it "close".
+    vec3 trenchSky(vec2 dir) {
+      float neb = 0.5 + 0.5 * sin(dir.x * 6.0 + 1.3) * cos(dir.y * 5.0 - 0.7);
+      vec3 c = mix(vec3(0.015, 0.02, 0.05), vec3(0.06, 0.03, 0.11), neb);
+      // Three depth layers: nearer layers drift a touch faster (subtle parallax
+      // among the stars themselves), all far slower than the wall.
+      for (int L = 0; L < 3; L++) {
+        float fl = float(L);
+        float sc = 26.0 + fl * 26.0;
+        vec2 g = dir * sc + vec2(uCamZ * 0.008 * (fl + 1.0), 0.0);
+        vec2 cell = floor(g);
+        float h = rnd1(cell.x * 13.3 + cell.y * 71.9 + fl * 5.0);
+        // Crisp pinpoints: most tiny, a few brighter/bigger (magnitude by hash).
+        float mag = rnd1(h * 3.3);
+        float rad = mix(0.035, 0.1, mag * mag) * (1.0 - fl * 0.2);
+        float pt = smoothstep(rad, 0.0, length(fract(g) - 0.5));
+        float star = step(0.9 - fl * 0.015, h) * pt * (0.6 + mag);
+        float tw = 0.6 + 0.4 * sin(h * 50.0 + uTime * 3.0); // twinkle
+        vec3 tint = mix(vec3(1.0), vec3(0.7, 0.82, 1.0), rnd1(h * 9.0));
+        c += tint * star * tw * (1.1 + (2.0 - fl) * 0.5);
+      }
+      return c;
+    }
+    // Green tracers streaking away down the trench — turret defence fire. Each
+    // has a bright head + a trailing streak so it reads as a bolt, not a blob.
+    vec3 trenchBolts(float z, float a) {
+      vec3 c = vec3(0.0);
+      for (int j = 1; j <= 5; j++) {
+        float fj = float(j);
+        float slot = floor(uTime * 1.1 + fj * 0.41);
+        float life = fract(uTime * 1.1 + fj * 0.41);
+        float ba = rnd1(slot * 7.3 + fj * 19.0);            // angular lane in the opening
+        float bz = uCamZ + mix(0.0, 22.0, life);            // travels away down-trench
+        float da2 = abs(fract(a - ba + 0.5) - 0.5);
+        float head = smoothstep(0.014, 0.0, da2) * smoothstep(1.3, 0.0, abs(z - bz));
+        float trail = smoothstep(0.03, 0.0, da2) * smoothstep(7.0, 0.0, max(0.0, bz - z));
+        c += vec3(0.45, 1.0, 0.55) * (head * 2.8 + trail * 0.45) * (1.0 - life * 0.55);
+      }
+      return c;
+    }
+
     void main() {
       vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
       // Rollercoaster orientation: lean hard into turns (lateral drift ahead) plus
@@ -384,6 +432,19 @@
         col += vec3(1.0) * uTreble * 0.2 * neon(a * RAIL_FREQ * 3.0 + z * 5.0, 0.015);
         // Louder passages read a touch more vivid.
         col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, 1.0 + uGlow * 0.18);
+
+        // Trench run — ONLY on the "Death Star" theme (id 11). A fixed-world-angle
+        // sector (the trench "top", a≈0.25) opens to space; because the view rolls
+        // (uSpin), that sector sweeps around the screen as the ship banks — space
+        // up/down/anywhere. Paint an un-fogged star sky + green turret tracers
+        // there instead of the wall, fading in with the theme's own crossfade.
+        float trench = (abs(idA - 11.0) < 0.5 ? 1.0 - kz : 0.0) + (abs(idB - 11.0) < 0.5 ? kz : 0.0);
+        float da = abs(fract(a - 0.25 + 0.5) - 0.5); // angular distance to opening centre
+        float sky = (1.0 - smoothstep(0.11, 0.16, da)) * trench; // feathered edge, gated to theme
+        if (sky > 0.001) {
+          vec3 skyc = trenchSky(uv) + trenchBolts(z, a);
+          col = mix(col, skyc, sky);
+        }
       }
 
       // Vanishing-point core glow — fills the deep centre so it reads as a lit
