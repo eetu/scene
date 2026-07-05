@@ -36,6 +36,18 @@ SCAFFOLD = r"""
 EM_JS(int, ejs_jit_get, (unsigned pc), {
   return (Module.ejsJitGet ? (Module.ejsJitGet(pc) | 0) : -1);
 });
+/* DIAGNOSTIC: log the first N JIT→interpreter handoffs — entry pc, the block's
+ * returned next-pc, spcflags, and the opcode the interpreter will fetch at npc.
+ * If npc is odd/insane or op@npc is garbage, the handoff derails; if it all looks
+ * sane while the demo stays black, the handoff is fine and the cause is elsewhere. */
+EM_JS(void, ejs_dbg_handoff, (unsigned pc, unsigned npc, unsigned spc, unsigned opnpc, unsigned len), {
+  Module.__hn = (Module.__hn | 0);
+  if (Module.__hn < 120) {
+    Module.__hn++;
+    console.log("[handoff] pc=" + (pc >>> 0).toString(16) + " len=" + len + " npc=" + (npc >>> 0).toString(16) +
+      " spc=" + (spc >>> 0).toString(16) + " op@npc=" + (opnpc >>> 0).toString(16) + (npc & 1 ? " ODD!" : ""));
+  }
+});
 /* ABI: linear-memory addresses read once by the JS recompiler. */
 EMSCRIPTEN_KEEPALIVE unsigned jit_abi_regs(void)     { return (unsigned)(uintptr_t)&regs.regs[0]; }
 EMSCRIPTEN_KEEPALIVE unsigned jit_abi_pc(void)       { return (unsigned)(uintptr_t)&regs.pc; }
@@ -124,6 +136,7 @@ hook = (
     + I + "      unsigned __npc = ((unsigned(*)(void))(uintptr_t)__e->slot)();\n"
     + I + "      ejs_insn_total += __e->len; ejs_insn_jit += __e->len;\n"
     + I + "      m68k_setpc(__npc);\n"
+    + I + "      ejs_dbg_handoff((unsigned)r->instruction_pc, __npc, (unsigned)r->spcflags, get_word(__npc), __e->len);\n"
     + I + "      /* 8*CYCLE_UNIT/instr: the interpreter's measured avg is ~4139 (=8*CYCLE_UNIT)\n"
     + I + "         per instruction reaching adjust_cycles; a flat 4* undercharged the chipset\n"
     + I + "         2x (ratio 0.49), running copper/DMA at half speed → black. */\n"
