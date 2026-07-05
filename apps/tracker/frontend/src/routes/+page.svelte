@@ -37,6 +37,7 @@
     setEditInst,
     setEditOctave,
     setEditStep,
+    setFollowPlay,
     setJamLevel,
     Starfield,
     Transport,
@@ -1353,6 +1354,17 @@
             <button onclick={() => setEditInst(playback.editInst + 1)} aria-label="instrument up"
               >+</button
             >
+            <button
+              class="follow"
+              class:on={playback.followPlay}
+              aria-pressed={playback.followPlay}
+              title="follow playback: view + cursor ride the playing row"
+              onclick={() => setFollowPlay(!playback.followPlay)}>follow</button
+            >
+            {#if playback.seqPlaying}
+              <span class="lab">play</span>
+              <span class="val play">{hex2(playback.seqRow)}</span>
+            {/if}
           </div>
           <SeqScopes />
         {/if}
@@ -2263,6 +2275,15 @@
   .editbar button {
     padding: 2px 8px;
     font-size: 12px;
+  }
+  .editbar .follow.on {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .editbar .val.play {
+    color: var(--accent);
+    min-width: 2ch;
   }
   .viz-view {
     flex: 1;

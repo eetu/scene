@@ -258,6 +258,7 @@ export const playback = $state({
   // are audible independently of libopenmpt). Loops the current pattern.
   seqPlaying: false,
   seqRow: 0, // row the sequencer is currently sounding
+  followPlay: false, // edit mode: view + cursor ride the playhead (live-record)
   seqBpm: 125, // classic default (row secs = 2.5 * speed / bpm)
   seqSpeed: 6,
   beat: 0, // bumps once per musical beat (see noteRow) — a reactive on-beat tick
@@ -1343,6 +1344,9 @@ export function setEditStep(s: number) {
 export function setEditInst(i: number) {
   playback.editInst = Math.max(1, i);
 }
+export function setFollowPlay(on: boolean) {
+  playback.followPlay = on;
+}
 
 /** Handle a keydown while a pattern grid is focused in edit mode. Returns true if
  *  it consumed the key (the grid then prevents default + stops propagation). */
@@ -1502,6 +1506,7 @@ function seqSchedule() {
       if (!playback.seqPlaying) return;
       playback.seqRow = row;
       playback.row = row; // libopenmpt is stopped → drive the grid playhead
+      if (playback.followPlay) playback.cursorRow = row; // ride the playhead (live-record)
     }, delayMs);
     seqNextRow = (seqNextRow + 1) % cells.length;
     seqNextTime += seqRowDur();
