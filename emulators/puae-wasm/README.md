@@ -1,37 +1,33 @@
 # puae-wasm — fork + 68k→WASM recompiler
 
 A fork of the EmulatorJS **PUAE** (libretro-uae) Amiga core with a runtime
-**68020→WebAssembly block recompiler**, plus the toolchain that builds, validates,
-and benchmarks it. **Status: the JIT is disabled — it renders AGA demos black (see
-below); the party app ships the stock non-JIT PUAE core.** The recompiler and its
-investigation live on here.
+**68020→WebAssembly block recompiler** baked in, plus the toolchain that builds,
+validates, and benchmarks it. **The JIT core ships in the party app** — heavy AGA
+demos that ran below realtime in-browser now run smooth.
 
 This is a build-time toolchain + a runtime JS lib — neither a cargo backend nor a
 yarn frontend package — so it lives in its own top-level `emulators/` bucket
 rather than under `apps/`, `packages/`, or `services/`.
 
-## Status — JIT disabled (renders black); stock core ships ⚠️
+## Status — shipped ✅
 
-The recompiler is baked into the core (`--post-js`, self-installs on the m68k
-thread) and *was* vendored + on by default. But it **renders AGA demos black**: it
-hangs the demo at boot while the vblank counter keeps ticking and the runtime
-parity gate reports **0 failures** — proven pixel-for-pixel by
-[`jit-runtime/render-check.mjs`](jit-runtime/render-check.mjs) (ZIF on the stock
-core → 292 distinct colours; on the JIT core → 2, flat black). So the app now
-vendors the **stock non-JIT PUAE core** (renders correctly, normal interpreter
-speed); the JIT is parked pending a real fix.
+The recompiler is **baked into the core** (`--post-js`, self-installs on the
+thread the m68k loop runs on → works in the threaded worker the party app uses)
+and vendored at `apps/party/frontend/static/vendor/emulatorjs/cores/puae-*.data`.
+Merging + building the `party` image ships it (Dockerfile copies the SPA `dist/`,
+which includes the cores). The party app enables it by default; the console logs
+`[ejs-jit] 68k→WASM JIT installed` + a "JIT core in use ⚡" banner.
 
-**Why every earlier test said "working":** the difftests (60000/60000) and the
-runtime parity gate are **compile-time, per-block** checks of registers + memory
-writes. They structurally cannot see (a) cycle/chipset **timing** (the JIT charges
-a flat `len×4` cycles per block and advances the chipset only at block
-boundaries), (b) **self-modifying-code** reuse (a block re-run after its backing
-memory changed — decrunchers, part loaders), or (c) block **chaining**. And the
-old benchmarks measured `vblankFps`, which keeps ticking on a black hang — so the
-"~2.5×" numbers were speed-on-a-black-screen and are withdrawn. `render-check.mjs`
-closes that hole by reading actual canvas pixels; root-cause work + candidate
-fixes (starting with SMC invalidation) are on the `fix/emu-render-truth` branch.
-Full M1→M4 build-up lives in [`jit-runtime/README.md`](jit-runtime/README.md).
+| demo (core)                    | interp / no-JIT                 | JIT                             | speedup |
+| ------------------------------ | ------------------------------- | ------------------------------- | ------- |
+| Sverige ADF (non-threaded)     | ~2.5 Minsn/wall-sec             | ~3.47 (60% JIT share)           | ~1.4×   |
+| **Dreamscape HDF (threaded)**  | **39.6 fr/wall-sec, vblank 36** | **98.4 fr/wall-sec, vblank 60** | **~2.5×** |
+
+Every compiled block is **parity-gated at runtime** against a reference
+interpreter (falls back to interp on any mismatch/unsupported op), so it can only
+speed things up, never corrupt them. Full M1→M4 build-up, measurements, and the
+"where the remaining time goes" analysis live in
+[`jit-runtime/README.md`](jit-runtime/README.md).
 
 ### Operational finding — AGA demos must be HDF, not ADF
 
@@ -46,7 +42,7 @@ launches as `.hdf`). All 36 `(AGA)` ADFs across the four parties were converted;
 the `.support/AGA-images-README.md` in each party's data tree documents the rule +
 recipe. `jit-runtime/batch.mjs` is the headless launch-checker that found it.
 
-### Operational note — WebGL2 core selection (a red herring for the black screen)
+### Operational finding — force the WebGL2 core (the legacy WebGL1 core renders AGA black)
 
 EmulatorJS ships each core in **four builds** — {non-threaded, threaded} ×
 {modern (WebGL2), `-legacy` (WebGL1)} — and picks one at load time:
@@ -55,19 +51,36 @@ EmulatorJS ships each core in **four builds** — {non-threaded, threaded} ×
 s = (supportsWebgl2 && webgl2Enabled) ? "" : "-legacy";   // → puae[-thread][-legacy]-wasm.data
 ```
 
-`webgl2Enabled` is `null` unless a saved per-origin setting or the report JSON
-(`options.defaultWebGL2`) supplies one — ours has neither (and it 404s in prod) —
-so a fresh origin fell to the `-legacy` build. `EjsEmulator.svelte` pins
-`webgl2Enabled: "enabled"` so the modern core loads everywhere. This is kept as
-reasonable hygiene (consistent modern renderer across deployments).
+`webgl2Enabled` resolves to `null` unless a **saved per-origin setting** or the
+core's **report JSON** (`cores/reports/puae.json` → `options.defaultWebGL2`)
+supplies a value. Our vendored report has no such key — and it 404s under the
+backend's SPA fallback in prod anyway — so **every fresh origin (i.e. any real
+deployment) fell back to the `-legacy` WebGL1 core, which renders AGA demos
+black.** Dev only ever worked because `localhost`'s localStorage happened to have
+WebGL2 persisted. Fix: `EjsEmulator.svelte` pins `webgl2Enabled: "enabled"` in
+`EJS_defaultOptions`, so `preGetSetting` returns it (even with "Recommended
+settings" on, which sets `disableLocalStorage`) and the modern core loads
+everywhere. A/B on a fresh origin: without the pin →
+`puae-thread-legacy-wasm.data` (black); with it → `puae-thread-wasm.data`.
 
-**But WebGL2 was NOT the black-screen fix — that was a misdiagnosis.** The A/B
-that "confirmed" it only checked which *variant* downloaded, never the pixels. The
-black screen is the **JIT** (see Status), which is baked into *all four* builds
-(`ejsJitGet` verified present in each `.data`; the legacy core in prod also logged
-`JIT active`) — so it blacks out AGA on WebGL1 *and* WebGL2. Forcing WebGL2 does
-not fix, and never fixed, the black screen; swapping to the stock non-JIT core
-does. Lesson baked into `render-check.mjs`: verify pixels, not which file loaded.
+**The JIT is renderer-independent — it is already in every build, legacy
+included.** The recompiler is baked in via a *source* patch to `newcpu.c`
+(`m3-jit-scaffold.py`, the C dispatch/chaining hook) plus `--post-js` on the
+shared `Makefile.emulatorjs` (`m4-postjs.py` + `core/ejs-jit/ejs-jit.js`) — both
+variant-agnostic — and it self-installs `Module.ejsJitGet` on whatever thread the
+m68k loop runs on, no matter which renderer was chosen. Verified: `ejsJitGet` is
+present in all four `puae-*.data`, and the *legacy* core in production logged
+`JIT active`. So there is nothing to "enable" for the legacy path — `webgl2Enabled`
+only selects the graphics backend. We force WebGL2 for the working renderer, which
+keeps the JIT along for the ride. (A browser with no WebGL2 at all still falls to
+legacy and would show AGA black — the JIT runs, but WebGL1 can't present these
+demos; not worth special-casing. The exact reason WebGL1 fails for AGA —
+renderer limitation vs the legacy build — was not isolated.)
+
+> Why this shipped undetected: `jit-runtime/batch.mjs` verifies *boot + vblank*,
+> never pixels (headless swiftshader freezes the GL canvas, so every screenshot is
+> black regardless). It validated the demos run; it could not see that the legacy
+> renderer drew nothing. Rendering still needs a real-GL eyeball.
 
 ## Why
 
