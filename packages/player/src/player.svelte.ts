@@ -28,6 +28,34 @@ export type Pattern = {
 };
 /** Field order within a structured cell (indices into Pattern.cells[r][c]). */
 export const CELL = { note: 0, inst: 1, volcmd: 2, vol: 3, fx: 4, param: 5 } as const;
+
+// libopenmpt note values (soundlib/modcommand.h): 0 empty, 1..120 real notes
+// (NOTE_MIDDLEC = 61 = C-5), 253 fade, 254 cut, 255 key-off.
+const NOTE_MIN = 1;
+const NOTE_MAX = 120;
+const NOTE_MIDDLEC = 61;
+const NOTE_FADE = 253;
+const NOTE_CUT = 254;
+const NOTE_OFF = 255;
+const SEMI = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
+
+/** True for a playable pitch (not empty/off/cut/fade). */
+export function isRealNote(n: number): boolean {
+  return n >= NOTE_MIN && n <= NOTE_MAX;
+}
+/** libopenmpt note value → display name ("C-5", "===", "^^^", "~~~", "..."). */
+export function noteName(n: number): string {
+  if (isRealNote(n)) return SEMI[(n - 1) % 12] + Math.floor((n - 1) / 12);
+  if (n === NOTE_OFF) return "===";
+  if (n === NOTE_CUT) return "^^^";
+  if (n === NOTE_FADE) return "~~~";
+  return "...";
+}
+/** libopenmpt note value → jam/playbackRate note (jamNote's 60 = sample middle-C,
+ *  libopenmpt's 61 = NOTE_MIDDLEC), so pattern note N plays at the right pitch. */
+export function noteToJam(n: number): number {
+  return n - (NOTE_MIDDLEC - 60);
+}
 export type Song = {
   channels?: string[];
   instruments?: string[];
@@ -218,6 +246,17 @@ export const playback = $state({
   // row. Independent of the playing row.
   cursorRow: 0,
   cursorCh: 0,
+  // Editor: which sub-column of the cursor cell is active (0 note, 1 inst, 2 vol,
+  // 3 fx, 4 param), and whether edit mode is on. Edit mode swaps the pattern grid
+  // to a structured, per-field-editable render and enables note/hex entry.
+  cursorField: 0,
+  editing: false,
+  // Editor sequencer (our own Web Audio playback of the edited pattern, so edits
+  // are audible independently of libopenmpt). Loops the current pattern.
+  seqPlaying: false,
+  seqRow: 0, // row the sequencer is currently sounding
+  seqBpm: 125, // classic default (row secs = 2.5 * speed / bpm)
+  seqSpeed: 6,
   beat: 0, // bumps once per musical beat (see noteRow) — a reactive on-beat tick
   vu: [] as number[],
   song: null as Song | null,
@@ -568,6 +607,7 @@ export async function playTrack(track: Track) {
   playback.order = 0;
   playback.pattern = 0;
   playback.channelMutes = []; // repopulated when this module's metadata arrives
+  clearEdits(); // drop editor buffer + stop the editor sequencer
   resetBeat();
   const p = ensurePlayer();
   await p;
@@ -1105,6 +1145,220 @@ export function jamStop(id: number) {
   dropVoice(id, v);
 }
 
+// --- editor: edit buffer + Web Audio sequencer -------------------------------
+// The editor is a SEPARATE engine (libopenmpt is read-only). Edits live in a
+// copy-on-write buffer keyed by pattern; the sequencer plays that buffer's
+// current pattern through the Web Audio sampler primitives (one voice per
+// channel), so you hear edits independently of libopenmpt. Each channel has its
+// own gain + analyser, giving true per-channel scopes for free.
+
+// Edited cells per pattern (deep-copied from the read-only song on first edit).
+// Reactive so the grid re-renders on edits; reset on track load.
+let editBuffer = $state<Record<number, number[][][]>>({});
+
+/** Structured cells for pattern `p` with edits applied (falls back to the
+ *  read-only song cells; null if the build exposes no structured cells). */
+export function patternCells(p: number): number[][][] | null {
+  return editBuffer[p] ?? playback.song?.patterns?.[p]?.cells ?? null;
+}
+
+/** Get pattern `p`'s cells as a mutable copy-on-write buffer (creates it from the
+ *  song on first call). Null if there are no structured cells. */
+function ensureEditable(p: number): number[][][] | null {
+  if (editBuffer[p]) return editBuffer[p];
+  const src = playback.song?.patterns?.[p]?.cells;
+  if (!src) return null;
+  editBuffer[p] = src.map((row) => row.map((cell) => cell.slice()));
+  return editBuffer[p];
+}
+
+function clearEdits() {
+  editBuffer = {};
+  playback.editing = false;
+  seqStop();
+}
+
+/** Toggle edit mode. Leaving edit mode stops the editor sequencer. */
+export function setEditing(on: boolean) {
+  if (!playback.canReadCells) return;
+  playback.editing = on;
+  if (!on) seqStop();
+}
+
+// -- sequencer engine --
+const SEQ_LOOKAHEAD = 0.1; // schedule this far ahead (s)
+const SEQ_TICK = 25; // scheduler wakeups (ms)
+export const SEQ_SCOPE_SIZE = 256;
+
+let seqOut: GainNode | null = null;
+let seqChanGain: GainNode[] = [];
+let seqChanScope: AnalyserNode[] = [];
+let seqChanVoice: (AudioBufferSourceNode | null)[] = [];
+let seqChanInst: number[] = []; // running instrument per channel
+let seqTimer: ReturnType<typeof setInterval> | 0 = 0;
+let seqPattern = 0;
+let seqNextRow = 0;
+let seqNextTime = 0;
+
+function seqRowDur(): number {
+  // classic tracker timing: row seconds = 2.5 * speed / BPM
+  return (2.5 * playback.seqSpeed) / Math.max(32, playback.seqBpm);
+}
+
+function seqSetup(nch: number) {
+  const ctx = player.context as AudioContext;
+  seqOut = ctx.createGain();
+  seqOut.connect(player.gain);
+  seqChanGain = [];
+  seqChanScope = [];
+  seqChanVoice = [];
+  seqChanInst = [];
+  for (let c = 0; c < nch; c++) {
+    const g = ctx.createGain();
+    const a = ctx.createAnalyser();
+    a.fftSize = SEQ_SCOPE_SIZE;
+    g.connect(a); // scope tap (observer)
+    g.connect(seqOut); // audio path
+    seqChanGain.push(g);
+    seqChanScope.push(a);
+    seqChanVoice.push(null);
+    seqChanInst.push(0);
+  }
+}
+
+function seqTeardown() {
+  if (seqTimer) clearInterval(seqTimer);
+  seqTimer = 0;
+  for (const v of seqChanVoice)
+    try {
+      v?.stop();
+    } catch {
+      /* already stopped */
+    }
+  seqChanVoice = [];
+  try {
+    seqOut?.disconnect();
+  } catch {
+    /* not connected */
+  }
+  seqOut = null;
+  seqChanGain = [];
+  seqChanScope = [];
+}
+
+function stopSeqVoice(c: number, when: number) {
+  const v = seqChanVoice[c];
+  if (v) {
+    try {
+      v.stop(when);
+    } catch {
+      /* already stopped */
+    }
+    seqChanVoice[c] = null;
+  }
+}
+
+function triggerSeqNote(c: number, inst: number, note: number, when: number) {
+  const sb = bufCache.get(inst); // preloaded in seqPlay → sync cache hit
+  if (!sb) return;
+  stopSeqVoice(c, when);
+  const src = player.context.createBufferSource();
+  src.buffer = sb.buffer;
+  src.playbackRate.value = Math.pow(2, (noteToJam(note) - 60) / 12);
+  if (sb.info.flags & 1 && sb.info.loopEnd > sb.info.loopStart) {
+    src.loop = true;
+    src.loopStart = sb.info.loopStart / sb.info.rate;
+    src.loopEnd = sb.info.loopEnd / sb.info.rate;
+  }
+  seqChanGain[c].gain.setValueAtTime(Math.min(1, (sb.info.volume || 256) / 256), when);
+  src.connect(seqChanGain[c]);
+  src.start(when);
+  seqChanVoice[c] = src;
+}
+
+function scheduleSeqRow(cells: number[][][], row: number, when: number) {
+  const nch = seqChanGain.length;
+  for (let c = 0; c < nch; c++) {
+    const cell = cells[row]?.[c];
+    if (!cell) continue;
+    const note = cell[CELL.note];
+    if (cell[CELL.inst]) seqChanInst[c] = cell[CELL.inst];
+    if (note === NOTE_OFF || note === NOTE_CUT || note === NOTE_FADE) {
+      stopSeqVoice(c, when);
+    } else if (isRealNote(note) && seqChanInst[c]) {
+      triggerSeqNote(c, seqChanInst[c], note, when);
+    }
+  }
+}
+
+function seqSchedule() {
+  if (!player || !seqOut) return;
+  const cells = patternCells(seqPattern);
+  if (!cells || !cells.length) return;
+  const now = player.context.currentTime;
+  while (seqNextTime < now + SEQ_LOOKAHEAD) {
+    const row = seqNextRow;
+    scheduleSeqRow(cells, row, seqNextTime);
+    // reflect the sounding row for the UI playhead (approx; display-only)
+    const delayMs = Math.max(0, (seqNextTime - now) * 1000);
+    setTimeout(() => {
+      if (!playback.seqPlaying) return;
+      playback.seqRow = row;
+      playback.row = row; // libopenmpt is stopped → drive the grid playhead
+    }, delayMs);
+    seqNextRow = (seqNextRow + 1) % cells.length;
+    seqNextTime += seqRowDur();
+  }
+}
+
+/** Start the editor sequencer on the current pattern (loops). Pauses libopenmpt
+ *  so you don't hear both. Preloads the pattern's instruments first. */
+export async function seqPlay() {
+  if (!player || !playback.canReadCells) return;
+  const nch = playback.song?.channels?.length ?? 0;
+  const cells = patternCells(playback.pattern);
+  if (!nch || !cells) return;
+  await wakeAudio();
+  if (playback.playing) {
+    player.stop();
+    playback.playing = false;
+    playback.paused = false;
+  }
+  seqStop();
+  // Preload every instrument the pattern references (async worker reads) so
+  // row scheduling is synchronous.
+  const insts = new Set<number>();
+  for (const row of cells) for (const cell of row) if (cell[CELL.inst]) insts.add(cell[CELL.inst]);
+  await Promise.all([...insts].map((i) => sampleBuffer(i)));
+  seqSetup(nch);
+  seqPattern = playback.pattern;
+  seqNextRow = 0;
+  seqNextTime = player.context.currentTime + 0.06;
+  playback.seqRow = 0;
+  playback.seqPlaying = true;
+  seqTimer = setInterval(seqSchedule, SEQ_TICK);
+}
+
+/** Stop the editor sequencer. */
+export function seqStop() {
+  playback.seqPlaying = false;
+  seqTeardown();
+}
+
+export function seqToggle() {
+  if (playback.seqPlaying) seqStop();
+  else void seqPlay();
+}
+
+/** Fill `buf` (length SEQ_SCOPE_SIZE) with channel `ch`'s current sequencer
+ *  waveform (0–255, 128 = silence). False until the sequencer is running. */
+export function readSeqScope(ch: number, buf: Uint8Array<ArrayBuffer>): boolean {
+  const a = seqChanScope[ch];
+  if (!a) return false;
+  a.getByteTimeDomainData(buf);
+  return true;
+}
+
 /** Reflect parsed metadata in the playing track and persist it (best effort). */
 async function saveMeta(track: Track, meta: Meta) {
   const payload = {
@@ -1139,6 +1393,7 @@ async function saveMeta(track: Track, meta: Meta) {
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     try {
+      seqTeardown();
       player?.stop();
       player?.context?.close?.();
     } catch {

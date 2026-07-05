@@ -18,4 +18,5 @@ export { default as Tunnel } from "./Tunnel.svelte";
 export { default as VuMeters } from "./VuMeters.svelte";
 export { default as PlayerStage } from "./PlayerStage.svelte";
 export { default as Scope } from "./Scope.svelte";
+export { default as SeqScopes } from "./SeqScopes.svelte";
 export { default as Transport } from "./Transport.svelte";

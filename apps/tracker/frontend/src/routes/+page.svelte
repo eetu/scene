@@ -9,6 +9,8 @@
     RefreshCw,
     ScanLine,
     Settings,
+    Square,
+    SquarePen,
     Star,
     Sun,
     X,
@@ -31,6 +33,9 @@
     SampleBrowser,
     Scope,
     seekToOrder,
+    SeqScopes,
+    seqToggle,
+    setEditing,
     setJamLevel,
     Starfield,
     Transport,
@@ -1235,6 +1240,30 @@
         <button class:on={pvTab === "viz"} onclick={() => (pvTab = "viz")}>viz</button>
       </div>
       <div class="pv-actions">
+        {#if pvTab === "pattern" && playback.canReadCells}
+          <button
+            class="icon-btn"
+            class:on={playback.editing}
+            onclick={() => setEditing(!playback.editing)}
+            title={playback.editing ? "exit edit mode" : "edit pattern"}
+            aria-label="toggle edit mode"
+            aria-pressed={playback.editing}
+          >
+            <SquarePen size={16} />
+          </button>
+          {#if playback.editing}
+            <button
+              class="icon-btn"
+              class:on={playback.seqPlaying}
+              onclick={() => seqToggle()}
+              title={playback.seqPlaying ? "stop pattern" : "play pattern (editor)"}
+              aria-label="play or stop the edited pattern"
+              aria-pressed={playback.seqPlaying}
+            >
+              {#if playback.seqPlaying}<Square size={16} />{:else}<Play size={16} />{/if}
+            </button>
+          {/if}
+        {/if}
         {#if currentTrack}
           {@const ct = currentTrack}
           <button
@@ -1293,6 +1322,7 @@
           </div>
         {/if}
         <ChannelStrip />
+        {#if playback.editing}<SeqScopes />{/if}
         <div class="pfill">
           {#if patternMode === "locked"}<PatternView />{:else}<PatternViewScroll />{/if}
         </div>
@@ -1413,6 +1443,12 @@
     align-items: center;
     justify-content: center;
     padding: 5px;
+  }
+  /* Active toggle (edit mode on, sequencer playing). */
+  .icon-btn.on {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
   }
   .filter {
     flex: 1;
