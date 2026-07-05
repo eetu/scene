@@ -1,14 +1,62 @@
 <script lang="ts">
   // Header settings: a gear button (always visible) opening a modal with the
-  // theme selector — mirrors tracker's settings. Self-contained; drop <Settings/>
-  // into any header.
-  import { Monitor, Moon, Settings as Gear, Sun } from "@lucide/svelte";
+  // theme selector + operator actions (library rescan) — mirrors tracker's
+  // settings. Self-contained; drop <Settings/> into any header. Because rescan
+  // lives here (not just the landing header), it can be triggered from inside a
+  // party view too. `onRescanned` lets the host refresh its list when a scan
+  // finishes (the landing passes its loader; the party view can omit it).
+  import { Monitor, Moon, RefreshCw, Settings as Gear, Sun } from "@lucide/svelte";
   import { setTheme, theme, trapFocus } from "@scene/design";
 
+  import { api, type StatusResponse } from "$lib/api";
+
+  let { onRescanned }: { onRescanned?: () => void } = $props();
+
   let open = $state(false);
+  let status = $state<StatusResponse | null>(null);
+  let rescanning = $state(false);
 
   function onKey(e: KeyboardEvent) {
     if (e.key === "Escape") open = false;
+  }
+
+  // Load status when the modal first opens (to know kiosk + file count) — cheap,
+  // and avoids polling in the background.
+  $effect(() => {
+    if (open && !status) void refreshStatus();
+  });
+  async function refreshStatus() {
+    try {
+      status = await api.status();
+    } catch {
+      /* non-fatal — the rescan row just stays hidden until status loads */
+    }
+  }
+
+  // Re-walk the whole Parties/ tree, then refresh. The request blocks until the
+  // scan finishes (fast on a warm cache); poll /status meanwhile so the file
+  // count ticks up. On completion, let the host refresh its list.
+  async function rescan() {
+    if (rescanning) return;
+    rescanning = true;
+    let done = false;
+    const poller = (async () => {
+      while (!done) {
+        await refreshStatus();
+        await new Promise((r) => setTimeout(r, 700));
+      }
+    })();
+    try {
+      await api.rescan();
+    } catch {
+      /* surfaced via the count not advancing; keep the UI responsive */
+    } finally {
+      done = true;
+      await poller;
+      await refreshStatus();
+      rescanning = false;
+      onRescanned?.();
+    }
   }
 </script>
 
@@ -44,6 +92,23 @@
           </button>
         </div>
       </div>
+      <!-- Operator-only: hidden on a public (kiosk) instance, where the backend
+           also refuses POST /api/rescan. -->
+      {#if status && !status.kiosk}
+        <div class="setting">
+          <span class="setting-label">library</span>
+          <button class="rescan" onclick={rescan} disabled={rescanning} title="Rescan the archive">
+            <RefreshCw size={15} class={rescanning ? "spin" : ""} />
+            {#if rescanning}
+              Rescanning… {status.scan_processed ?? 0}{status.scan_total
+                ? ` / ${status.scan_total}`
+                : ""}
+            {:else}
+              Rescan archive{status.file_count != null ? ` (${status.file_count} files)` : ""}
+            {/if}
+          </button>
+        </div>
+      {/if}
       <div class="modal-actions">
         <button class="close" onclick={() => (open = false)}>close</button>
       </div>
@@ -135,6 +200,32 @@
     color: var(--bg);
     background: var(--accent);
     border-color: var(--accent);
+  }
+  .rescan {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--panel-hi);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .rescan:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
+  .rescan:disabled {
+    opacity: 0.7;
+    cursor: default;
+  }
+  .rescan :global(.spin) {
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
   .modal-actions {
     display: flex;

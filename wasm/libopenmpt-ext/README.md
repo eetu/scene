@@ -62,12 +62,20 @@ OMPT_REF=libopenmpt-0.8.7 ./build.sh
 node spike/spike.mjs <module>    # gate: sample PCM + channel mute + structured cells
 ```
 
-Vendor the artifact **into the tracker app only** (party keeps the smaller stock
-build — it uses no jam/sample features):
+Vendor the artifact into **both apps** — tracker (jamming + sample tools + the
+pattern editor) and party (sample jamming; the editor UI isn't wired into party's
+shared `PlayerStage`, so it stays tracker-only). The `decoder.worker.js` fork
+must match too:
 
 ```sh
-cp out/libopenmpt.worklet.js ../../apps/tracker/frontend/static/vendor/chiptune3/
+for app in tracker party; do
+  cp out/libopenmpt.worklet.js ../../apps/$app/frontend/static/vendor/chiptune3/
+done
+# decoder.worker.js is a hand-vendored fork — keep both apps' copies identical.
 ```
+
+The custom build is ~1.4 MB larger than the stock worklet; that's the cost of the
+in-browser sample data (both apps now pay it for jamming).
 
 ## Flat C ABI (the shim)
 

@@ -9,6 +9,7 @@
   // consistent layout for every production type.
   import {
     ChevronDown,
+    ChevronLeft,
     ChevronRight,
     Download,
     File,
@@ -173,6 +174,36 @@
     onfile?.(relPath);
   }
   const selected = $derived(files.find((f) => f.rel_path === selectedPath) ?? null);
+
+  // Gallery navigation for images: step through the visible image files with the
+  // arrow keys / on-image chevrons (a graphics-viewer convenience).
+  const images = $derived(visible.filter((f) => f.mime.startsWith("image/")));
+  const imgIndex = $derived(images.findIndex((f) => f.rel_path === selectedPath));
+  function stepImage(dir: number) {
+    if (images.length < 2 || imgIndex < 0) return;
+    pick(images[(imgIndex + dir + images.length) % images.length].rel_path);
+    pokeControls();
+  }
+  // On-image controls auto-hide when the pointer is idle, reveal on movement.
+  let ctrlHot = $state(false);
+  let hideTimer: ReturnType<typeof setTimeout> | null = null;
+  function pokeControls() {
+    ctrlHot = true;
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => (ctrlHot = false), 2000);
+  }
+  function onWinKey(e: KeyboardEvent) {
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    if (!selected || !selected.mime.startsWith("image/")) return;
+    if (e.key === "ArrowRight") {
+      stepImage(1);
+      e.preventDefault();
+    } else if (e.key === "ArrowLeft") {
+      stepImage(-1);
+      e.preventDefault();
+    }
+  }
   // Emulator + music player manage their own size and should fill the pane (no
   // inner scroll); text/images keep the scrollable, padded pane.
   const fills = $derived(selected ? runnable(selected) || selected.kind === "music" : false);
@@ -196,6 +227,8 @@
     return `${(n / 1024 / 1024).toFixed(1)} MB`;
   }
 </script>
+
+<svelte:window onkeydown={onWinKey} />
 
 <div class="browser">
   <div class="bhead">
@@ -286,13 +319,43 @@
       {:else if asText(selected)}
         <NfoView hash={selected.hash} />
       {:else if selected.mime.startsWith("image/")}
-        <!-- Native formats stream raw; others are transcoded to PNG on demand. -->
-        <ImageCanvas
-          src={NATIVE_IMG.has(selected.mime)
-            ? fileUrl(selected.hash)
-            : assetUrl(selected.hash, "png")}
-          alt={selected.filename}
-        />
+        <!-- Native formats stream raw; others are transcoded to PNG on demand.
+             Arrow keys / on-image chevrons step through the gallery; the chevrons
+             auto-hide when the pointer is idle. -->
+        <div
+          class="imgwrap"
+          class:show-ctrl={ctrlHot}
+          role="group"
+          aria-label="image viewer"
+          onmousemove={pokeControls}
+        >
+          <!-- No {#key} — ImageCanvas redraws on src change (and its fullscreen
+               <img> is reactive), so stepping the gallery updates in place and
+               keeps fullscreen open. -->
+          <ImageCanvas
+            src={NATIVE_IMG.has(selected.mime)
+              ? fileUrl(selected.hash)
+              : assetUrl(selected.hash, "png")}
+            alt={selected.filename}
+          />
+          {#if images.length > 1}
+            <button
+              class="imgnav prev"
+              aria-label="previous image"
+              onclick={(e) => (e.stopPropagation(), stepImage(-1))}
+            >
+              <ChevronLeft size={30} />
+            </button>
+            <button
+              class="imgnav next"
+              aria-label="next image"
+              onclick={(e) => (e.stopPropagation(), stepImage(1))}
+            >
+              <ChevronRight size={30} />
+            </button>
+            <span class="imgcount">{imgIndex + 1} / {images.length}</span>
+          {/if}
+        </div>
         <a class="dl sub" href={fileUrl(selected.hash)} download><Download size={13} /> Original</a>
       {:else if selected.mime.startsWith("video/")}
         <!-- svelte-ignore a11y_media_has_caption -->
@@ -451,6 +514,63 @@
     max-height: 65vh;
     background: #000;
     border-radius: 6px;
+  }
+  /* Gallery viewer: image + on-image prev/next chevrons that fade in on pointer
+     movement and fade out when idle (.show-ctrl, toggled by pokeControls). */
+  .imgwrap {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    line-height: 0;
+  }
+  .imgnav,
+  .imgcount {
+    position: absolute;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+  .imgwrap.show-ctrl .imgnav,
+  .imgwrap.show-ctrl .imgcount {
+    opacity: 1;
+  }
+  .imgwrap.show-ctrl .imgnav {
+    pointer-events: auto;
+  }
+  .imgnav {
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    cursor: pointer;
+  }
+  .imgnav:hover {
+    background: rgba(0, 0, 0, 0.72);
+  }
+  .imgnav.prev {
+    left: 8px;
+  }
+  .imgnav.next {
+    right: 8px;
+  }
+  .imgcount {
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 12px;
+    font-family: var(--font-mono-retro, ui-monospace, monospace);
+    line-height: 1.4;
   }
   .ph {
     display: grid;
