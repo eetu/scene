@@ -1,7 +1,7 @@
 <script lang="ts">
   // Landing: the list of scanned parties. Each card links to that party's
   // catalog. Polls /status while an initial scan is running.
-  import { CalendarDays, MapPin, Music, RefreshCw } from "@lucide/svelte";
+  import { CalendarDays, MapPin, Music } from "@lucide/svelte";
   import { stop as stopPlayback } from "@scene/player";
   import { onMount } from "svelte";
 
@@ -12,7 +12,6 @@
   let parties = $state<Party[]>([]);
   let status = $state<StatusResponse | null>(null);
   let error = $state<string | null>(null);
-  let rescanning = $state(false);
   // Scan-stall detection: if scan_processed stops advancing while still
   // "scanning", surface a hint + reload instead of an eternal silent spinner.
   let scanStalled = $state(false);
@@ -69,39 +68,6 @@
     }
   }
 
-  // Re-walk the whole Parties/ tree, then refresh the list. The request blocks
-  // until the scan finishes (fast on a warm cache — unchanged files aren't
-  // re-hashed); the button shows progress meanwhile.
-  async function rescan() {
-    if (rescanning) return;
-    rescanning = true;
-    error = null;
-    // Poll /status while the (blocking) rescan runs so the file count updates
-    // live in the scanning line — otherwise the button just spins with no sign
-    // of progress on a large archive.
-    let done = false;
-    const poller = (async () => {
-      while (!done) {
-        try {
-          status = await api.status();
-        } catch {
-          /* transient — keep polling */
-        }
-        await new Promise((r) => setTimeout(r, 700));
-      }
-    })();
-    try {
-      await api.rescan();
-    } catch (e) {
-      error = String(e);
-    } finally {
-      done = true;
-      await poller;
-      rescanning = false;
-      await load();
-    }
-  }
-
   onMount(() => {
     // The landing has no transport bar, so stop any playback on arrival —
     // otherwise music keeps playing with no visible controls (e.g. after
@@ -120,15 +86,9 @@
   <!-- Stable spacer so the right group (Rescan?, gear) stays right-aligned even
        when the button is absent (kiosk) or the tagline is hidden (mobile). -->
   <span class="spacer"></span>
-  <!-- Operator-only: hidden on a public (kiosk) instance, where the backend also
-       refuses POST /api/rescan. Shown once status loads on a non-kiosk instance. -->
-  {#if status && !status.kiosk}
-    <button class="action" onclick={rescan} disabled={rescanning} title="Rescan the archive">
-      <RefreshCw size={15} class={rescanning ? "spin" : ""} />
-      {rescanning ? "Rescanning…" : "Rescan"}
-    </button>
-  {/if}
-  <Settings />
+  <!-- Rescan now lives in the Settings modal (available inside a party view too);
+       reload the list when a scan finishes. -->
+  <Settings onRescanned={load} />
 </header>
 
 <main>
@@ -211,34 +171,6 @@
   }
   .spacer {
     flex: 1;
-  }
-  .action {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    color: var(--text);
-    border-radius: 6px;
-    padding: 0 12px;
-    height: 32px;
-    font-size: 13px;
-    cursor: pointer;
-  }
-  .action:hover:not(:disabled) {
-    border-color: var(--accent);
-  }
-  .action:disabled {
-    opacity: 0.7;
-    cursor: default;
-  }
-  .action :global(.spin) {
-    animation: spin 1s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
   }
   main {
     flex: 1;
