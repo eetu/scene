@@ -27,6 +27,11 @@
     }
   });
 
+  // Accent (orange/purple) is a separate axis — apply it as data-accent on <html>.
+  $effect(() => {
+    document.documentElement.dataset.accent = theme.accent;
+  });
+
   // iOS standalone caches a stale value for the CSS viewport units (100dvh/100vh)
   // at launch — the shell shows a band until the first viewport change (a manual
   // rotate fixes it). window.innerHeight stays reliable, so mirror it into a CSS
