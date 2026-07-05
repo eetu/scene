@@ -43,6 +43,11 @@
         ? playback.queueLength > 1
         : playback.queueIndex + 1 < playback.queueLength),
   );
+  // In edit mode the transport drives the pattern loop, so the play/pause glyph
+  // reflects the sequencer, not the (suppressed) song.
+  const playActive = $derived(
+    playback.editing ? playback.seqPlaying : playback.playing && !playback.paused,
+  );
 
   function fmtTime(sec: number): string {
     if (!sec || !isFinite(sec)) return "0:00";
@@ -123,9 +128,9 @@
       <button
         class="t-btn t-play"
         onclick={transportToggle}
-        aria-label={playback.playing && !playback.paused ? "pause" : "play"}
+        aria-label={playActive ? "pause" : "play"}
       >
-        {#if playback.playing && !playback.paused}<Pause size={16} />{:else}<Play size={16} />{/if}
+        {#if playActive}<Pause size={16} />{:else}<Play size={16} />{/if}
       </button>
       <button class="t-btn" onclick={playNext} disabled={!hasNext} aria-label="next">
         <SkipForward size={16} />

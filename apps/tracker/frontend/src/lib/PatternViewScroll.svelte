@@ -67,6 +67,11 @@
     return n.toString(16).toUpperCase().padStart(2, "0");
   }
 
+  // Focus the grid when entering edit mode so QWERTY note entry works at once.
+  $effect(() => {
+    if (playback.editing) scroller?.focus();
+  });
+
   // Keep the playing row centred as it advances. Direct scrollTop (not smooth)
   // so it tracks fast tempos without lagging behind.
   $effect(() => {

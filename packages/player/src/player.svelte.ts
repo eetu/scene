@@ -710,13 +710,20 @@ export function toggleRepeat() {
  *  track from the top; otherwise toggle play ↔ pause in place. */
 export function transportToggle() {
   if (!playback.current) return;
-  if (playback.seqPlaying) seqStop(); // the pattern loop and the song don't fight
+  // In edit mode the transport drives the pattern loop, not the (suppressed) song.
+  if (playback.editing) {
+    seqToggle();
+    return;
+  }
   if (!playback.playing) void playTrack(playback.current);
   else togglePause();
 }
 
 export function togglePause() {
-  if (playback.seqPlaying) seqStop(); // stop the editor pattern loop first
+  if (playback.editing) {
+    seqStop(); // edit mode: pause = stop the pattern loop (song stays suppressed)
+    return;
+  }
   if (!player || !playback.current || !playback.playing) return;
   player.togglePause();
   playback.paused = !playback.paused;
@@ -797,6 +804,9 @@ export function seekToOrder(o: number) {
   player.setOrderRow(o, 0);
   playback.order = o;
   playback.row = 0;
+  // Set the pattern directly too — in edit mode libopenmpt is paused, so it won't
+  // arrive via onProgress, and the grid/sequencer key off playback.pattern.
+  playback.pattern = playback.song?.orders?.[o]?.pat ?? playback.pattern;
 }
 
 // --- channel mute / solo (custom build) -------------------------------------
@@ -1192,11 +1202,22 @@ function clearEdits() {
   seqStop();
 }
 
-/** Toggle edit mode. Leaving edit mode stops the editor sequencer. */
+let editResumeSong = false;
+/** Toggle edit mode. Edit mode is modal: it SUPPRESSES normal (libopenmpt) song
+ *  playback — entering pauses the song (worklet-level, so the module stays loaded
+ *  and the sequencer's audio path is unaffected), the transport drives the
+ *  pattern loop instead, and leaving resumes the song if it was playing. */
 export function setEditing(on: boolean) {
-  if (!playback.canReadCells) return;
+  if (!playback.canReadCells || on === playback.editing) return;
   playback.editing = on;
-  if (!on) seqStop();
+  if (on) {
+    editResumeSong = playback.playing && !playback.paused;
+    if (editResumeSong && player) player.pause();
+  } else {
+    seqStop();
+    if (editResumeSong && player) player.unpause();
+    editResumeSong = false;
+  }
 }
 
 // -- cell editing (note / hex-field entry) --
@@ -1374,6 +1395,7 @@ export function handleEditKey(e: KeyboardEvent): boolean {
   if (k === "ArrowLeft") return (moveField(-1), true);
   if (k === "ArrowRight") return (moveField(1), true);
   if (k === "Tab") return (moveField(e.shiftKey ? -1 : 1), true);
+  if (k === "Enter") return true; // consume (no view-mode seek while editing)
   if (e.repeat) return true; // don't machine-gun entry on auto-repeat
   if (k === "Delete" || k === "Backspace") return (clearCellAtCursor(), true);
   if (playback.cursorField === FIELD.note) {
@@ -1402,7 +1424,6 @@ let seqChanScope: AnalyserNode[] = [];
 let seqChanVoice: (AudioBufferSourceNode | null)[] = [];
 let seqChanInst: number[] = []; // running instrument per channel
 let seqTimer: ReturnType<typeof setInterval> | 0 = 0;
-let seqPausedSong = false; // did we worklet-pause libopenmpt for the sequencer?
 let seqPattern = 0;
 let seqNextRow = 0;
 let seqNextTime = 0;
@@ -1494,7 +1515,11 @@ function scheduleSeqRow(cells: number[][][], row: number, when: number) {
     const cell = cells[row]?.[c];
     if (!cell) continue;
     const note = cell[CELL.note];
-    if (cell[CELL.inst]) seqChanInst[c] = cell[CELL.inst];
+    if (cell[CELL.inst]) seqChanInst[c] = cell[CELL.inst]; // track running inst even when muted
+    if (playback.channelMutes[c]) {
+      stopSeqVoice(c, when); // respect mute/solo — same as libopenmpt playback
+      continue;
+    }
     if (note === NOTE_OFF || note === NOTE_CUT || note === NOTE_FADE) {
       stopSeqVoice(c, when);
     } else if (isRealNote(note) && seqChanInst[c]) {
@@ -1533,20 +1558,12 @@ export async function seqPlay() {
   await wakeAudio();
   seqStop();
   // Preload every instrument the pattern references (async worker reads) so row
-  // scheduling is synchronous. Read BEFORE silencing libopenmpt and WITHOUT
-  // stopping it — player.stop() destroys the worker's module, which would make
-  // smp_read (and note auditioning) return nothing.
+  // scheduling is synchronous. Read WITHOUT stopping libopenmpt — player.stop()
+  // destroys the worker's module, which would make smp_read (and note
+  // auditioning) return nothing. The song is already paused by setEditing.
   const insts = new Set<number>();
   for (const row of cells) for (const cell of row) if (cell[CELL.inst]) insts.add(cell[CELL.inst]);
   await Promise.all([...insts].map((i) => sampleBuffer(i)));
-  // Silence libopenmpt's own output (worklet-level pause) so we don't hear both;
-  // the module stays loaded and the sequencer's node path is independent of the
-  // worklet, so this doesn't touch our audio. Restored on seqStop.
-  seqPausedSong = false;
-  if (playback.playing && !playback.paused) {
-    player.pause();
-    seqPausedSong = true;
-  }
   seqSetup(nch);
   seqPattern = playback.pattern;
   seqNextRow = 0;
@@ -1556,14 +1573,11 @@ export async function seqPlay() {
   seqTimer = setInterval(seqSchedule, SEQ_TICK);
 }
 
-/** Stop the editor sequencer. */
+/** Stop the editor sequencer. Does NOT resume the song — edit mode keeps it
+ *  suppressed; leaving edit mode (setEditing false) resumes it. */
 export function seqStop() {
   playback.seqPlaying = false;
   seqTeardown();
-  if (seqPausedSong && player) {
-    player.unpause(); // resume libopenmpt's own output we paused for the sequencer
-    seqPausedSong = false;
-  }
 }
 
 export function seqToggle() {

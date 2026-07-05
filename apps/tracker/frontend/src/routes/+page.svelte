@@ -654,9 +654,15 @@
     // keyboard shortcut for the "vol" slider, and it keeps arrows from switching
     // tracks mid-jam.
     const inSamples = showPattern && pvTab === "samples" && playback.canReadSamples;
+    // Edit mode is modal: the focused grid owns row/field arrows (and stops their
+    // propagation); globally, arrows must NOT switch tracks. Space still toggles —
+    // transportToggle drives the pattern loop while editing.
+    const inEdit = showPattern && pvTab === "pattern" && playback.editing;
     if (e.key === " ") {
       e.preventDefault();
       transportToggle();
+    } else if (inEdit) {
+      return;
     } else if (e.key === "ArrowRight") {
       if (inSamples) {
         setJamLevel(playback.jamLevel + 0.05);

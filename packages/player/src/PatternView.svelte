@@ -22,6 +22,12 @@
   const VU_MAX = ROW_H * 6; // tallest VU bar
 
   let vpH = $state(0); // viewport height, for centering the current row
+  let gridEl = $state<HTMLDivElement | null>(null);
+
+  // Focus the grid when entering edit mode so QWERTY note entry works at once.
+  $effect(() => {
+    if (playback.editing) gridEl?.focus();
+  });
 
   const pattern = $derived(playback.song?.patterns?.[playback.pattern] ?? null);
   const editCells = $derived(playback.editing ? patternCells(playback.pattern) : null);
@@ -85,6 +91,7 @@
     class="pv"
     role="grid"
     tabindex="0"
+    bind:this={gridEl}
     bind:clientHeight={vpH}
     onkeydown={onGridKey}
     onclick={onGridClick}
