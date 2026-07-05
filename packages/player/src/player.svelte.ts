@@ -180,6 +180,15 @@ export function beatPhase(now = performance.now()): number {
   return Math.min(1, (now - lastBeatAt) / beatInterval);
 }
 
+/** Estimated musical tempo in BPM, from the eased inter-beat interval (a beat =
+ *  ROWS_PER_BEAT rows). ~0 until the first beat. Clamped to a sane range so a
+ *  stall/seek can't spike it. Lets visualizers scale motion to tempo, not just
+ *  loudness — works in both apps (no libopenmpt tempo read needed). */
+export function beatBpm(): number {
+  if (!lastBeatAt) return 0;
+  return Math.max(40, Math.min(300, 60000 / beatInterval));
+}
+
 // Playback is a small state machine over one loaded module:
 //   stopped: playing=false            (transport shows ▶; play restarts from top)
 //   playing: playing=true, paused=false
