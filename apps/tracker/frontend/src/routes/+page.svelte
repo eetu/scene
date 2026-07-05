@@ -10,7 +10,6 @@
     ScanLine,
     Settings,
     Square,
-    SquarePen,
     Star,
     Sun,
     X,
@@ -18,7 +17,6 @@
   import { setAccent, setTheme, theme, trapFocus } from "@scene/design";
   import {
     BoingBall,
-    ChannelStrip,
     CopperBars,
     DiscoBall,
     Equalizer,
@@ -1239,31 +1237,27 @@
         <button class:on={pvTab === "samples"} onclick={() => (pvTab = "samples")}>samples</button>
         <button class:on={pvTab === "viz"} onclick={() => (pvTab = "viz")}>viz</button>
       </div>
-      <div class="pv-actions">
-        {#if pvTab === "pattern" && playback.canReadCells}
+      {#if pvTab === "pattern" && playback.canReadCells}
+        <!-- Pattern surface mode: view vs edit (a mode of the pattern tab, kept
+             clear of the file-action pencil in the right cluster). -->
+        <div class="pv-mode" role="group" aria-label="pattern mode">
+          <button class:on={!playback.editing} onclick={() => setEditing(false)}>view</button>
+          <button class:on={playback.editing} onclick={() => setEditing(true)}>edit</button>
+        </div>
+        {#if playback.editing}
           <button
-            class="icon-btn"
-            class:on={playback.editing}
-            onclick={() => setEditing(!playback.editing)}
-            title={playback.editing ? "exit edit mode" : "edit pattern"}
-            aria-label="toggle edit mode"
-            aria-pressed={playback.editing}
+            class="icon-btn seq"
+            class:on={playback.seqPlaying}
+            onclick={() => seqToggle()}
+            title={playback.seqPlaying ? "stop pattern" : "play pattern (editor)"}
+            aria-label="play or stop the edited pattern"
+            aria-pressed={playback.seqPlaying}
           >
-            <SquarePen size={16} />
+            {#if playback.seqPlaying}<Square size={16} />{:else}<Play size={16} />{/if}
           </button>
-          {#if playback.editing}
-            <button
-              class="icon-btn"
-              class:on={playback.seqPlaying}
-              onclick={() => seqToggle()}
-              title={playback.seqPlaying ? "stop pattern" : "play pattern (editor)"}
-              aria-label="play or stop the edited pattern"
-              aria-pressed={playback.seqPlaying}
-            >
-              {#if playback.seqPlaying}<Square size={16} />{:else}<Play size={16} />{/if}
-            </button>
-          {/if}
         {/if}
+      {/if}
+      <div class="pv-actions">
         {#if currentTrack}
           {@const ct = currentTrack}
           <button
@@ -1321,7 +1315,6 @@
             {/each}
           </div>
         {/if}
-        <ChannelStrip />
         {#if playback.editing}<SeqScopes />{/if}
         <div class="pfill">
           {#if patternMode === "locked"}<PatternView />{:else}<PatternViewScroll />{/if}
@@ -2127,6 +2120,25 @@
     color: var(--bg);
     background: var(--accent);
     border-color: var(--accent);
+  }
+  /* Segmented view|edit control — a mode of the pattern surface. */
+  .pv-mode {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .pv-mode button {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: none;
+    border-radius: 0;
+    background: var(--panel-hi);
+    color: var(--muted);
+  }
+  .pv-mode button.on {
+    color: var(--bg);
+    background: var(--accent);
   }
   .pv-wrap {
     flex: 1;

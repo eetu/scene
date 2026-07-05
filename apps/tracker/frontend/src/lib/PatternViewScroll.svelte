@@ -2,7 +2,15 @@
   // Alternate pattern view: free-scrolling rows (current row auto-centred) with
   // per-channel VU bars in the sticky channel header. Toggle against the locked
   // centerline view (PatternView.svelte) in the player bar.
-  import { moveCursor, playback, seekToCursor, setCursor } from "@scene/player";
+  import {
+    isChannelSolo,
+    moveCursor,
+    playback,
+    seekToCursor,
+    setCursor,
+    soloChannel,
+    toggleChannelMute,
+  } from "@scene/player";
 
   let scroller = $state<HTMLDivElement | null>(null);
 
@@ -64,8 +72,28 @@
     <div class="phead">
       <span class="rownum">··</span>
       {#each channels as ch, i (i)}
-        <span class="cell head">
-          <span class="chname">{ch || `ch ${i + 1}`}</span>
+        <span class="cell head" class:muted={playback.channelMutes[i]}>
+          <span class="hrow">
+            <span class="chname">{ch || `ch ${i + 1}`}</span>
+            {#if playback.canMuteChannels}
+              <span class="ms-wrap">
+                <button
+                  class="ms m"
+                  class:on={playback.channelMutes[i]}
+                  aria-pressed={playback.channelMutes[i]}
+                  title="mute channel {i + 1}"
+                  onclick={() => toggleChannelMute(i)}>M</button
+                >
+                <button
+                  class="ms s"
+                  class:on={isChannelSolo(i)}
+                  aria-pressed={isChannelSolo(i)}
+                  title="solo channel {i + 1}"
+                  onclick={() => soloChannel(i)}>S</button
+                >
+              </span>
+            {/if}
+          </span>
           <span class="vu"><span class="vu-fill" style:width="{(vu[i] ?? 0) * 100}%"></span></span>
         </span>
       {/each}
@@ -175,9 +203,49 @@
     justify-content: center;
     overflow: hidden;
   }
+  .cell.head.muted .chname {
+    opacity: 0.5;
+  }
+  .hrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+  }
   .chname {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .ms-wrap {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 2px;
+  }
+  .ms {
+    width: 18px;
+    height: 15px;
+    padding: 0;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    border: 1px solid var(--surface-line);
+    border-radius: 2px;
+    background: var(--surface);
+    color: var(--surface-fg);
+    cursor: pointer;
+  }
+  .ms:hover {
+    color: var(--surface-fg-active);
+  }
+  .ms.m.on {
+    background: color-mix(in srgb, #ff4136 70%, var(--surface));
+    border-color: #ff4136;
+    color: #fff;
+  }
+  .ms.s.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
   }
   .vu {
     height: 4px;

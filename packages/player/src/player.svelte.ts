@@ -828,6 +828,14 @@ export function soloChannel(ch: number) {
   playback.channelMutes = next;
 }
 
+/** True if channel `ch` is the only audible one (every other channel muted). */
+export function isChannelSolo(ch: number): boolean {
+  const m = playback.channelMutes;
+  const n = playback.song?.channels?.length ?? 0;
+  if (!n || m.length !== n) return false;
+  return !m[ch] && m.some(Boolean) && m.every((v, i) => (i === ch ? !v : v));
+}
+
 /** Unmute every channel. */
 export function clearChannelMutes() {
   const n = playback.song?.channels?.length ?? 0;
@@ -1196,6 +1204,7 @@ let seqChanScope: AnalyserNode[] = [];
 let seqChanVoice: (AudioBufferSourceNode | null)[] = [];
 let seqChanInst: number[] = []; // running instrument per channel
 let seqTimer: ReturnType<typeof setInterval> | 0 = 0;
+let seqPausedSong = false; // did we worklet-pause libopenmpt for the sequencer?
 let seqPattern = 0;
 let seqNextRow = 0;
 let seqNextTime = 0;
@@ -1319,17 +1328,22 @@ export async function seqPlay() {
   const cells = patternCells(playback.pattern);
   if (!nch || !cells) return;
   await wakeAudio();
-  if (playback.playing) {
-    player.stop();
-    playback.playing = false;
-    playback.paused = false;
-  }
   seqStop();
-  // Preload every instrument the pattern references (async worker reads) so
-  // row scheduling is synchronous.
+  // Preload every instrument the pattern references (async worker reads) so row
+  // scheduling is synchronous. Read BEFORE silencing libopenmpt and WITHOUT
+  // stopping it — player.stop() destroys the worker's module, which would make
+  // smp_read (and note auditioning) return nothing.
   const insts = new Set<number>();
   for (const row of cells) for (const cell of row) if (cell[CELL.inst]) insts.add(cell[CELL.inst]);
   await Promise.all([...insts].map((i) => sampleBuffer(i)));
+  // Silence libopenmpt's own output (worklet-level pause) so we don't hear both;
+  // the module stays loaded and the sequencer's node path is independent of the
+  // worklet, so this doesn't touch our audio. Restored on seqStop.
+  seqPausedSong = false;
+  if (playback.playing && !playback.paused) {
+    player.pause();
+    seqPausedSong = true;
+  }
   seqSetup(nch);
   seqPattern = playback.pattern;
   seqNextRow = 0;
@@ -1343,6 +1357,10 @@ export async function seqPlay() {
 export function seqStop() {
   playback.seqPlaying = false;
   seqTeardown();
+  if (seqPausedSong && player) {
+    player.unpause(); // resume libopenmpt's own output we paused for the sequencer
+    seqPausedSong = false;
+  }
 }
 
 export function seqToggle() {

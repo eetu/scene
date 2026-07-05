@@ -5,7 +5,6 @@
 export * from "./host";
 export * from "./player.svelte";
 export { default as BoingBall } from "./BoingBall.svelte";
-export { default as ChannelStrip } from "./ChannelStrip.svelte";
 export { default as CopperBars } from "./CopperBars.svelte";
 export { default as DiscoBall } from "./DiscoBall.svelte";
 export { default as Equalizer } from "./Equalizer.svelte";

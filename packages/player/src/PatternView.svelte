@@ -1,5 +1,13 @@
 <script lang="ts">
-  import { moveCursor, playback, seekToCursor, setCursor } from "./player.svelte";
+  import {
+    isChannelSolo,
+    moveCursor,
+    playback,
+    seekToCursor,
+    setCursor,
+    soloChannel,
+    toggleChannelMute,
+  } from "./player.svelte";
 
   // Fixed-metrics tracker layout (px). Topaz is 8×16, so 8px/char.
   const ROW_H = 18;
@@ -64,6 +72,33 @@
     onclick={onGridClick}
   >
     <div class="content" style:width="{contentW}px">
+      {#if playback.canMuteChannels}
+        <!-- Column-aligned channel header (mute/solo), scrolls with the columns. -->
+        <div class="phead">
+          <span class="hgutter" style:width="{ROWNUM_W}px"></span>
+          {#each channels as _ch, i (i)}
+            <span class="chead" class:muted={playback.channelMutes[i]} style:width="{CELL_W}px">
+              <span class="chnum">{String(i + 1).padStart(2, "0")}</span>
+              <span class="ms-wrap">
+                <button
+                  class="ms m"
+                  class:on={playback.channelMutes[i]}
+                  aria-pressed={playback.channelMutes[i]}
+                  title="mute channel {i + 1}"
+                  onclick={() => toggleChannelMute(i)}>M</button
+                >
+                <button
+                  class="ms s"
+                  class:on={isChannelSolo(i)}
+                  aria-pressed={isChannelSolo(i)}
+                  title="solo channel {i + 1}"
+                  onclick={() => soloChannel(i)}>S</button
+                >
+              </span>
+            </span>
+          {/each}
+        </div>
+      {/if}
       <div class="centerline" style:height="{ROW_H}px"></div>
       <div class="rows" style:transform="translateY({translateY}px)">
         {#each pattern.rows as cells, r (r)}
@@ -150,6 +185,72 @@
     top: 0;
     left: 0;
     z-index: 1;
+  }
+  /* Column-aligned channel header (mute/solo), pinned to the top and scrolling
+     horizontally with the columns. */
+  .phead {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    height: 22px;
+    z-index: 3;
+  }
+  .hgutter {
+    flex: 0 0 auto;
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    background: var(--surface-bar);
+    border-bottom: 1px solid var(--surface-line-2);
+  }
+  .chead {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    padding: 0 6px;
+    border-left: 1px solid var(--surface-line);
+    border-bottom: 1px solid var(--surface-line-2);
+    background: var(--surface-bar);
+    color: var(--accent);
+    font-size: 11px;
+    line-height: 1;
+  }
+  .chead.muted {
+    opacity: 0.55;
+  }
+  .ms-wrap {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 2px;
+  }
+  .ms {
+    width: 18px;
+    height: 15px;
+    padding: 0;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    border: 1px solid var(--surface-line);
+    border-radius: 2px;
+    background: var(--surface);
+    color: var(--surface-fg);
+    cursor: pointer;
+  }
+  .ms:hover {
+    color: var(--surface-fg-active);
+  }
+  .ms.m.on {
+    background: color-mix(in srgb, #ff4136 70%, var(--surface));
+    border-color: #ff4136;
+    color: #fff;
+  }
+  .ms.s.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
   }
   .prow {
     display: flex;
