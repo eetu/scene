@@ -455,7 +455,9 @@
   }
   .num {
     display: inline-block;
-    min-width: 2ch;
+    /* Reserve the widest value (row runs 0–255, patterns/orders can pass 99) so
+       the readout never reflows as digit counts change (1 → 10 → 100). */
+    min-width: 3ch;
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
