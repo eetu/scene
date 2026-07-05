@@ -2123,11 +2123,13 @@
     border: 1px solid var(--surface-line-2);
     border-radius: 3px;
     background: var(--surface-2);
-    color: var(--surface-fg-dim);
+    /* --surface-fg-dim is halo's *lightest* text — near-invisible on the light
+       theme's near-white bar. --surface-fg (muted) reads on both themes. */
+    color: var(--surface-fg);
     cursor: pointer;
   }
   .orders .ord:hover {
-    color: var(--surface-fg);
+    color: var(--surface-fg-active);
   }
   .orders .ord.on {
     color: var(--bg);
