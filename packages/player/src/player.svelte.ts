@@ -18,7 +18,16 @@ type ProgressMsg = {
 
 /** Per-pattern data from the (patched) worklet: each row is one formatted
  *  cell-string per channel, e.g. "C-4 01 v64 A04". */
-export type Pattern = { name: string; rows: string[][] };
+export type Pattern = {
+  name: string;
+  rows: string[][];
+  /** Structured per-cell fields from the custom build (parallel to `rows`):
+   *  cells[row][channel] = [note, instrument, volcmd, volume, effect, param].
+   *  Absent on the stock build — the editor gates on it (canReadCells). */
+  cells?: number[][][];
+};
+/** Field order within a structured cell (indices into Pattern.cells[r][c]). */
+export const CELL = { note: 0, inst: 1, volcmd: 2, vol: 3, fx: 4, param: 5 } as const;
 export type Song = {
   channels?: string[];
   instruments?: string[];
@@ -229,6 +238,14 @@ export const playback = $state({
   // shim; party's stock build doesn't). Set once the engine reports ready. UI
   // (keyboard, waveform pane) gates on it so the shared package degrades.
   canReadSamples: false,
+  // Custom-build capabilities for the editor: per-channel mute/solo and structured
+  // pattern cells. Both false on party's stock build (UI hides accordingly).
+  canMuteChannels: false,
+  canReadCells: false,
+  // Per-channel mute state (index = channel), length = the loaded module's channel
+  // count; reset on load. Solo mutes every other channel. Applied to the live
+  // module via chan_mute so the song's own render drops the channel.
+  channelMutes: [] as boolean[],
   // Live sample-frame position of the current jammed note (-1 = none), for the
   // waveform play cursor. Reported by the worker synced to audio.
   jamPos: -1,
@@ -269,6 +286,8 @@ function ensurePlayer(): Promise<void> {
   // tap it for the background-capable media-element route.
   void ready.then(() => {
     playback.canReadSamples = player.capabilities?.canReadSamples ?? false;
+    playback.canMuteChannels = player.capabilities?.canMuteChannels ?? false;
+    playback.canReadCells = player.capabilities?.canReadCells ?? false;
     if (playback.mono) player.setMono(true); // restore persisted mono downmix
     // Tap the song's output PRE-jam (on the worklet node, before jamGain joins
     // player.gain) so measuring it to auto-balance the jam can't feed back.
@@ -300,6 +319,9 @@ function ensurePlayer(): Promise<void> {
     playback.song = meta?.song ?? null;
     playback.samples = meta?.song?.samples ?? [];
     playback.instruments = meta?.song?.instruments ?? [];
+    // Fresh mute state sized to this module's channels (createModule reset any
+    // libopenmpt-side mutes on load).
+    playback.channelMutes = new Array(meta?.song?.channels?.length ?? 0).fill(false);
     if (playback.current) void saveMeta(playback.current, meta);
     syncNowPlaying(); // title is known now → refresh OS Now Playing
   });
@@ -545,6 +567,7 @@ export async function playTrack(track: Track) {
   playback.row = 0;
   playback.order = 0;
   playback.pattern = 0;
+  playback.channelMutes = []; // repopulated when this module's metadata arrives
   resetBeat();
   const p = ensurePlayer();
   await p;
@@ -728,6 +751,49 @@ export function seekToOrder(o: number) {
   player.setOrderRow(o, 0);
   playback.order = o;
   playback.row = 0;
+}
+
+// --- channel mute / solo (custom build) -------------------------------------
+// Mutes are applied to the LIVE module (chan_mute → CHN_MUTE), so the song's own
+// render drops the channel. State is per-session per-module (reset on load).
+
+/** Mute/unmute channel `ch`. */
+export function setChannelMute(ch: number, on: boolean) {
+  if (!player || !playback.canMuteChannels) return;
+  const next = playback.channelMutes.slice();
+  next[ch] = on;
+  playback.channelMutes = next;
+  player.muteChannel(ch, on);
+}
+
+/** Toggle one channel's mute. */
+export function toggleChannelMute(ch: number) {
+  setChannelMute(ch, !playback.channelMutes[ch]);
+}
+
+/** Solo channel `ch` (mute every other channel). Toggles back off if `ch` is
+ *  already the sole audible channel. */
+export function soloChannel(ch: number) {
+  const n = playback.song?.channels?.length ?? 0;
+  if (!player || !playback.canMuteChannels || !n) return;
+  const alreadySolo =
+    playback.channelMutes.length === n &&
+    playback.channelMutes.every((m, i) => (i === ch ? !m : m));
+  const next = new Array(n).fill(false);
+  for (let i = 0; i < n; i++) {
+    const on = alreadySolo ? false : i !== ch;
+    next[i] = on;
+    player.muteChannel(i, on);
+  }
+  playback.channelMutes = next;
+}
+
+/** Unmute every channel. */
+export function clearChannelMutes() {
+  const n = playback.song?.channels?.length ?? 0;
+  if (!player || !playback.canMuteChannels) return;
+  for (let i = 0; i < n; i++) player.muteChannel(i, false);
+  playback.channelMutes = new Array(n).fill(false);
 }
 
 // --- pattern cursor (editor groundwork; read-only today) --------------------

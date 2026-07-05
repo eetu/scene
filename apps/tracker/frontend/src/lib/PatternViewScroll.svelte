@@ -83,6 +83,7 @@
           <span
             class="cell"
             class:cursor={r === playback.cursorRow && c === playback.cursorCh}
+            class:muted={playback.channelMutes[c]}
             data-c={c}>{cell}</span
           >
         {/each}
@@ -159,6 +160,9 @@
   .cell.cursor {
     box-shadow: inset 0 0 0 1px var(--accent);
     background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .cell.muted {
+    opacity: 0.34;
   }
   .pv:focus-visible {
     outline: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);

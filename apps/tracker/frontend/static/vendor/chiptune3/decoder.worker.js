@@ -36,7 +36,7 @@ let channels = 0;
 // shim (the stock build lacks it), which reads raw sample data off the module.
 // Detected once at init; the sample/jam UI gates on it. (Jamming itself is pure
 // Web Audio in the store — the worker only extracts sample data here.)
-let caps = { canReadSamples: false };
+let caps = { canReadSamples: false, canMuteChannels: false, canReadCells: false };
 
 let gen = 0; // current playback generation (bumped on load/seek)
 let playing = false;
@@ -65,7 +65,9 @@ libopenmptPromise()
 			lib.stackRestore(stack);
 		}
 		caps = {
-			canReadSamples: typeof lib._smp_read === 'function' && typeof lib._smp_info === 'function'
+			canReadSamples: typeof lib._smp_read === 'function' && typeof lib._smp_info === 'function',
+			canMuteChannels: typeof lib._chan_mute === 'function',
+			canReadCells: typeof lib._openmpt_module_get_pattern_row_channel_command === 'function'
 		};
 		self.postMessage({ cmd: 'ready', caps });
 	})
@@ -269,16 +271,35 @@ function getSong() {
 			name: lib.UTF8ToString(lib._openmpt_module_get_order_name(modulePtr, i)),
 			pat: lib._openmpt_module_get_order_pattern(modulePtr, i)
 		});
+	// Structured per-cell fields (note/inst/volcmd/vol/fx/param) for the editor —
+	// only when the custom build exports the getter (else `cells` stays absent and
+	// the app falls back to the formatted `rows` strings; party is unaffected). The
+	// libopenmpt command indices: NOTE 0, INSTRUMENT 1, VOLUMEEFFECT 2, EFFECT 3,
+	// VOLUME 4, PARAMETER 5. Each cell is a compact [note,inst,volcmd,vol,fx,param].
+	const cmd = lib._openmpt_module_get_pattern_row_channel_command;
+	const wantCells = typeof cmd === 'function';
 	for (let pi = 0, pn = lib._openmpt_module_get_num_patterns(modulePtr); pi < pn; pi++) {
 		const pattern = { name: lib.UTF8ToString(lib._openmpt_module_get_pattern_name(modulePtr, pi)), rows: [] };
+		if (wantCells) pattern.cells = [];
 		for (let ri = 0, rn = lib._openmpt_module_get_pattern_num_rows(modulePtr, pi); ri < rn; ri++) {
 			const rowArr = [];
+			const cellArr = wantCells ? [] : null;
 			for (let ci = 0; ci < chNum; ci++) {
 				const cell = lib._openmpt_module_format_pattern_row_channel(modulePtr, pi, ri, ci, 0, 0);
 				rowArr.push(lib.UTF8ToString(cell));
 				lib._openmpt_free_string(cell);
+				if (wantCells)
+					cellArr.push([
+						cmd(modulePtr, pi, ri, ci, 0), // note
+						cmd(modulePtr, pi, ri, ci, 1), // instrument
+						cmd(modulePtr, pi, ri, ci, 2), // volume effect
+						cmd(modulePtr, pi, ri, ci, 4), // volume
+						cmd(modulePtr, pi, ri, ci, 3), // effect
+						cmd(modulePtr, pi, ri, ci, 5) // parameter
+					]);
 			}
 			pattern.rows.push(rowArr);
+			if (wantCells) pattern.cells.push(cellArr);
 		}
 		song.patterns.push(pattern);
 	}
@@ -382,6 +403,11 @@ self.onmessage = (e) => {
 			break;
 		case 'selectSubsong':
 			if (modulePtr) lib._openmpt_module_select_subsong(modulePtr, d.val);
+			break;
+		case 'muteChannel':
+			// Mute/unmute a pattern channel on the live module (editor solo/mute).
+			if (modulePtr && typeof lib._chan_mute === 'function')
+				lib._chan_mute(modulePtr, d.ch | 0, d.on ? 1 : 0);
 			break;
 		case 'parse':
 			if (lib) parse(d.id, d.file);

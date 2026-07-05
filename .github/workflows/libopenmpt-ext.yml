@@ -1,6 +1,7 @@
 name: Build libopenmpt-ext (WASM)
 
-# Builds the custom libopenmpt WASM (keyboard jamming + sample extraction) on a
+# Builds the custom libopenmpt WASM (sample extraction + channel mute/solo +
+# structured pattern cells) on a
 # NATIVE amd64 runner. Locally we build under podman's amd64 emulation on Apple
 # Silicon (fine here — we disable -flto, whose link step deadlocks under
 # qemu-TCG, same wall the puae core hit). ubuntu-latest is native amd64, so it
@@ -13,7 +14,7 @@ name: Build libopenmpt-ext (WASM)
 on:
   workflow_dispatch:
   push:
-    branches: [tracker-jam-samples, worktree-tracker-jam-samples]
+    branches: [tracker-jam-samples, worktree-tracker-jam-samples, tracker-editor]
     paths:
       - ".github/workflows/libopenmpt-ext.yml"
       - "wasm/libopenmpt-ext/**"
@@ -58,7 +59,8 @@ jobs:
         run: |
           f=out/libopenmpt.worklet.js
           ls -la "$f"
-          for sym in _jam_create _jam_play_note _smp_read _openmpt_module_read_float_stereo; do
+          for sym in _smp_read _smp_info _smp_raw _chan_mute \
+            _openmpt_module_get_pattern_row_channel_command _openmpt_module_read_float_stereo; do
             grep -q "$sym" "$f" || { echo "MISSING export: $sym"; exit 1; }
           done
           echo "all expected exports present"

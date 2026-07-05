@@ -40,11 +40,15 @@ Cargo workspace = `backend` + `e2e`.
 - **One engine, in the browser.** The backend is pure Rust (no native
   libopenmpt → clean scratch container). Playback **and** metadata extraction
   run in the SPA via libopenmpt WASM. This app vendors a **custom from-source
-  libopenmpt build** (`wasm/libopenmpt-ext/`) that adds keyboard jamming
-  (`play_note` via the ext interactive interface) + raw sample extraction
-  (`smp_*` shim → `CSoundFile`) — the stock chiptune3 build exports neither.
-  Party keeps the smaller stock build. The frontend POSTs parsed metadata back
-  to `/api/meta/:hash`.
+  libopenmpt build** (`wasm/libopenmpt-ext/`) that adds a small C ABI the stock
+  chiptune3 build lacks: raw **sample extraction** (`smp_*` shim → `CSoundFile`),
+  per-channel **mute/solo** (`chan_mute`, mirroring libopenmpt_ext's
+  `set_channel_mute_status` via the same `CSoundFile` accessor — no ext module),
+  and **structured pattern cells** (the `_openmpt_module_get_pattern_row_channel_command`
+  export). Jamming itself is **pure Web Audio** (`AudioBufferSource` on the
+  extracted PCM — no libopenmpt playback/ext engine). Party keeps the smaller
+  stock build (these capabilities gate off cleanly). The frontend POSTs parsed
+  metadata back to `/api/meta/:hash`.
 - **Auth is the edge's job.** Sits behind oauth2-proxy forward-auth; the binary
   only asserts `X-Auth-Request-User` is present (401 otherwise) — no per-user
   state, no own login. `DEV_AUTH=1` bypasses for local work. `/status` is unauth.

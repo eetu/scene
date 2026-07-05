@@ -55,10 +55,88 @@ for (let i = 1; i <= nsmp; i++) {
   );
   if (frames > 0 && peak > 0) ok = true;
 }
+console.log(ok ? "  → sample PCM: OK" : "  → sample PCM: FAIL");
+
+// --- chan_mute: muting all channels should collapse the render to ~silence ----
+function renderRms(rate = 48000, chunks = 8, count = 4096) {
+  const l = lib._malloc(4 * count);
+  const r = lib._malloc(4 * count);
+  let sum = 0;
+  let n = 0;
+  for (let c = 0; c < chunks; c++) {
+    const got = lib._openmpt_module_read_float_stereo(mod, rate, count, l, r);
+    if (got <= 0) break;
+    const lf = lib.HEAPF32.subarray(l >> 2, (l >> 2) + got);
+    const rf = lib.HEAPF32.subarray(r >> 2, (r >> 2) + got);
+    for (let i = 0; i < got; i++) {
+      sum += lf[i] * lf[i] + rf[i] * rf[i];
+      n += 2;
+    }
+  }
+  lib._free(l);
+  lib._free(r);
+  return n ? Math.sqrt(sum / n) : 0;
+}
+let muteOk = true;
+if (typeof lib._chan_mute === "function") {
+  const nch = lib._openmpt_module_get_num_channels(mod);
+  const base = renderRms();
+  lib._openmpt_module_set_position_seconds(mod, 0); // same opening segment
+  for (let c = 0; c < nch; c++) lib._chan_mute(mod, c, 1);
+  const muted = renderRms();
+  for (let c = 0; c < nch; c++) lib._chan_mute(mod, c, 0); // restore
+  // Can only assert a drop if the source actually makes sound in this window;
+  // some synthetic test fixtures open silent — then just confirm it's exported.
+  const silent = base <= 5e-4;
+  muteOk = silent ? true : muted < base * 0.15;
+  console.log(
+    `  → chan_mute (${nch} ch): baseline RMS=${base.toFixed(5)} all-muted RMS=${muted.toFixed(5)} ` +
+      (silent ? "OK (source silent — export present)" : muteOk ? "OK" : "FAIL"),
+  );
+} else {
+  console.log("  → chan_mute: NOT EXPORTED (fail)");
+  muteOk = false;
+}
+
+// --- structured cells: at least one real note via the command getter ----------
+let cellsOk = true;
+if (typeof lib._openmpt_module_get_pattern_row_channel_command === "function") {
+  const cmd = lib._openmpt_module_get_pattern_row_channel_command;
+  const np = lib._openmpt_module_get_num_patterns(mod);
+  const cn = lib._openmpt_module_get_num_channels(mod);
+  let notes = 0;
+  let firstNote = -1;
+  let firstInst = -1;
+  for (let p = 0; p < np && notes < 50; p++) {
+    const rn = lib._openmpt_module_get_pattern_num_rows(mod, p);
+    for (let r = 0; r < rn; r++)
+      for (let c = 0; c < cn; c++) {
+        const note = cmd(mod, p, r, c, 0);
+        if (note > 0) {
+          notes++;
+          if (firstNote < 0) {
+            firstNote = note;
+            firstInst = cmd(mod, p, r, c, 1);
+          }
+        }
+      }
+  }
+  cellsOk = notes > 0;
+  console.log(
+    `  → structured cells: ${notes}${notes >= 50 ? "+" : ""} notes ` +
+      `(first note=${firstNote} inst=${firstInst}) ` +
+      (cellsOk ? "OK" : "FAIL"),
+  );
+} else {
+  console.log("  → structured cells: NOT EXPORTED (fail)");
+  cellsOk = false;
+}
+
+const pass = ok && muteOk && cellsOk;
 console.log(
-  ok ? "\nGATE: PASS ✅ — real sample PCM extracted" : "\nGATE: FAIL ❌ — no non-zero data",
+  pass ? "\nGATE: PASS ✅ — sample PCM + channel mute + structured cells" : "\nGATE: FAIL ❌",
 );
-process.exit(ok ? 0 : 1);
+process.exit(pass ? 0 : 1);
 
 function strz(lib, s) {
   const p = lib.stackAlloc(s.length + 1);

@@ -79,6 +79,7 @@
             {#each cells as cell, c (c)}<span
                 class="cell"
                 class:cursor={r === playback.cursorRow && c === playback.cursorCh}
+                class:muted={playback.channelMutes[c]}
                 data-c={c}>{cell}</span
               >{/each}
           </div>
@@ -185,6 +186,10 @@
     border-left: 1px solid var(--surface-line);
     overflow: hidden;
     scroll-snap-align: start;
+  }
+  /* Muted channel — dim the whole column so it reads as silenced. */
+  .cell.muted {
+    opacity: 0.34;
   }
   /* Edit cursor — outlined cell (inset so it reads inside the column border). */
   .cell.cursor {
