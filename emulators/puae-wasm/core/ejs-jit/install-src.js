@@ -169,12 +169,7 @@
     var packed = -1;
     if (pc < ramMax) {
       try {
-        // DIAGNOSTIC (timing hypothesis): cap blocks to 1 instruction so the C
-        // hook charges cycles + calls do_cycles per instruction, matching the
-        // interpreter's interleaving granularity instead of batching a whole block.
-        // If demos render with this, the black screen is the per-block chipset-cycle
-        // batching (len×4 charged once at block end). Restore to 64 after the test.
-        var blk = D.blockAt(words, pc, 1);
+        var blk = D.blockAt(words, pc, 64);
         var ct =
           blk.term && (blk.term.op === "bcc" || blk.term.op === "dbcc" || blk.term.op === "halt");
         if (!blk.instrs.length && !ct) stats.empty++;
