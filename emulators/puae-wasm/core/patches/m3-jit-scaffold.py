@@ -15,12 +15,14 @@
 #   * ejs_jit_get now returns PACKED (len<<24)|slot (or -1); JS supplies the block
 #     length so C can charge cycles + count instructions without extra crossings.
 #
-# SMC handling: the cache keys on pc, but each entry stores code0 (the first
-# instruction word at compile time). Before running a cached block we compare code0
-# to the live word at pc; a mismatch (self-modifying code — decrunchers, part
-# loaders reusing an address) invalidates + recompiles it (counted in
-# ejs_smc_hits). Without this, a stale block runs over rewritten memory → silent
-# corruption the compile-time parity gate can't catch.
+# SMC handling: each cache entry stores blen (block byte length, from JS) + csum
+# (FNV over the whole block's bytes at compile time). Before running a cached block
+# we re-checksum its bytes; a mismatch — self-modifying code that patches ANY byte,
+# opcode OR operand (immediates, addresses, counts; decrunchers, part loaders, and
+# scan/copy loops that patch their compare value) — invalidates + recompiles it
+# (ejs_smc_hits). A first-word-only check missed operand SMC → a stale scan loop
+# compared the wrong immediate → infinite loop → black. The compile-time parity
+# gate can't catch this (it validates once, not on later reuse over rewritten mem).
 #
 #   python3 m3-jit-scaffold.py <path-to>/newcpu.c
 import sys
@@ -59,6 +61,10 @@ EMSCRIPTEN_KEEPALIVE unsigned jit_get_word(unsigned a) { return get_word(a); }
 EMSCRIPTEN_KEEPALIVE void jit_put_word(unsigned a, unsigned v) { put_word(a, v); }
 EMSCRIPTEN_KEEPALIVE unsigned jit_get_byte(unsigned a) { return get_byte(a); }
 EMSCRIPTEN_KEEPALIVE void jit_put_byte(unsigned a, unsigned v) { put_byte(a, v); }
+/* byte length of the block compiled at pc (from JS) — for the SMC checksum. */
+EM_JS(int, ejs_jit_bytelen, (unsigned pc), {
+  return (Module.ejsJitBytelen ? (Module.ejsJitBytelen(pc) | 0) : 0);
+});
 
 /* C-side dispatch cache: direct-mapped by pc, tag-checked. slot>=0 → table index
  * of a compiled block; slot==-1 → known not-jittable (interpret); valid==0 →
@@ -66,12 +72,15 @@ EMSCRIPTEN_KEEPALIVE void jit_put_byte(unsigned a, unsigned v) { put_byte(a, v);
 #define JIT_CACHE_BITS 16
 #define JIT_CACHE_SIZE (1u << JIT_CACHE_BITS)
 #define JIT_CACHE_MASK (JIT_CACHE_SIZE - 1u)
-/* code0 = the instruction word at pc when this block was compiled. Guards against
- * self-modifying code: demos decrunch/patch code and reuse addresses, so a block
- * compiled+gated as correct can later be RUN over rewritten memory. Before running
- * a cached block we compare code0 to the current word at pc; a mismatch means the
- * code changed → invalidate + recompile (counted in ejs_smc_hits). */
-struct ejs_jit_entry { unsigned tag; int slot; unsigned len; unsigned code0; unsigned char valid; };
+/* blen/csum = byte length + FNV checksum of the WHOLE block's bytes at compile time.
+ * Guards against self-modifying code: demos patch code AND operands (immediates,
+ * addresses, counts) and reuse addresses, so a block compiled+gated as correct can
+ * later be RUN over rewritten memory. Before running a cached block we re-checksum
+ * its bytes; a mismatch means the code (opcode OR operand) changed → invalidate +
+ * recompile (ejs_smc_hits). NOTE: checking only the first word (the old guard)
+ * missed operand self-modification — a patched CMPI immediate in a scan loop left a
+ * stale block comparing the wrong value → infinite loop → black. */
+struct ejs_jit_entry { unsigned tag; int slot; unsigned len; unsigned blen; unsigned csum; unsigned char valid; };
 static struct ejs_jit_entry ejs_jit_cache[JIT_CACHE_SIZE];
 static unsigned long long ejs_insn_total = 0; /* guest instructions retired */
 static unsigned long long ejs_insn_jit   = 0; /* of which via a JIT block */
@@ -88,6 +97,12 @@ EMSCRIPTEN_KEEPALIVE double jit_smc_hits(void)   { return (double)ejs_smc_hits; 
 EMSCRIPTEN_KEEPALIVE double jit_interp_cyc(void) { return (double)ejs_interp_cyc; }
 EMSCRIPTEN_KEEPALIVE double jit_jit_cyc(void)    { return (double)ejs_jit_cyc; }
 
+/* FNV-1a over the block's words — detects any code/operand change (SMC). */
+static unsigned ejs_csum(unsigned pc, unsigned blen) {
+  unsigned s = 2166136261u;
+  for (unsigned i = 0; i + 2 <= blen; i += 2) { s = (s ^ (get_word(pc + i) & 0xffffu)) * 16777619u; }
+  return s;
+}
 static inline struct ejs_jit_entry* ejs_jit_probe(unsigned pc) {
   struct ejs_jit_entry* e = &ejs_jit_cache[(pc >> 1) & JIT_CACHE_MASK];
   return (e->valid && e->tag == pc) ? e : (struct ejs_jit_entry*)0;
@@ -97,15 +112,18 @@ static struct ejs_jit_entry* ejs_jit_obtain(unsigned pc) {
   struct ejs_jit_entry* e = &ejs_jit_cache[(pc >> 1) & JIT_CACHE_MASK];
   if (e->valid && e->tag == pc) return e;
   int packed = ejs_jit_get(pc);
-  e->tag = pc; e->valid = 1; e->code0 = get_word(pc);
-  if (packed < 0) { e->slot = -1; e->len = 0; }
-  else { e->slot = (packed & 0xffffff); e->len = ((unsigned)packed >> 24) & 0xff; }
+  e->tag = pc; e->valid = 1;
+  if (packed < 0) { e->slot = -1; e->len = 0; e->blen = 0; e->csum = 0; }
+  else {
+    e->slot = (packed & 0xffffff); e->len = ((unsigned)packed >> 24) & 0xff;
+    e->blen = (unsigned)ejs_jit_bytelen(pc); e->csum = ejs_csum(pc, e->blen);
+  }
   return e;
 }
-/* Return a runnable entry for pc, recompiling first if the code changed (SMC). */
+/* Return a runnable entry for pc, recompiling first if any block byte changed (SMC). */
 static struct ejs_jit_entry* ejs_jit_live(unsigned pc) {
   struct ejs_jit_entry* e = ejs_jit_obtain(pc);
-  if (e->slot >= 0 && e->code0 != get_word(pc)) {
+  if (e->slot >= 0 && e->csum != ejs_csum(pc, e->blen)) {
     ejs_smc_hits++; e->valid = 0; e = ejs_jit_obtain(pc);
   }
   return e;
@@ -148,7 +166,7 @@ hook = (
     + I + "      unsigned __p = (unsigned)m68k_getpc();\n"
     + I + "      __e = ejs_jit_probe(__p);\n"
     + I + "      /* SMC: if the successor's code changed under us, drop it → outer loop recompiles */\n"
-    + I + "      if (__e && __e->slot >= 0 && __e->code0 != get_word(__p)) { ejs_smc_hits++; __e->valid = 0; __e = 0; }\n"
+    + I + "      if (__e && __e->slot >= 0 && __e->csum != ejs_csum(__p, __e->blen)) { ejs_smc_hits++; __e->valid = 0; __e = 0; }\n"
     + I + "    } while (__e && __e->slot >= 0 && !exit);\n"
     + I + "    continue;\n"
     + I + "  } }\n"

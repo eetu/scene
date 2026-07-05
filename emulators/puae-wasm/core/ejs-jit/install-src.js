@@ -9,7 +9,8 @@
     words,
     table,
     realEnv,
-    jsCache;
+    jsCache,
+    jsBytelen;
   var GATE = true;
   var ramMax = 0x00f00000; // don't JIT Kickstart ROM / IO
   var CFTERM = { bcc: 1, dbcc: 1 };
@@ -149,6 +150,14 @@
     table = Module.wasmTable;
     realEnv = memEnv();
     jsCache = new Map();
+    jsBytelen = new Map();
+    // byte length of the compiled block at pc — the C SMC guard checksums exactly
+    // these bytes so operand/immediate self-modification (not just the first word) is
+    // detected.
+    Module.ejsJitBytelen = function (pc) {
+      var b = jsBytelen.get(pc >>> 0);
+      return b === undefined ? 0 : b | 0;
+    };
     Module.__ejsJitStats = stats;
     if (typeof Module.ejsJitGate !== "undefined") GATE = !!Module.ejsJitGate;
     try {
@@ -182,6 +191,7 @@
             table.set(slot, new WebAssembly.Instance(mod, { env: realEnv }).exports.block);
             var len = Math.min(0xff, blk.instrs.length + (blk.term && CFTERM[blk.term.op] ? 1 : 0));
             packed = ((len & 0xff) << 24) | (slot & 0xffffff);
+            jsBytelen.set(pc, (blk.fallPC - blk.startPC) >>> 0); // for the C SMC checksum
             stats.activated++;
           }
         }
