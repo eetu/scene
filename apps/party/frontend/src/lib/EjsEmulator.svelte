@@ -56,7 +56,7 @@
   // doesn't invalidate it and the old core keeps loading. Bump CORE_VERSION when
   // the vendored core changes to drop that cache ONCE (next load re-fetches +
   // re-caches the new one). Also clears cached BIOS (re-downloaded, small).
-  const CORE_VERSION = "vanilla-nojit-2026-07";
+  const CORE_VERSION = "jit-hot-2026-07";
   async function bustStaleCoreCache() {
     try {
       if (typeof indexedDB === "undefined") return;
@@ -113,16 +113,23 @@
     // in the settings menu their choice persists in localStorage and wins,
     // unless "Recommended" above forces these):
     // - Amiga: A1200 (AGA), authentic 68020, CPU compatibility 'normal' (the
-    //   lightest interpreter path); immediate blits + no collision (demos don't
-    //   use it) save CPU. NOTE: we ship the STOCK PUAE core, NOT the 68k→WASM JIT
-    //   build (emulators/puae-wasm). The JIT compiled blocks fine but has no
-    //   self-modifying-code invalidation (m3-jit-scaffold.py caveat), so demos that
-    //   rewrite + rerun code ran stale blocks → corrupted/black output (0 gate-fails,
-    //   since the parity gate only checks at compile time). It's parked until that's
-    //   fixed. We keep 68020, not 68030: authentic, and 030 raises the guest's
-    //   cycles-per-frame budget (more emulated work/frame → lag). The "Accurate"
-    //   toggle switches 'normal' → cycle-exact for the few demos that need exact
-    //   020/copper/blitter timing.
+    //   JIT-accelerated path); immediate blits + no collision (demos don't use it)
+    //   save CPU. NOTE: we ship the 68k→WASM JIT core (emulators/puae-wasm) — a
+    //   recompiler baked in via --post-js that self-installs on the emulation
+    //   thread. It's a HOT-THRESHOLD dynarec: only blocks executed ≥2000× get
+    //   compiled, so cold timing-sensitive boot/setup/decrunch code stays on the
+    //   interpreter (correct chipset timing) while hot effect loops get compiled
+    //   for speed. That fixes the earlier black screen (which was JITing cold
+    //   one-shot code). Self-modification is caught by a full-block checksum, and
+    //   the interpreter is the automatic per-block fallback for anything not hot /
+    //   not compilable / parity-failing — so the JIT can only ever speed a demo up
+    //   or match the interpreter, never break it. Measured ~1.4× on CPU-bound demos
+    //   (3D/vector); chipset/blitter-bound demos are limited by the chipset
+    //   emulation, not the CPU, so they match stock (no regression). We keep 68020,
+    //   not 68030: authentic, and 030 raises the guest's cycles-per-frame budget
+    //   (more emulated work/frame → lag even with the JIT). The "Accurate" toggle
+    //   switches 'normal' → cycle-exact (a CPU loop that bypasses the JIT) for the
+    //   few demos that need exact 020/copper/blitter timing.
     // - C64: drive-sound emulation off by default. VICE models the 1541's
     //   motor/stepper noise faithfully, and many demos keep the drive spinning,
     //   so the sound runs on under the demo (unlike Amiga, whose floppy noise
