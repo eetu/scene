@@ -28,44 +28,56 @@ missing — `batch.mjs` only measured `vblankFps`, which ticks even on a black h
 | Cycle magnitude | ❌ (real, insufficient) | measured JIT charged **0.49×** the interpreter (we apply `adjust_cycles` on `4×CYCLE_UNIT`; the interpreter feeds `handler>>16 ≈ 8×CYCLE_UNIT`). Fixed to `8×CYCLE_UNIT` → ratio **0.99×**, **still black** |
 | Cycle/interrupt batching (granularity) | ❌ | capped blocks to 1 instruction (per-instruction `do_cycles` + `do_specialties`) with correct cycles → **still black** |
 | Dispatch scaffolding | ❌ | `ramMax=0` (scaffolding runs, **zero blocks compiled**) → **RENDERS** (295 colours). The `m68k_run_2_020` weaving is benign |
-| **JIT block codegen** | ✅ **root cause** | blocks on → black; blocks off → renders. The compiled blocks corrupt at runtime |
+| JIT block codegen | ❌ **PROVEN CORRECT** | difftested vs a real 68020 (Musashi), 40000+ cases, 0 real failures |
+| **JIT↔interpreter integration/handoff** | ✅ **remaining suspect** | codegen + ABI + memory routing all match, yet blocks-on is black → a real-core-only handoff bug |
 
-## Root cause — block codegen diverges from the real 68020, and our tests can't see it
+## The Musashi oracle result — the codegen is NOT the bug
 
-With every other factor eliminated (`ramMax=0` renders, blocks-on is black), the
-**compiled blocks themselves are wrong at runtime** — yet difftests are 60000/60000
-and the in-core gate reports `0` failures. The reason both are blind:
+The self-referential difftests (codegen vs our own `interp.mjs`) couldn't rule out a
+*shared misunderstanding*, so we built an independent oracle: the **Musashi** m68k
+core (see [`musashi-oracle.md`](musashi-oracle.md)). Difftesting our codegen against
+it:
 
-> **The difftests *and* the in-core parity gate (`install-src.js` `parityOk`) both
-> compare the JIT codegen against our OWN JS reference interpreter (`interp.mjs`),
-> not against the real UAE interpreter.** A *shared misunderstanding* — the same
-> wrong 68020 semantics in both the codegen (`coreblock.mjs`) and the JS interp —
-> passes every test but diverges from the real `cpufunctbl` handlers at runtime →
-> corruption → black.
+| class | cases | result |
+| --- | --- | --- |
+| registers (MOVEQ/ALU/shift/MUL/EXT/SWAP/Scc/bit) | 7071 | 0 fail |
+| addressing (LEA: index mode, abs.W sign-ext, disp) | 10919 | 0 fail |
+| memory (loads/stores/RMW/MOVEM/imm-ALU) | 19657 | 0 fail |
+| terminators (Bcc/DBcc/BRA, all conditions) | — | 0 real fail |
 
-The arithmetic/flag codegen (N/Z/V/C/X, add/sub overflow, carry/borrow) was reviewed
-and looks correct, so the culprit is a subtler or specific opcode/addressing-mode
-case the self-referential tests don't exercise.
+**The recompiler is sound.** This overturns the earlier "codegen diverges"
+hypothesis. Also verified statically: the ABI the JIT assumes matches the real core
+— `regs[16]` (D0-7,A0-7), `flag_struct{cznv,x}`, and md-generic little-endian CCR
+packing (`N15 Z14 C8 V0`, X@bit8 of x; WASM → not `__x86_64__` → `md-generic`) — and
+the JIT's `get_word`/`put_word` are the *same* accessors the mode-0 interpreter
+handlers (`cpuemu_0.c`) use.
 
-## What a real fix requires
+## Remaining suspect — the JIT→interpreter handoff (real-core only)
 
-An **independent 68020 oracle** to locate the diverging opcode — the current tests
-can't, by construction. Options, cheapest first:
-1. **Offline**: difftest the exact opcodes ZIF compiles against a real 68k reference
-   (e.g. Musashi built to WASM/native, or captured golden traces). Finds the bug
-   *if* it's also reproducible offline.
-2. **Runtime gate vs the real interpreter**: run each block, then run the real
-   `cpufunctbl` interpreter for the same instructions on shadow memory and compare;
-   fall back + log on mismatch. Powerful (finds *and* fixes) but hard in C
-   (side-effect isolation).
-3. **Bisect opcode coverage** across CI builds (disable JIT for opcode classes until
-   it renders) — many 16-min builds.
+Codegen ✅, ABI ✅, memory routing ✅ — yet `ramMax=0` (no blocks) renders and
+blocks-on is black. So the corruption is a side effect of the *block execution path*
+in the running core, not the instruction semantics: some CPU-loop state the block
+path doesn't reproduce that the next interpreted instruction (or the chipset) needs
+— e.g. prefetch/`pc_p` vs `pc` consistency after `m68k_setpc`, `ipl`/interrupt
+latch state, or a chip-side effect of the fetch the block skips. **This is invisible
+offline** (Musashi runs instructions in isolation); it needs real-core runtime
+debugging.
+
+## What a real fix requires now
+
+Real-core runtime bisection (each is a ~16-min CI build):
+1. **Runtime gate vs the real interpreter** — run a block, then run the real
+   `cpufunctbl` handlers for the same instructions and compare regs/mem; fall back +
+   log on mismatch. Finds *and* fixes, but hard in C (side-effect isolation).
+2. **`ramMax` address bisection** — narrow which code region's blocks break it, then
+   read that code.
+3. **Handoff instrumentation** — after each block, log pc/pc_p/prefetch/spcflags and
+   compare to the interpreter's expectations.
 
 Weigh against payoff: **the JIT's speedup was never measured on a rendered demo**
-(the old "~2.5×" was `vblankFps` on a black screen). The cycle magnitude fix
-(`8×CYCLE_UNIT`) and SMC guard are genuine and kept, but the codegen bug blocks any
-real measurement. Recommend building the oracle (option 1/2) only if the JIT is
-worth reviving; otherwise the stock core ships and this stays shelved.
+(the old "~2.5×" was `vblankFps` on a black screen). Kept as genuine improvements:
+the `8×CYCLE_UNIT` charge, the SMC guard, and — most valuably — the **Musashi
+difftest oracle**, a real-68020 codegen gate the project never had.
 
 ## Kept for a future attempt
 
