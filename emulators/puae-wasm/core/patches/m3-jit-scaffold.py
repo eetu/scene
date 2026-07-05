@@ -42,12 +42,13 @@ EM_JS(int, ejs_jit_get, (unsigned pc), {
  * returned next-pc, spcflags, and the opcode the interpreter will fetch at npc.
  * If npc is odd/insane or op@npc is garbage, the handoff derails; if it all looks
  * sane while the demo stays black, the handoff is fine and the cause is elsewhere. */
-EM_JS(void, ejs_dbg_handoff, (unsigned pc, unsigned npc, unsigned spc, unsigned opnpc, unsigned len), {
+EM_JS(void, ejs_dbg_handoff, (unsigned pc, unsigned npc, unsigned spc, unsigned opnpc, unsigned a2, unsigned memA2, unsigned imm), {
   Module.__hn = (Module.__hn | 0);
-  if (Module.__hn < 120) {
+  if (Module.__hn < 200) {
     Module.__hn++;
-    console.log("[handoff] pc=" + (pc >>> 0).toString(16) + " len=" + len + " npc=" + (npc >>> 0).toString(16) +
-      " spc=" + (spc >>> 0).toString(16) + " op@npc=" + (opnpc >>> 0).toString(16) + (npc & 1 ? " ODD!" : ""));
+    console.log("[handoff] pc=" + (pc >>> 0).toString(16) + " npc=" + (npc >>> 0).toString(16) +
+      " spc=" + (spc >>> 0).toString(16) + " op@npc=" + (opnpc >>> 0).toString(16) +
+      " A2=" + (a2 >>> 0).toString(16) + " (A2)=" + (memA2 >>> 0).toString(16) + " imm=" + (imm >>> 0).toString(16));
   }
 });
 /* ABI: linear-memory addresses read once by the JS recompiler. */
@@ -154,7 +155,7 @@ hook = (
     + I + "      unsigned __npc = ((unsigned(*)(void))(uintptr_t)__e->slot)();\n"
     + I + "      ejs_insn_total += __e->len; ejs_insn_jit += __e->len;\n"
     + I + "      m68k_setpc(__npc);\n"
-    + I + "      ejs_dbg_handoff((unsigned)r->instruction_pc, __npc, (unsigned)r->spcflags, get_word(__npc), __e->len);\n"
+    + I + "      ejs_dbg_handoff((unsigned)r->instruction_pc, __npc, (unsigned)r->spcflags, get_word(__npc), (unsigned)regs.regs[10], get_long((unsigned)regs.regs[10]), get_long((unsigned)r->instruction_pc + 2));\n"
     + I + "      /* 8*CYCLE_UNIT/instr: the interpreter's measured avg is ~4139 (=8*CYCLE_UNIT)\n"
     + I + "         per instruction reaching adjust_cycles; a flat 4* undercharged the chipset\n"
     + I + "         2x (ratio 0.49), running copper/DMA at half speed → black. */\n"
