@@ -36,6 +36,7 @@
           <div
             class="prow"
             class:beat={r % 4 === 0}
+            class:measure={r % 16 === 0}
             class:active={r === playback.row}
             style:height="{ROW_H}px"
           >
@@ -114,8 +115,14 @@
     display: flex;
     align-items: center;
   }
+  /* Beat (every 4th row) + measure (every 16th) tints — the FT2/OpenMPT grid
+     rhythm cue. Measure is stronger; both stay subtle so text keeps priority. */
   .prow.beat {
     color: var(--surface-fg-beat);
+    background: color-mix(in srgb, var(--surface-fg) 6%, transparent);
+  }
+  .prow.measure {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
   .prow.active {
     color: var(--surface-fg-active);

@@ -24,6 +24,8 @@ export type Song = {
   instruments?: string[];
   samples?: string[];
   patterns?: Pattern[];
+  /** The order list — the sequence of patterns played, one entry per position. */
+  orders?: { name: string; pat: number }[];
 };
 // libopenmpt metadata keys are flattened onto the object, plus `song` + totals.
 type Meta = {
@@ -689,6 +691,14 @@ export function seekSeconds(sec: number) {
   if (!player || !playback.current) return;
   player.setPos(sec);
   playback.position = sec;
+}
+
+/** Jump playback to the start of order-list position `o` (for the order strip). */
+export function seekToOrder(o: number) {
+  if (!player || !playback.current) return;
+  player.setOrderRow(o, 0);
+  playback.order = o;
+  playback.row = 0;
 }
 
 // --- Jamming (Web Audio sampler) + sample extraction ------------------------

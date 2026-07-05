@@ -29,6 +29,7 @@
     playPrev,
     SampleBrowser,
     Scope,
+    seekToOrder,
     setJamLevel,
     Starfield,
     Transport,
@@ -147,6 +148,9 @@
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+  function hex2(n: number): string {
+    return n.toString(16).toUpperCase().padStart(2, "0");
   }
 
   let tracks = $state<Track[]>([]);
@@ -1260,6 +1264,22 @@
     <div class="pv-wrap" style:padding-bottom="{transportH + 8}px">
       {#if pvTab === "pattern"}
         <div class="scope-strip"><Scope /></div>
+        {#if (playback.song?.orders?.length ?? 0) > 1}
+          <!-- Order list: click a position to jump there; current is highlighted. -->
+          <div class="orders" aria-label="order list">
+            {#each playback.song?.orders ?? [] as o, i (i)}
+              <button
+                type="button"
+                class="ord"
+                class:on={i === playback.order}
+                onclick={() => seekToOrder(i)}
+                title="order {hex2(i)} → pattern {hex2(o.pat)}"
+              >
+                {hex2(o.pat)}
+              </button>
+            {/each}
+          </div>
+        {/if}
         <div class="pfill">
           {#if patternMode === "locked"}<PatternView />{:else}<PatternViewScroll />{/if}
         </div>
@@ -2065,6 +2085,37 @@
     flex: 0 0 auto;
     height: 72px;
     border-bottom: 1px solid var(--surface-line-2);
+  }
+  /* Order list strip — the song's pattern sequence; click to jump. */
+  .orders {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 3px;
+    padding: 5px 8px;
+    overflow-x: auto;
+    background: var(--surface-bar);
+    border-bottom: 1px solid var(--surface-line-2);
+    scrollbar-width: thin;
+  }
+  .orders .ord {
+    flex: 0 0 auto;
+    min-width: 30px;
+    padding: 2px 6px;
+    font-family: var(--font-mono-retro);
+    font-size: 12px;
+    border: 1px solid var(--surface-line-2);
+    border-radius: 3px;
+    background: var(--surface-2);
+    color: var(--surface-fg-dim);
+    cursor: pointer;
+  }
+  .orders .ord:hover {
+    color: var(--surface-fg);
+  }
+  .orders .ord.on {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
   }
   .pfill {
     flex: 1;

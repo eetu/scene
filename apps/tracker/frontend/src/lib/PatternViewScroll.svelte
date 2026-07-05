@@ -38,7 +38,12 @@
       {/each}
     </div>
     {#each pattern.rows as cells, r (r)}
-      <div class="prow" class:active={r === playback.row} class:beat={r % 4 === 0}>
+      <div
+        class="prow"
+        class:active={r === playback.row}
+        class:beat={r % 4 === 0}
+        class:measure={r % 16 === 0}
+      >
         <span class="rownum">{hex2(r)}</span>
         {#each cells as cell, c (c)}
           <span class="cell">{cell}</span>
@@ -85,6 +90,10 @@
   }
   .prow.beat {
     background: var(--surface-2);
+  }
+  /* Measure line (every 16th row) — a stronger cue than the beat rows. */
+  .prow.measure {
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
   }
   .prow.active {
     background: color-mix(in srgb, var(--accent) 28%, var(--surface-2));
