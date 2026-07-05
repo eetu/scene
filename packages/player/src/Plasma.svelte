@@ -105,7 +105,8 @@
     let t = 0;
     const stopFrames = driveFrames(
       () => {
-        const mode = document.documentElement.dataset.theme ?? "";
+        // Repaint on either theme OR accent change (both alter --accent's hue).
+        const mode = `${document.documentElement.dataset.theme ?? ""}/${document.documentElement.dataset.accent ?? ""}`;
         if (mode !== cachedMode) {
           buildPalette();
           cachedMode = mode;

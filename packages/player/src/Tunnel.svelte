@@ -9,7 +9,7 @@
   // seeded per track), evaluated per-depth inside the shader. Rings + rails form
   // the neon grid; walls flash/breathe on each musical beat; brightness + flight
   // speed track the music's energy. CSP-safe (GLSL compiles on the GPU, not eval).
-  import { beatPhase, playback, sampleBands } from "./player.svelte";
+  import { beatBpm, beatPhase, playback, sampleBands } from "./player.svelte";
   import { driveFrames } from "./raf";
 
   let { active = true }: { active?: boolean } = $props();
@@ -638,7 +638,12 @@
         // Slower envelope so the tube's bendiness breathes with the music rather
         // than twitching per frame; gentle baseline so it's never dead straight.
         bendEnv += ((active ? energy : 0) - bendEnv) * 0.03;
-        const targetSpeed = active ? 3 + energy * 8 : 0.3;
+        // Travel speed rides the tempo (fast tune → fast trench run), with energy
+        // adding thrust on top. bpmF centres on ~120 BPM = 1×, clamped so extreme
+        // tempos stay flyable.
+        const bpm = active ? beatBpm() : 0;
+        const bpmF = bpm ? Math.max(0.6, Math.min(2, bpm / 120)) : 1;
+        const targetSpeed = active ? (2.5 + energy * 6) * bpmF : 0.3;
         speed += (targetSpeed - speed) * 0.05;
         // Beat punch nudges forward briefly; slow barrel roll drifts with energy.
         // Both damped by `motion` for prefers-reduced-motion.

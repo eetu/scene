@@ -13,7 +13,7 @@
     Sun,
     X,
   } from "@lucide/svelte";
-  import { setTheme, theme, trapFocus } from "@scene/design";
+  import { setAccent, setTheme, theme, trapFocus } from "@scene/design";
   import {
     BoingBall,
     CopperBars,
@@ -1128,6 +1128,17 @@
         </div>
       </div>
       <div class="setting">
+        <span class="setting-label">accent</span>
+        <div class="seg">
+          <button class:on={theme.accent === "orange"} onclick={() => setAccent("orange")}>
+            <span class="swatch" style="background:#f78f08"></span> orange
+          </button>
+          <button class:on={theme.accent === "purple"} onclick={() => setAccent("purple")}>
+            <span class="swatch" style="background:#a370f0"></span> purple
+          </button>
+        </div>
+      </div>
+      <div class="setting">
         <span class="setting-label">pattern view</span>
         <div class="seg">
           <button class:on={patternMode === "locked"} onclick={() => setPatternMode("locked")}>
@@ -2013,6 +2024,12 @@
     color: var(--bg);
     background: var(--accent);
     border-color: var(--accent);
+  }
+  .swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
   }
   .dur {
     flex: 0 0 auto;

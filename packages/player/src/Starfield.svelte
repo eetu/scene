@@ -15,8 +15,9 @@
   const COUNT = 420;
 
   // Per-star tint: mostly white, with occasional cool-blue stars (echoing the
-  // nebula's glow) and warm ones in the brand accent (#f78f08) and a softer gold.
-  const PALETTE = [
+  // nebula's glow); two accent-tinted stars are added per-instance from the live
+  // theme accent (see the effect) so they follow orange/purple.
+  const BASE_TINTS = [
     "255,255,255",
     "255,255,255",
     "255,255,255",
@@ -26,9 +27,21 @@
     "255,255,255",
     "190,218,255",
     "160,200,255",
-    "247,143,8",
-    "255,206,140",
   ];
+
+  // "#rgb"/"#rrggbb" → "r,g,b"; falls back to the amber accent if unparseable.
+  function hexToRgb(hex: string): string {
+    const m = hex.replace("#", "").trim();
+    const full = m.length === 3 ? [...m].map((c) => c + c).join("") : m;
+    const n = parseInt(full, 16);
+    if (full.length !== 6 || !Number.isFinite(n)) return "247,143,8";
+    return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  }
+  function lighten(rgb: string, amt: number): string {
+    const [r, g, b] = rgb.split(",").map(Number);
+    const up = (c: number) => Math.round(c + (255 - c) * amt);
+    return `${up(r)},${up(g)},${up(b)}`;
+  }
 
   $effect(() => {
     const el = canvas;
@@ -59,6 +72,10 @@
     // downsampled into small blocks here, then redrawn with a radial displacement.
     const buf = document.createElement("canvas");
     const bctx = buf.getContext("2d");
+
+    // Accent-tinted stars follow the theme accent (orange/purple).
+    const accentRgb = hexToRgb(getComputedStyle(el).getPropertyValue("--accent") || "#f78f08");
+    const PALETTE = [...BASE_TINTS, accentRgb, lighten(accentRgb, 0.55)];
 
     // Stars in a normalized space: x,y in [-1,1], z (depth) in (0,1].
     const xs = new Float32Array(COUNT);
