@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { playback } from "./player.svelte";
+  import { moveCursor, playback, seekToCursor, setCursor } from "./player.svelte";
 
   // Fixed-metrics tracker layout (px). Topaz is 8×16, so 8px/char.
   const ROW_H = 18;
@@ -25,10 +25,44 @@
   function colX(i: number): number {
     return ROWNUM_W + i * CELL_W + (CELL_W - BAR_W) / 2;
   }
+
+  // Cursor nav — only while the grid is focused. stopPropagation on handled keys
+  // so the app's global arrows (track switch) don't also fire; unhandled keys
+  // (e.g. space = play/pause) still bubble through.
+  function onGridKey(e: KeyboardEvent) {
+    const d: Record<string, [number, number]> = {
+      ArrowUp: [-1, 0],
+      ArrowDown: [1, 0],
+      ArrowLeft: [0, -1],
+      ArrowRight: [0, 1],
+    };
+    if (e.key in d) {
+      moveCursor(...d[e.key]);
+    } else if (e.key === "Enter") {
+      seekToCursor();
+    } else return;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  function onGridClick(e: MouseEvent) {
+    const t = e.target as HTMLElement;
+    const rowEl = t.closest?.("[data-r]");
+    const cellEl = t.closest?.("[data-c]");
+    if (rowEl && cellEl) {
+      setCursor(Number(rowEl.getAttribute("data-r")), Number(cellEl.getAttribute("data-c")), true);
+    }
+  }
 </script>
 
 {#if pattern}
-  <div class="pv" bind:clientHeight={vpH}>
+  <div
+    class="pv"
+    role="grid"
+    tabindex="0"
+    bind:clientHeight={vpH}
+    onkeydown={onGridKey}
+    onclick={onGridClick}
+  >
     <div class="content" style:width="{contentW}px">
       <div class="centerline" style:height="{ROW_H}px"></div>
       <div class="rows" style:transform="translateY({translateY}px)">
@@ -36,11 +70,17 @@
           <div
             class="prow"
             class:beat={r % 4 === 0}
+            class:measure={r % 16 === 0}
             class:active={r === playback.row}
+            data-r={r}
             style:height="{ROW_H}px"
           >
             <span class="rownum">{hex2(r)}</span>
-            {#each cells as cell, c (c)}<span class="cell">{cell}</span>{/each}
+            {#each cells as cell, c (c)}<span
+                class="cell"
+                class:cursor={r === playback.cursorRow && c === playback.cursorCh}
+                data-c={c}>{cell}</span
+              >{/each}
           </div>
         {/each}
       </div>
@@ -114,8 +154,14 @@
     display: flex;
     align-items: center;
   }
+  /* Beat (every 4th row) + measure (every 16th) tints — the FT2/OpenMPT grid
+     rhythm cue. Measure is stronger; both stay subtle so text keeps priority. */
   .prow.beat {
     color: var(--surface-fg-beat);
+    background: color-mix(in srgb, var(--surface-fg) 6%, transparent);
+  }
+  .prow.measure {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
   .prow.active {
     color: var(--surface-fg-active);
@@ -139,6 +185,15 @@
     border-left: 1px solid var(--surface-line);
     overflow: hidden;
     scroll-snap-align: start;
+  }
+  /* Edit cursor — outlined cell (inset so it reads inside the column border). */
+  .cell.cursor {
+    box-shadow: inset 0 0 0 1px var(--accent);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .pv:focus-visible {
+    outline: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+    outline-offset: -1px;
   }
   .vu-overlay {
     position: absolute;

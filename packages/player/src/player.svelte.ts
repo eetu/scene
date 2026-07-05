@@ -24,6 +24,8 @@ export type Song = {
   instruments?: string[];
   samples?: string[];
   patterns?: Pattern[];
+  /** The order list — the sequence of patterns played, one entry per position. */
+  orders?: { name: string; pat: number }[];
 };
 // libopenmpt metadata keys are flattened onto the object, plus `song` + totals.
 type Meta = {
@@ -193,12 +195,20 @@ export const playback = $state({
   order: 0,
   pattern: 0,
   row: 0,
+  // Edit/inspect cursor in the pattern grid (row + channel) — groundwork for the
+  // editor; today it highlights a cell, navigates by arrows, and can seek to its
+  // row. Independent of the playing row.
+  cursorRow: 0,
+  cursorCh: 0,
   beat: 0, // bumps once per musical beat (see noteRow) — a reactive on-beat tick
   vu: [] as number[],
   song: null as Song | null,
   samples: [] as string[],
   instruments: [] as string[],
   muted: false,
+  // Downmix output to mono (accessibility). Persisted; applied once the engine
+  // is ready. Read at startup so the choice survives reloads.
+  mono: typeof localStorage !== "undefined" && localStorage.getItem("player:mono") === "1",
   shuffle: false,
   repeat: false, // loop the current module forever (libopenmpt repeat_count = -1)
   // Position in the play queue (the ordered list the current track was opened
@@ -250,6 +260,7 @@ function ensurePlayer(): Promise<void> {
   // tap it for the background-capable media-element route.
   void ready.then(() => {
     playback.canReadSamples = player.capabilities?.canReadSamples ?? false;
+    if (playback.mono) player.setMono(true); // restore persisted mono downmix
     // Tap the song's output PRE-jam (on the worklet node, before jamGain joins
     // player.gain) so measuring it to auto-balance the jam can't feed back.
     if (player.processNode) {
@@ -452,7 +463,7 @@ function setupMediaElementRoute() {
   if (!player || streamDest || typeof Audio === "undefined") return;
   try {
     const dest: MediaStreamAudioDestinationNode = player.context.createMediaStreamDestination();
-    player.gain.connect(dest);
+    player.monoNode.connect(dest); // after the mono downmix, like the speaker path
     const el = new Audio();
     el.srcObject = dest.stream;
     el.setAttribute("playsinline", "");
@@ -475,7 +486,7 @@ async function routeAudioToElement() {
   try {
     await mediaEl.play();
     try {
-      player.gain.disconnect(player.context.destination);
+      player.monoNode.disconnect(player.context.destination);
     } catch {
       /* wasn't connected to the speakers */
     }
@@ -668,6 +679,17 @@ export function setMuted(m: boolean) {
   playback.muted = m;
 }
 
+/** Toggle mono downmix of the output (accessibility); persisted. */
+export function setMono(on: boolean) {
+  playback.mono = on;
+  player?.setMono(on);
+  try {
+    localStorage.setItem("player:mono", on ? "1" : "0");
+  } catch {
+    /* storage unavailable — non-fatal */
+  }
+}
+
 /** Parse a module's metadata without playing it (bulk library enrichment). */
 export async function parseModule(buffer: ArrayBuffer): Promise<ParsedMeta | null> {
   await ensurePlayer();
@@ -689,6 +711,42 @@ export function seekSeconds(sec: number) {
   if (!player || !playback.current) return;
   player.setPos(sec);
   playback.position = sec;
+}
+
+/** Jump playback to the start of order-list position `o` (for the order strip). */
+export function seekToOrder(o: number) {
+  if (!player || !playback.current) return;
+  player.setOrderRow(o, 0);
+  playback.order = o;
+  playback.row = 0;
+}
+
+// --- pattern cursor (editor groundwork; read-only today) --------------------
+function patternDims() {
+  const rows = playback.song?.patterns?.[playback.pattern]?.rows.length ?? 0;
+  const chans = playback.song?.channels?.length ?? 0;
+  return { rows, chans };
+}
+
+/** Place the cursor at (row, channel), clamped. Optionally seek playback there. */
+export function setCursor(row: number, ch: number, seek = false) {
+  const { rows, chans } = patternDims();
+  if (!rows || !chans) return;
+  playback.cursorRow = Math.max(0, Math.min(rows - 1, row));
+  playback.cursorCh = Math.max(0, Math.min(chans - 1, ch));
+  if (seek) seekToCursor();
+}
+
+/** Move the cursor by (drow, dchannel), clamped. */
+export function moveCursor(dr: number, dc: number) {
+  setCursor(playback.cursorRow + dr, playback.cursorCh + dc);
+}
+
+/** Jump playback to the cursor's row (Enter in the pattern grid). */
+export function seekToCursor() {
+  if (!player || !playback.current) return;
+  player.setOrderRow(playback.order, playback.cursorRow);
+  playback.row = playback.cursorRow;
 }
 
 // --- Jamming (Web Audio sampler) + sample extraction ------------------------
