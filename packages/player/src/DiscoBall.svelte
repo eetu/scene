@@ -5,7 +5,7 @@
   // on the walls/floor, so as the ball spins the spots sweep around the room and
   // the ball itself sparkles. Spin speed, spot brightness and colour react to the
   // music (beat kick, energy, bass/treble, drops). CSP-safe (GLSL on the GPU).
-  import { beatBpm, beatPhase, playback, sampleBands } from "./player.svelte";
+  import { beatBpm, playback, sampleBands } from "./player.svelte";
   import { driveFrames } from "./raf";
 
   let { active = true }: { active?: boolean } = $props();
@@ -287,6 +287,7 @@
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0.35 : 1.0;
 
     let clock = 0;
+    let lightClock = 0; // continuous tempo-locked phase for the key-light sway
     let spin = 0;
     let spinRate = 0.25; // eased angular velocity — smooths the per-beat spin kick
     let glow = 0;
@@ -353,15 +354,16 @@
         gl.uniform1f(uTreble, treble);
         gl.uniform1f(uBurst, burst);
         // Key light drifts on a slow Lissajous around its base (damped for reduced
-        // motion) so the spots sweep with variety and the highlight/flare wander.
-        // On top, a per-beat arc (0→1→0 across the beat via beatPhase) swings the
-        // light so the wall beams visibly step/dance on each beat.
-        const swing = active ? Math.sin(beatPhase(now) * Math.PI) : 0;
+        // motion). On top, a gentle tempo-locked sway makes the wall beams dance
+        // in time — driven by a CONTINUOUS phase advancing at the beat rate (½π per
+        // beat), so it never snaps back like the raw beat phase and stays smooth.
+        lightClock += dt * (bpm ? bpm / 60 : 2) * Math.PI * 0.5;
+        const swing = active ? Math.sin(lightClock) : 0;
         gl.uniform3f(
           uLight,
-          -3.0 + Math.sin(clock * 0.3) * 2.5 * motion + swing * 2.2 * motion,
+          -3.0 + Math.sin(clock * 0.3) * 2.5 * motion + swing * 1.3 * motion,
           4.2 + Math.sin(clock * 0.21) * 0.7 * motion,
-          2.0 + Math.cos(clock * 0.3) * 2.0 * motion - swing * 1.4 * motion,
+          2.0 + Math.cos(clock * 0.3) * 2.0 * motion - swing * 0.8 * motion,
         );
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       },
