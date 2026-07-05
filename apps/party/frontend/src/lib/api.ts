@@ -133,6 +133,7 @@ export const api = {
       productions: Production[];
       kickstart_url: string | null;
       kickstart_a500_url: string | null;
+      kickstart_a4000_url: string | null;
     }>(`/api/parties/${slug}/productions`),
   production: (id: string) => request<ProductionDetail>(`/api/production/${id}`),
   text: (hash: string) => fetch(`/api/text/${hash}`).then((r) => r.text()),
