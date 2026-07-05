@@ -90,7 +90,7 @@ static struct ejs_jit_entry ejs_jit_cache[JIT_CACHE_SIZE];
  * standard dynarec practice and avoids JITing the setup code whose divergence left
  * the demo hung in a never-satisfied scan loop. */
 #define JIT_HOT_THRESHOLD 2000
-static unsigned char ejs_hits[JIT_CACHE_SIZE];
+static unsigned short ejs_hits[JIT_CACHE_SIZE]; /* 16-bit: must exceed the threshold */
 static unsigned long long ejs_insn_total = 0; /* guest instructions retired */
 static unsigned long long ejs_insn_jit   = 0; /* of which via a JIT block */
 static unsigned long long ejs_smc_hits   = 0; /* stale-block recompiles (SMC) */
