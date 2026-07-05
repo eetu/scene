@@ -74,3 +74,40 @@ export async function storeRom(name: string, bytes: Uint8Array): Promise<void> {
     tx.onerror = () => rej(tx.error);
   });
 }
+
+export async function removeRom(name: string): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  const db = await openDb();
+  await new Promise<void>((res, rej) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(name);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
+// A ROM must reach PUAE through EmulatorJS's normal bios path — a real same-origin
+// URL whose basename is the exact Kickstart filename (writing it into the emulator
+// FS by hand does NOT work unless a bios was already configured). So a service
+// worker serves user ROMs from IndexedDB at /amiga-rom/<name>; EJS_biosUrl points
+// there and the ROM never leaves the browser. Returns whether the SW controls the
+// page (so a user ROM can actually be served).
+export async function ensureRomSW(): Promise<boolean> {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return false;
+  try {
+    await navigator.serviceWorker.register("/amiga-rom-sw.js");
+    await navigator.serviceWorker.ready;
+    if (navigator.serviceWorker.controller) return true;
+    // First registration this origin: wait for the SW to claim this page.
+    await new Promise<void>((res) => {
+      const done = () => res();
+      navigator.serviceWorker.addEventListener("controllerchange", done, { once: true });
+      setTimeout(done, 3000);
+    });
+    return !!navigator.serviceWorker.controller;
+  } catch {
+    return false;
+  }
+}
+
+export const userRomUrl = (name: string) => `/amiga-rom/${encodeURIComponent(name)}`;
