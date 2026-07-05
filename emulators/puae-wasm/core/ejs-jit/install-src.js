@@ -11,12 +11,7 @@
     realEnv,
     jsCache;
   var GATE = true;
-  // DIAGNOSTIC: ramMax=0 → JIT nothing (ejsJitGet returns -1 for all pc), so the M3
-  // dispatch scaffolding runs but ZERO blocks compile/execute → pure interpreter
-  // through the scaffolded loop. Isolates "JIT blocks are the bug" (renders here)
-  // from "the m68k_run_2_020 scaffolding itself breaks the interpreter" (still black).
-  // Restore to 0x00f00000 (don't JIT Kickstart ROM / IO) after the test.
-  var ramMax = 0;
+  var ramMax = 0x00f00000; // don't JIT Kickstart ROM / IO
   var CFTERM = { bcc: 1, dbcc: 1 };
   var stats = { compiled: 0, activated: 0, gateFail: 0, empty: 0, decodeFail: 0, blocks: 0 };
 
@@ -174,7 +169,12 @@
     var packed = -1;
     if (pc < ramMax) {
       try {
-        var blk = D.blockAt(words, pc, 64);
+        // DIAGNOSTIC: cap blocks to 1 instruction so do_cycles + the spcflags/
+        // do_specialties check run per-instruction (interpreter granularity), with the
+        // now-correct 8*CYCLE_UNIT charge. Only the codegen execution path then differs
+        // from the interpreter. Renders → per-block batching of cycles/interrupts was
+        // the bug; still black → the block codegen corrupts per-instruction. Restore 64.
+        var blk = D.blockAt(words, pc, 1);
         var ct =
           blk.term && (blk.term.op === "bcc" || blk.term.op === "dbcc" || blk.term.op === "halt");
         if (!blk.instrs.length && !ct) stats.empty++;
