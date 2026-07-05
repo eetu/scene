@@ -3,8 +3,10 @@
   // and Amiga (puae). EmulatorJS shows its own themed "Start Game" button and
   // only downloads the core on that click, so it's already lazy + provides the
   // audio gesture — no separate launch button needed. We add Fullscreen + Stop.
-  import { Gauge, Maximize, Power, Sparkles } from "@lucide/svelte";
+  import { Gauge, Maximize, Power, Sparkles, Upload } from "@lucide/svelte";
   import { onDestroy, onMount, tick } from "svelte";
+
+  import { crc32, KNOWN_ROMS, loadStoredRoms, storeRom } from "./amigaRoms";
 
   let {
     core,
@@ -36,6 +38,35 @@
     if (/\((?:040|a4040)\)/i.test(gameUrl)) return "A4040";
     if (/\((?:030|a4030)\)/i.test(gameUrl)) return "A4030";
     return null;
+  };
+  // The Kickstart this demo needs: the exact PUAE ROM filename, the server URL for
+  // it (null if the server doesn't ship it), and the expected CRC/size for
+  // validating a user-supplied file. PUAE reads the ROM by filename from the
+  // emulator FS root, so a user ROM is injected there (see tryInjectRom).
+  const neededRom = () => {
+    if (core !== "amiga") return null;
+    const name = amigaA500()
+      ? "kick34005.A500"
+      : amigaAccel()
+        ? "kick40068.A4000"
+        : "kick40068.A1200";
+    const backendUrl = amigaA500() ? biosA500Url : amigaAccel() ? biosA4000Url : biosUrl;
+    return { name, backendUrl, ...KNOWN_ROMS[name] };
+  };
+  // ROMs the visitor supplied in-browser (filename → bytes), loaded from IndexedDB.
+  let userRoms = $state<Record<string, Uint8Array>>({});
+  let romError = $state<string | null>(null);
+  let injectTimer: ReturnType<typeof setInterval> | null = null;
+  let injectedRom: string | null = null; // ROM name already written to the FS this run
+  // Show the upload control when the demo needs a ROM the server lacks and the user
+  // hasn't provided it yet.
+  const romMissing = () => {
+    const r = neededRom();
+    return !!r && !r.backendUrl && !userRoms[r.name];
+  };
+  const havingUserRom = () => {
+    const r = neededRom();
+    return !!r && !r.backendUrl && !!userRoms[r.name];
   };
 
   let host = $state<HTMLDivElement | null>(null);
@@ -222,7 +253,93 @@
     scriptEl.src = `/vendor/emulatorjs/loader.js?n=${Date.now()}`;
     scriptEl.onerror = () => (error = "failed to load emulator");
     document.body.appendChild(scriptEl);
-    if (core === "amiga") announceJit();
+    if (core === "amiga") {
+      announceJit();
+      startRomInjection();
+    }
+  }
+
+  // Write a user-supplied ROM into the emulator FS so PUAE finds it. The ROM lives
+  // at the FS root under its exact PUAE filename (that's where EmulatorJS puts a
+  // server ROM too); the model auto-selects it by name. Returns true when there's
+  // nothing left to do (server has it / no user ROM / already written / done).
+  function tryInjectRom(): boolean {
+    const r = neededRom();
+    if (!r || r.backendUrl) return true; // server provides it — EmulatorJS handles it
+    const bytes = userRoms[r.name];
+    if (!bytes) return true; // no user ROM yet (upload button is shown)
+    if (injectedRom === r.name) return true; // already injected this run
+    const gm = (
+      w().EJS_emulator as
+        | {
+            started?: boolean;
+            gameManager?: {
+              FS?: { writeFile: (p: string, d: Uint8Array) => void };
+              Module?: { FS?: { writeFile: (p: string, d: Uint8Array) => void } };
+              restart?: () => void;
+            };
+          }
+        | undefined
+    )?.gameManager;
+    const FS = gm?.FS ?? gm?.Module?.FS;
+    if (!FS) return false; // core not ready yet — keep polling
+    try {
+      FS.writeFile(`/${r.name}`, bytes);
+      injectedRom = r.name;
+      // If the core already booted without the ROM (→ AROS), reboot so it re-reads
+      // the now-present Kickstart. If it hasn't started yet, the pending start picks
+      // it up with no reboot.
+      if ((w().EJS_emulator as { started?: boolean } | undefined)?.started) gm?.restart?.();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Poll until the injected ROM is in place (or there's nothing to inject).
+  function startRomInjection() {
+    if (injectTimer) clearInterval(injectTimer);
+    injectedRom = null;
+    if (tryInjectRom()) return;
+    let tries = 0;
+    injectTimer = setInterval(() => {
+      if (tryInjectRom() || ++tries > 240) {
+        clearInterval(injectTimer!);
+        injectTimer = null;
+      }
+    }, 300);
+  }
+
+  // Let the visitor supply the Kickstart the server doesn't ship. Validated by
+  // CRC32 + size (a wrong ROM would silently fall back to AROS), kept in IndexedDB
+  // (never uploaded), and injected into the running emulator.
+  async function pickRom() {
+    const r = neededRom();
+    if (!r) return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".rom,.a500,.a600,.a1200,.a4000,application/octet-stream";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const hex = (n: number) => (n >>> 0).toString(16).padStart(8, "0");
+      if (bytes.length !== r.size || crc32(bytes) !== r.crc) {
+        romError =
+          `That file isn't ${r.name} (${r.label}). Expected ${r.size} bytes, CRC ${hex(r.crc)}; ` +
+          `got ${bytes.length} bytes, CRC ${hex(crc32(bytes))}.`;
+        return;
+      }
+      romError = null;
+      userRoms = { ...userRoms, [r.name]: bytes };
+      try {
+        await storeRom(r.name, bytes);
+      } catch {
+        /* IDB blocked — kept for this session only */
+      }
+      startRomInjection(); // inject into the running core (+ reboot if needed)
+    };
+    input.click();
   }
 
   // Log to the console whether the vendored PUAE core is the JIT build and, once
@@ -289,6 +406,9 @@
   function teardown() {
     if (announceTimer) clearInterval(announceTimer);
     announceTimer = null;
+    if (injectTimer) clearInterval(injectTimer);
+    injectTimer = null;
+    injectedRom = null;
     const g = w();
     try {
       (g.EJS_emulator as { pause?: () => void } | undefined)?.pause?.();
@@ -349,6 +469,9 @@
   }
 
   onMount(() => {
+    // Load any ROMs the visitor supplied on a previous visit, then launch. (If it
+    // resolves after launch, tryInjectRom's poll picks them up.)
+    if (core === "amiga") void loadStoredRoms().then((r) => (userRoms = r));
     void launch();
   });
   onDestroy(() => teardown());
@@ -356,6 +479,7 @@
 
 <div class="emu" class:fs={pseudoFs}>
   {#if error}<p class="err">{error}</p>{/if}
+  {#if romError}<p class="err">{romError}</p>{/if}
   <div class="bar">
     <!-- settings toggles (left): pressed = on -->
     <div class="grp">
@@ -380,6 +504,23 @@
         >
           <Gauge size={15} /> Accurate timing
         </button>
+      {/if}
+      {#if romMissing()}
+        <button
+          class="rom-need"
+          onclick={pickRom}
+          title="This demo needs the {neededRom()
+            ?.label} Kickstart ROM, which this server doesn't provide. Load your own ROM file — it stays in your browser (never uploaded) and is remembered for next time."
+        >
+          <Upload size={15} /> Provide {neededRom()?.label}
+        </button>
+      {:else if havingUserRom()}
+        <span
+          class="rom-ok"
+          title="Using your {neededRom()?.label} ROM, stored in this browser (never uploaded)."
+        >
+          {neededRom()?.label}: your ROM ✓
+        </span>
       {/if}
     </div>
     <!-- session actions (right) -->
@@ -453,6 +594,20 @@
   .bar button.exit:hover {
     border-color: #ff4136;
     color: #ff4136;
+  }
+  /* "Provide ROM" stands out (a required action), like the on-toggle accent. */
+  .bar button.rom-need {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    font-weight: 600;
+  }
+  .rom-ok {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 8px;
+    font-size: 12px;
+    color: var(--muted, #8a8);
   }
   .screen {
     width: 100%;
