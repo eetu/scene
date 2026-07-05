@@ -42,7 +42,7 @@
   // White keys flow; black keys are positioned over the gaps. Tracks each held
   // note's voice id so key-up cuts exactly that note (polyphonic). Gate on
   // `playback.canReadSamples` in the caller.
-  import { jamNote, jamStop, jamStopAll, playback, setJamAuto, setJamLevel } from "./player.svelte";
+  import { jamNote, jamStop, jamStopAll, playback, setJamLevel } from "./player.svelte";
 
   let { sample = 1, label = "" }: { sample?: number; label?: string } = $props();
 
@@ -208,23 +208,10 @@
         oninput={(e) => setJamLevel(e.currentTarget.valueAsNumber / 100)}
         onpointerup={(e) => e.currentTarget.blur()}
         onchange={(e) => e.currentTarget.blur()}
-        title={playback.jamAutoLevel
-          ? "jam trim (100% = matched to the song)"
-          : "jam level (manual)"}
+        title="jam level"
         aria-label="jam level"
       />
     </label>
-    <button
-      type="button"
-      class="auto"
-      class:on={playback.jamAutoLevel}
-      role="switch"
-      aria-checked={playback.jamAutoLevel}
-      title="auto-balance the jam level to the song"
-      onclick={() => setJamAuto(!playback.jamAutoLevel)}
-    >
-      <span class="sw"></span>auto
-    </button>
     <span class="hint">tap / QWERTY · Z–M · Q–U</span>
   </div>
   <!-- Input is handled on the container (not per key) so a drag / swipe glides
@@ -318,47 +305,6 @@
     width: 76px;
     accent-color: var(--accent);
     outline: none;
-  }
-  /* "auto" thumbswitch — a compact iOS-style toggle. */
-  .auto {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--muted);
-    font: inherit;
-    font-size: 11px;
-    cursor: pointer;
-  }
-  .auto .sw {
-    width: 26px;
-    height: 14px;
-    border-radius: 7px;
-    background: var(--border);
-    position: relative;
-    transition: background 0.15s ease;
-  }
-  .auto .sw::after {
-    content: "";
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--panel);
-    transition: transform 0.15s ease;
-  }
-  .auto.on {
-    color: var(--accent);
-  }
-  .auto.on .sw {
-    background: var(--accent);
-  }
-  .auto.on .sw::after {
-    transform: translateX(12px);
   }
   .hint {
     margin-left: auto;

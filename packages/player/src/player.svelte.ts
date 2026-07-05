@@ -294,10 +294,8 @@ export const playback = $state({
   // How many jam keys are currently held — lets the UI suppress track-switch
   // arrows while jamming so you can navigate samples without changing tracks.
   jamHeld: 0,
-  // Jam level (0..2): a trim on the song-matched level in auto mode, else a
-  // plain fader. And whether to auto-balance to the song (default on).
+  // Jam/audition level (0..2 → gain 0..1): a plain fader over the song.
   jamLevel: 1,
-  jamAutoLevel: true,
   // Force one-shot playback (ignore the sample's loop) when auditioning/jamming.
   jamOneShot: false,
 });
@@ -331,15 +329,6 @@ function ensurePlayer(): Promise<void> {
     playback.canMuteChannels = player.capabilities?.canMuteChannels ?? false;
     playback.canReadCells = player.capabilities?.canReadCells ?? false;
     if (playback.mono) player.setMono(true); // restore persisted mono downmix
-    // Tap the song's output PRE-jam (on the worklet node, before jamGain joins
-    // player.gain) so measuring it to auto-balance the jam can't feed back.
-    if (player.processNode) {
-      const an: AnalyserNode = player.context.createAnalyser();
-      an.fftSize = 1024;
-      songBuf = new Uint8Array(an.fftSize);
-      player.processNode.connect(an);
-      songAnalyser = an;
-    }
     setupMediaElementRoute();
   });
   player.onProgress((d: ProgressMsg) => {
@@ -349,7 +338,6 @@ function ensurePlayer(): Promise<void> {
     playback.pattern = d.pattern ?? 0;
     playback.row = d.row ?? 0;
     playback.vu = d.vu ?? [];
-    sampleSongLevel(); // keep the jam auto-balance tracking the song's loudness
     noteRow(playback.order, playback.pattern, playback.row);
     maybeCountPlay(d.pos ?? 0);
     // Keep the OS scrubber roughly in step (throttled to ~1s of playback).
@@ -992,17 +980,12 @@ let voiceId = 0;
 let lastVoice: JamVoice | null = null;
 let cursorRaf = 0;
 
-// Jammed samples play at full-scale PCM, but libopenmpt's song mix sits well
-// below full-scale (mixing headroom), so a raw note would drown the song. Route
-// all jam voices through one gain node (playback.jamLevel, user-tunable) so they
-// sit ON TOP of the song. Connected to player.gain, so it respects volume/mute.
+// Jammed/auditioned samples play at full-scale PCM, but libopenmpt's song mix
+// sits below full-scale (mixing headroom), so a raw note would drown the song.
+// Route all jam voices through one gain node (a plain user fader, playback.jamLevel
+// 0..2 → gain jamLevel/2) so they sit ON TOP of the song. Connected to
+// player.gain, so it respects volume/mute.
 let jamGain: GainNode | null = null;
-// Song-only output tap (connected pre-jam, so measuring it can't feed back into
-// the jam gain) + a slow-smoothed RMS of it. The jam level auto-matches this so
-// a note sits consistently over ANY module, however hot or quiet its master is.
-let songAnalyser: AnalyserNode | null = null;
-let songLevel = 0; // smoothed RMS of the song output, 0..1
-let songBuf: Uint8Array<ArrayBuffer> | null = null;
 
 function jamOutput(): AudioNode {
   if (!jamGain) {
@@ -1013,40 +996,17 @@ function jamOutput(): AudioNode {
   return jamGain;
 }
 
-// Auto (default): jamGain = song's running level × 2 × the user's trim
-// (playback.jamLevel, 1 = matched), so a note sits over any module. Manual:
-// jamGain = jamLevel/2 (a plain 0..1 fader). Clamped + ramped so it never clicks.
+// Plain fader: gain = jamLevel/2 (1 = half-scale). Clamped + ramped so it never
+// clicks.
 function applyJamGain() {
   if (!jamGain || !player) return;
-  const target = playback.jamAutoLevel
-    ? Math.min(1, Math.max(0.04, songLevel * 2 * playback.jamLevel))
-    : Math.min(1, Math.max(0, playback.jamLevel / 2));
+  const target = Math.min(1, Math.max(0, playback.jamLevel / 2));
   jamGain.gain.setTargetAtTime(target, player.context.currentTime, 0.12);
 }
 
-function sampleSongLevel() {
-  if (!songAnalyser || !songBuf) return;
-  songAnalyser.getByteTimeDomainData(songBuf);
-  let sum = 0;
-  for (let i = 0; i < songBuf.length; i++) {
-    const v = (songBuf[i] - 128) / 128;
-    sum += v * v;
-  }
-  const rms = Math.sqrt(sum / songBuf.length);
-  songLevel += (rms - songLevel) * 0.06; // slow: tracks sections, not per-beat
-  applyJamGain();
-}
-
-/** Set the jam level (0..2). In auto mode it's a trim on the song-matched level
- *  (1 = matched); in manual mode a plain fader. */
+/** Set the jam/audition level (0..2 → gain 0..1). */
 export function setJamLevel(v: number) {
   playback.jamLevel = Math.max(0, Math.min(2, v));
-  applyJamGain();
-}
-
-/** Toggle auto-balancing the jam level to the song (vs a manual fader). */
-export function setJamAuto(on: boolean) {
-  playback.jamAutoLevel = on;
   applyJamGain();
 }
 
