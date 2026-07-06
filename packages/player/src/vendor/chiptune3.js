@@ -45,10 +45,18 @@ export class ChiptuneJsPlayer {
 
 		this.gain = this.context.createGain();
 		this.gain.gain.value = 1;
-		// All audible output flows gain → monoNode → sinks. Toggling monoNode to
-		// an explicit single channel collapses the mix to mono (accessibility:
-		// one-earphone / hearing-impaired listening) without reconnecting.
+		// All audible output flows gain → monoNode → sinks. monoNode stays 2ch for
+		// its whole life — its channel count is NEVER mutated, because doing so on a
+		// node feeding a live MediaStream/<audio> (the background-playback route)
+		// mutes the element until a reload. Mono (accessibility: one-earphone /
+		// hearing-impaired listening) is instead a dedicated 1ch downmix node fed
+		// into monoNode, toggled by (re)connecting the signal — connect/disconnect
+		// is reliable at runtime and never changes any sink's channel count.
 		this.monoNode = this.context.createGain();
+		this.monoDownmix = this.context.createGain();
+		this.monoDownmix.channelCount = 1;
+		this.monoDownmix.channelCountMode = 'explicit'; // collapse L+R → 1ch
+		this.monoDownmix.connect(this.monoNode); // …then monoNode upmixes 1→2ch
 
 		this.handlers = [];
 		this.gen = 0;
@@ -243,15 +251,23 @@ export class ChiptuneJsPlayer {
 	setVol(val) {
 		this.gain.gain.value = val;
 	}
-	/** Collapse output to mono (true) or pass stereo through (false). */
+	/** Collapse output to mono (true) or pass stereo through (false). Reroutes the
+	 *  gain → sink edge through (mono) or around (stereo) the 1ch downmix node.
+	 *  monoNode's own channel count never changes, so the MediaStream feeding the
+	 *  background <audio> keeps a constant 2ch layout and doesn't mute. */
 	setMono(on) {
-		if (on) {
-			this.monoNode.channelCountMode = 'explicit';
-			this.monoNode.channelCount = 1;
-		} else {
-			this.monoNode.channelCountMode = 'max';
-			this.monoNode.channelCount = 2;
+		if (!this.gain || !this.nodeReady) return;
+		try {
+			this.gain.disconnect(this.monoNode);
+		} catch {
+			/* edge not present */
 		}
+		try {
+			this.gain.disconnect(this.monoDownmix);
+		} catch {
+			/* edge not present */
+		}
+		this.gain.connect(on ? this.monoDownmix : this.monoNode);
 	}
 	selectSubsong(val) {
 		this.worker.postMessage({ cmd: 'selectSubsong', val });
