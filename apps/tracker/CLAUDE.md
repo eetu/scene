@@ -153,8 +153,7 @@ Cargo workspace = `backend` + `e2e`.
   (parse every un-enriched module's metadata via a parse-only worklet command →
   POST /api/meta, with progress + cancel).
 - **Keyboard jamming + sample extraction (done).** A **custom libopenmpt WASM**
-  (`wasm/libopenmpt-ext/` — a from-source emscripten build, mirroring the
-  `emulators/puae-wasm` container/CI pattern; the old "emcc not installed" note is
+  (`wasm/libopenmpt-ext/` — a from-source emscripten build in an amd64 emsdk container; the old "emcc not installed" note is
   stale) adds a tiny `smp_*` C ABI that reads **raw sample PCM + loop points** off
   a module (reaching the internal `CSoundFile` via a one-line accessor patch —
   libopenmpt's public API exposes sample *names* only). **Jamming is then pure Web

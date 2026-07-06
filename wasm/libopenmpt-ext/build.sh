@@ -2,12 +2,12 @@
 # Build a custom libopenmpt WASM (jamming + sample extraction) — a drop-in for
 # apps/tracker/frontend/static/vendor/chiptune3/libopenmpt.worklet.js.
 #
-# Mirrors emulators/puae-wasm/core: amd64 Debian + emsdk 3.1.74 podman container
+# amd64 Debian + emsdk 3.1.74 podman container
 # (we're arm64 → qemu). Clones OpenMPT, builds the image, runs compile.sh inside.
 #
 #   ./build.sh                       full build → out/libopenmpt.worklet.js
 #   OMPT_REF=libopenmpt-0.8.7 ./build.sh
-#   IMG=puae-wasm-build ./build.sh   reuse an existing emsdk image (skip image build)
+#   IMG=libopenmpt-ext-build ./build.sh   reuse an existing emsdk image (skip image build)
 #   ./build.sh --shell               drop into the build container to debug
 set -euo pipefail
 cd "$(dirname "$0")"
