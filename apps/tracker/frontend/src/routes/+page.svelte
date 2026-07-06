@@ -1384,10 +1384,12 @@
         <button class:on={pvTab === "samples"} onclick={() => (pvTab = "samples")}>samples</button>
         <button class:on={pvTab === "viz"} onclick={() => (pvTab = "viz")}>viz</button>
       </div>
-      {#if pvTab === "pattern" && playback.canReadCells && isDesktop}
+      {#if pvTab === "pattern" && playback.canReadCells && isDesktop && !isMobile}
         <!-- Pattern surface mode: view vs edit (a mode of the pattern tab, kept
              clear of the file-action pencil in the right cluster). Editing is
-             keyboard-first, so it's gated to pointer+keyboard devices. -->
+             keyboard-first, so it's gated to pointer+keyboard devices — and
+             hidden on narrow viewports too (no mobile editor UI yet; it would
+             also crowd the header). -->
         <div class="pv-mode" role="group" aria-label="pattern mode">
           <button class:on={!playback.editing} onclick={() => setEditing(false)}>view</button>
           <button class:on={playback.editing} onclick={() => setEditing(true)}>edit</button>
