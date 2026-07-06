@@ -21,7 +21,6 @@
   const THEMES = [
     "Tron",
     "Wormhole",
-    "Hyperspace",
     "Giger",
     "Vaporwave",
     "Circuit",
@@ -122,26 +121,6 @@
       vec3 c = hsv2rgb(vec3(hue, 0.85, 1.0));
       return c * streak * 1.4 + vec3(1.0) * pow(streak, 4.0) * 0.5;
     }
-    // Hyperspace: thin radial star-streaks flying along the tube walls — bright
-    // heads with long smooth tails, travelling toward the camera at varied speeds.
-    // Thin in angle (clean radial lines, not blocky bands), ~half the lanes lit
-    // with varied brightness, and faded near the mouth so the outer pipe stays dark.
-    vec3 themeHyper(float z, float a, float t) {
-      float LANES = 64.0;
-      float la = a * LANES;
-      float sub = abs(fract(la) - 0.5); // 0 at lane centre → 0.5 at the edge
-      float lane = floor(la);
-      float r = fract(sin(lane * 12.9898 + uSeed) * 43758.5453);
-      float r2 = fract(sin(lane * 45.77 + uSeed * 3.3) * 27182.8);
-      float on = step(0.42, r);                          // a bit over half the lanes lit → more stars
-      float line = exp(-sub * sub * (90.0 + 140.0 * r)); // thin radial line, width varies
-      float d = z - uCamZ;                               // depth ahead of the camera
-      float head = mod(d * 0.09 + t * (1.4 + r * 1.6) + r2 * 10.0, 3.2); // heads travel toward the camera
-      float streak = exp(-head * 2.2);                   // sharp head + long fading tail
-      float nearFade = smoothstep(2.0, 16.0, d);         // obscure the near mouth
-      vec3 tint = mix(vec3(0.5, 0.68, 1.0), vec3(1.0), r * r);
-      return tint * line * streak * on * nearFade * (1.4 + 2.0 * r);
-    }
     // Biomech / Giger: a dark ribbed metal tube — segmented rings along the tube
     // with a wet cold-steel sheen on the crests and near-black crevices between,
     // vertebrae segmentation around the circumference. Cold blue-grey, high
@@ -196,8 +175,7 @@
     }
     // Star Wars lightspeed jump: a dense wall of blue-white star-streaks stretched
     // along the tube, rushing at the camera on deep blue-black — the "punch it,
-    // Chewie" hyperspace run. Distinct from the Hyperspace theme (sparse, varied
-    // colour): this is denser, faster, and pure blue-white. 90 lanes → seamless.
+    // Chewie" hyperspace run. 90 lanes → seamless around the ring.
     vec3 themeStarwars(float z, float a, float t) {
       float la = a * 90.0;
       float sub = abs(fract(la) - 0.5);                     // 0 at lane centre
@@ -292,18 +270,17 @@
     vec3 themeById(float id, float z, float a, float t) {
       if (id < 0.5) return themeTron(z, a, t);
       if (id < 1.5) return themeWormhole(z, a, t);
-      if (id < 2.5) return themeHyper(z, a, t);
-      if (id < 3.5) return themeGiger(z, a, t);
-      if (id < 4.5) return themeVapor(z, a, t);
-      if (id < 5.5) return themeCircuit(z, a, t);
-      if (id < 6.5) return themeRainbow(z, a, t);
-      if (id < 7.5) return themeBW(z, a, t);
-      if (id < 8.5) return themeStarwars(z, a, t);
-      if (id < 9.5) return themeVoxel(z, a, t);
-      if (id < 10.5) return themeCorridor(z, a, t);
-      if (id < 11.5) return themeDeathstar(z, a, t);
-      if (id < 12.5) return themeIce(z, a, t);
-      if (id < 13.5) return themeMetro(z, a, t);
+      if (id < 2.5) return themeGiger(z, a, t);
+      if (id < 3.5) return themeVapor(z, a, t);
+      if (id < 4.5) return themeCircuit(z, a, t);
+      if (id < 5.5) return themeRainbow(z, a, t);
+      if (id < 6.5) return themeBW(z, a, t);
+      if (id < 7.5) return themeStarwars(z, a, t);
+      if (id < 8.5) return themeVoxel(z, a, t);
+      if (id < 9.5) return themeCorridor(z, a, t);
+      if (id < 10.5) return themeDeathstar(z, a, t);
+      if (id < 11.5) return themeIce(z, a, t);
+      if (id < 12.5) return themeMetro(z, a, t);
       return themeAbyss(z, a, t);
     }
     // Crossfaded wall colour at (z, a) for the current two themes — used for the
@@ -337,13 +314,13 @@
     // Which cross-section each theme wears (ids per themeById order). Specific ids
     // first, so the square catch-all below doesn't swallow the newer themes.
     float shapeOf(float id) {
-      if (id > 13.5) return 6.0;            // abyss → oval (sleek)
-      if (id > 12.5) return 4.0;            // metro → horseshoe arch
-      if (id > 11.5) return 5.0;            // ice → jagged cave
-      if (id > 9.5) return 1.0;             // corridor + death star → square
-      if (id > 8.5) return 1.0;             // voxel → square
-      if (id > 4.5 && id < 5.5) return 2.0; // circuit → hexagon
-      if (id > 2.5 && id < 3.5) return 3.0; // giger → star
+      if (id > 12.5) return 6.0;            // abyss → oval (sleek)
+      if (id > 11.5) return 4.0;            // metro → horseshoe arch
+      if (id > 10.5) return 5.0;            // ice → jagged cave
+      if (id > 8.5) return 1.0;             // corridor + death star → square
+      if (id > 7.5) return 1.0;             // voxel → square
+      if (id > 3.5 && id < 4.5) return 2.0; // circuit → hexagon
+      if (id > 1.5 && id < 2.5) return 3.0; // giger → star
       return 0.0;                           // everything else → circle
     }
 
@@ -412,8 +389,8 @@
       float shapeA = shapeOf(idA), shapeB = shapeOf(idB);
       // Voxel theme (id 9): how much it's showing → displace the wall per cell so
       // some blocks rise inward toward the viewer and others recede.
-      float voxAmp = ((idA > 8.5 && idA < 9.5) ? (1.0 - k) : 0.0) +
-                     ((idB > 8.5 && idB < 9.5) ? k : 0.0);
+      float voxAmp = ((idA > 7.5 && idA < 8.5) ? (1.0 - k) : 0.0) +
+                     ((idB > 7.5 && idB < 8.5) ? k : 0.0);
       voxAmp *= 0.22;
 
       // March the ray through the (curved) tube until it crosses the wall. The
@@ -479,14 +456,14 @@
         // behind the inner one. Strongest on neon/grid themes (near-black gaps),
         // faint on solid ones. z*0.3 → slower scroll = a bigger depth gap; the
         // 3-tap z-average softens its grid so it reads as distant/defocused.
-        // Hyperspace walls are mostly black (all gap), so push this "outside tunnel"
+        // Star Wars walls are mostly black (all gap), so push this "outside tunnel"
         // harder and blur it across angle too — a soft second layer of streaks
         // beyond the tube, out of focus.
         float effId = mix(idA, idB, kz);
-        float hyperAmt = 1.0 - clamp(abs(effId - 2.0), 0.0, 1.0);
+        float hyperAmt = 1.0 - clamp(abs(effId - 7.0), 0.0, 1.0); // Star Wars id
         float gap = smoothstep(0.5, 0.0, dot(col, vec3(0.4)));
         float oz = z * 0.3 + 9.0;
-        float ab = 0.05 * hyperAmt; // angular blur for the hyperspace outer layer
+        float ab = 0.05 * hyperAmt; // angular blur for the streak outer layer
         vec3 outer = (wall2(idA, idB, kz, oz - 0.6, a - ab) + wall2(idA, idB, kz, oz, a) +
                       wall2(idA, idB, kz, oz + 0.6, a + ab)) / 3.0;
         col += outer * gap * mix(0.3, 1.0, hyperAmt);
@@ -510,7 +487,7 @@
         // (uSpin), that sector sweeps around the screen as the ship banks — space
         // up/down/anywhere. Paint an un-fogged star sky + green turret tracers
         // there instead of the wall, fading in with the theme's own crossfade.
-        float trench = (abs(idA - 11.0) < 0.5 ? 1.0 - kz : 0.0) + (abs(idB - 11.0) < 0.5 ? kz : 0.0);
+        float trench = (abs(idA - 10.0) < 0.5 ? 1.0 - kz : 0.0) + (abs(idB - 10.0) < 0.5 ? kz : 0.0);
         float da = abs(fract(a - 0.25 + 0.5) - 0.5); // angular distance to opening centre
         float sky = (1.0 - smoothstep(0.11, 0.16, da)) * trench; // feathered edge, gated to theme
         if (sky > 0.001) {
