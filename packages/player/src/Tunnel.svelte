@@ -224,14 +224,21 @@
       float lit = 1.0 - smoothstep(0.7, 1.0, max(f.x, f.y)) * 0.85;
       return body * lit;
     }
-    // Spaceship corridor: grey metal panels + rib rings, with cyan light strips
-    // running the length of the hall.
+    // Spaceship corridor: brushed-metal panels with recessed seams and recurring
+    // raised bulkhead frames, lit by twin cyan strips with power pulsing down the
+    // hall (and glowing trim where the strips cross a bulkhead). Sleek + alive.
     vec3 themeCorridor(float z, float a, float t) {
-      float panels = max(neon(z * 1.0, 0.06), neon(a * 12.0, 0.05));
-      vec3 col = vec3(0.16, 0.17, 0.2) * (1.0 - 0.5 * panels); // seams darker
-      col += vec3(0.08, 0.09, 0.11) * neon(z * 0.5, 0.05);      // structural ribs
-      float strip = neon(a * 2.0, 0.02);                        // two opposed rails
-      return col + vec3(0.2, 0.7, 1.0) * strip * (0.7 + 0.3 * sin(z * 2.0 - t * 3.0));
+      float seams = max(neon(z * 1.0, 0.05), neon(a * 12.0, 0.04)); // panel seams
+      float bulk = neon(z * 0.25, 0.045);                           // bulkhead frame every ~4 units
+      float sheen = 0.55 + 0.45 * sin(a * TAU * 2.0);               // brushed-metal sheen (seamless)
+      vec3 metal = vec3(0.13, 0.145, 0.17) * sheen;
+      metal *= 1.0 - 0.55 * seams;                                  // recessed seams
+      metal = mix(metal, vec3(0.28, 0.3, 0.34), bulk * 0.8);        // raised, brighter bulkheads
+      float strip = neon(a * 2.0, 0.016);                           // twin opposed light strips
+      float flow = pow(0.5 + 0.5 * sin(z * 1.2 - t * 5.0), 2.0);    // power pulsing down the corridor
+      vec3 col = metal + vec3(0.2, 0.75, 1.0) * strip * (0.35 + 0.9 * flow);
+      col += vec3(0.35, 0.85, 1.0) * bulk * strip * 2.0;            // lit bulkhead trim at the strips
+      return col;
     }
     // Death Star trench: greebled grey metal — fine panel seams + big structural
     // ribs down the trench, dense static per-cell tone variation (greebles), and a
