@@ -257,6 +257,16 @@
         opts.puae_fastmem_size = "8";
       }
       opts.puae_collision_level = "none"; // demos don't need collision — saves CPU
+      if (cpu !== null) {
+        // AGA (non-OCS) tuning. Lock PAL 50 Hz — our demos are European 50 fps, so
+        // this rules out an NTSC/auto 60 Hz mispacing — and drop the audio DSP the
+        // JIT'd CPU would otherwise pay for on the emulation thread (nearest-neighbour
+        // resampling + no Paula filter; inaudible on these AGA demos, and it hands
+        // those cycles back to the effect loops). OCS stays on its authentic defaults.
+        opts.puae_video_standard = "PAL";
+        opts.puae_sound_interpol = "none";
+        opts.puae_sound_filter = "off";
+      }
     } else if (core === "c64") {
       opts.vice_drive_sound_emulation = "disabled";
       opts.vice_autostart_warp = "enabled";
