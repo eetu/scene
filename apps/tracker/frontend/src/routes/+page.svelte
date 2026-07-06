@@ -47,7 +47,7 @@
     VuMeters,
   } from "@scene/player";
   import { createVirtualizer } from "@tanstack/svelte-virtual";
-  import { onMount, untrack } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
 
   import { goto } from "$app/navigation";
@@ -194,6 +194,7 @@
   let fmtFilter = $state("");
   let trackerFilter = $state("");
   let query = $state("");
+  let filterEl = $state<HTMLInputElement>();
   function resetControls() {
     trackSort = "name";
     groupSort = "name";
@@ -787,6 +788,28 @@
       toggleVizFullscreen();
       return;
     }
+    // Type-to-filter: a bare alphanumeric keystroke while the library list is the
+    // foreground jumps into the filter box (search-as-you-type, like a file
+    // manager). Space stays play/pause and "?"/Esc/arrows keep their shortcuts
+    // (none are alphanumeric); once the filter has focus, the input guard at the
+    // top routes further typing straight to it. SELECT keeps its native
+    // type-ahead. Works regardless of playback (must precede the guard below).
+    const listForeground =
+      listView && !showPattern && !showHelp && !showSettings && !addTrack && !editingTrack;
+    if (
+      listForeground &&
+      el?.tagName !== "SELECT" &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      /^[\p{L}\p{N}]$/u.test(e.key)
+    ) {
+      e.preventDefault();
+      query += e.key;
+      filterEl?.focus();
+      void tick().then(() => filterEl?.setSelectionRange(query.length, query.length));
+      return;
+    }
     if (!playback.current) return;
     // In the samples view, left/right set the jam level (not the track) — a
     // keyboard shortcut for the "vol" slider, and it keeps arrows from switching
@@ -960,6 +983,7 @@
   <div class="brand">tracker</div>
   {#if listView}
     <input
+      bind:this={filterEl}
       class="filter"
       type="search"
       placeholder="filter…"
