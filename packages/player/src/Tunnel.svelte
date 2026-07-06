@@ -245,15 +245,25 @@
       col += vec3(0.75, 0.9, 1.0) * crack; // cold white-blue crack light
       return col;
     }
-    // Metro / mine rail tunnel: warm rough rock, wooden sleeper cross-ties, and two
-    // bright steel rails running the length; warm work-light ambience.
+    // Metro / mine rail tunnel: warm rough rock walls with a proper track bed on
+    // the horseshoe's flat FLOOR — gravel, wooden sleeper cross-ties, and two
+    // bright steel rails. The floor sits at a≈0.25 (straight down) in the wall
+    // coordinate — the shape + angle share the rolled frame, so the track stays
+    // glued to the floor as the tube banks. Warm work-light ambience.
     vec3 themeMetro(float z, float a, float t) {
-      float grain = fract(sin(floor(z * 4.0) * 12.9 + floor(a * 40.0) * 78.2 + uSeed) * 43758.5);
+      float cell = mod(floor(a * 40.0), 40.0); // wrap the grain cell → no seam at a=0/1
+      float grain = fract(sin(floor(z * 4.0) * 12.9 + cell * 78.2 + uSeed) * 43758.5);
       vec3 rock = mix(vec3(0.10, 0.07, 0.04), vec3(0.30, 0.20, 0.11), grain);
-      rock *= 0.82 + 0.18 * sin(z * 3.0 + a * TAU * 3.0);                   // uneven surface
-      rock += vec3(0.18, 0.10, 0.05) * smoothstep(0.12, 0.0, abs(fract(z * 1.2) - 0.5)); // ties
-      float rail = neon(a * 2.0, 0.015);                                   // two steel rails
-      vec3 col = rock + vec3(0.85, 0.78, 0.62) * rail * (0.55 + 0.45 * sin(z * 8.0));
+      rock *= 0.82 + 0.18 * sin(z * 3.0 + a * TAU * 3.0); // uneven surface
+      // Flat floor band of the arch (a≈0.25, ~0.13..0.37). Off it, floorBand→0 so
+      // the walls stay bare rock.
+      float floorBand = smoothstep(0.15, 0.10, abs(a - 0.25));
+      vec3 col = mix(rock, vec3(0.05, 0.045, 0.035), floorBand * 0.75); // dark gravel bed
+      float ties = floorBand * smoothstep(0.14, 0.02, abs(fract(z * 1.3) - 0.5));
+      col += vec3(0.17, 0.09, 0.04) * ties; // warm wooden sleepers
+      // two thin steel rails on the floor with a travelling glint
+      float rails = smoothstep(0.012, 0.0, abs(a - 0.205)) + smoothstep(0.012, 0.0, abs(a - 0.295));
+      col += vec3(0.9, 0.85, 0.7) * rails * (0.55 + 0.45 * sin(z * 10.0));
       col += vec3(0.24, 0.14, 0.05) * (0.4 + 0.3 * sin(z * 0.5 - t * 0.4)); // work-lights
       return col;
     }
