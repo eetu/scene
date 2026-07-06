@@ -189,9 +189,13 @@
       float hue = fract(a * 1.0 + z * 0.06 - t * 0.08);
       return mix(hsv2rgb(vec3(hue, 0.5, 1.0)), vec3(1.0), 0.15);
     }
-    // Black & white CRT: monochrome phosphor grid, white on black.
+    // Black & white CRT: monochrome phosphor grid over faded TV static — fine,
+    // fast-flickering white noise in the background (dead-channel look) with the
+    // bright phosphor grid on top.
     vec3 themeBW(float z, float a, float t) {
-      return vec3(max(neon(z * RING_FREQ, 0.05), neon(a * RAIL_FREQ, 0.04)));
+      float grid = max(neon(z * RING_FREQ, 0.05), neon(a * RAIL_FREQ, 0.04));
+      float snow = fract(sin(dot(vec2(floor(z * 80.0), mod(floor(a * 200.0), 200.0)), vec2(12.9898, 78.233)) + floor(t * 24.0)) * 43758.5453);
+      return vec3(grid + snow * 0.13); // grid over dim flickering static
     }
     // Star Wars lightspeed jump: a dense wall of blue-white star-streaks stretched
     // along the tube, rushing at the camera on deep blue-black — the "punch it,
