@@ -57,3 +57,24 @@ jobs:
       # explicitly here.
       - run: cargo build -p tracker-backend
       - run: cargo test -p tracker-e2e -- --ignored --nocapture
+
+  browser-e2e:
+    name: "Browser E2E (tracker playback)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version-file: .node-version
+      # Real built SPA + the real vendored libopenmpt worklet in a headless
+      # browser, backend mocked (see apps/tracker/frontend/e2e + @scene/player's
+      # shared playback-smoke). This is the guard that would have caught the
+      # emsdk-6 resizable-ArrayBuffer regression a node gate waved through.
+      # Chromium only in CI (reliable headless WebAudio; the bug reproduced
+      # there). WebKit stays a local check (`just e2e`) pending Linux-CI vetting.
+      - name: Playwright playback smoke
+        run: |
+          yarn() { node .yarn/releases/yarn-*.cjs "$@"; }
+          yarn install --immutable
+          yarn workspace tracker-frontend exec playwright install --with-deps chromium
+          yarn workspace tracker-frontend test:e2e --project=chromium

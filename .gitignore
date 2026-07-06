@@ -10,6 +10,12 @@ node_modules
 .pnp.*
 dist
 
+# Playwright (browser e2e) — reports + traces, never committed
+test-results
+playwright-report
+blob-report
+.last-run.json
+
 # Python sidecar
 .venv
 __pycache__
@@ -22,3 +28,4 @@ __pycache__
 apps/party/backend/cache
 .env
 .DS_Store
+data/roms/

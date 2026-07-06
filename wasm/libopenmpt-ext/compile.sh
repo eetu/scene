@@ -55,10 +55,16 @@ export -f compile_one
 export CXXFLAGS OUT
 xargs -P"$(nproc)" -a "$OUT/srclist.txt" -I{} bash -c 'compile_one "$@"' _ {}
 
+# GROWABLE_ARRAYBUFFERS=0: emsdk 6.x defaults this to auto-on, backing grown
+# memory with a *resizable* ArrayBuffer. Browsers accept resizable buffers
+# generally but TextDecoder.decode() rejects them ("ArrayBuffer must not be
+# resizable"), which breaks emscripten's UTF8ToString at runtime. Force the
+# classic copy-on-grow (fresh plain buffer) so string decoding works in-browser.
 echo "== linking libopenmpt.worklet.js (MODULARIZE ES6 SINGLE_FILE) =="
 em++ $OPTFLAGS "$OUT"/obj/*.o \
 	-s MODULARIZE=1 -s EXPORT_ES6=1 -s EXPORT_NAME=libopenmpt \
 	-s WASM=1 -s SINGLE_FILE=1 -s ALLOW_MEMORY_GROWTH=1 \
+	-s GROWABLE_ARRAYBUFFERS=0 \
 	-s DISABLE_EXCEPTION_CATCHING=0 -s STACK_SIZE=1048576 \
 	-s "EXPORTED_FUNCTIONS=@$WORK/exports.txt" \
 	-s "EXPORTED_RUNTIME_METHODS=@$WORK/runtime.txt" \
