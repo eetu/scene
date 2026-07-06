@@ -562,6 +562,10 @@
     // theme, 'l' locks/unlocks the theme rotation.
     let clock = 0; // seconds elapsed, for wall animation (uTime)
     const SLOT = 24; // seconds a wall theme holds before crossfading to the next
+    // A drop may hard-cut the theme, but only after the current one has had this
+    // much dwell — so a drop can't immediately re-switch a theme that a natural
+    // rotation (or a prior drop) just brought in.
+    const DROP_MIN_DWELL = SLOT * 1000 * 0.5;
     let themeTime = 0; // theme-selection clock (frozen while locked)
     let locked = false; // 'l' freezes the theme rotation
     let scanOn = true; // CRT scanlines on by default
@@ -623,7 +627,8 @@
     let energyBase = 0;
     let prevEnergy = 0;
     let lastDrop = -1e9;
-    let lastThemeJump = -1e9;
+    let lastSwitchAt = -1e9; // ms of the last actual theme change (natural or drop)
+    let curSlot = -1; // slot whose theme is currently showing (detects a switch)
     let burst = 0; // drop flash, decays
     const smooth01 = (e0: number, e1: number, x: number) => {
       const s = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
@@ -671,11 +676,12 @@
         ) {
           lastDrop = now;
           burst = 1;
-          // A drop only *lands* a theme change on the beat — gated to ~one slot
-          // apart so drops sync the timing without switching every few seconds.
-          if (!locked && now - lastThemeJump > SLOT * 1000) {
+          // A drop only *lands* a theme change on the beat, and only once the
+          // current theme has had a minimum dwell — so a drop can't hard-cut a
+          // theme a natural rotation (or a prior drop) just switched to. The jump
+          // moves themeTime; lastSwitchAt updates below when the slot changes.
+          if (!locked && now - lastSwitchAt > DROP_MIN_DWELL) {
             themeTime = (Math.floor(themeTime / SLOT) + 1) * SLOT;
-            lastThemeJump = now;
           }
         }
         prevEnergy = energy;
@@ -686,6 +692,13 @@
         if (!locked) themeTime += dt;
         const tp = themeTime / SLOT;
         const nSlot = Math.floor(tp);
+        // Record when the shown theme actually changes (natural boundary, a drop
+        // jump, or a manual advance all move nSlot) — the drop gate above keys its
+        // minimum dwell off this, so no switch can immediately follow another.
+        if (nSlot !== curSlot) {
+          curSlot = nSlot;
+          lastSwitchAt = now;
+        }
         let idA = themeSlot(nSlot);
         let idB = themeSlot(nSlot + 1);
         if (idA === idB) idB = (idB + 1) % THEMES.length;
