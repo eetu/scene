@@ -45,6 +45,16 @@ function fixtureTrack(hash: string) {
   };
 }
 
+/** Serve the fixture module bytes for any `/api/file/{hash}` — the request that
+ *  used to trip the resizable-buffer bug. Both apps fetch modules from this same
+ *  path, so this is the genuinely shared mock; each app stubs its own listing +
+ *  navigation API on top. */
+export async function mockModuleFile(context: BrowserContext) {
+  await context.route("**/api/file/*", (route) =>
+    route.fulfill({ contentType: "application/octet-stream", body: FIXTURE_BYTES }),
+  );
+}
+
 export type MockLibraryOptions = {
   /** Content hash the SPA uses in fileUrl(hash). */
   hash?: string;
@@ -60,10 +70,7 @@ export async function mockLibrary(context: BrowserContext, opts: MockLibraryOpti
 
   await context.route("**/api/tracks", (route) => route.fulfill({ json: { tracks: [track] } }));
   await context.route("**/api/playlists", (route) => route.fulfill({ json: { playlists: [] } }));
-  // The raw module bytes — the request that used to trip the resizable-buffer bug.
-  await context.route("**/api/file/*", (route) =>
-    route.fulfill({ contentType: "application/octet-stream", body: FIXTURE_BYTES }),
-  );
+  await mockModuleFile(context);
   await context.route("**/api/play/*", (route) => route.fulfill({ json: { play_count: 1 } }));
   await context.route("**/api/meta/*", (route) => route.fulfill({ status: 204, body: "" }));
   await context.route("**/status", (route) =>
