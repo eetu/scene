@@ -28,13 +28,11 @@ render-loop, or worklet involvement — a jammed note is just an
 `AudioBufferSourceNode`, independent of the song's transport.
 
 This is a build-time toolchain + a runtime WASM artifact — neither a cargo
-backend nor a yarn package — so it lives in its own top-level bucket, exactly
-like `emulators/puae-wasm`.
+backend nor a yarn package — so it lives in its own top-level bucket.
 
 ## How it works
 
-- `Containerfile` — amd64 Debian + **emsdk 3.1.74** (the same pin as
-  `emulators/puae-wasm/core`). We're on arm64 macOS, so it runs under podman's
+- `Containerfile` — amd64 Debian + **emsdk 3.1.74** (pinned). We're on arm64 macOS, so it runs under podman's
   amd64 emulation.
 - `build.sh` — clones OpenMPT (`OMPT_REF`, default `libopenmpt-0.7.13`), builds
   the image, runs `compile.sh` inside it.

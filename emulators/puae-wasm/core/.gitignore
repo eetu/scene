@@ -1,8 +1,0 @@
-# External upstream clones — cloned + built locally, NEVER committed to this
-# repo. We keep only our build scripts and patches; the sources live upstream.
-external/
-
-# Emscripten / build outputs
-*.wasm
-*.data
-build-out/
