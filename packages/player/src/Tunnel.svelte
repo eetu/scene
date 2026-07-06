@@ -132,18 +132,22 @@
     // vertebrae segmentation around the circumference. Cold blue-grey, high
     // contrast (the ribbed biomech corridor look, not soft violet folds).
     vec3 themeGiger(float z, float a, float t) {
-      // Ribs = rings along the tube, warped around the circumference so they read
-      // as organic vertebrae rather than machined bands.
-      float ring = 0.5 + 0.5 * sin(z * 5.5 + sin(a * TAU * 2.0) * 0.7);
-      float rib = smoothstep(0.15, 0.85, ring);            // rounded rib body
-      float crest = pow(smoothstep(0.82, 1.0, ring), 3.0); // thin wet highlight on the crest
-      // Segmentation around the tube + fine mechanical micro-grooves.
-      float spine = pow(0.5 + 0.5 * sin(a * TAU * 6.0 + z * 0.4), 2.0);
-      float micro = 0.85 + 0.15 * sin(z * 26.0 + a * TAU * 8.0);
-      // Near-black crevices → blue-grey ribs; cold cyan-white wet sheen on crests.
-      vec3 col = mix(vec3(0.008, 0.01, 0.016), vec3(0.13, 0.16, 0.21), rib) * micro;
-      col *= 0.55 + 0.45 * spine;
-      col += vec3(0.45, 0.58, 0.78) * crest * (0.5 + 0.5 * spine);
+      // A dark biomechanical carapace — irregular, skeletal, wet. Deliberately
+      // low-key + brooding (horror), NOT a flashy neon theme: near-black oily
+      // shell, dim bone ribs, deep shadowed vertebrae grooves, only a faint wet
+      // gleam and the slowest ominous "breathing".
+      float warp = sin(a * TAU * 3.0 + z * 0.5) * 0.4 + sin(z * 0.9 + uSeed) * 0.3; // organic irregularity
+      float ring = 0.5 + 0.5 * sin(z * 5.0 + warp + sin(a * TAU * 2.0) * 0.9);
+      float rib = smoothstep(0.1, 0.9, ring); // rib body
+      float spine = pow(0.5 + 0.5 * sin(a * TAU * 7.0 + z * 0.5 + warp), 3.0); // deep vertebrae grooves
+      float sinew = 0.82 + 0.18 * sin(z * 22.0 + a * TAU * 11.0); // fine tendon detail
+      // near-black shell → dim bone ribs; carve deep shadow between the vertebrae.
+      vec3 col = mix(vec3(0.005, 0.006, 0.007), vec3(0.075, 0.08, 0.075), rib) * sinew;
+      col *= 0.4 + 0.6 * spine;
+      // faint, desaturated wet gleam on the crests (dim bone, not bright cyan).
+      float wet = pow(smoothstep(0.86, 1.0, ring), 4.0);
+      col += vec3(0.15, 0.16, 0.14) * wet * (0.4 + 0.6 * spine);
+      col *= 0.88 + 0.12 * sin(t * 0.5 + z * 0.2); // slow, barely-there breathing
       return col;
     }
     // Vaporwave: an 80s sunset, not a grid — a pink→orange→indigo gradient
