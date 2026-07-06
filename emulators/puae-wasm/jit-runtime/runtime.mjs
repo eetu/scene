@@ -409,7 +409,15 @@ export function installJitChained(Module, opts = {}) {
   const js = new Map(); // pc → packed (stable across C-cache evictions)
   const st = { compiled: 0, activated: 0, gateFail: 0, empty: 0, decodeFail: 0, blocks: 0 };
   window.__jitGateFails = [];
-  const CFTERM = { bcc: 1, dbcc: 1 }; // terminators the block itself executes (+1 retired)
+  // Terminators the block executes inline (retire as +1). JSR/JMP only with a
+  // decoded control EA (else they bounce); mirrors core/ejs-jit/install-src.js.
+  const inlinedTerm = (t) =>
+    !!t &&
+    (t.op === "bcc" ||
+      t.op === "dbcc" ||
+      t.op === "bsr" ||
+      t.op === "rts" ||
+      ((t.op === "jsr" || t.op === "jmp") && !!t.ea));
 
   Module.ejsJitGet = (pc) => {
     pc = pc >>> 0;
@@ -420,12 +428,11 @@ export function installJitChained(Module, opts = {}) {
     if (pc < ramMax) {
       try {
         const blk = blockAt(words, pc, 64);
-        // A 0-body block is only worth JITing if its terminator is a COMPILED
-        // branch (Bcc/DBcc/BRA/halt), which returns a different PC → safe to
-        // chain. A 0-body pure-transfer (JSR/RTS/JMP…) returns its own PC →
-        // would infinite-loop, so hand it to the interpreter.
-        const compilableTerm =
-          blk.term && (blk.term.op === "bcc" || blk.term.op === "dbcc" || blk.term.op === "halt");
+        // A 0-body block is only worth JITing if its terminator resolves to a
+        // different PC (an inline branch/transfer, or halt) → safe to chain. A
+        // 0-body terminator that bounces (rte/rtr, or JSR/JMP with no EA) returns
+        // its own PC → would infinite-loop, so hand it to the interpreter.
+        const compilableTerm = inlinedTerm(blk.term) || (blk.term && blk.term.op === "halt");
         if (!blk.instrs.length && !compilableTerm) st.empty++;
         else {
           const mod = new WebAssembly.Module(recompileCoreBlock(blk, abi));
@@ -437,10 +444,7 @@ export function installJitChained(Module, opts = {}) {
           } else {
             const slot = table.grow(1);
             table.set(slot, new WebAssembly.Instance(mod, { env: realEnv }).exports.block);
-            const len = Math.min(
-              0xff,
-              blk.instrs.length + (blk.term && CFTERM[blk.term.op] ? 1 : 0),
-            );
+            const len = Math.min(0xff, blk.instrs.length + (inlinedTerm(blk.term) ? 1 : 0));
             packed = ((len & 0xff) << 24) | (slot & 0xffffff);
             st.activated++;
           }

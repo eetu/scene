@@ -276,21 +276,38 @@ function randBody() {
   }
 }
 function randTerm() {
-  switch (ri(6)) {
+  const d8nz = () => ri(0x80) + 1; // nonzero low byte → .B form
+  const absL = () => {
+    const a = r32();
+    return [(a >>> 16) & 0xffff, a & 0xffff];
+  };
+  switch (ri(13)) {
     case 0:
-      return [0x6000 | (ri(0x80) + 1)];
+      return [0x6000 | d8nz()]; // BRA.B
     case 1:
-      return [0x6000 | (2 << 8) | (ri(0x80) + 1)];
+      return [0x6000 | (2 << 8) | d8nz()]; // BHI.B
     case 2:
-      return [0x6700, ri(0x10000)];
+      return [0x6700, ri(0x10000)]; // BEQ.W
     case 3:
-      return [0x50c8 | (ri(16) << 8) | ri(8), ri(0x10000)];
+      return [0x50c8 | (ri(16) << 8) | ri(8), ri(0x10000)]; // DBcc
     case 4:
       return [0x4e75]; // RTS
-    default: {
-      const a = r32();
-      return [0x4ef9, (a >>> 16) & 0xffff, a & 0xffff];
-    } // JMP abs.L
+    case 5:
+      return [0x6100 | d8nz()]; // BSR.B
+    case 6:
+      return [0x6100, ri(0x10000)]; // BSR.W
+    case 7:
+      return [0x4e90 | ri(8)]; // JSR (An)
+    case 8:
+      return [0x4ea8 | ri(8), ri(0x10000)]; // JSR (d16,An)
+    case 9:
+      return [0x4eb9, ...absL()]; // JSR abs.L
+    case 10:
+      return [0x4ed0 | ri(8)]; // JMP (An)
+    case 11:
+      return [0x4ee8 | ri(8), ri(0x10000)]; // JMP (d16,An)
+    default:
+      return [0x4ef9, ...absL()]; // JMP abs.L
   }
 }
 

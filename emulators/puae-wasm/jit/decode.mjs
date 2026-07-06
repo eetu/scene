@@ -287,13 +287,26 @@ export function decodeAt(words, i) {
     const isJsr = (w & 0xffc0) === 0x4e80;
     const isJmp = (w & 0xffc0) === 0x4ec0;
     if (isJsr || isJmp) {
-      const mode = eaMode,
-        reg = eaReg;
+      // Decode the control EA so the JIT can inline the transfer (target = the
+      // effective address itself; no dereference). Only control modes are legal for
+      // JSR/JMP; a non-control mode or the 68020 full-extension idx → no `ea`, which
+      // the codegen/interp treat as "bounce to the interpreter".
+      const [ea, j] = decodeEA(eaMode, eaReg, words, i + 1, 4);
+      const ctl =
+        ea &&
+        (ea.ea === "ind" ||
+          ea.ea === "disp" ||
+          ea.ea === "abs" ||
+          ea.ea === "absw" ||
+          ea.ea === "idx");
+      if (ctl) return [{ op: isJsr ? "jsr" : "jmp", ea, term: true }, j];
+      // Unsupported/illegal mode: keep the original ext-word count so the block
+      // length (hence the SMC checksum) stays correct, and bounce (no `ea`).
       let ext = 0;
-      if (mode === 5 || mode === 6) ext = 1;
-      else if (mode === 7 && reg === 0) ext = 1;
-      else if (mode === 7 && reg === 1) ext = 2;
-      else if (mode === 7 && (reg === 2 || reg === 3)) ext = 1;
+      if (eaMode === 5 || eaMode === 6) ext = 1;
+      else if (eaMode === 7 && eaReg === 0) ext = 1;
+      else if (eaMode === 7 && eaReg === 1) ext = 2;
+      else if (eaMode === 7 && (eaReg === 2 || eaReg === 3)) ext = 1;
       return [{ op: isJsr ? "jsr" : "jmp", term: true }, i + 1 + ext];
     }
   }
