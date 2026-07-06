@@ -559,11 +559,23 @@
     groupOverride.set(name, !isOpen(name));
   }
 
-  // Exact, fixed row heights (px) — must match the CSS below. Deterministic
-  // sizing (no measureElement) keeps offsets above the viewport stable, so
-  // opening a group never reflows/jumps the rows already on screen. The inline
-  // rename editor lives in a modal precisely so every row stays a fixed height.
-  const ROW_H = 34;
+  // ≤640px: track rows go two-line (title, then format/plays/duration), so long
+  // module names aren't ellipsised against the metadata columns.
+  let isMobile = $state(false);
+  $effect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const update = () => (isMobile = mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  });
+
+  // Exact, fixed row heights (px) — must match the CSS below (driven from the
+  // same ROW_H via --row-h, so they can't desync). Deterministic sizing (no
+  // measureElement) keeps offsets above the viewport stable, so opening a group
+  // never reflows/jumps the rows already on screen. The inline rename editor
+  // lives in a modal precisely so every row stays a fixed height.
+  const ROW_H = $derived(isMobile ? 52 : 34);
   const HEAD_H = 40;
   const CARD_GAP = 8;
   function rowSize(i: number): number {
@@ -586,6 +598,7 @@
   $effect(() => {
     const n = rows.length;
     void scrollEl;
+    void ROW_H; // re-measure when the mobile breakpoint changes the row height
     untrack(() => {
       $virtualizer.setOptions({
         ...$virtualizer.options,
@@ -1074,7 +1087,7 @@
 {/if}
 
 <div class="listwrap">
-  <main bind:this={scrollEl} class:has-rail={showRail}>
+  <main bind:this={scrollEl} class:has-rail={showRail} style:--row-h="{ROW_H}px">
     {#if activeTab === "playlists"}
       <PlaylistsTab {playlists} onRefresh={refreshPlaylists} onPlay={playList} />
     {:else if scanning && tracks.length === 0}
@@ -1918,7 +1931,9 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    height: 34px;
+    /* Single source of truth: --row-h is set from ROW_H (the virtualizer's row
+       height), so the CSS and the virtualizer sizing can never desync. */
+    height: var(--row-h, 34px);
     padding: 0 12px;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   }
@@ -2565,6 +2580,17 @@
     }
     .li {
       gap: 8px;
+    }
+    /* Two-row: the song title takes the full first row; format/plays/duration
+       wrap to a second row (row height bumped for this via --row-h). So long
+       module names show in full instead of ellipsising against the meta. */
+    .li .row {
+      flex-wrap: wrap;
+      align-content: center;
+      row-gap: 2px;
+    }
+    .li .name {
+      flex-basis: 100%;
     }
     button,
     select {
