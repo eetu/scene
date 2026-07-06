@@ -21,7 +21,6 @@
   const THEMES = [
     "Tron",
     "Wormhole",
-    "Hyperspace",
     "Giger",
     "Vaporwave",
     "Circuit",
@@ -31,6 +30,9 @@
     "Voxel",
     "Corridor",
     "Death Star",
+    "Ice Cave",
+    "Metro",
+    "Abyss",
   ];
   // Theme label — shown only on a manual "next theme" (the 'n' key or a tap on
   // the view), not on the automatic rotation. labelSeq re-keys the element so the
@@ -103,78 +105,86 @@
     }
 
     // --- wall themes: z = distance along tube, a = angle 0..1 around, t = seconds.
-    // Tron: cyan ring grid + orange edge rails on black.
+    // Tron: a cold, sharp digital grid on pure black — thin cyan rings + orange
+    // rails, with bright cyan data-pulses running the rails toward the camera
+    // (lightcycle trails). Kept hard-edged and black-gapped to contrast with the
+    // soft sunset Vaporwave.
     vec3 themeTron(float z, float a, float t) {
-      float rings = neon(z * RING_FREQ, 0.05);
-      float rails = neon(a * RAIL_FREQ, 0.04);
-      return vec3(0.16, 0.88, 1.0) * rings + vec3(0.98, 0.57, 0.05) * rails;
+      float rings = neon(z * RING_FREQ, 0.03); // thinner + sharper than before
+      float rails = neon(a * RAIL_FREQ, 0.028);
+      float pulse = pow(0.5 + 0.5 * sin(z * 0.9 - t * 5.0 + a * TAU * 2.0), 6.0); // travelling packets
+      vec3 col = vec3(0.15, 0.9, 1.0) * rings + vec3(1.0, 0.55, 0.05) * rails;
+      col += vec3(0.4, 1.0, 1.0) * rails * pulse; // bright data-pulses ride the rails
+      return col; // pure black gaps
     }
-    // 2001 star-gate slit-scan: flowing saturated colour curtains, no dark gaps.
+    // 2001 star-gate slit-scan: fast colour curtains rushing toward the camera,
+    // the hue a single field drifting slowly over time — not a rainbow wrapped
+    // around the ring (a*3 wraps seamlessly; hue has no angular term, so each ring
+    // is one colour). White-hot cores ride the streak crests.
     vec3 themeWormhole(float z, float a, float t) {
-      float hue = fract(a * 2.0 + z * 0.03 + t * 0.05); // a*integer → seamless wrap
-      float striations = 0.55 + 0.45 * sin((z * 0.7 - t * 2.5) * TAU + a * TAU * 6.0);
-      return hsv2rgb(vec3(hue, 0.9, 1.0)) * striations * 1.3;
-    }
-    // Hyperspace: thin radial star-streaks flying along the tube walls — bright
-    // heads with long smooth tails, travelling toward the camera at varied speeds.
-    // Thin in angle (clean radial lines, not blocky bands), ~half the lanes lit
-    // with varied brightness, and faded near the mouth so the outer pipe stays dark.
-    vec3 themeHyper(float z, float a, float t) {
-      float LANES = 64.0;
-      float la = a * LANES;
-      float sub = abs(fract(la) - 0.5); // 0 at lane centre → 0.5 at the edge
-      float lane = floor(la);
-      float r = fract(sin(lane * 12.9898 + uSeed) * 43758.5453);
-      float r2 = fract(sin(lane * 45.77 + uSeed * 3.3) * 27182.8);
-      float on = step(0.42, r);                          // a bit over half the lanes lit → more stars
-      float line = exp(-sub * sub * (90.0 + 140.0 * r)); // thin radial line, width varies
-      float d = z - uCamZ;                               // depth ahead of the camera
-      float head = mod(d * 0.09 + t * (1.4 + r * 1.6) + r2 * 10.0, 3.2); // heads travel toward the camera
-      float streak = exp(-head * 2.2);                   // sharp head + long fading tail
-      float nearFade = smoothstep(2.0, 16.0, d);         // obscure the near mouth
-      vec3 tint = mix(vec3(0.5, 0.68, 1.0), vec3(1.0), r * r);
-      return tint * line * streak * on * nearFade * (1.4 + 2.0 * r);
+      float streak = pow(0.5 + 0.5 * sin((z * 0.5 - t * 3.0) * TAU + a * TAU * 3.0), 2.0);
+      float hue = fract(t * 0.05 + z * 0.008); // one flowing colour, drifts over time
+      vec3 c = hsv2rgb(vec3(hue, 0.85, 1.0));
+      return c * streak * 1.4 + vec3(1.0) * pow(streak, 4.0) * 0.5;
     }
     // Biomech / Giger: a dark ribbed metal tube — segmented rings along the tube
     // with a wet cold-steel sheen on the crests and near-black crevices between,
     // vertebrae segmentation around the circumference. Cold blue-grey, high
     // contrast (the ribbed biomech corridor look, not soft violet folds).
     vec3 themeGiger(float z, float a, float t) {
-      // Ribs = rings along the tube, warped around the circumference so they read
-      // as organic vertebrae rather than machined bands.
-      float ring = 0.5 + 0.5 * sin(z * 5.5 + sin(a * TAU * 2.0) * 0.7);
-      float rib = smoothstep(0.15, 0.85, ring);            // rounded rib body
-      float crest = pow(smoothstep(0.82, 1.0, ring), 3.0); // thin wet highlight on the crest
-      // Segmentation around the tube + fine mechanical micro-grooves.
-      float spine = pow(0.5 + 0.5 * sin(a * TAU * 6.0 + z * 0.4), 2.0);
-      float micro = 0.85 + 0.15 * sin(z * 26.0 + a * TAU * 8.0);
-      // Near-black crevices → blue-grey ribs; cold cyan-white wet sheen on crests.
-      vec3 col = mix(vec3(0.008, 0.01, 0.016), vec3(0.13, 0.16, 0.21), rib) * micro;
-      col *= 0.55 + 0.45 * spine;
-      col += vec3(0.45, 0.58, 0.78) * crest * (0.5 + 0.5 * spine);
+      // A dark biomechanical carapace — irregular, skeletal, wet. Deliberately
+      // low-key + brooding (horror), NOT a flashy neon theme: near-black oily
+      // shell, dim bone ribs, deep shadowed vertebrae grooves, only a faint wet
+      // gleam and the slowest ominous "breathing".
+      float warp = sin(a * TAU * 3.0 + z * 0.5) * 0.4 + sin(z * 0.9 + uSeed) * 0.3; // organic irregularity
+      float ring = 0.5 + 0.5 * sin(z * 5.0 + warp + sin(a * TAU * 2.0) * 0.9);
+      float rib = smoothstep(0.1, 0.9, ring); // rib body
+      float spine = pow(0.5 + 0.5 * sin(a * TAU * 7.0 + z * 0.5 + warp), 3.0); // deep vertebrae grooves
+      float sinew = 0.82 + 0.18 * sin(z * 22.0 + a * TAU * 11.0); // fine tendon detail
+      // near-black shell → dim bone ribs; carve deep shadow between the vertebrae.
+      vec3 col = mix(vec3(0.005, 0.006, 0.007), vec3(0.075, 0.08, 0.075), rib) * sinew;
+      col *= 0.4 + 0.6 * spine;
+      // faint, desaturated wet gleam on the crests (dim bone, not bright cyan).
+      float wet = pow(smoothstep(0.86, 1.0, ring), 4.0);
+      col += vec3(0.15, 0.16, 0.14) * wet * (0.4 + 0.6 * spine);
+      col *= 0.88 + 0.12 * sin(t * 0.5 + z * 0.2); // slow, barely-there breathing
       return col;
     }
-    // Vaporwave: magenta↔cyan neon grid over a purple gradient.
+    // Vaporwave: an 80s sunset, not a grid — a pink→orange→indigo gradient
+    // wrapping the tube (never black), with chunky, soft-glowing, receding rings
+    // (a horizon feel; rails halved) and a magenta↔cyan neon that pulses over
+    // time. Soft + warm to contrast with Tron's hard cold grid.
     vec3 themeVapor(float z, float a, float t) {
-      float grid = max(neon(z * RING_FREQ, 0.04), neon(a * RAIL_FREQ, 0.035));
-      float grad = 0.5 + 0.5 * sin(a * 6.2831);
-      vec3 gridCol = mix(vec3(1.0, 0.2, 0.8), vec3(0.25, 0.9, 1.0), grad);
-      return mix(vec3(0.16, 0.03, 0.22), vec3(0.35, 0.08, 0.3), grad) * 0.35 + gridCol * grid;
+      float g = 0.5 + 0.5 * sin(a * TAU + 0.6);                            // 0..1 around the tube
+      vec3 sky = mix(vec3(0.08, 0.02, 0.18), vec3(0.9, 0.25, 0.5), g);     // indigo → hot pink
+      sky = mix(sky, vec3(1.0, 0.55, 0.28), pow(g, 3.0) * 0.7);            // orange sun-kiss at the peak
+      float rings = neon(z * 0.7, 0.09);                                   // chunkier, fewer than Tron
+      float rails = neon(a * 8.0, 0.05) * 0.5;                             // half the rails, dimmer
+      float grid = max(rings, rails);
+      vec3 neonCol = mix(vec3(1.0, 0.15, 0.9), vec3(0.2, 0.95, 1.0), 0.5 + 0.5 * sin(z * 0.15 - t * 1.2));
+      return sky * 0.55 + neonCol * grid; // gradient always visible; soft neon on top
     }
-    // Circuit board: dark-green FR-4 with a copper trace grid + solder pads; a
-    // random subset of nodes is "energized" and glows green, flowing along z like
-    // data. Grid is 24 traces around (integer → seamless).
+    // Circuit board: a dark PCB with warm copper traces + solder pads, brought to
+    // life by bright cyan-green current racing ALONG the traces toward the camera
+    // (data packets) and hot pads that pulse. 24 traces around (integer → seamless).
     vec3 themeCircuit(float z, float a, float t) {
       float gz = z * 3.0, ga = a * 24.0;
-      float traces = max(neon(gz, 0.03), neon(ga, 0.025));
+      float traceZ = neon(gz, 0.025), traceA = neon(ga, 0.022);
+      float traces = max(traceZ, traceA);
       vec2 cell = fract(vec2(gz, ga)) - 0.5;
-      float pad = smoothstep(0.16, 0.1, length(cell)); // round pads at nodes
-      float r = fract(sin(floor(gz) * 12.9 + floor(ga) * 78.2 + uSeed) * 43758.5);
-      float flow = step(0.62, r) * (0.4 + 0.6 * (0.5 + 0.5 * sin(gz * 2.0 - t * 4.0 + r * 6.0)));
-      vec3 board = vec3(0.02, 0.11, 0.05);
-      vec3 copper = vec3(0.75, 0.5, 0.2);
-      vec3 glow = vec3(0.3, 1.0, 0.6);
-      return board + copper * (traces + pad) * 0.6 + glow * (traces + pad * 1.5) * flow;
+      float r = fract(sin(floor(gz) * 12.9 + mod(floor(ga), 24.0) * 78.2 + uSeed) * 43758.5);
+      float r2 = fract(sin(floor(gz) * 45.2 + mod(floor(ga), 24.0) * 13.7 + uSeed * 2.0) * 27182.8);
+      float pad = smoothstep(0.18, 0.1, length(cell)) * step(0.45, r2); // pads at ~55% of nodes
+      // bright packets flowing along the copper — sharp crest (pow 8) gated to a trace
+      float packZ = pow(0.5 + 0.5 * sin(gz * 3.14159 - t * 6.0), 8.0) * traceZ;
+      float packA = pow(0.5 + 0.5 * sin(ga * 3.14159 - t * 4.0 + r * 6.0), 8.0) * traceA;
+      float current = max(packZ, packA);
+      float hot = step(0.62, r) * (0.5 + 0.5 * sin(t * 3.0 + r * 20.0)); // hot pads pulse
+      vec3 board = vec3(0.015, 0.06, 0.035) * (0.7 + 0.3 * sin(a * TAU + z * 0.1)); // subtle sheen
+      vec3 col = board + vec3(0.8, 0.55, 0.25) * (traces + pad) * 0.5; // warm copper
+      col += vec3(0.3, 1.0, 0.7) * current * 1.7; // flowing current glow
+      col += vec3(0.6, 1.0, 0.9) * pad * hot * 1.3; // pulsing hot pads
+      return col;
     }
     // Rainbow: soft pastel spectrum spiralling around + down the tube (hue is
     // cyclic, so a*1.0 = one seamless spectrum around). Low saturation + a lift
@@ -183,24 +193,30 @@
       float hue = fract(a * 1.0 + z * 0.06 - t * 0.08);
       return mix(hsv2rgb(vec3(hue, 0.5, 1.0)), vec3(1.0), 0.15);
     }
-    // Black & white CRT: monochrome phosphor grid, white on black.
+    // Black & white CRT: monochrome phosphor grid over faded TV static — fine,
+    // fast-flickering white noise in the background (dead-channel look) with the
+    // bright phosphor grid on top.
     vec3 themeBW(float z, float a, float t) {
-      return vec3(max(neon(z * RING_FREQ, 0.05), neon(a * RAIL_FREQ, 0.04)));
+      float grid = max(neon(z * RING_FREQ, 0.05), neon(a * RAIL_FREQ, 0.04));
+      float snow = fract(sin(dot(vec2(floor(z * 80.0), mod(floor(a * 200.0), 200.0)), vec2(12.9898, 78.233)) + floor(t * 24.0)) * 43758.5453);
+      return vec3(grid + snow * 0.13); // grid over dim flickering static
     }
-    // Star Wars opening starfield: scattered static star *points* (not streaks —
-    // that's Hyperspace's job) twinkling on deep blue-black space, with a faint
-    // blue depth wash and the odd warm/gold star. Reads as drifting through space.
+    // Star Wars lightspeed jump: a dense wall of blue-white star-streaks stretched
+    // along the tube, rushing at the camera on deep blue-black — the "punch it,
+    // Chewie" hyperspace run. 90 lanes → seamless around the ring.
     vec3 themeStarwars(float z, float a, float t) {
-      float cz = z * 2.5, ca = a * 64.0;    // star cell grid (64 around → seamless)
-      vec2 cell = fract(vec2(cz, ca));
-      float r = fract(sin(floor(cz) * 12.9 + floor(ca) * 78.2 + uSeed) * 43758.5);
-      float star = step(0.9, r);            // ~10% of cells hold a star
-      vec2 jit = vec2(fract(r * 41.0), fract(r * 71.0));   // jittered position in cell
-      float pt = smoothstep(0.16, 0.0, length(cell - jit)); // round point
-      float tw = 0.55 + 0.45 * sin(t * (2.0 + r * 6.0) + r * 40.0); // twinkle
-      vec3 tint = mix(vec3(0.8, 0.85, 1.0), vec3(1.0, 0.82, 0.45), step(0.985, r)); // rare gold
-      vec3 space = mix(vec3(0.006, 0.01, 0.03), vec3(0.02, 0.03, 0.07), 0.5 + 0.5 * sin(a * TAU));
-      return space + tint * star * pt * tw * 2.4;
+      float la = a * 90.0;
+      float sub = abs(fract(la) - 0.5);                     // 0 at lane centre
+      float lane = floor(la);
+      float r = fract(sin(lane * 12.9898 + uSeed) * 43758.5453);
+      float on = step(0.32, r);                             // most lanes lit → dense wall
+      float line = exp(-sub * sub * (150.0 + 120.0 * r));   // very thin streak
+      float d = z - uCamZ;                                  // depth ahead of the camera
+      float head = mod(d * 0.14 + t * (3.2 + r * 3.5) + r * 20.0, 5.0); // fast heads
+      float streak = exp(-head * 1.2);                      // long stretched tail (smear)
+      float nearFade = smoothstep(1.0, 9.0, d);
+      vec3 star = mix(vec3(0.65, 0.82, 1.0), vec3(1.0), r * r); // blue-white
+      return vec3(0.01, 0.02, 0.06) + star * line * streak * on * nearFade * 2.3;
     }
     // Purple voxel tunnel: blocky cells (per-cell purple shade) with dark grout
     // borders, so the wall reads as extruded voxels.
@@ -212,14 +228,21 @@
       float lit = 1.0 - smoothstep(0.7, 1.0, max(f.x, f.y)) * 0.85;
       return body * lit;
     }
-    // Spaceship corridor: grey metal panels + rib rings, with cyan light strips
-    // running the length of the hall.
+    // Spaceship corridor: brushed-metal panels with recessed seams and recurring
+    // raised bulkhead frames, lit by twin cyan strips with power pulsing down the
+    // hall (and glowing trim where the strips cross a bulkhead). Sleek + alive.
     vec3 themeCorridor(float z, float a, float t) {
-      float panels = max(neon(z * 1.0, 0.06), neon(a * 12.0, 0.05));
-      vec3 col = vec3(0.16, 0.17, 0.2) * (1.0 - 0.5 * panels); // seams darker
-      col += vec3(0.08, 0.09, 0.11) * neon(z * 0.5, 0.05);      // structural ribs
-      float strip = neon(a * 2.0, 0.02);                        // two opposed rails
-      return col + vec3(0.2, 0.7, 1.0) * strip * (0.7 + 0.3 * sin(z * 2.0 - t * 3.0));
+      float seams = max(neon(z * 1.0, 0.05), neon(a * 12.0, 0.04)); // panel seams
+      float bulk = neon(z * 0.25, 0.045);                           // bulkhead frame every ~4 units
+      float sheen = 0.55 + 0.45 * sin(a * TAU * 2.0);               // brushed-metal sheen (seamless)
+      vec3 metal = vec3(0.13, 0.145, 0.17) * sheen;
+      metal *= 1.0 - 0.55 * seams;                                  // recessed seams
+      metal = mix(metal, vec3(0.28, 0.3, 0.34), bulk * 0.8);        // raised, brighter bulkheads
+      float strip = neon(a * 2.0, 0.016);                           // twin opposed light strips
+      float flow = pow(0.5 + 0.5 * sin(z * 1.2 - t * 5.0), 2.0);    // power pulsing down the corridor
+      vec3 col = metal + vec3(0.2, 0.75, 1.0) * strip * (0.35 + 0.9 * flow);
+      col += vec3(0.35, 0.85, 1.0) * bulk * strip * 2.0;            // lit bulkhead trim at the strips
+      return col;
     }
     // Death Star trench: greebled grey metal — fine panel seams + big structural
     // ribs down the trench, dense static per-cell tone variation (greebles), and a
@@ -234,29 +257,86 @@
       float lit = step(0.94, g); // ~6% of cells are running lights
       return col + mix(vec3(1.0, 0.8, 0.5), vec3(0.6, 0.85, 1.0), fract(ga * 0.37)) * lit * 0.7;
     }
+    // Ice cave: near-black cold-blue walls with turbulent glacial cracks + bright
+    // white-blue caustics swirling around the tube — an icy whirlpool.
+    vec3 themeIce(float z, float a, float t) {
+      // Ridged, domain-warped turbulence: sharp glacial veins that flow + spiral.
+      // Every angular term is an INTEGER multiple of the ring (a*TAU*n), so the
+      // texture wraps seamlessly — no hard seam where a=0 meets a=1. Along z the
+      // frequencies are non-harmonic (z isn't periodic) to avoid a tiled look.
+      float ang = a * TAU;
+      float warp = sin(ang * 2.0 + z * 0.5 + t * 0.05) * 0.5 + cos(z * 0.31 + uSeed) * 0.4;
+      float zz = z + warp;
+      float n = 0.0, amp = 0.55, af = 3.0, zf = 0.8;
+      for (int i = 0; i < 4; i++) {
+        n += amp * (1.0 - abs(sin(zz * zf + ang * af + uSeed * 1.3))); // ridged veins
+        af *= 2.0; // 3,6,12,24 around — integer ⇒ seamless wrap
+        zf *= 2.17; // non-harmonic along z
+        amp *= 0.55;
+        zz += 0.7;
+      }
+      float crack = pow(smoothstep(0.5, 0.95, n), 1.5); // bright icy veins
+      vec3 col = mix(vec3(0.01, 0.03, 0.075), vec3(0.18, 0.38, 0.62), smoothstep(0.15, 0.9, n));
+      col += vec3(0.75, 0.9, 1.0) * crack; // cold white-blue crack light
+      return col;
+    }
+    // Metro / mine rail tunnel: warm rough rock walls with a proper track bed on
+    // the horseshoe's flat FLOOR — gravel, wooden sleeper cross-ties, and two
+    // bright steel rails. The floor sits at a≈0.25 (straight down) in the wall
+    // coordinate — the shape + angle share the rolled frame, so the track stays
+    // glued to the floor as the tube banks. Warm work-light ambience.
+    vec3 themeMetro(float z, float a, float t) {
+      float cell = mod(floor(a * 40.0), 40.0); // wrap the grain cell → no seam at a=0/1
+      float grain = fract(sin(floor(z * 4.0) * 12.9 + cell * 78.2 + uSeed) * 43758.5);
+      vec3 rock = mix(vec3(0.10, 0.07, 0.04), vec3(0.30, 0.20, 0.11), grain);
+      rock *= 0.82 + 0.18 * sin(z * 3.0 + a * TAU * 3.0); // uneven surface
+      // Flat floor band of the arch (a≈0.25, ~0.13..0.37). Off it, floorBand→0 so
+      // the walls stay bare rock.
+      float floorBand = smoothstep(0.15, 0.10, abs(a - 0.25));
+      vec3 col = mix(rock, vec3(0.05, 0.045, 0.035), floorBand * 0.75); // dark gravel bed
+      float ties = floorBand * smoothstep(0.14, 0.02, abs(fract(z * 1.3) - 0.5));
+      col += vec3(0.17, 0.09, 0.04) * ties; // warm wooden sleepers
+      // two thin steel rails on the floor with a travelling glint
+      float rails = smoothstep(0.012, 0.0, abs(a - 0.205)) + smoothstep(0.012, 0.0, abs(a - 0.295));
+      col += vec3(0.9, 0.85, 0.7) * rails * (0.55 + 0.45 * sin(z * 10.0));
+      col += vec3(0.24, 0.14, 0.05) * (0.4 + 0.3 * sin(z * 0.5 - t * 0.4)); // work-lights
+      return col;
+    }
+    // Abyss mothership: deep violet hull veined with bright cyan-white tech seams —
+    // a flowing, pulsing grid, alien and luminous (purple + bright lines).
+    vec3 themeAbyss(float z, float a, float t) {
+      float lines = max(neon(z * 0.9 - t * 0.5, 0.02), neon(a * 12.0, 0.02));
+      float weave = neon(z * 2.0 + a * 24.0 - t * 0.8, 0.015); // finer diagonal weave
+      vec3 hull = mix(vec3(0.05, 0.01, 0.12), vec3(0.17, 0.04, 0.33), 0.5 + 0.5 * sin(a * TAU + z * 0.1));
+      float pulse = 0.6 + 0.4 * sin(t * 2.0 + z * 0.3);
+      vec3 glow = mix(vec3(0.55, 0.9, 1.0), vec3(0.8, 0.5, 1.0), 0.5 + 0.5 * sin(z * 0.2));
+      return hull + glow * (lines * 1.4 + weave * 0.6) * pulse;
+    }
     vec3 themeById(float id, float z, float a, float t) {
       if (id < 0.5) return themeTron(z, a, t);
       if (id < 1.5) return themeWormhole(z, a, t);
-      if (id < 2.5) return themeHyper(z, a, t);
-      if (id < 3.5) return themeGiger(z, a, t);
-      if (id < 4.5) return themeVapor(z, a, t);
-      if (id < 5.5) return themeCircuit(z, a, t);
-      if (id < 6.5) return themeRainbow(z, a, t);
-      if (id < 7.5) return themeBW(z, a, t);
-      if (id < 8.5) return themeStarwars(z, a, t);
-      if (id < 9.5) return themeVoxel(z, a, t);
-      if (id < 10.5) return themeCorridor(z, a, t);
-      return themeDeathstar(z, a, t);
+      if (id < 2.5) return themeGiger(z, a, t);
+      if (id < 3.5) return themeVapor(z, a, t);
+      if (id < 4.5) return themeCircuit(z, a, t);
+      if (id < 5.5) return themeRainbow(z, a, t);
+      if (id < 6.5) return themeBW(z, a, t);
+      if (id < 7.5) return themeStarwars(z, a, t);
+      if (id < 8.5) return themeVoxel(z, a, t);
+      if (id < 9.5) return themeCorridor(z, a, t);
+      if (id < 10.5) return themeDeathstar(z, a, t);
+      if (id < 11.5) return themeIce(z, a, t);
+      if (id < 12.5) return themeMetro(z, a, t);
+      return themeAbyss(z, a, t);
     }
     // Crossfaded wall colour at (z, a) for the current two themes — used for the
     // inner wall and, multi-tapped, for the blurred parallax layer.
     vec3 wall2(float idA, float idB, float k, float z, float a) {
       return mix(themeById(idA, z, a, uTime), themeById(idB, z, a, uTime), k);
     }
-    // Tube cross-section per theme: 0=circle, 1=square, 2=hexagon, 3=star. Returned
-    // as the "radius" the marcher compares to R, so the tube's silhouette differs
-    // by theme; circle/square/hex are exact perpendicular distances (no marching
-    // overshoot), the star is a gentle radial modulation.
+    // Tube cross-section per theme: 0=circle, 1=square, 2=hexagon, 3=star,
+    // 4=horseshoe (arch), 5=jagged cave. Returned as the "radius" the marcher
+    // compares to R, so the tube's silhouette differs by theme; circle/square/hex
+    // are exact perpendicular distances, star/jagged are radial modulations.
     float shapeRadius(vec2 p, float shape) {
       if (shape < 0.5) return length(p);               // circle
       if (shape < 1.5) return max(abs(p.x), abs(p.y)); // square
@@ -264,14 +344,28 @@
         vec2 q = abs(p);
         return max(q.x * 0.8660254 + q.y * 0.5, q.y);
       }
-      return length(p) / (1.0 + 0.15 * cos(atan(p.y, p.x) * 5.0)); // 5-point star
+      if (shape < 3.5) return length(p) / (1.0 + 0.15 * cos(atan(p.y, p.x) * 5.0)); // 5-point star
+      if (shape < 4.5) return max(length(p), -p.y / 0.62); // horseshoe: rounded roof + sides, flat floor
+      if (shape < 5.5) {
+        // jagged ice cave: radius modulated by integer-freq angular bumps
+        // (seamless) + a seed → a rough, multi-faceted "snowball" silhouette.
+        float ang = atan(p.y, p.x);
+        float jag =
+          1.0 + 0.14 * cos(ang * 7.0 + uSeed) + 0.09 * cos(ang * 13.0) + 0.06 * cos(ang * 23.0 + uSeed * 2.0);
+        return length(p) / jag;
+      }
+      return length(p * vec2(0.72, 1.3)); // oval — sleek, wider than tall (Abyss ship)
     }
-    // Which cross-section each theme wears (ids per themeById order).
+    // Which cross-section each theme wears (ids per themeById order). Specific ids
+    // first, so the square catch-all below doesn't swallow the newer themes.
     float shapeOf(float id) {
-      if (id > 9.5) return 1.0;             // corridor → square
-      if (id > 8.5) return 1.0;             // voxel → square
-      if (id > 4.5 && id < 5.5) return 2.0; // circuit → hexagon
-      if (id > 2.5 && id < 3.5) return 3.0; // giger → star
+      if (id > 12.5) return 6.0;            // abyss → oval (sleek)
+      if (id > 11.5) return 4.0;            // metro → horseshoe arch
+      if (id > 10.5) return 5.0;            // ice → jagged cave
+      if (id > 8.5) return 1.0;             // corridor + death star → square
+      if (id > 7.5) return 1.0;             // voxel → square
+      if (id > 3.5 && id < 4.5) return 2.0; // circuit → hexagon
+      if (id > 1.5 && id < 2.5) return 3.0; // giger → star
       return 0.0;                           // everything else → circle
     }
 
@@ -340,8 +434,8 @@
       float shapeA = shapeOf(idA), shapeB = shapeOf(idB);
       // Voxel theme (id 9): how much it's showing → displace the wall per cell so
       // some blocks rise inward toward the viewer and others recede.
-      float voxAmp = ((idA > 8.5 && idA < 9.5) ? (1.0 - k) : 0.0) +
-                     ((idB > 8.5 && idB < 9.5) ? k : 0.0);
+      float voxAmp = ((idA > 7.5 && idA < 8.5) ? (1.0 - k) : 0.0) +
+                     ((idB > 7.5 && idB < 8.5) ? k : 0.0);
       voxAmp *= 0.22;
 
       // March the ray through the (curved) tube until it crosses the wall. The
@@ -407,14 +501,14 @@
         // behind the inner one. Strongest on neon/grid themes (near-black gaps),
         // faint on solid ones. z*0.3 → slower scroll = a bigger depth gap; the
         // 3-tap z-average softens its grid so it reads as distant/defocused.
-        // Hyperspace walls are mostly black (all gap), so push this "outside tunnel"
+        // Star Wars walls are mostly black (all gap), so push this "outside tunnel"
         // harder and blur it across angle too — a soft second layer of streaks
         // beyond the tube, out of focus.
         float effId = mix(idA, idB, kz);
-        float hyperAmt = 1.0 - clamp(abs(effId - 2.0), 0.0, 1.0);
+        float hyperAmt = 1.0 - clamp(abs(effId - 7.0), 0.0, 1.0); // Star Wars id
         float gap = smoothstep(0.5, 0.0, dot(col, vec3(0.4)));
         float oz = z * 0.3 + 9.0;
-        float ab = 0.05 * hyperAmt; // angular blur for the hyperspace outer layer
+        float ab = 0.05 * hyperAmt; // angular blur for the streak outer layer
         vec3 outer = (wall2(idA, idB, kz, oz - 0.6, a - ab) + wall2(idA, idB, kz, oz, a) +
                       wall2(idA, idB, kz, oz + 0.6, a + ab)) / 3.0;
         col += outer * gap * mix(0.3, 1.0, hyperAmt);
@@ -438,7 +532,7 @@
         // (uSpin), that sector sweeps around the screen as the ship banks — space
         // up/down/anywhere. Paint an un-fogged star sky + green turret tracers
         // there instead of the wall, fading in with the theme's own crossfade.
-        float trench = (abs(idA - 11.0) < 0.5 ? 1.0 - kz : 0.0) + (abs(idB - 11.0) < 0.5 ? kz : 0.0);
+        float trench = (abs(idA - 10.0) < 0.5 ? 1.0 - kz : 0.0) + (abs(idB - 10.0) < 0.5 ? kz : 0.0);
         float da = abs(fract(a - 0.25 + 0.5) - 0.5); // angular distance to opening centre
         float sky = (1.0 - smoothstep(0.11, 0.16, da)) * trench; // feathered edge, gated to theme
         if (sky > 0.001) {
@@ -562,6 +656,10 @@
     // theme, 'l' locks/unlocks the theme rotation.
     let clock = 0; // seconds elapsed, for wall animation (uTime)
     const SLOT = 24; // seconds a wall theme holds before crossfading to the next
+    // A drop may hard-cut the theme, but only after the current one has had this
+    // much dwell — so a drop can't immediately re-switch a theme that a natural
+    // rotation (or a prior drop) just brought in.
+    const DROP_MIN_DWELL = SLOT * 1000 * 0.5;
     let themeTime = 0; // theme-selection clock (frozen while locked)
     let locked = false; // 'l' freezes the theme rotation
     let scanOn = true; // CRT scanlines on by default
@@ -623,15 +721,19 @@
     let energyBase = 0;
     let prevEnergy = 0;
     let lastDrop = -1e9;
-    let lastThemeJump = -1e9;
+    let lastSwitchAt = -1e9; // ms of the last actual theme change (natural or drop)
+    let curSlot = -1; // slot whose theme is currently showing (detects a switch)
     let burst = 0; // drop flash, decays
     const smooth01 = (e0: number, e1: number, x: number) => {
       const s = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
       return s * s * (3 - 2 * s);
     };
     const themeSlot = (slot: number) => {
-      const s = Math.sin(slot * 127.1 + seedVal * 311.7) * 43758.5453;
-      return Math.floor((s - Math.floor(s)) * THEMES.length);
+      // Ordered rotation (Tron → … → Abyss → Tron): 'n' and the auto-advance step
+      // to the *next* theme, not a random one. The per-track seed only picks where
+      // the cycle starts, so tracks don't all open on the same theme.
+      const start = Math.floor((seedVal / 12.0) * THEMES.length); // seedVal ∈ [0,12)
+      return (((start + slot) % THEMES.length) + THEMES.length) % THEMES.length;
     };
 
     // Render through the shared driver: ~60fps cap + hidden-tab pause. dt is real
@@ -671,11 +773,12 @@
         ) {
           lastDrop = now;
           burst = 1;
-          // A drop only *lands* a theme change on the beat — gated to ~one slot
-          // apart so drops sync the timing without switching every few seconds.
-          if (!locked && now - lastThemeJump > SLOT * 1000) {
+          // A drop only *lands* a theme change on the beat, and only once the
+          // current theme has had a minimum dwell — so a drop can't hard-cut a
+          // theme a natural rotation (or a prior drop) just switched to. The jump
+          // moves themeTime; lastSwitchAt updates below when the slot changes.
+          if (!locked && now - lastSwitchAt > DROP_MIN_DWELL) {
             themeTime = (Math.floor(themeTime / SLOT) + 1) * SLOT;
-            lastThemeJump = now;
           }
         }
         prevEnergy = energy;
@@ -686,6 +789,13 @@
         if (!locked) themeTime += dt;
         const tp = themeTime / SLOT;
         const nSlot = Math.floor(tp);
+        // Record when the shown theme actually changes (natural boundary, a drop
+        // jump, or a manual advance all move nSlot) — the drop gate above keys its
+        // minimum dwell off this, so no switch can immediately follow another.
+        if (nSlot !== curSlot) {
+          curSlot = nSlot;
+          lastSwitchAt = now;
+        }
         let idA = themeSlot(nSlot);
         let idB = themeSlot(nSlot + 1);
         if (idA === idB) idB = (idB + 1) % THEMES.length;
