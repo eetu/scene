@@ -444,15 +444,37 @@ export function interpBlock(block, s) {
     s[L.iPC] = L.HALT_PC;
     return;
   }
-  if (
-    t.op === "jsr" ||
-    t.op === "jmp" ||
-    t.op === "bsr" ||
-    t.op === "rts" ||
-    t.op === "rte" ||
-    t.op === "rtr"
-  ) {
-    s[L.iPC] = t.pc | 0;
+  if (t.op === "rte" || t.op === "rtr") {
+    s[L.iPC] = t.pc | 0; // supervisor / format word — stays interpreted upstream
+    return;
+  }
+  if (t.op === "jmp") {
+    s[L.iPC] = t.ea ? eaAddr(s, t.ea, 4) | 0 : t.pc | 0;
+    return;
+  }
+  if (t.op === "jsr") {
+    if (!t.ea) {
+      s[L.iPC] = t.pc | 0;
+      return;
+    }
+    const target = eaAddr(s, t.ea, 4) | 0; // reads the OLD A7 if the EA is (A7)
+    const sp = (s[L.iA(7)] - 4) | 0;
+    s[L.iA(7)] = sp;
+    memPut(s, sp, 4, block.fallPC >>> 0);
+    s[L.iPC] = target;
+    return;
+  }
+  if (t.op === "bsr") {
+    const sp = (s[L.iA(7)] - 4) | 0;
+    s[L.iA(7)] = sp;
+    memPut(s, sp, 4, block.fallPC >>> 0);
+    s[L.iPC] = (t.pc + 2 + t.disp) | 0;
+    return;
+  }
+  if (t.op === "rts") {
+    const sp = s[L.iA(7)] | 0;
+    s[L.iPC] = memGet(s, sp, 4) | 0;
+    s[L.iA(7)] = (sp + 4) | 0;
     return;
   }
   const target = (t.pc + 2 + t.disp) | 0;

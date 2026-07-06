@@ -597,8 +597,34 @@ export function makeCodegen(abi) {
 
   function emitTerminator(term, fallPC) {
     if (!term) return [k(fallPC)];
-    if (["jsr", "jmp", "bsr", "rts", "rte", "rtr"].includes(term.op)) return [k(term.pc | 0)];
     if (term.op === "halt") return [k(L.HALT_PC)];
+    // RTE/RTR (supervisor / stacked format word) stay interpreted: return own PC so
+    // the C dispatcher hands the transfer to the interpreter.
+    if (term.op === "rte" || term.op === "rtr") return [k(term.pc | 0)];
+    // JMP <ea>: next PC = the effective address itself (no memory dereference).
+    if (term.op === "jmp")
+      return term.ea ? [...eaAddr(term.ea, LADDR, 4), get(LADDR)] : [k(term.pc | 0)];
+    // JSR <ea>: compute the target first (so JSR (A7) reads the OLD A7), then push
+    // the return PC (fallPC) on a predecremented A7, then jump. Reuses the
+    // Musashi-validated pdec eaAddr path for the push (A7 -= 4; matches interp.mjs).
+    if (term.op === "jsr") {
+      if (!term.ea) return [k(term.pc | 0)];
+      return [
+        ...eaAddr(term.ea, LADDR, 4),
+        ...eaAddr({ ea: "pdec", n: 7 }, LADDR2, 4),
+        ...memStore(LADDR2, 4, [k(fallPC)]),
+        get(LADDR),
+      ];
+    }
+    // BSR: push the return PC (fallPC), branch PC-relative.
+    if (term.op === "bsr")
+      return [
+        ...eaAddr({ ea: "pdec", n: 7 }, LADDR2, 4),
+        ...memStore(LADDR2, 4, [k(fallPC)]),
+        k((term.pc + 2 + term.disp) | 0),
+      ];
+    // RTS: pop the return PC off A7 (postincrement).
+    if (term.op === "rts") return [...eaAddr({ ea: "pinc", n: 7 }, LADDR, 4), ...memLoad(LADDR, 4)];
     const target = (term.pc + 2 + term.disp) | 0;
     if (term.op === "bcc") return sel([k(target)], [k(fallPC)], condExpr(term.cc));
     // dbcc

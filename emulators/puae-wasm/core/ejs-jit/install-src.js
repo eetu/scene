@@ -13,7 +13,25 @@
     jsBytelen;
   var GATE = true;
   var ramMax = 0x00f00000; // don't JIT Kickstart ROM / IO
-  var CFTERM = { bcc: 1, dbcc: 1 };
+  // Terminators the codegen executes INLINE — so they retire as an instruction for
+  // the cycle charge, and a bodyless block ending in one is still worth compiling.
+  // JSR/JMP only when a control EA was decoded (else they bounce to the interpreter);
+  // halt/rte/rtr are not inline-executed here.
+  function inlinedTerm(t) {
+    if (!t) return false;
+    switch (t.op) {
+      case "bcc":
+      case "dbcc":
+      case "bsr":
+      case "rts":
+        return true;
+      case "jsr":
+      case "jmp":
+        return !!t.ea;
+      default:
+        return false;
+    }
+  }
   var stats = { compiled: 0, activated: 0, gateFail: 0, empty: 0, decodeFail: 0, blocks: 0 };
 
   function memEnv() {
@@ -179,9 +197,12 @@
     if (pc < ramMax) {
       try {
         var blk = D.blockAt(words, pc, 64);
-        var ct =
-          blk.term && (blk.term.op === "bcc" || blk.term.op === "dbcc" || blk.term.op === "halt");
-        if (!blk.instrs.length && !ct) stats.empty++;
+        // Worth compiling if it has a body OR a terminator we execute inline (incl.
+        // halt, a fixed PC). A bodyless block whose terminator only bounces (rte/rtr,
+        // or JSR/JMP with no EA) would return its OWN PC → the C chain loop would
+        // re-probe it forever, so skip those (leave them to the interpreter).
+        var compilable = inlinedTerm(blk.term) || (blk.term && blk.term.op === "halt");
+        if (!blk.instrs.length && !compilable) stats.empty++;
         else {
           var mod = new WebAssembly.Module(CB.recompileCoreBlock(blk, abi));
           stats.compiled++;
@@ -189,7 +210,7 @@
           else {
             var slot = table.grow(1);
             table.set(slot, new WebAssembly.Instance(mod, { env: realEnv }).exports.block);
-            var len = Math.min(0xff, blk.instrs.length + (blk.term && CFTERM[blk.term.op] ? 1 : 0));
+            var len = Math.min(0xff, blk.instrs.length + (inlinedTerm(blk.term) ? 1 : 0));
             packed = ((len & 0xff) << 24) | (slot & 0xffffff);
             jsBytelen.set(pc, (blk.fallPC - blk.startPC) >>> 0); // for the C SMC checksum
             stats.activated++;
