@@ -4,7 +4,7 @@ name: Build libopenmpt-ext (WASM)
 # structured pattern cells) on a
 # NATIVE amd64 runner. Locally we build under podman's amd64 emulation on Apple
 # Silicon (fine here — we disable -flto, whose link step deadlocks under
-# qemu-TCG, same wall the puae core hit). ubuntu-latest is native amd64, so it
+# qemu-TCG). ubuntu-latest is native amd64, so it
 # runs the identical compile.sh cleanly and uploads the drop-in module as an
 # artifact to vendor into apps/tracker.
 #
@@ -14,13 +14,13 @@ name: Build libopenmpt-ext (WASM)
 on:
   workflow_dispatch:
   push:
-    branches: [tracker-jam-samples, worktree-tracker-jam-samples, tracker-editor]
+    branches: [libopenmpt-0.8.7-emsdk6]
     paths:
       - ".github/workflows/libopenmpt-ext.yml"
       - "wasm/libopenmpt-ext/**"
 
 env:
-  OMPT_REF: libopenmpt-0.7.13
+  OMPT_REF: libopenmpt-0.8.7
 
 jobs:
   build-libopenmpt-ext:
@@ -34,12 +34,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential python3 git ca-certificates xz-utils
 
-      - name: Set up emsdk 3.1.74 (same pin as emulators/puae-wasm)
+      - name: Set up emsdk 6.0.2 (current stable)
         run: |
           git clone https://github.com/emscripten-core/emsdk.git
           cd emsdk
-          ./emsdk install 3.1.74
-          ./emsdk activate 3.1.74
+          ./emsdk install 6.0.2
+          ./emsdk activate 6.0.2
 
       - name: Clone OpenMPT @ ${{ env.OMPT_REF }}
         run: git clone --depth 1 --branch "$OMPT_REF" https://github.com/OpenMPT/openmpt openmpt

@@ -2,7 +2,7 @@
 # Build a custom libopenmpt WASM (jamming + sample extraction) — a drop-in for
 # apps/tracker/frontend/static/vendor/chiptune3/libopenmpt.worklet.js.
 #
-# amd64 Debian + emsdk 3.1.74 podman container
+# amd64 Debian + emsdk 6.0.2 podman container
 # (we're arm64 → qemu). Clones OpenMPT, builds the image, runs compile.sh inside.
 #
 #   ./build.sh                       full build → out/libopenmpt.worklet.js
@@ -12,7 +12,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-OMPT_REF="${OMPT_REF:-libopenmpt-0.7.13}"
+OMPT_REF="${OMPT_REF:-libopenmpt-0.8.7}"
 IMG="${IMG:-libopenmpt-ext-build}"
 SRC="$PWD/external/openmpt"
 OUT="$PWD/out"
@@ -24,7 +24,7 @@ if [ ! -d "$SRC/.git" ]; then
 fi
 
 if [ "$IMG" = "libopenmpt-ext-build" ]; then
-	echo "== building image $IMG (amd64, emsdk 3.1.74) =="
+	echo "== building image $IMG (amd64, emsdk 6.0.2) =="
 	podman build --platform linux/amd64 -t "$IMG" -f Containerfile .
 fi
 

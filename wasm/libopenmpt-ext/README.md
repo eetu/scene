@@ -32,9 +32,9 @@ backend nor a yarn package — so it lives in its own top-level bucket.
 
 ## How it works
 
-- `Containerfile` — amd64 Debian + **emsdk 3.1.74** (pinned). We're on arm64 macOS, so it runs under podman's
+- `Containerfile` — amd64 Debian + **emsdk 6.0.2** (pinned). We're on arm64 macOS, so it runs under podman's
   amd64 emulation.
-- `build.sh` — clones OpenMPT (`OMPT_REF`, default `libopenmpt-0.7.13`), builds
+- `build.sh` — clones OpenMPT (`OMPT_REF`, default `libopenmpt-0.8.7`), builds
   the image, runs `compile.sh` inside it.
 - `compile.sh` (runs in the container) — applies the patches, compiles the
   `LIBOPENMPT_CXX_SOURCES` file set (from OpenMPT's own Makefile) with `em++`,
@@ -42,7 +42,7 @@ backend nor a yarn package — so it lives in its own top-level bucket.
   `libopenmpt` (the contract `decoder.worker.js` expects). Object files are
   cached under `out/obj/` for fast relinks after a shim edit.
 - **No `-flto`** — full LTO deadlocks under qemu-TCG on Apple Silicon at the
-  final link (the puae core hit the same wall). CI builds on a native amd64
+  final link. CI builds on a native amd64
   runner where LTO/`-Oz` are fine.
 - `patches/patch.py` — adds `module_impl::shim_get_sndfile()` (the only source
   change; reaches the otherwise-protected `CSoundFile`).
@@ -112,7 +112,11 @@ rarely needs hand-holding — and when it does, it **fails loudly**, not silentl
 - `exports.txt` — a renamed `_openmpt_*` the worker calls surfaces as a link-time
   "undefined symbol", not a runtime break.
 
-Pinned at **`libopenmpt-0.7.13`** (contemporaneous with the repo's emsdk 3.1.74).
+Pinned at **`libopenmpt-0.8.7`** + **emsdk 6.0.2** — current stable of both. We
+track the latest toolchain rather than freeze an old one (libopenmpt 0.8.x only
+requires emscripten ≥ 3.1.51; 6.0.2 clears the 3.1→4→5→6 major jump clean and
+passes the spike gate, and the audio/sample output is identical anyway — the DSP
+is deterministic IEEE-754).
 The CI workflow (`.github/workflows/libopenmpt-ext.yml`) builds the shippable
 `-Oz -flto` artifact on a native amd64 runner and verifies the exports.
 
