@@ -302,6 +302,15 @@ export const playback = $state({
 });
 
 let queue: Track[] = [];
+// Pre-rolled next queue index: chosen when a track *starts*, so the next song is
+// deterministic (and thus prefetchable) rather than picked at the moment of
+// advancing. Sequential = +1; shuffle = a random pick ≠ current, rolled now.
+let plannedNextIdx: number | null = null;
+// Debounced next-track byte prefetch — warms the browser HTTP cache so a switch
+// skips the network. Debounced so mashing next doesn't spam fetches (and never
+// prefetches the tracks skipped straight past).
+let prefetchTimer: ReturnType<typeof setTimeout> | null = null;
+let prefetchedUrl: string | null = null;
 // Consecutive load/playback failures without a successful frame in between —
 // bounds the auto-skip past broken modules so a fully-unplayable queue can't
 // spin forever. Reset on the first progress tick of a track that actually plays.
@@ -616,6 +625,9 @@ export async function playTrack(track: Track) {
   // it's been listened to past the threshold (not on a fast skip).
   playCounted = false;
   playCountHash = track.hash;
+  // Fix the next song now (deterministic) and warm its bytes (debounced).
+  rollNext();
+  schedulePrefetch();
 }
 
 /** Count a play once the current track has progressed past a listen threshold
@@ -666,20 +678,53 @@ export function cueInOrder(list: Track[], track: Track) {
   playback.position = 0;
   playback.duration = track.duration ?? 0;
   playback.song = null;
+  rollNext(); // so next/prev + a later prefetch have a target
+}
+
+/** Pre-roll the next queue index. Sequential → +1 (null at the end). Shuffle →
+ *  a random pick ≠ current, chosen NOW so the next song is fixed ahead of the
+ *  transition (deterministic, prefetchable) instead of at the moment we advance. */
+function rollNext() {
+  const n = queue.length;
+  if (n === 0 || playback.queueIndex < 0) {
+    plannedNextIdx = null;
+  } else if (playback.shuffle && n > 1) {
+    let i: number;
+    do {
+      i = Math.floor(Math.random() * n);
+    } while (i === playback.queueIndex);
+    plannedNextIdx = i;
+  } else {
+    const i = playback.queueIndex + 1;
+    plannedNextIdx = i < n ? i : null;
+  }
+}
+
+/** Warm the browser HTTP cache with the pre-rolled next track's bytes, so the
+ *  next switch skips the network (/api/file is cacheable + content-hash stable).
+ *  Debounced: mashing next keeps rescheduling, so we only fetch once the user
+ *  settles — never the tracks they skip straight past. */
+function schedulePrefetch() {
+  if (prefetchTimer) clearTimeout(prefetchTimer);
+  prefetchTimer = setTimeout(() => {
+    prefetchTimer = null;
+    if (plannedNextIdx == null) return;
+    const t = queue[plannedNextIdx];
+    if (!t) return;
+    const url = host().fileUrl(t.hash);
+    if (url === prefetchedUrl) return; // already warmed
+    prefetchedUrl = url;
+    void fetch(url).catch(() => {
+      prefetchedUrl = null; // let a later attempt retry
+    });
+  }, 1200);
 }
 
 export function playNext() {
-  if (playback.queueIndex < 0 || queue.length === 0) return;
-  let next: number;
-  if (playback.shuffle && queue.length > 1) {
-    do {
-      next = Math.floor(Math.random() * queue.length);
-    } while (next === playback.queueIndex);
-  } else {
-    next = playback.queueIndex + 1;
-    if (next >= queue.length) return;
-  }
-  void playInOrder(queue, queue[next]);
+  if (plannedNextIdx == null) return;
+  const idx = plannedNextIdx;
+  playback.queueIndex = idx;
+  void playTrack(queue[idx]);
 }
 
 export function playPrev() {
@@ -688,6 +733,9 @@ export function playPrev() {
 
 export function toggleShuffle() {
   playback.shuffle = !playback.shuffle;
+  // Re-roll the (now differently-chosen) next track + re-warm the cache.
+  rollNext();
+  schedulePrefetch();
 }
 
 export function toggleRepeat() {
