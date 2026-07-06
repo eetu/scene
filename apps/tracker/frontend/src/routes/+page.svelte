@@ -1427,7 +1427,7 @@
             <ListPlus size={16} />
           </button>
           <button
-            class="icon-btn"
+            class="icon-btn pv-copylink"
             onclick={copyLinkAtPosition}
             title="copy link at current time"
             aria-label="copy link at current time"
@@ -1435,7 +1435,7 @@
             <Link2 size={16} />
           </button>
           <button
-            class="icon-btn"
+            class="icon-btn pv-rename"
             onclick={() => startEdit(ct)}
             title="rename / move"
             aria-label="rename / move"
@@ -2600,6 +2600,15 @@
 		   (tap a track to open it). The whole row stays a play target. */
     .li .fav,
     .li .edit {
+      display: none;
+    }
+    /* The player-view action cluster overflows an iPhone-width header (the
+       close button gets clipped). Drop the desktop-ish song actions — copy-link
+       (share a timestamp) and rename/move (curation) — plus the now-orphaned
+       divider; favourite / add-to-playlist / settings / close stay reachable. */
+    .pv-copylink,
+    .pv-rename,
+    .pv-sep {
       display: none;
     }
     /* (Transport's own responsive rules live in @scene/player.) */
