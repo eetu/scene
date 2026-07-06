@@ -3,7 +3,7 @@
   // and Amiga (puae). EmulatorJS shows its own themed "Start Game" button and
   // only downloads the core on that click, so it's already lazy + provides the
   // audio gesture — no separate launch button needed. We add Fullscreen + Stop.
-  import { Gauge, Maximize, Power, Sparkles, Trash2, Upload } from "@lucide/svelte";
+  import { Cpu, Maximize, Power, Sparkles, Trash2, Upload } from "@lucide/svelte";
   import { onDestroy, onMount, tick } from "svelte";
 
   import {
@@ -37,28 +37,42 @@
   // Amiga disks tagged (A500)/(OCS)/(ECS) boot a 68000 + original chipset (see
   // the model block below); PUAE then needs the KS1.3 ROM, not the A1200 KS3.1.
   const amigaA500 = () => core === "amiga" && /\((?:a500|ocs|ecs)\)/i.test(gameUrl);
-  // Disks tagged (030)/(A4030) or (040)/(A4040) need an accelerated A4000/030|040
-  // (68030/68040 + FPU): some AGA demos require a real 68030/40 and/or an FPU and
-  // die (Line-F / illegal instruction) on the base A1200 68020. Returns the PUAE
-  // model preset or null. These need the A4000 KS3.1 ROM (biosA4000Url).
-  const amigaAccel = (): "A4040" | "A4030" | null => {
-    if (core !== "amiga") return null;
-    if (/\((?:040|a4040)\)/i.test(gameUrl)) return "A4040";
-    if (/\((?:030|a4030)\)/i.test(gameUrl)) return "A4030";
-    return null;
+  // The AGA machine's default CPU, from the filename tag: (040)/(A4040) → an
+  // A4000/040, (030)/(A4030) → an A4000/030, otherwise a stock A1200 68020. This is
+  // only the DEFAULT — a per-demo user override (the CPU control) wins, see
+  // effectiveCpu(). (A500/OCS/ECS is a different machine class; see amigaA500.)
+  type AgaCpu = "020" | "030" | "040";
+  const agaCpuTag = (): AgaCpu => {
+    if (/\((?:040|a4040)\)/i.test(gameUrl)) return "040";
+    if (/\((?:030|a4030)\)/i.test(gameUrl)) return "030";
+    return "020";
   };
-  // The Kickstart this demo needs: the exact PUAE ROM filename, the server URL for
-  // it (null if the server doesn't ship it), and the expected CRC/size for
-  // validating a user-supplied file. PUAE reads the ROM by filename from the
-  // emulator FS root, so a user ROM is injected there (see tryInjectRom).
+  // Per-demo CPU override (the CPU control), persisted keyed by the demo URL so it
+  // sticks; null ⇒ follow the tag default above. The EFFECTIVE AGA CPU is the override
+  // or that default — and null for the A500/OCS class (a 68000 machine; the CPU
+  // control doesn't apply and cycle-exact timing is forced in launch()).
+  const cpuKey = () => `party-ejs-cpu:${gameUrl}`;
+  const readCpuOverride = (): AgaCpu | null => {
+    try {
+      const v = typeof localStorage === "undefined" ? null : localStorage.getItem(cpuKey());
+      return v === "020" || v === "030" || v === "040" ? v : null;
+    } catch {
+      return null;
+    }
+  };
+  let cpuOverride = $state<AgaCpu | null>(readCpuOverride());
+  const effectiveCpu = (): AgaCpu | null => (amigaA500() ? null : (cpuOverride ?? agaCpuTag()));
+  // The Kickstart the CURRENTLY-SELECTED machine needs: the exact PUAE ROM filename,
+  // the server URL for it (undefined if the server doesn't ship it), and the expected
+  // CRC/size for validating a user-supplied file. Keyed off the EFFECTIVE machine, so
+  // switching to 030/040 asks for the A4000 ROM. PUAE reads the ROM by filename from
+  // the emulator FS root, so a user ROM is injected there (see amigaRoms.ts).
   const neededRom = () => {
     if (core !== "amiga") return null;
-    const name = amigaA500()
-      ? "kick34005.A500"
-      : amigaAccel()
-        ? "kick40068.A4000"
-        : "kick40068.A1200";
-    const backendUrl = amigaA500() ? biosA500Url : amigaAccel() ? biosA4000Url : biosUrl;
+    const cpu = effectiveCpu(); // null ⇒ A500/OCS class
+    const name =
+      cpu === null ? "kick34005.A500" : cpu === "020" ? "kick40068.A1200" : "kick40068.A4000";
+    const backendUrl = cpu === null ? biosA500Url : cpu === "020" ? biosUrl : biosA4000Url;
     return { name, backendUrl, ...KNOWN_ROMS[name] };
   };
   // ROMs the visitor supplied in-browser (filename → bytes), loaded from IndexedDB
@@ -79,10 +93,6 @@
 
   let host = $state<HTMLDivElement | null>(null);
   let error = $state<string | null>(null);
-  // Amiga only: default is an accelerated 68030 (smooth for heavy AGA demos, as
-  // on the target hardware / capture videos). This toggle switches to authentic
-  // stock-A1200 cycle-exact 68020 timing for the few demos that require it.
-  let accurateMode = $state(false);
   // "Recommended settings" (on by default): ignore EmulatorJS's per-demo saved
   // settings and boot with the app defaults below — forgiving, so an accidental
   // setting that made a demo laggy doesn't stick. Toggle off to let your saved
@@ -186,11 +196,12 @@
     //   not compilable / parity-failing — so the JIT can only ever speed a demo up
     //   or match the interpreter, never break it. Measured ~1.4× on CPU-bound demos
     //   (3D/vector); chipset/blitter-bound demos are limited by the chipset
-    //   emulation, not the CPU, so they match stock (no regression). We keep 68020,
-    //   not 68030: authentic, and 030 raises the guest's cycles-per-frame budget
-    //   (more emulated work/frame → lag even with the JIT). The "Accurate" toggle
-    //   switches 'normal' → cycle-exact (a CPU loop that bypasses the JIT) for the
-    //   few demos that need exact 020/copper/blitter timing.
+    //   emulation, not the CPU, so they match stock (no regression). 020 is the
+    //   default (lightest to emulate); demos built for an accelerator (e.g. ZIF wants
+    //   an A4000/040) can be bumped to an A4000/030 or /040 (68030/040 + FPU) per demo
+    //   via the CPU control — more guest CPU headroom, still JIT'd. Cycle-exact timing
+    //   is used only for the A500/OCS class (68000 demos need it); AGA always runs
+    //   'normal'/JIT.
     // - C64: drive-sound emulation off by default. VICE models the 1541's
     //   motor/stepper noise faithfully, and many demos keep the drive spinning,
     //   so the sound runs on under the demo (unlike Amiga, whose floppy noise
@@ -214,40 +225,35 @@
       webgl2Enabled: "enabled",
     };
     if (core === "amiga") {
-      // Model by filename tag (amigaA500 above): AGA demos (68020/AGA) run on an
-      // A1200; OCS/ECS demos (State of the Art, Desert Dream, Enigma…) need a
-      // 68000 + original chipset — a 68020/AGA A1200 runs them too fast or
-      // glitches. `… (A500).adf` (or (OCS)/(ECS)) picks the classic path.
-      const accel = amigaAccel();
-      if (amigaA500()) {
+      // Machine by EFFECTIVE CPU (filename-tag default, overridable per demo via the
+      // CPU control — see effectiveCpu). null ⇒ the A500/OCS class: a 68000 + original
+      // chipset (State of the Art, Desert Dream, Enigma…) which needs authentic 68000
+      // timing — a 68020/AGA machine runs it too fast or glitches.
+      const cpu = effectiveCpu();
+      if (cpu === null) {
         opts.puae_model = "A500"; // OCS, 68000, original chipset
         opts.puae_cpu_compatibility = "exact"; // 68000-accurate timing (demos need it)
         opts.puae_fastmem_size = "0"; // an A500 has no fast RAM
         opts.puae_bogomem_size = "2"; // + 512K slow RAM → 1 MB, what most 1990–93 OCS demos want
-      } else if (accel) {
-        // (030)/(040) demos: an accelerated A4000/030|040 — a real 68030/68040 with
-        // an FPU. Some AGA demos require a 68030/40 and/or an FPU and die (Line-F /
-        // illegal instruction) on the base A1200 68020; this preset (which auto-
-        // selects the A4000 KS3.1 ROM set above) runs them. Still AGA + 2M Chip +
-        // 8M Fast. NOTE: needs kick40068.A4000 present, else PUAE falls back to AROS.
-        opts.puae_model = accel; // "A4030" or "A4040"
-        opts.puae_cpu_compatibility = accurateMode ? "exact" : "normal";
-        opts.puae_immediate_blits = accurateMode ? "waiting" : "immediate";
+      } else if (cpu === "020") {
+        // Stock A1200: AGA + 68020 (no FPU) + 2M Chip. The JIT supplies the speed (see
+        // note). Force 8 MB Zorro-II fast on: the A1200 preset is "2M Chip + 8M Fast",
+        // but EmulatorJS writes the individual mem options at the core default (fast =
+        // 0), and with no fast RAM sizable demos abort on launch ("not enough memory /
+        // returncode 10", verified in UAE).
+        opts.puae_model = "A1200";
+        opts.puae_cpu_model = "68020";
+        opts.puae_cpu_compatibility = "normal"; // the JIT-accelerated CPU loop
+        opts.puae_immediate_blits = "immediate";
         opts.puae_fastmem_size = "8";
       } else {
-        opts.puae_model = "A1200"; // force AGA — our Amiga content is AGA demos
-        opts.puae_cpu_model = "68020"; // authentic A1200 CPU; the JIT supplies the speed (see note)
-        // Accurate mode → cycle-exact 68020 (a different CPU loop that BYPASSES the
-        // JIT dispatch hook, so it's the reliable "JIT off" path); default → 'normal'
-        // (the JIT-accelerated loop). These select the CPU emulation path at machine
-        // init, so toggleAccurate() relaunches rather than warm-restarting.
-        opts.puae_cpu_compatibility = accurateMode ? "exact" : "normal";
-        opts.puae_immediate_blits = accurateMode ? "waiting" : "immediate"; // exact blitter timing vs instant
-        // The A1200 preset is "2M Chip + 8M Fast", but the individual memory
-        // options override the model preset, and EmulatorJS writes them all at the
-        // core's default (fast = 0). With no fast RAM, any sizable demo aborts on
-        // launch with "not enough memory available / returncode 10" (verified in
-        // UAE). Force 8 MB Zorro-II fast back on so the demos actually load.
+        // Accelerated A4000: a real 68030/68040 + FPU for demos built for an
+        // accelerator (e.g. ZIF wants an A4000/040 @ 40 MHz). Still AGA + 2M Chip + 8M
+        // Fast, KS3.1 A4000 (neededRom picks it). Heavier to emulate than the 020, but
+        // the JIT keeps it realtime. NOTE: needs kick40068.A4000, else PUAE → AROS.
+        opts.puae_model = cpu === "040" ? "A4040" : "A4030";
+        opts.puae_cpu_compatibility = "normal";
+        opts.puae_immediate_blits = "immediate";
         opts.puae_fastmem_size = "8";
       }
       opts.puae_collision_level = "none"; // demos don't need collision — saves CPU
@@ -325,14 +331,61 @@
     void launch();
   }
 
-  // Log to the console whether the vendored PUAE core is the JIT build and, once
-  // it runs, how much of the demo is going through the recompiler — so it's
-  // obvious the custom core is in use and enabled. Reads gameManager.Module (the
-  // emulation thread's module, page-reachable), stops once the JIT is active.
+  // Log to the console whether the vendored PUAE core is the JIT build and, while
+  // it runs, how much of the demo is *currently* going through the recompiler — so
+  // it's obvious the custom core is in use and how well it's doing. Reads
+  // gameManager.Module (the emulation thread's module, page-reachable) and samples
+  // the live rate until the JIT's hot working set stops growing (steady state),
+  // then logs one summary and stops. Deliberately does NOT stop the moment the
+  // rate first pokes above zero — that froze the banner on a warm-up snapshot.
   function announceJit() {
     let saidCore = false;
     let sawModule = false;
     let tries = 0;
+    // Windowed rate = Δjit / Δtotal between samples — the *current* fraction of
+    // instructions going through the JIT, uncontaminated by the interpreted boot
+    // code that permanently dilutes the cumulative average. prev* hold the last read.
+    let prevTot: number | null = null;
+    let prevJit = 0;
+    // Steady-state tracking: peak windowed share; how many samples the compiled-block
+    // count has held steady (warm-up is "done" once the hot working set stops
+    // growing); whether we ever read a real share; and last-seen values for the
+    // final summary line.
+    let peakWindow = 0;
+    let stable = 0;
+    let observed = false;
+    let lastActivated = 0;
+    let lastGateFail = 0;
+    let lastCum: number | null = null;
+    let lastLog = -100;
+    let settled = false;
+    // crossOriginIsolated is fixed for the page and gates the threaded core (the
+    // ~2.5× HDF path, EJS_threads below); surface it so a silent fallback to the
+    // weaker non-threaded core is visible.
+    const threaded = typeof window !== "undefined" && window.crossOriginIsolated === true;
+    const mode = threaded ? "threaded" : "NON-threaded (no SharedArrayBuffer)";
+    const SETTLE = 30; // ~15s of no new blocks ⇒ hot working set compiled ⇒ steady
+
+    // Safari's Web Inspector mangles a literal "%" inside a %c-styled console.log
+    // (it renders "% now" as "%6now"); escaping percents as %% — the console-format
+    // escape both Chrome and Safari collapse back to "%" — prints them correctly.
+    const jitLog = (msg: string, style = "color:#888") =>
+      console.log(`%c${msg.replace(/%/g, "%%")}`, style);
+
+    const logSummary = (reason: string) => {
+      if (!observed) {
+        jitLog(
+          `[PUAE] JIT ${reason}: ${lastActivated} blocks compiled, ${lastGateFail} gate-fails · live share not observable from page (${mode})`,
+        );
+        return;
+      }
+      const cum = lastCum !== null ? `, ${lastCum.toFixed(1)}% cumulative` : "";
+      jitLog(
+        `[PUAE] JIT ${reason}: ${lastActivated} blocks compiled, ${lastGateFail} gate-fails · peak ${peakWindow.toFixed(1)}% of instructions via JIT${cum} · ${mode}`,
+        peakWindow >= 5 ? "color:#2ecc40" : "color:#888",
+      );
+    };
+
     if (announceTimer) clearInterval(announceTimer);
     announceTimer = setInterval(() => {
       tries++;
@@ -345,42 +398,85 @@
       if (M && typeof M.ejsJitGet === "function") {
         if (!saidCore) {
           saidCore = true;
-          // NOTE: this only means the core is the JIT *build* (recompiler baked in)
-          // — NOT that the JIT is executing. In cycle-exact ("Accurate timing") mode,
-          // or on demos whose hot code the JIT can't compile, blocks barely run and
-          // ~0% of instructions go through it. The real signal is the % line below.
-          console.log("%c[PUAE] JIT-capable core loaded (recompiler present)", "color:#888");
+          // This only means the core is the JIT *build* (recompiler baked in) — NOT
+          // that it's executing. The live windowed-% line below is the real signal.
+          jitLog(`[PUAE] JIT-capable core loaded (recompiler present) · ${mode}`);
         }
         const st = M.__ejsJitStats as { activated: number; gateFail: number } | undefined;
         if (st && st.activated > 0) {
-          let share: number | null = null;
+          // Read the core's instruction counters (shared-memory globals, so readable
+          // from the page even on the threaded core; some builds don't export them).
+          // cumulative = jit/total since boot; windowed = the delta since last sample.
+          let cum: number | null = null;
+          let windowShare: number | null = null;
           try {
             const tot = (M._jit_insn_total as (() => number) | undefined)?.();
             const jit = (M._jit_insn_jit as (() => number) | undefined)?.();
-            if (tot) share = (100 * (jit ?? 0)) / tot;
+            if (typeof tot === "number" && typeof jit === "number") {
+              if (tot) cum = (100 * jit) / tot;
+              if (prevTot !== null && tot > prevTot)
+                windowShare = (100 * (jit - prevJit)) / (tot - prevTot);
+              prevTot = tot;
+              prevJit = jit;
+            }
           } catch {
-            /* counters not readable across threads — skip */
+            /* counters not exported on this build — report blocks/gate-fails only */
           }
-          // Only claim it's actually accelerating when a non-trivial share executes
-          // via the JIT; otherwise say so plainly so the banner can't mislead.
-          const running = share !== null && share >= 1;
-          const pct = share === null ? "" : ` · ${share.toFixed(1)}% of instructions via JIT`;
-          console.log(
-            `%c[PUAE] ${running ? "JIT executing ⚡" : "JIT idle (interpreter running)"}: ${st.activated} blocks compiled, ${st.gateFail} gate-fails${pct}`,
-            running ? "color:#2ecc40" : "color:#888",
-          );
-          // keep sampling until the JIT actually kicks in (or the timeout below)
-          if (running) clearInterval(announceTimer!);
+          if (cum !== null || windowShare !== null) observed = true;
+
+          const newPeak = windowShare !== null && windowShare > peakWindow + 1;
+          if (windowShare !== null && windowShare > peakWindow) peakWindow = windowShare;
+          const grew = st.activated > lastActivated;
+          stable = grew ? 0 : stable + 1;
+          lastActivated = st.activated;
+          lastGateFail = st.gateFail;
+          lastCum = cum;
+
+          // Throttle: log on a new windowed-share peak, on block growth, or every
+          // ~5s as a heartbeat — not every 500ms (that would be ~240 spam lines).
+          if (newPeak || grew || tries - lastLog >= 10) {
+            lastLog = tries;
+            const running = windowShare !== null && windowShare >= 5;
+            const label =
+              windowShare === null
+                ? "warming up"
+                : running
+                  ? "executing ⚡"
+                  : "idle (interpreter running)";
+            let metric = "";
+            if (windowShare !== null) {
+              metric =
+                ` · ${windowShare.toFixed(1)}% now (peak ${peakWindow.toFixed(1)}%` +
+                (cum !== null ? `, ${cum.toFixed(1)}% cumulative)` : ")");
+            } else if (cum !== null) {
+              metric = ` · ${cum.toFixed(1)}% cumulative`;
+            }
+            jitLog(
+              `[PUAE] JIT ${label}: ${st.activated} blocks compiled, ${st.gateFail} gate-fails${metric}`,
+              running ? "color:#2ecc40" : "color:#888",
+            );
+          }
+
+          // Steady state: the block count has held for ~15s → warm-up done. Emit one
+          // summary (peak + cumulative + mode) and stop sampling.
+          if (stable >= SETTLE && !settled) {
+            settled = true;
+            logSummary("settled");
+            clearInterval(announceTimer!);
+            return;
+          }
         }
       }
       if (tries > 240) {
         // ~120s: give up. If we saw a module but never ejsJitGet, it's the vanilla
-        // core (stale cache?) — bump CORE_VERSION / reload to refetch.
+        // core (stale cache?) — bump CORE_VERSION / reload to refetch. If the JIT ran
+        // but never plateaued, still leave a final summary rather than trailing off.
         if (sawModule && !saidCore)
-          console.log(
-            "%c[PUAE] vanilla core (no JIT) — stale cached core? hard-reload to refetch",
+          jitLog(
+            "[PUAE] vanilla core (no JIT) — stale cached core? hard-reload to refetch",
             "color:#f78f08;font-weight:bold",
           );
+        else if (saidCore && lastActivated > 0 && !settled) logSummary("120s cap");
         clearInterval(announceTimer!);
       }
     }, 500);
@@ -390,14 +486,38 @@
     if (announceTimer) clearInterval(announceTimer);
     announceTimer = null;
     const g = w();
+    const emu = g.EJS_emulator as
+      | {
+          callEvent?: (e: string) => void;
+          gameManager?: { Module?: { abort?: () => void; pauseMainLoop?: () => void } };
+        }
+      | undefined;
+    // Fully RELEASE the previous core, don't just pause it. EmulatorJS's own teardown
+    // is its "exit" event (save, stop the main loop, unmount the saves FS, then abort
+    // the emscripten runtime) — so fire that. Its abort is deferred ~1s, which would
+    // let the dying core's shared WASM memory overlap the next one; so we also abort
+    // the Module synchronously here to free it BEFORE launch() allocates the
+    // replacement. Without this, every relaunch (machine switch, Default-settings
+    // toggle, navigating to another demo → onDestroy) strands a live core whose worker
+    // threads keep its shared memory reserved — and WebKit reserves a shared
+    // WebAssembly.Memory's whole maximum up front, so a few stranded cores exhaust the
+    // address space → intermittent "RangeError: Out of memory" in initModule on the
+    // next launch.
     try {
-      (g.EJS_emulator as { pause?: () => void } | undefined)?.pause?.();
+      emu?.callEvent?.("exit");
     } catch {
-      /* already gone */
+      /* never started / already gone */
+    }
+    try {
+      emu?.gameManager?.Module?.pauseMainLoop?.();
+      emu?.gameManager?.Module?.abort?.(); // throws "Aborted" once torn down — swallow it
+    } catch {
+      /* module gone or already aborted */
     }
     scriptEl?.remove();
     scriptEl = null;
     host?.replaceChildren();
+    g.EJS_emulator = undefined;
   }
 
   function fullscreen() {
@@ -415,16 +535,18 @@
     }
   }
 
-  // Amiga: flip the 68020 between the JIT/'normal' default and authentic
-  // cycle-exact 020 timing (for the few demos that need exact copper/blitter
-  // timing — and the reliable "JIT off" path, since cycle-exact uses a different
-  // CPU loop that the JIT doesn't hook). PUAE only re-reads cpu_compatibility /
-  // cpu_model at machine INIT, not on a warm restart(), and on the threaded core
-  // the JIT can't be toggled from the page — so we relaunch (like the Recommended
-  // toggle) and let launch()'s opts (which read accurateMode) init the core in the
-  // chosen mode. You'll re-click Launch after the switch.
-  function toggleAccurate() {
-    accurateMode = !accurateMode;
+  // Switch the AGA machine (per-demo, persisted). PUAE re-reads model/cpu only at
+  // machine INIT (not on a warm restart), and on the threaded core the JIT can't be
+  // toggled from the page — so we relaunch (like the Default-settings toggle) and let
+  // launch()'s opts init the core as the chosen machine. You'll re-click Launch after.
+  function setCpu(cpu: AgaCpu) {
+    if (effectiveCpu() === cpu) return; // already this machine — no pointless relaunch
+    cpuOverride = cpu;
+    try {
+      localStorage.setItem(cpuKey(), cpu);
+    } catch {
+      /* storage blocked — session-only */
+    }
     teardown();
     void launch();
   }
@@ -476,21 +598,43 @@
         aria-pressed={forceDefaults}
         onclick={toggleForceDefaults}
         title={forceDefaults
-          ? "Settings source: booting the app's tuned defaults, ignoring any options you changed in the menu (fixes a laggy or broken setup). Click to use your own saved settings instead. Independent of Accurate timing."
-          : "Settings source: using your own saved settings. Click to boot the app's tuned defaults instead. Restarts the demo. Independent of Accurate timing."}
+          ? "Settings source: booting the app's tuned defaults, ignoring any options you changed in the menu (fixes a laggy or broken setup). Click to use your own saved settings instead. Independent of the CPU setting."
+          : "Settings source: using your own saved settings. Click to boot the app's tuned defaults instead. Restarts the demo. Independent of the CPU setting."}
       >
         <Sparkles size={15} /> Default settings
       </button>
-      {#if core === "amiga"}
-        <button
-          class="tgl"
-          class:on={accurateMode}
-          aria-pressed={accurateMode}
-          onclick={toggleAccurate}
-          title="CPU mode: cycle-exact 68020 (JIT off) — slower, for the few demos that need exact copper/blitter timing. Off = JIT-accelerated (smooth). Independent of Default settings. Restarts the demo."
-        >
-          <Gauge size={15} /> Accurate timing
-        </button>
+      {#if core === "amiga" && !amigaA500()}
+        {@const cpu = effectiveCpu()}
+        <div class="seg" role="group" aria-label="Amiga CPU / machine">
+          <span class="seg-label"><Cpu size={14} /> CPU</span>
+          <button
+            class="seg-btn"
+            class:on={cpu === "020"}
+            aria-pressed={cpu === "020"}
+            onclick={() => setCpu("020")}
+            title="Stock A1200 — 68020, AGA, 2M Chip + 8M Fast, Kickstart 3.1. The default; JIT-accelerated. Restarts the demo."
+          >
+            020
+          </button>
+          <button
+            class="seg-btn"
+            class:on={cpu === "030"}
+            aria-pressed={cpu === "030"}
+            onclick={() => setCpu("030")}
+            title="A4000/030 — 68030 + FPU + 8M Fast, more CPU for accelerator-targeted AGA demos. Needs the A4000 Kickstart 3.1 (an upload prompt appears if the server doesn't ship it). Restarts the demo."
+          >
+            030
+          </button>
+          <button
+            class="seg-btn"
+            class:on={cpu === "040"}
+            aria-pressed={cpu === "040"}
+            onclick={() => setCpu("040")}
+            title="A4000/040 — 68040 @ 40 MHz + FPU + 8M Fast, the fastest machine (e.g. ZIF is built for this). Needs the A4000 Kickstart 3.1. Restarts the demo."
+          >
+            040
+          </button>
+        </div>
       {/if}
       {#if romMissing()}
         <button
@@ -589,6 +733,37 @@
     border-color: var(--accent);
     border-style: solid;
     color: var(--bg);
+  }
+  /* Segmented CPU/machine picker: a label + joined buttons, active one accent-filled. */
+  .seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .seg-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--muted, #8a8);
+  }
+  .bar .seg-btn {
+    border-radius: 0;
+    margin-left: -1px;
+  }
+  .bar .seg-btn:first-of-type {
+    border-radius: 6px 0 0 6px;
+    margin-left: 0;
+  }
+  .bar .seg-btn:last-of-type {
+    border-radius: 0 6px 6px 0;
+  }
+  .bar .seg-btn.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    position: relative;
+    z-index: 1;
   }
   .bar button.exit:hover {
     border-color: #ff4136;
