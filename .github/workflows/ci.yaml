@@ -7,8 +7,58 @@ on:
     branches: [main]
 
 jobs:
+  # Which areas changed — so each check runs only when relevant (a Rust-only PR
+  # skips the frontend + Playwright checks, a frontend-only PR skips the Rust
+  # ones, etc). Same paths-filter pattern as dockerimage.yaml. main has no
+  # required status checks, so skipped jobs don't block a merge.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.f.outputs.frontend }}
+      backend: ${{ steps.f.outputs.backend }}
+      tracker_stack: ${{ steps.f.outputs.tracker_stack }}
+      browser: ${{ steps.f.outputs.browser }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+        id: f
+        with:
+          filters: |
+            frontend:
+              - 'packages/**'
+              - 'apps/*/frontend/**'
+              - 'package.json'
+              - 'yarn.lock'
+              - '.yarnrc.yml'
+              - '.yarn/releases/**'
+              - '.node-version'
+              - '.prettierignore'
+              - '.github/workflows/ci.yaml'
+            backend:
+              - 'apps/*/backend/**'
+              - 'apps/*/e2e/**'
+              - 'services/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/ci.yaml'
+            tracker_stack:
+              - 'apps/tracker/backend/**'
+              - 'apps/tracker/e2e/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/ci.yaml'
+            browser:
+              - 'packages/player/**'
+              - 'apps/*/frontend/**'
+              - 'package.json'
+              - 'yarn.lock'
+              - '.yarn/releases/**'
+              - '.github/workflows/ci.yaml'
+
   frontend:
     name: "Frontends (Svelte workspace)"
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -30,6 +80,8 @@ jobs:
 
   backend:
     name: "Backends (Rust workspace)"
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -45,6 +97,8 @@ jobs:
 
   e2e:
     name: "E2E smoke (tracker stack boots + talks)"
+    needs: changes
+    if: ${{ needs.changes.outputs.tracker_stack == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -60,6 +114,8 @@ jobs:
 
   browser-e2e:
     name: "Browser E2E (${{ matrix.app }} playback)"
+    needs: changes
+    if: ${{ needs.changes.outputs.browser == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -82,3 +138,26 @@ jobs:
           yarn install --immutable
           yarn workspace ${{ matrix.app }}-frontend exec playwright install --with-deps chromium
           yarn workspace ${{ matrix.app }}-frontend test:e2e --project=chromium
+
+  # Single stable check to require in branch protection. Always runs (no path
+  # filter), so it always reports — sidestepping the "required check never
+  # reports and blocks the PR forever" trap. Passes when every needed job
+  # succeeded OR was skipped by its path filter; fails only when one actually
+  # failed/was cancelled. Require THIS job (not the filtered jobs by name, which
+  # for the browser-e2e matrix don't report reliable per-leg names when skipped).
+  ci-gate:
+    name: "CI gate"
+    needs: [changes, frontend, backend, e2e, browser-e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: All required jobs passed or were skipped
+        run: |
+          echo "job results: ${{ join(needs.*.result, ' ') }}"
+          for r in ${{ join(needs.*.result, ' ') }}; do
+            case "$r" in
+              failure|cancelled)
+                echo "::error::a required job reported '$r'"; exit 1 ;;
+            esac
+          done
+          echo "ok"
