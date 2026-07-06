@@ -1,6 +1,7 @@
 <script lang="ts">
   import {
     CircleHelp,
+    Link2,
     ListPlus,
     Monitor,
     Moon,
@@ -30,6 +31,7 @@
     playPrev,
     SampleBrowser,
     Scope,
+    seekSeconds,
     seekToOrder,
     seqToggle,
     setEditing,
@@ -48,6 +50,8 @@
   import { onMount, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
 
+  import { goto } from "$app/navigation";
+  import { page } from "$app/state";
   import { api, ApiError, fileUrl, type Playlist, type StatusResponse, type Track } from "$lib/api";
   import PatternViewScroll from "$lib/PatternViewScroll.svelte";
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
@@ -336,6 +340,82 @@
     void refreshPlaylists();
   });
 
+  // The open track is mirrored in the URL (?t=<content-hash>) so a song is
+  // bookmarkable and survives a dev HMR reload. The `playback` store lives in
+  // @scene/player and persists across a component hot-swap, but this component's
+  // `showPattern` resets — so on HMR the song keeps playing while the view
+  // closes; restoring from the URL reopens it without restarting.
+  //
+  // Captured once at init, before the writer effect below can clear it (on first
+  // paint `playback.current` is null, which would otherwise wipe a bookmarked t).
+  const initialTrackHash = page.url.searchParams.get("t");
+  let urlRestored = $state(false);
+
+  // An explicitly-shared start position (?t=&pos=<sec>, from the copy-link
+  // button). Applied once, after the module decodes; never auto-persisted, so a
+  // plain ?t or a fresh selection always starts at 0 (no surprise resumes).
+  const initialPos = initialTrackHash
+    ? Math.max(0, Math.floor(Number(page.url.searchParams.get("pos")) || 0))
+    : 0;
+  let pendingSeek = $state<number | null>(initialPos > 0 ? initialPos : null);
+
+  // Restore the bookmarked / pre-HMR track once the library has loaded. Runs
+  // once.
+  $effect(() => {
+    if (urlRestored || !tracks.length) return;
+    urlRestored = true;
+    if (!initialTrackHash) return;
+    // The decoded pattern data survived intact (a component-only HMR keeps the
+    // @scene/player store): reopen the pattern view straight onto it.
+    if (playback.current?.hash === initialTrackHash && playback.song) {
+      showPattern = true;
+      return;
+    }
+    // Fresh load / bookmark: load the module so it decodes — the pattern grid
+    // needs a decoded song, and cueing alone never loads it — then open the
+    // player view. Loading plays it; the browser may block audio on a cold load
+    // without a gesture, but @scene/player resumes the context on the first
+    // interaction, and the pattern renders regardless. A shared ?pos seeks once
+    // decoded (pendingSeek effect below).
+    const t = tracks.find((x) => x.hash === initialTrackHash);
+    if (t) {
+      void playInOrder(
+        untrack(() => flatTracks),
+        t,
+      );
+      showPattern = true;
+    }
+  });
+
+  // Write ?t as the current track changes (gated until restore has consumed the
+  // initial URL, and fully untracked so it never re-triggers on its own write).
+  // Also strips ?pos once we touch the URL — the shared start position is a
+  // one-shot marker, never carried forward, so a reload can't re-seek.
+  $effect(() => {
+    if (!urlRestored) return;
+    const hash = playback.current?.hash ?? null;
+    untrack(() => {
+      const u = new URL(page.url);
+      const tChanged = (u.searchParams.get("t") ?? null) !== hash;
+      if (!tChanged && !u.searchParams.has("pos")) return;
+      if (hash) u.searchParams.set("t", hash);
+      else u.searchParams.delete("t");
+      u.searchParams.delete("pos");
+      void goto(u, { replaceState: true, keepFocus: true, noScroll: true });
+    });
+  });
+
+  // Apply the shared start position once the target module has decoded (song
+  // present, so setPos works). One-shot; cleared on apply.
+  $effect(() => {
+    if (pendingSeek == null) return;
+    if (playback.current?.hash === initialTrackHash && playback.song) {
+      const pos = pendingSeek;
+      pendingSeek = null;
+      seekSeconds(pos);
+    }
+  });
+
   // Lock body scroll while the full-screen player overlay is open, so the
   // page's own (now-pointless) scrollbar for the list behind it disappears.
   $effect(() => {
@@ -620,8 +700,38 @@
   });
 
   function openTrack(t: Track) {
-    if (playback.current?.path !== t.path) void playInOrder(flatTracks, t);
+    // Reload when it's a different track OR the current one has no decoded song
+    // yet (e.g. mid-load): opening the pattern view on an un-decoded module would
+    // freeze on "decoding pattern…". An already-loaded same track just reopens
+    // the view (no rewind).
+    if (playback.current?.path !== t.path || !playback.song) void playInOrder(flatTracks, t);
     showPattern = true;
+  }
+
+  // Expand the current track into the full pattern view. A track that's only
+  // cued (restored from ?t, never played) has no decoded song yet, and cueing
+  // doesn't load — so load it here, else the grid freezes on "decoding pattern…".
+  function openPlayerView() {
+    const cur = playback.current;
+    if (cur && !playback.song) void playInOrder(flatTracks, cur);
+    showPattern = true;
+  }
+
+  // Copy a deep-link to the current track at the current position (?t=&pos=),
+  // YouTube-style — the only thing that ever writes ?pos. Copies to the
+  // clipboard; never touches the app's own URL (the writer keeps that clean).
+  async function copyLinkAtPosition() {
+    const cur = playback.current;
+    if (!cur) return;
+    const u = new URL(location.href);
+    u.searchParams.set("t", cur.hash);
+    u.searchParams.set("pos", String(Math.floor(playback.position)));
+    try {
+      await navigator.clipboard.writeText(u.toString());
+      showToast(`Link copied at ${fmtTime(playback.position)}`);
+    } catch {
+      showToast("Couldn't copy link", "err");
+    }
   }
 
   // Desktop shortcuts: space = play/pause, ←/→ = prev/next, esc = close view.
@@ -1297,12 +1407,30 @@
           </button>
           <button
             class="icon-btn"
+            onclick={() => startAdd(ct)}
+            title="add to playlist"
+            aria-label="add to playlist"
+          >
+            <ListPlus size={16} />
+          </button>
+          <button
+            class="icon-btn"
+            onclick={copyLinkAtPosition}
+            title="copy link at current time"
+            aria-label="copy link at current time"
+          >
+            <Link2 size={16} />
+          </button>
+          <button
+            class="icon-btn"
             onclick={() => startEdit(ct)}
             title="rename / move"
             aria-label="rename / move"
           >
             <Pencil size={16} />
           </button>
+          <!-- Divider: song actions (left) vs view controls (settings/close). -->
+          <div class="pv-sep" role="separator" aria-orientation="vertical"></div>
         {/if}
         <button
           class="icon-btn gear"
@@ -1472,7 +1600,7 @@
     <!-- The dock sits above the player overlay (z 5 > 4), so only offer "open
          player view" while it's closed — otherwise the expand affordance is a
          no-op over the very view it claims to open. -->
-    <Transport onOpenView={showPattern ? undefined : () => (showPattern = true)} />
+    <Transport onOpenView={showPattern ? undefined : openPlayerView} />
   </div>
 {/if}
 
@@ -1816,14 +1944,17 @@
   .song {
     color: var(--text);
   }
-  /* Format as a small chip rather than inline "[XM]" text. */
+  /* Format as a small chip rather than inline "[XM]" text. The label uses the
+     main text colour, not --muted: on the light theme --muted (#a0a0a0) on the
+     chip's --panel-hi (#d9d9d9) is barely legible (~1.5:1). The chip still reads
+     as secondary via its size / uppercase / pill, not a washed-out colour. */
   .fmt-chip {
     flex: 0 0 auto;
     font-size: 10px;
     line-height: 1;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--text);
     background: var(--panel-hi);
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -2173,6 +2304,13 @@
   }
   .pv-actions .faved {
     color: var(--accent);
+  }
+  /* Thin rule splitting song actions (fav/add/link/rename) from view controls. */
+  .pv-sep {
+    width: 1px;
+    height: 18px;
+    margin: 0 4px;
+    background: var(--border);
   }
   .pv-tabs {
     display: flex;
