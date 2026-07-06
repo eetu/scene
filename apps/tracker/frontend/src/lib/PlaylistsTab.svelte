@@ -164,8 +164,19 @@
     URL.revokeObjectURL(url);
   }
 
-  function label(i: PlaylistDetail["items"][number]): string {
+  function song(i: PlaylistItem): string {
     return i.title || i.filename || (i.md5 ? i.md5.slice(0, 12) : "unknown");
+  }
+  // Group · artist context prefix — mirrors the library row's sub-label so a mod
+  // reads the same in every list view.
+  function sub(i: PlaylistItem): string {
+    return [i.group, i.artist].filter(Boolean).join(" · ");
+  }
+  function fmtTime(sec: number): string {
+    if (!sec || !isFinite(sec)) return "0:00";
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
   }
 </script>
 
@@ -258,13 +269,21 @@
                 title="play — {it.path ?? ''}"
                 onclick={() => playItem(it)}
               >
-                {label(it)}
+                {#if sub(it)}<span class="sub">{sub(it)}&nbsp;</span>{/if}<span class="song"
+                  >{song(it)}</span
+                >
               </button>
             {:else}
               <span class="it-name" title={it.md5 ?? ""}>
-                {label(it)}<span class="pending"> (missing)</span>
+                {#if sub(it)}<span class="sub">{sub(it)}&nbsp;</span>{/if}<span class="song"
+                  >{song(it)}</span
+                ><span class="pending"> (missing)</span>
               </span>
             {/if}
+            <span class="meta">
+              {#if it.ext}<span class="fmt-chip">{it.ext}</span>{/if}
+              <span class="dur">{it.duration ? fmtTime(it.duration) : ""}</span>
+            </span>
             <button class="mini" title="up" disabled={i === 0} onclick={() => move(i, -1)}>
               <ChevronUp size={13} />
             </button>
@@ -428,7 +447,7 @@
     box-shadow: inset 2px 0 0 var(--accent);
     border-radius: 4px;
   }
-  .items li.current .it-name {
+  .items li.current .song {
     color: var(--accent);
     font-weight: 600;
   }
@@ -460,6 +479,59 @@
   .pending {
     color: var(--muted);
     font-size: 12px;
+  }
+  /* Field styling mirrors the library row so a mod reads the same across views:
+     a muted group·artist sub-label prefixing the song title. */
+  .sub {
+    color: var(--muted);
+  }
+  .song {
+    color: var(--text);
+  }
+  /* Secondary metadata cluster (format + duration). On desktop it sits inline
+     between the name and the reorder controls; on mobile it wraps to a second
+     row (the reorder controls can't be hidden the way the library hides fav/
+     rename, so the row goes two-line instead). */
+  .meta {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .fmt-chip {
+    flex: 0 0 auto;
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: var(--panel-hi);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 5px;
+  }
+  .dur {
+    flex: 0 0 auto;
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  @media (max-width: 640px) {
+    .items li {
+      flex-wrap: wrap;
+    }
+    /* Row 1: [#] name … ↑ ↓ ✕. Row 2: the metadata, indented under the name. */
+    .it-name {
+      order: 1;
+    }
+    .mini {
+      order: 2;
+    }
+    .meta {
+      order: 3;
+      flex-basis: 100%;
+      margin-left: 32px;
+    }
   }
   .empty,
   .msg {
