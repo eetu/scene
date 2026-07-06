@@ -160,20 +160,27 @@
       vec3 neonCol = mix(vec3(1.0, 0.15, 0.9), vec3(0.2, 0.95, 1.0), 0.5 + 0.5 * sin(z * 0.15 - t * 1.2));
       return sky * 0.55 + neonCol * grid; // gradient always visible; soft neon on top
     }
-    // Circuit board: dark-green FR-4 with a copper trace grid + solder pads; a
-    // random subset of nodes is "energized" and glows green, flowing along z like
-    // data. Grid is 24 traces around (integer → seamless).
+    // Circuit board: a dark PCB with warm copper traces + solder pads, brought to
+    // life by bright cyan-green current racing ALONG the traces toward the camera
+    // (data packets) and hot pads that pulse. 24 traces around (integer → seamless).
     vec3 themeCircuit(float z, float a, float t) {
       float gz = z * 3.0, ga = a * 24.0;
-      float traces = max(neon(gz, 0.03), neon(ga, 0.025));
+      float traceZ = neon(gz, 0.025), traceA = neon(ga, 0.022);
+      float traces = max(traceZ, traceA);
       vec2 cell = fract(vec2(gz, ga)) - 0.5;
-      float pad = smoothstep(0.16, 0.1, length(cell)); // round pads at nodes
-      float r = fract(sin(floor(gz) * 12.9 + floor(ga) * 78.2 + uSeed) * 43758.5);
-      float flow = step(0.62, r) * (0.4 + 0.6 * (0.5 + 0.5 * sin(gz * 2.0 - t * 4.0 + r * 6.0)));
-      vec3 board = vec3(0.02, 0.11, 0.05);
-      vec3 copper = vec3(0.75, 0.5, 0.2);
-      vec3 glow = vec3(0.3, 1.0, 0.6);
-      return board + copper * (traces + pad) * 0.6 + glow * (traces + pad * 1.5) * flow;
+      float r = fract(sin(floor(gz) * 12.9 + mod(floor(ga), 24.0) * 78.2 + uSeed) * 43758.5);
+      float r2 = fract(sin(floor(gz) * 45.2 + mod(floor(ga), 24.0) * 13.7 + uSeed * 2.0) * 27182.8);
+      float pad = smoothstep(0.18, 0.1, length(cell)) * step(0.45, r2); // pads at ~55% of nodes
+      // bright packets flowing along the copper — sharp crest (pow 8) gated to a trace
+      float packZ = pow(0.5 + 0.5 * sin(gz * 3.14159 - t * 6.0), 8.0) * traceZ;
+      float packA = pow(0.5 + 0.5 * sin(ga * 3.14159 - t * 4.0 + r * 6.0), 8.0) * traceA;
+      float current = max(packZ, packA);
+      float hot = step(0.62, r) * (0.5 + 0.5 * sin(t * 3.0 + r * 20.0)); // hot pads pulse
+      vec3 board = vec3(0.015, 0.06, 0.035) * (0.7 + 0.3 * sin(a * TAU + z * 0.1)); // subtle sheen
+      vec3 col = board + vec3(0.8, 0.55, 0.25) * (traces + pad) * 0.5; // warm copper
+      col += vec3(0.3, 1.0, 0.7) * current * 1.7; // flowing current glow
+      col += vec3(0.6, 1.0, 0.9) * pad * hot * 1.3; // pulsing hot pads
+      return col;
     }
     // Rainbow: soft pastel spectrum spiralling around + down the tube (hue is
     // cyclic, so a*1.0 = one seamless spectrum around). Low saturation + a lift
