@@ -200,7 +200,7 @@
           mono
         </button>
       </div>
-      <div class="t-time">
+      <div class="t-time" data-testid="transport-time">
         {playback.duration
           ? `${fmtTime(playback.position)} / ${fmtTime(playback.duration)}`
           : fmtTime(playback.position)}

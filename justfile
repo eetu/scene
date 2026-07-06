@@ -68,6 +68,16 @@ format:
 test:
     cargo test --workspace
 
+# Browser e2e (Playwright): real built SPA + real vendored WASM worklet in a
+# real browser, backend mocked. Catches worklet/WebAudio regressions node can't
+# (e.g. the emsdk-6 resizable-ArrayBuffer break). First run needs `just e2e-install`.
+e2e app="tracker":
+    {{yarn}} workspace {{app}}-frontend test:e2e
+
+# One-time (and in CI): download the Playwright browsers + Linux system deps.
+e2e-install app="tracker":
+    {{yarn}} workspace {{app}}-frontend exec playwright install --with-deps chromium webkit
+
 # Run the party transcoder sidecar (loopback), auto-reloading via bacon.
 transcoder:
     cd services/transcoder && bacon --headless -j run

@@ -42,5 +42,8 @@ emulators/**/ejs-jit/ejs-jit.js
 wasm/**/external/
 wasm/**/out/
 
+# Binary test fixtures (real module files for the Playwright playback e2e).
+**/testing/fixtures/
+
 # Claude Code agent worktrees — transient checkouts, not repo source.
 .claude/

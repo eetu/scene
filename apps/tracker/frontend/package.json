@@ -13,7 +13,8 @@
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "validate": "yarn typecheck && yarn lint && yarn format"
+    "validate": "yarn typecheck && yarn lint && yarn format",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@anarkisti/eslint-config": "^1.0.0",
+    "@playwright/test": "^1.61.1",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.57.0",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
