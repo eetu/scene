@@ -105,11 +105,17 @@
     }
 
     // --- wall themes: z = distance along tube, a = angle 0..1 around, t = seconds.
-    // Tron: cyan ring grid + orange edge rails on black.
+    // Tron: a cold, sharp digital grid on pure black — thin cyan rings + orange
+    // rails, with bright cyan data-pulses running the rails toward the camera
+    // (lightcycle trails). Kept hard-edged and black-gapped to contrast with the
+    // soft sunset Vaporwave.
     vec3 themeTron(float z, float a, float t) {
-      float rings = neon(z * RING_FREQ, 0.05);
-      float rails = neon(a * RAIL_FREQ, 0.04);
-      return vec3(0.16, 0.88, 1.0) * rings + vec3(0.98, 0.57, 0.05) * rails;
+      float rings = neon(z * RING_FREQ, 0.03); // thinner + sharper than before
+      float rails = neon(a * RAIL_FREQ, 0.028);
+      float pulse = pow(0.5 + 0.5 * sin(z * 0.9 - t * 5.0 + a * TAU * 2.0), 6.0); // travelling packets
+      vec3 col = vec3(0.15, 0.9, 1.0) * rings + vec3(1.0, 0.55, 0.05) * rails;
+      col += vec3(0.4, 1.0, 1.0) * rails * pulse; // bright data-pulses ride the rails
+      return col; // pure black gaps
     }
     // 2001 star-gate slit-scan: fast colour curtains rushing toward the camera,
     // the hue a single field drifting slowly over time — not a rainbow wrapped
@@ -140,12 +146,19 @@
       col += vec3(0.45, 0.58, 0.78) * crest * (0.5 + 0.5 * spine);
       return col;
     }
-    // Vaporwave: magenta↔cyan neon grid over a purple gradient.
+    // Vaporwave: an 80s sunset, not a grid — a pink→orange→indigo gradient
+    // wrapping the tube (never black), with chunky, soft-glowing, receding rings
+    // (a horizon feel; rails halved) and a magenta↔cyan neon that pulses over
+    // time. Soft + warm to contrast with Tron's hard cold grid.
     vec3 themeVapor(float z, float a, float t) {
-      float grid = max(neon(z * RING_FREQ, 0.04), neon(a * RAIL_FREQ, 0.035));
-      float grad = 0.5 + 0.5 * sin(a * 6.2831);
-      vec3 gridCol = mix(vec3(1.0, 0.2, 0.8), vec3(0.25, 0.9, 1.0), grad);
-      return mix(vec3(0.16, 0.03, 0.22), vec3(0.35, 0.08, 0.3), grad) * 0.35 + gridCol * grid;
+      float g = 0.5 + 0.5 * sin(a * TAU + 0.6);                            // 0..1 around the tube
+      vec3 sky = mix(vec3(0.08, 0.02, 0.18), vec3(0.9, 0.25, 0.5), g);     // indigo → hot pink
+      sky = mix(sky, vec3(1.0, 0.55, 0.28), pow(g, 3.0) * 0.7);            // orange sun-kiss at the peak
+      float rings = neon(z * 0.7, 0.09);                                   // chunkier, fewer than Tron
+      float rails = neon(a * 8.0, 0.05) * 0.5;                             // half the rails, dimmer
+      float grid = max(rings, rails);
+      vec3 neonCol = mix(vec3(1.0, 0.15, 0.9), vec3(0.2, 0.95, 1.0), 0.5 + 0.5 * sin(z * 0.15 - t * 1.2));
+      return sky * 0.55 + neonCol * grid; // gradient always visible; soft neon on top
     }
     // Circuit board: dark-green FR-4 with a copper trace grid + solder pads; a
     // random subset of nodes is "energized" and glows green, flowing along z like
