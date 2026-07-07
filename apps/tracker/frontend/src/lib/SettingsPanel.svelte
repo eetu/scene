@@ -1,41 +1,21 @@
 <script lang="ts">
-  // Settings overlay. Preferences read shared rune stores directly (theme from
-  // @scene/design, patternMode from $lib/settings) — no props for those. Only the
-  // library actions (rescan / enrich-all + their progress), which are library-data
-  // state rather than a preference, come in as props.
+  // Settings overlay. Everything it shows is shared rune state read directly — no
+  // props beyond onClose: theme (@scene/design), patternMode ($lib/settings), and
+  // the library scan/enrich state + actions ($lib/library.svelte).
   import { Monitor, Moon, RefreshCw, ScanLine, Sun } from "@lucide/svelte";
   import { setAccent, setTheme, theme } from "@scene/design";
 
+  import {
+    cancelEnrich,
+    enrichLibrary,
+    library,
+    rescanLibrary,
+    unEnriched,
+  } from "$lib/library.svelte";
   import Modal from "$lib/Modal.svelte";
   import { setPatternMode, settings } from "$lib/settings.svelte";
 
-  let {
-    onClose,
-    scanning,
-    enriching,
-    enrichDone,
-    enrichTotal,
-    unEnriched,
-    trackCount,
-    scanProcessed,
-    scanTotal,
-    onRescan,
-    onEnrich,
-    onCancelEnrich,
-  }: {
-    onClose: () => void;
-    scanning: boolean;
-    enriching: boolean;
-    enrichDone: number;
-    enrichTotal: number;
-    unEnriched: number;
-    trackCount: number;
-    scanProcessed: number;
-    scanTotal: number;
-    onRescan: () => void;
-    onEnrich: () => void;
-    onCancelEnrich: () => void;
-  } = $props();
+  let { onClose }: { onClose: () => void } = $props();
 </script>
 
 <Modal label="settings" {onClose}>
@@ -79,24 +59,28 @@
   <div class="setting">
     <span class="setting-label">library</span>
     <div class="seg">
-      <button onclick={onRescan} disabled={scanning}>
+      <button onclick={rescanLibrary} disabled={library.scanning}>
         <RefreshCw size={15} />
-        {scanning ? "scanning…" : "rescan"}
+        {library.scanning ? "scanning…" : "rescan"}
       </button>
-      {#if enriching}
-        <button onclick={onCancelEnrich}>cancel {enrichDone}/{enrichTotal}</button>
+      {#if library.enriching}
+        <button onclick={cancelEnrich}>cancel {library.enrichDone}/{library.enrichTotal}</button>
       {:else}
-        <button onclick={onEnrich} disabled={scanning || unEnriched === 0}>
-          {unEnriched > 0 ? `enrich ${unEnriched}` : "all enriched"}
+        <button onclick={enrichLibrary} disabled={library.scanning || unEnriched() === 0}>
+          {unEnriched() > 0 ? `enrich ${unEnriched()}` : "all enriched"}
         </button>
       {/if}
     </div>
     <span class="setting-hint">
-      {#if scanning}
-        scanning… {scanProcessed.toLocaleString()}{#if scanTotal > 0}/{scanTotal.toLocaleString()}{/if}
+      {#if library.scanning}
+        scanning… {(
+          library.status?.scan_processed ?? 0
+        ).toLocaleString()}{#if (library.status?.scan_total ?? 0) > 0}/{(
+            library.status?.scan_total ?? 0
+          ).toLocaleString()}{/if}
       {:else}
-        {trackCount.toLocaleString()} modules{#if unEnriched > 0}
-          · {unEnriched.toLocaleString()} need metadata{/if}
+        {library.tracks.length.toLocaleString()} modules{#if unEnriched() > 0}
+          · {unEnriched().toLocaleString()} need metadata{/if}
       {/if}
     </span>
   </div>

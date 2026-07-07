@@ -17,7 +17,6 @@
     DiscoBall,
     Equalizer,
     GlowWave,
-    parseModule,
     PatternView,
     Plasma,
     playback,
@@ -49,8 +48,7 @@
   import { page } from "$app/state";
   import AddToPlaylist from "$lib/AddToPlaylist.svelte";
   import AlphabetRail from "$lib/AlphabetRail.svelte";
-  import { api, ApiError, fileUrl, type Playlist, type Track } from "$lib/api";
-  import { enrichTracks } from "$lib/enrich";
+  import { api, ApiError, type Playlist, type Track } from "$lib/api";
   import {
     buildRows,
     facetFormats,
@@ -228,34 +226,8 @@
     }
   }
 
-  // ---- bulk metadata enrichment (parse every un-enriched module via WASM) ----
-  let enriching = $state(false);
-  let enrichDone = $state(0);
-  let enrichTotal = $state(0);
-  const unEnriched = $derived(tracks.filter((t) => !t.type_long).length);
-
-  async function enrichAll() {
-    const todo = tracks.filter((t) => !t.type_long);
-    if (todo.length === 0) return;
-    enrichTotal = todo.length;
-    enrichDone = 0;
-    enriching = true;
-    try {
-      // Loop + payload mapping live in $lib/enrich (unit-tested); wire the engine
-      // + cancellation/progress here. Mutations land on the reactive tracks.
-      await enrichTracks(
-        todo,
-        {
-          fetchBytes: (hash) => fetch(fileUrl(hash)).then((r) => r.arrayBuffer()),
-          parse: parseModule,
-          save: api.putMeta,
-        },
-        { shouldContinue: () => enriching, onProgress: (done) => (enrichDone = done) },
-      );
-    } finally {
-      enriching = false;
-    }
-  }
+  // Bulk metadata enrichment lives in the shared library store (enrich machine);
+  // the Settings panel drives + displays it.
 
   // The library store inits itself on import (scanMachine boots); just load the
   // playlists here.
@@ -841,11 +813,11 @@
   <div class="progress" class:indeterminate={scanPct === null}>
     <div class="progress-fill" style:width="{scanPct ?? 100}%"></div>
   </div>
-{:else if enriching}
+{:else if library.enriching}
   <div class="progress">
     <div
       class="progress-fill"
-      style:width="{enrichTotal ? (enrichDone / enrichTotal) * 100 : 0}%"
+      style:width="{library.enrichTotal ? (library.enrichDone / library.enrichTotal) * 100 : 0}%"
     ></div>
   </div>
 {/if}
@@ -987,20 +959,7 @@
 {/if}
 
 {#if showSettings}
-  <SettingsPanel
-    onClose={() => (showSettings = false)}
-    {scanning}
-    {enriching}
-    {enrichDone}
-    {enrichTotal}
-    {unEnriched}
-    trackCount={tracks.length}
-    scanProcessed={status?.scan_processed ?? 0}
-    scanTotal={status?.scan_total ?? 0}
-    onRescan={rescanLibrary}
-    onEnrich={enrichAll}
-    onCancelEnrich={() => (enriching = false)}
-  />
+  <SettingsPanel onClose={() => (showSettings = false)} />
 {/if}
 
 {#if addTrack}

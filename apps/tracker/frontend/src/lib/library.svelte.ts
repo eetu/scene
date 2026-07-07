@@ -5,9 +5,12 @@
 // and the subscription mirrors the phase onto `loading` / `scanning` for the UI.
 // Import `library` anywhere (no prop-drilling); the pure grouping/filter helpers
 // live separately in $lib/library.
+import { parseModule } from "@scene/player";
 import { createActor, fromPromise } from "xstate";
 
-import { api, type StatusResponse, type Track } from "$lib/api";
+import { api, fileUrl, type StatusResponse, type Track } from "$lib/api";
+import { enrichTracks } from "$lib/enrich";
+import { enrichMachine } from "$lib/enrich-machine";
 import { scanMachine } from "$lib/scan-machine";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -21,7 +24,18 @@ export const library = $state({
   loading: true,
   /** Backend indexing or a user rescan running — show scan progress. */
   scanning: false,
+  /** Bulk metadata enrichment running (driven by enrichMachine). */
+  enriching: false,
+  enrichDone: 0,
+  enrichTotal: 0,
 });
+
+/** How many modules still lack parsed metadata (drives the "enrich N" button).
+ *  A function (not exported $derived, which Svelte disallows); reads reactive
+ *  state, so it stays reactive when called in a template / $derived. */
+export function unEnriched(): number {
+  return library.tracks.filter((t) => !t.type_long).length;
+}
 
 const actor = createActor(
   scanMachine.provide({
@@ -92,11 +106,56 @@ actor.subscribe(() => {
 });
 actor.start();
 
+// Bulk enrichment: its own small machine. The run loops over the un-enriched
+// library (parse each via the WASM decoder, write /api/meta back), reporting
+// progress + honouring cancel via `library.enriching` (flipped by the machine
+// state below, read by shouldContinue).
+const enrichActor = createActor(
+  enrichMachine.provide({
+    actors: {
+      run: fromPromise(async () => {
+        const todo = library.tracks.filter((t) => !t.type_long);
+        library.enrichTotal = todo.length;
+        library.enrichDone = 0;
+        await enrichTracks(
+          todo,
+          {
+            fetchBytes: (hash) => fetch(fileUrl(hash)).then((r) => r.arrayBuffer()),
+            parse: parseModule,
+            save: api.putMeta,
+          },
+          {
+            shouldContinue: () => library.enriching,
+            onProgress: (done) => (library.enrichDone = done),
+          },
+        );
+      }),
+    },
+  }),
+);
+enrichActor.subscribe(() => {
+  library.enriching = enrichActor.getSnapshot().matches("enriching");
+});
+enrichActor.start();
+
 /** Trigger a rescan (from the Settings panel). No-op unless idle/errored. */
 export function rescanLibrary() {
   actor.send({ type: "RESCAN" });
 }
 
+/** Start bulk metadata enrichment (no-op if nothing needs it). */
+export function enrichLibrary() {
+  if (unEnriched() > 0) enrichActor.send({ type: "START" });
+}
+
+/** Cancel an in-flight enrichment. */
+export function cancelEnrich() {
+  enrichActor.send({ type: "CANCEL" });
+}
+
 if (import.meta.hot) {
-  import.meta.hot.dispose(() => actor.stop());
+  import.meta.hot.dispose(() => {
+    actor.stop();
+    enrichActor.stop();
+  });
 }
