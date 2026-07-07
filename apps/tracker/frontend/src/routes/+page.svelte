@@ -927,18 +927,6 @@
     border-radius: 4px;
     color: var(--text);
   }
-  button {
-    background: var(--panel-hi);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 5px 10px;
-    cursor: pointer;
-  }
-  button:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
   .count {
     margin-left: auto;
     color: var(--muted);
@@ -1313,9 +1301,6 @@
     }
     .tabs button {
       flex: 1;
-    }
-    button {
-      padding: 8px 12px;
     }
     /* The player-view action cluster overflows an iPhone-width header (the
        close button gets clipped). Drop the desktop-ish song actions — copy-link

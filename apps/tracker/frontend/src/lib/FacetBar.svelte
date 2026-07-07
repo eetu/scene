@@ -76,22 +76,7 @@
 </div>
 
 <style>
-  /* Base form-control styling (the +page-scoped `select, button` didn't cross the
-     component boundary). */
-  select,
-  button {
-    background: var(--panel-hi);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 5px 10px;
-    cursor: pointer;
-  }
-  button:disabled,
-  select:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
+  /* Button/select base is global (see +layout); only the toolbar layout here. */
   .controls {
     display: flex;
     flex-wrap: wrap;
@@ -131,10 +116,6 @@
     }
     .groupby {
       font-size: 12px;
-    }
-    select,
-    button {
-      padding: 8px 12px;
     }
   }
 </style>

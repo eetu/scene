@@ -272,20 +272,7 @@
 </div>
 
 <style>
-  /* Base form-control styling — the +page-scoped `button` rule doesn't cross the
-     component boundary (the group headers + the "rescan" link need it). */
-  button {
-    background: var(--panel-hi);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 5px 10px;
-    cursor: pointer;
-  }
-  button:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
+  /* Button base is global (see +layout); only list-specific styles here. */
 
   /* Wraps the scroll container so the A-Z rail can pin over it (main scrolls, the
      rail stays put). Takes over main's old flex role as the body-column child. */
@@ -569,9 +556,6 @@
     }
     .li .name {
       flex-basis: 100%;
-    }
-    button {
-      padding: 8px 12px;
     }
     /* Declutter narrow rows: fav + rename move to the player-view header
        (tap a track to open it). The whole row stays a play target. */

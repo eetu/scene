@@ -125,8 +125,31 @@
   /* SvelteKit mounts into a display:contents wrapper, so header/main/transport
 	   become the body flex items directly. */
 
-  :global(button) {
+  /* Themed base for every native button + select in the app — the single source
+     of truth (scoped styles don't cross component boundaries, so this used to be
+     copy-pasted into each component and drifted). Component classes
+     (.tabs / .seg / .ok / .pv-* / .t-btn / .fav / .row …) override on specificity;
+     inputs keep their context-specific sizing where they're used. */
+  :global(button),
+  :global(select) {
     font: inherit;
+    background: var(--panel-hi);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  :global(button:disabled),
+  :global(select:disabled) {
+    opacity: 0.6;
+    cursor: default;
+  }
+  @media (max-width: 640px) {
+    :global(button),
+    :global(select) {
+      padding: 8px 12px;
+    }
   }
 
   /* Lucide icons: square the caps/joins and thicken the stroke so they read as

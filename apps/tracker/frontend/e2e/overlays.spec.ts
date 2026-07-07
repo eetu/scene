@@ -15,6 +15,25 @@ test("settings overlay opens from the topbar", async ({ context, page }) => {
   await expect(dialog.getByRole("button", { name: /rescan|scanning/ })).toBeVisible();
 });
 
+test("modal panel buttons inherit the themed base (border + fill)", async ({ context, page }) => {
+  // Regression guard: the button base is global (+layout); a panel extracted
+  // without it would render bare buttons (no border/fill) that ignore the theme.
+  await mockLibrary(context);
+  await page.goto("/");
+  await page.getByRole("button", { name: "settings" }).click();
+  const btn = page
+    .getByRole("dialog", { name: "settings" })
+    .getByRole("button", { name: /rescan|scanning/ });
+  const style = await btn.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { borderWidth: s.borderTopWidth, bg: s.backgroundColor };
+  });
+  expect(style.borderWidth).toBe("1px");
+  // Not transparent — the themed --panel-hi fill resolved to an opaque colour.
+  expect(style.bg).not.toBe("rgba(0, 0, 0, 0)");
+  expect(style.bg).not.toBe("transparent");
+});
+
 test("add-to-playlist overlay opens from a track row", async ({ context, page }) => {
   await mockLibrary(context);
   await page.goto("/");

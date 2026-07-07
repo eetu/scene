@@ -2,8 +2,8 @@
   // Shared modal chrome: scrim + centred dialog with focus trap + close. The
   // panels (settings / add-to-playlist / rename / help) pass their content as
   // children; generic content chrome (h3 / label / input / .modal-actions) is
-  // styled here via :global so slotted markup picks it up, while panel-specific
-  // styles stay in the panel.
+  // styled here via :global so slotted markup picks it up (the themed button/
+  // select base is global, in +layout); panel-specific styles stay in the panel.
   import { trapFocus } from "@scene/design";
   import type { Snippet } from "svelte";
 
