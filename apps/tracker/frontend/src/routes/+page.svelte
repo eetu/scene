@@ -3,19 +3,13 @@
     CircleHelp,
     Link2,
     ListPlus,
-    Monitor,
-    Moon,
     Pencil,
     Play,
-    RefreshCw,
-    ScanLine,
     Settings,
     Square,
     Star,
-    Sun,
     X,
   } from "@lucide/svelte";
-  import { setAccent, setTheme, theme } from "@scene/design";
   import {
     BoingBall,
     CopperBars,
@@ -72,7 +66,8 @@
   import Modal from "$lib/Modal.svelte";
   import PatternViewScroll from "$lib/PatternViewScroll.svelte";
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
-  import { setPatternMode, settings } from "$lib/settings.svelte";
+  import { settings } from "$lib/settings.svelte";
+  import SettingsPanel from "$lib/SettingsPanel.svelte";
   import Toasts from "$lib/Toasts.svelte";
   import { buildShareUrl, parsePos } from "$lib/url-state";
 
@@ -1147,82 +1142,20 @@
 {/if}
 
 {#if showSettings}
-  <Modal label="settings" onClose={() => (showSettings = false)}>
-    <h3>settings</h3>
-    <div class="setting">
-      <span class="setting-label">theme</span>
-      <div class="seg">
-        <button class:on={theme.mode === "light"} onclick={() => setTheme("light")}>
-          <Sun size={15} /> light
-        </button>
-        <button class:on={theme.mode === "dark"} onclick={() => setTheme("dark")}>
-          <Moon size={15} /> dark
-        </button>
-        <button class:on={theme.mode === "auto"} onclick={() => setTheme("auto")}>
-          <Monitor size={15} /> auto
-        </button>
-      </div>
-    </div>
-    <div class="setting">
-      <span class="setting-label">accent</span>
-      <div class="seg">
-        <button class:on={theme.accent === "orange"} onclick={() => setAccent("orange")}>
-          <span class="swatch" style="background:#f78f08"></span> orange
-        </button>
-        <button class:on={theme.accent === "purple"} onclick={() => setAccent("purple")}>
-          <span class="swatch" style="background:#a370f0"></span> purple
-        </button>
-      </div>
-    </div>
-    <div class="setting">
-      <span class="setting-label">pattern view</span>
-      <div class="seg">
-        <button
-          class:on={settings.patternMode === "locked"}
-          onclick={() => setPatternMode("locked")}
-        >
-          <ScanLine size={15} /> centerline
-        </button>
-        <button
-          class:on={settings.patternMode === "scroll"}
-          onclick={() => setPatternMode("scroll")}
-        >
-          free scroll
-        </button>
-      </div>
-    </div>
-    <div class="setting">
-      <span class="setting-label">library</span>
-      <div class="seg">
-        <button onclick={rescan} disabled={scanning}>
-          <RefreshCw size={15} />
-          {scanning ? "scanning…" : "rescan"}
-        </button>
-        {#if enriching}
-          <button onclick={() => (enriching = false)}>cancel {enrichDone}/{enrichTotal}</button>
-        {:else}
-          <button onclick={enrichAll} disabled={scanning || unEnriched === 0}>
-            {unEnriched > 0 ? `enrich ${unEnriched}` : "all enriched"}
-          </button>
-        {/if}
-      </div>
-      <span class="setting-hint">
-        {#if scanning}
-          scanning… {(
-            status?.scan_processed ?? 0
-          ).toLocaleString()}{#if (status?.scan_total ?? 0) > 0}/{(
-              status?.scan_total ?? 0
-            ).toLocaleString()}{/if}
-        {:else}
-          {tracks.length.toLocaleString()} modules{#if unEnriched > 0}
-            · {unEnriched.toLocaleString()} need metadata{/if}
-        {/if}
-      </span>
-    </div>
-    <div class="modal-actions">
-      <button onclick={() => (showSettings = false)}>close</button>
-    </div>
-  </Modal>
+  <SettingsPanel
+    onClose={() => (showSettings = false)}
+    {scanning}
+    {enriching}
+    {enrichDone}
+    {enrichTotal}
+    {unEnriched}
+    trackCount={tracks.length}
+    scanProcessed={status?.scan_processed ?? 0}
+    scanTotal={status?.scan_total ?? 0}
+    onRescan={rescan}
+    onEnrich={enrichAll}
+    onCancelEnrich={() => (enriching = false)}
+  />
 {/if}
 
 {#if addTrack}
@@ -2028,47 +1961,6 @@
     color: var(--text);
   }
 
-  /* Settings rows: a label above a segmented choice control. */
-  .setting {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .setting-label {
-    font-size: 12px;
-    color: var(--muted);
-  }
-  /* Status line under a setting's controls (e.g. library counts / scan state). */
-  .setting-hint {
-    font-size: 12px;
-    color: var(--muted);
-    font-variant-numeric: tabular-nums;
-  }
-  .seg {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .seg button {
-    flex: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 8px 10px;
-    white-space: nowrap;
-  }
-  .seg button.on {
-    color: var(--bg);
-    background: var(--accent);
-    border-color: var(--accent);
-  }
-  .swatch {
-    width: 11px;
-    height: 11px;
-    border-radius: 50%;
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
-  }
   .dur {
     flex: 0 0 auto;
     width: 40px;
