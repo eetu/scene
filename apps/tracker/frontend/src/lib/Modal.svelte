@@ -77,4 +77,9 @@
     gap: 8px;
     margin-top: 4px;
   }
+  /* Primary/confirm action button, shared across modals (rename save, add create). */
+  .modal :global(.ok) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 </style>

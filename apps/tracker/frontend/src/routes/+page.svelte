@@ -47,6 +47,7 @@
 
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import AddToPlaylist from "$lib/AddToPlaylist.svelte";
   import { api, ApiError, fileUrl, type Playlist, type StatusResponse, type Track } from "$lib/api";
   import { enrichTracks } from "$lib/enrich";
   import {
@@ -789,12 +790,11 @@
     showPattern = true;
   }
 
-  // Add-to-playlist chooser: which library track we're filing, if any.
+  // Add-to-playlist chooser: which library track we're filing, if any. The add
+  // flow itself lives in the AddToPlaylist component.
   let addTrack = $state<Track | null>(null);
-  let addNewName = $state("");
-  let addBusy = $state(false);
-  // Transient confirmation / error banner (add-to-playlist). Auto-dismisses so a
-  // silent modal-close is never the only signal an action landed.
+  // Transient confirmation / error banner. Auto-dismisses so a silent modal-close
+  // is never the only signal an action landed.
   let toast = $state<{ msg: string; kind: "ok" | "err" } | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
   function showToast(msg: string, kind: "ok" | "err" = "ok") {
@@ -805,49 +805,7 @@
 
   function startAdd(t: Track) {
     addTrack = t;
-    addNewName = "";
     void refreshPlaylists();
-  }
-  // Playlist items are keyed by md5; carry the track's metadata as the cache.
-  function trackItem(t: Track) {
-    return {
-      md5: t.md5 ?? "",
-      title: t.title,
-      artist: t.artist,
-      format: t.ext,
-      filename: t.filename,
-    };
-  }
-  async function addToPlaylist(id: string) {
-    if (!addTrack?.md5) return;
-    const name = playlists.find((p) => p.id === id)?.name ?? "playlist";
-    addBusy = true;
-    try {
-      await api.addToPlaylist(id, trackItem(addTrack));
-      addTrack = null;
-      await refreshPlaylists();
-      showToast(`Added to ${name}`);
-    } catch (e) {
-      showToast(`Couldn't add: ${e instanceof Error ? e.message : String(e)}`, "err");
-    } finally {
-      addBusy = false;
-    }
-  }
-  async function addToNewPlaylist() {
-    const name = addNewName.trim();
-    if (!name || !addTrack?.md5) return;
-    addBusy = true;
-    try {
-      const pl = await api.createPlaylist(name);
-      await api.addToPlaylist(pl.id, trackItem(addTrack));
-      addTrack = null;
-      await refreshPlaylists();
-      showToast(`Added to ${name}`);
-    } catch (e) {
-      showToast(`Couldn't add: ${e instanceof Error ? e.message : String(e)}`, "err");
-    } finally {
-      addBusy = false;
-    }
   }
 </script>
 
@@ -1159,34 +1117,17 @@
 {/if}
 
 {#if addTrack}
-  {@const at = addTrack}
-  <Modal label="add to playlist" onClose={() => (addTrack = null)}>
-    <h3>add to playlist</h3>
-    <p class="add-track">{at.title || at.filename}</p>
-    <div class="add-list">
-      {#each playlists as p (p.id)}
-        <button class="add-row" onclick={() => addToPlaylist(p.id)} disabled={addBusy}>
-          <span class="pn">{p.name}</span>
-          <span class="pc">{p.item_count}</span>
-        </button>
-      {:else}
-        <p class="msg">no playlists yet — make one below</p>
-      {/each}
-    </div>
-    <div class="newrow">
-      <input
-        placeholder="new playlist…"
-        bind:value={addNewName}
-        onkeydown={(e) => e.key === "Enter" && addToNewPlaylist()}
-      />
-      <button class="ok" onclick={addToNewPlaylist} disabled={addBusy || !addNewName.trim()}>
-        create &amp; add
-      </button>
-    </div>
-    <div class="modal-actions">
-      <button onclick={() => (addTrack = null)} disabled={addBusy}>cancel</button>
-    </div>
-  </Modal>
+  <AddToPlaylist
+    track={addTrack}
+    {playlists}
+    onClose={() => (addTrack = null)}
+    onAdded={(name) => {
+      addTrack = null;
+      void refreshPlaylists();
+      showToast(`Added to ${name}`);
+    }}
+    onError={(m) => showToast(`Couldn't add: ${m}`, "err")}
+  />
 {/if}
 
 {#if playback.current && showPattern}
@@ -1851,10 +1792,6 @@
   .li:hover .edit {
     visibility: visible;
   }
-  .ok {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
   .rename-err {
     color: var(--halo-error);
     font-size: 12px;
@@ -1907,57 +1844,6 @@
     color: var(--muted);
   }
   .tips strong {
-    color: var(--text);
-  }
-
-  /* Add-to-playlist chooser. */
-  .add-track {
-    margin: 0;
-    color: var(--accent);
-    font-size: 13px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .add-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    max-height: 240px;
-    overflow-y: auto;
-  }
-  .add-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    text-align: left;
-    background: var(--bg);
-    border: 1px solid var(--border);
-  }
-  .add-row .pn {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .add-row .pc {
-    color: var(--muted);
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
-  }
-  .newrow {
-    display: flex;
-    gap: 8px;
-  }
-  .newrow input {
-    flex: 1;
-    min-width: 0;
-    padding: 8px 10px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
     color: var(--text);
   }
 
