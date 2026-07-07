@@ -84,7 +84,7 @@
     const shipBuf = document.createElement("canvas");
     const shipCtx = shipBuf.getContext("2d");
     const SHIP_ROT_X = 0.5; // behind + above — we see the canopy/spine
-    const SHIP_ROT_Y = 0; // rear view: engines toward us, nose up into the nebula
+    const SHIP_ROT_Y = Math.PI; // rear view: engines toward us, nose receding up into the nebula
     let shipPx = -1; // device-px size the ship was last baked at (-1 = none yet)
     function bakeShip(sizeCss: number) {
       const px = Math.max(1, Math.round(sizeCss * dpr));
