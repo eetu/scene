@@ -15,7 +15,7 @@
     Sun,
     X,
   } from "@lucide/svelte";
-  import { setAccent, setTheme, theme, trapFocus } from "@scene/design";
+  import { setAccent, setTheme, theme } from "@scene/design";
   import {
     BoingBall,
     CopperBars,
@@ -69,6 +69,7 @@
     rowKey,
     subLabel,
   } from "$lib/library";
+  import Modal from "$lib/Modal.svelte";
   import PatternViewScroll from "$lib/PatternViewScroll.svelte";
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
   import Toasts from "$lib/Toasts.svelte";
@@ -1126,166 +1127,136 @@
 
 {#if editingTrack}
   {@const et = editingTrack}
-  <div class="modal-bg">
-    <button class="modal-scrim" aria-label="close" onclick={cancelEdit}></button>
-    <div
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="rename or move"
-      tabindex="-1"
-      use:trapFocus
-    >
-      <h3>rename / move <span class="fmt">{et.ext}</span></h3>
-      <label>
-        group
-        <input bind:value={dGroup} placeholder="group (blank = groupless)" />
-      </label>
-      <label>
-        artist
-        <input bind:value={dArtist} placeholder="artist (optional)" />
-      </label>
-      <label>
-        filename
-        <!-- svelte-ignore a11y_autofocus -->
-        <input
-          bind:value={dFilename}
-          placeholder="filename"
-          autofocus
-          onkeydown={(e) => onEditKey(e, et)}
-        />
-      </label>
-      {#if renameError}<p class="rename-err">{renameError}</p>{/if}
-      <div class="modal-actions">
-        <button onclick={cancelEdit} disabled={saving}>cancel</button>
-        <button class="ok" onclick={() => saveEdit(et)} disabled={saving}>save</button>
-      </div>
+  <Modal label="rename or move" onClose={cancelEdit}>
+    <h3>rename / move <span class="fmt">{et.ext}</span></h3>
+    <label>
+      group
+      <input bind:value={dGroup} placeholder="group (blank = groupless)" />
+    </label>
+    <label>
+      artist
+      <input bind:value={dArtist} placeholder="artist (optional)" />
+    </label>
+    <label>
+      filename
+      <!-- svelte-ignore a11y_autofocus -->
+      <input
+        bind:value={dFilename}
+        placeholder="filename"
+        autofocus
+        onkeydown={(e) => onEditKey(e, et)}
+      />
+    </label>
+    {#if renameError}<p class="rename-err">{renameError}</p>{/if}
+    <div class="modal-actions">
+      <button onclick={cancelEdit} disabled={saving}>cancel</button>
+      <button class="ok" onclick={() => saveEdit(et)} disabled={saving}>save</button>
     </div>
-  </div>
+  </Modal>
 {/if}
 
 {#if showSettings}
-  <div class="modal-bg">
-    <button class="modal-scrim" aria-label="close" onclick={() => (showSettings = false)}></button>
-    <div
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="settings"
-      tabindex="-1"
-      use:trapFocus
-    >
-      <h3>settings</h3>
-      <div class="setting">
-        <span class="setting-label">theme</span>
-        <div class="seg">
-          <button class:on={theme.mode === "light"} onclick={() => setTheme("light")}>
-            <Sun size={15} /> light
-          </button>
-          <button class:on={theme.mode === "dark"} onclick={() => setTheme("dark")}>
-            <Moon size={15} /> dark
-          </button>
-          <button class:on={theme.mode === "auto"} onclick={() => setTheme("auto")}>
-            <Monitor size={15} /> auto
-          </button>
-        </div>
-      </div>
-      <div class="setting">
-        <span class="setting-label">accent</span>
-        <div class="seg">
-          <button class:on={theme.accent === "orange"} onclick={() => setAccent("orange")}>
-            <span class="swatch" style="background:#f78f08"></span> orange
-          </button>
-          <button class:on={theme.accent === "purple"} onclick={() => setAccent("purple")}>
-            <span class="swatch" style="background:#a370f0"></span> purple
-          </button>
-        </div>
-      </div>
-      <div class="setting">
-        <span class="setting-label">pattern view</span>
-        <div class="seg">
-          <button class:on={patternMode === "locked"} onclick={() => setPatternMode("locked")}>
-            <ScanLine size={15} /> centerline
-          </button>
-          <button class:on={patternMode === "scroll"} onclick={() => setPatternMode("scroll")}>
-            free scroll
-          </button>
-        </div>
-      </div>
-      <div class="setting">
-        <span class="setting-label">library</span>
-        <div class="seg">
-          <button onclick={rescan} disabled={scanning}>
-            <RefreshCw size={15} />
-            {scanning ? "scanning…" : "rescan"}
-          </button>
-          {#if enriching}
-            <button onclick={() => (enriching = false)}>cancel {enrichDone}/{enrichTotal}</button>
-          {:else}
-            <button onclick={enrichAll} disabled={scanning || unEnriched === 0}>
-              {unEnriched > 0 ? `enrich ${unEnriched}` : "all enriched"}
-            </button>
-          {/if}
-        </div>
-        <span class="setting-hint">
-          {#if scanning}
-            scanning… {(
-              status?.scan_processed ?? 0
-            ).toLocaleString()}{#if (status?.scan_total ?? 0) > 0}/{(
-                status?.scan_total ?? 0
-              ).toLocaleString()}{/if}
-          {:else}
-            {tracks.length.toLocaleString()} modules{#if unEnriched > 0}
-              · {unEnriched.toLocaleString()} need metadata{/if}
-          {/if}
-        </span>
-      </div>
-      <div class="modal-actions">
-        <button onclick={() => (showSettings = false)}>close</button>
+  <Modal label="settings" onClose={() => (showSettings = false)}>
+    <h3>settings</h3>
+    <div class="setting">
+      <span class="setting-label">theme</span>
+      <div class="seg">
+        <button class:on={theme.mode === "light"} onclick={() => setTheme("light")}>
+          <Sun size={15} /> light
+        </button>
+        <button class:on={theme.mode === "dark"} onclick={() => setTheme("dark")}>
+          <Moon size={15} /> dark
+        </button>
+        <button class:on={theme.mode === "auto"} onclick={() => setTheme("auto")}>
+          <Monitor size={15} /> auto
+        </button>
       </div>
     </div>
-  </div>
+    <div class="setting">
+      <span class="setting-label">accent</span>
+      <div class="seg">
+        <button class:on={theme.accent === "orange"} onclick={() => setAccent("orange")}>
+          <span class="swatch" style="background:#f78f08"></span> orange
+        </button>
+        <button class:on={theme.accent === "purple"} onclick={() => setAccent("purple")}>
+          <span class="swatch" style="background:#a370f0"></span> purple
+        </button>
+      </div>
+    </div>
+    <div class="setting">
+      <span class="setting-label">pattern view</span>
+      <div class="seg">
+        <button class:on={patternMode === "locked"} onclick={() => setPatternMode("locked")}>
+          <ScanLine size={15} /> centerline
+        </button>
+        <button class:on={patternMode === "scroll"} onclick={() => setPatternMode("scroll")}>
+          free scroll
+        </button>
+      </div>
+    </div>
+    <div class="setting">
+      <span class="setting-label">library</span>
+      <div class="seg">
+        <button onclick={rescan} disabled={scanning}>
+          <RefreshCw size={15} />
+          {scanning ? "scanning…" : "rescan"}
+        </button>
+        {#if enriching}
+          <button onclick={() => (enriching = false)}>cancel {enrichDone}/{enrichTotal}</button>
+        {:else}
+          <button onclick={enrichAll} disabled={scanning || unEnriched === 0}>
+            {unEnriched > 0 ? `enrich ${unEnriched}` : "all enriched"}
+          </button>
+        {/if}
+      </div>
+      <span class="setting-hint">
+        {#if scanning}
+          scanning… {(
+            status?.scan_processed ?? 0
+          ).toLocaleString()}{#if (status?.scan_total ?? 0) > 0}/{(
+              status?.scan_total ?? 0
+            ).toLocaleString()}{/if}
+        {:else}
+          {tracks.length.toLocaleString()} modules{#if unEnriched > 0}
+            · {unEnriched.toLocaleString()} need metadata{/if}
+        {/if}
+      </span>
+    </div>
+    <div class="modal-actions">
+      <button onclick={() => (showSettings = false)}>close</button>
+    </div>
+  </Modal>
 {/if}
 
 {#if addTrack}
   {@const at = addTrack}
-  <div class="modal-bg">
-    <button class="modal-scrim" aria-label="close" onclick={() => (addTrack = null)}></button>
-    <div
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="add to playlist"
-      tabindex="-1"
-      use:trapFocus
-    >
-      <h3>add to playlist</h3>
-      <p class="add-track">{at.title || at.filename}</p>
-      <div class="add-list">
-        {#each playlists as p (p.id)}
-          <button class="add-row" onclick={() => addToPlaylist(p.id)} disabled={addBusy}>
-            <span class="pn">{p.name}</span>
-            <span class="pc">{p.item_count}</span>
-          </button>
-        {:else}
-          <p class="msg">no playlists yet — make one below</p>
-        {/each}
-      </div>
-      <div class="newrow">
-        <input
-          placeholder="new playlist…"
-          bind:value={addNewName}
-          onkeydown={(e) => e.key === "Enter" && addToNewPlaylist()}
-        />
-        <button class="ok" onclick={addToNewPlaylist} disabled={addBusy || !addNewName.trim()}>
-          create &amp; add
+  <Modal label="add to playlist" onClose={() => (addTrack = null)}>
+    <h3>add to playlist</h3>
+    <p class="add-track">{at.title || at.filename}</p>
+    <div class="add-list">
+      {#each playlists as p (p.id)}
+        <button class="add-row" onclick={() => addToPlaylist(p.id)} disabled={addBusy}>
+          <span class="pn">{p.name}</span>
+          <span class="pc">{p.item_count}</span>
         </button>
-      </div>
-      <div class="modal-actions">
-        <button onclick={() => (addTrack = null)} disabled={addBusy}>cancel</button>
-      </div>
+      {:else}
+        <p class="msg">no playlists yet — make one below</p>
+      {/each}
     </div>
-  </div>
+    <div class="newrow">
+      <input
+        placeholder="new playlist…"
+        bind:value={addNewName}
+        onkeydown={(e) => e.key === "Enter" && addToNewPlaylist()}
+      />
+      <button class="ok" onclick={addToNewPlaylist} disabled={addBusy || !addNewName.trim()}>
+        create &amp; add
+      </button>
+    </div>
+    <div class="modal-actions">
+      <button onclick={() => (addTrack = null)} disabled={addBusy}>cancel</button>
+    </div>
+  </Modal>
 {/if}
 
 {#if playback.current && showPattern}
@@ -1478,44 +1449,34 @@
 {/if}
 
 {#if showHelp}
-  <div class="modal-bg">
-    <button class="modal-scrim" aria-label="close" onclick={() => (showHelp = false)}></button>
-    <div
-      class="modal help"
-      role="dialog"
-      aria-modal="true"
-      aria-label="help and shortcuts"
-      tabindex="-1"
-      use:trapFocus
-    >
-      <div class="help-head">
-        <h3>Help &amp; shortcuts</h3>
-        <button class="icon-btn" onclick={() => (showHelp = false)} aria-label="close">
-          <X size={16} />
-        </button>
-      </div>
-      <dl class="keys">
-        <dt><kbd>Space</kbd></dt>
-        <dd>play / pause</dd>
-        <dt><kbd>←</kbd> <kbd>→</kbd></dt>
-        <dd>previous / next track</dd>
-        <dt><kbd>Esc</kbd></dt>
-        <dd>close the player view / dialogs</dd>
-        <dt><kbd>f</kbd></dt>
-        <dd>fullscreen the visualiser (on the viz tab)</dd>
-        <dt><kbd>?</kbd></dt>
-        <dd>toggle this help</dd>
-      </dl>
-      <ul class="tips">
-        <li>Tap a track to open the player; tap the title in the bar to reopen it.</li>
-        <li>Drag the <strong>A–Z</strong> rail to jump through a long list.</li>
-        <li>
-          Use <strong>☆</strong> to favourite a track and <strong>+</strong> to add it to a playlist.
-        </li>
-        <li>Sort within and across groups, and filter by format / tracker, from the toolbar.</li>
-      </ul>
+  <Modal label="help and shortcuts" onClose={() => (showHelp = false)}>
+    <div class="help-head">
+      <h3>Help &amp; shortcuts</h3>
+      <button class="icon-btn" onclick={() => (showHelp = false)} aria-label="close">
+        <X size={16} />
+      </button>
     </div>
-  </div>
+    <dl class="keys">
+      <dt><kbd>Space</kbd></dt>
+      <dd>play / pause</dd>
+      <dt><kbd>←</kbd> <kbd>→</kbd></dt>
+      <dd>previous / next track</dd>
+      <dt><kbd>Esc</kbd></dt>
+      <dd>close the player view / dialogs</dd>
+      <dt><kbd>f</kbd></dt>
+      <dd>fullscreen the visualiser (on the viz tab)</dd>
+      <dt><kbd>?</kbd></dt>
+      <dd>toggle this help</dd>
+    </dl>
+    <ul class="tips">
+      <li>Tap a track to open the player; tap the title in the bar to reopen it.</li>
+      <li>Drag the <strong>A–Z</strong> rail to jump through a long list.</li>
+      <li>
+        Use <strong>☆</strong> to favourite a track and <strong>+</strong> to add it to a playlist.
+      </li>
+      <li>Sort within and across groups, and filter by format / tracker, from the toolbar.</li>
+    </ul>
+  </Modal>
 {/if}
 
 <Toasts {toast} />
@@ -1971,43 +1932,8 @@
   }
 
   /* Rename / move modal (keeps list rows a fixed height for the virtualizer). */
-  .modal-bg {
-    position: fixed;
-    inset: 0;
-    z-index: 6;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-  }
-  .modal-scrim {
-    position: absolute;
-    inset: 0;
-    border: none;
-    border-radius: 0;
-    background: rgba(0, 0, 0, 0.5);
-    cursor: pointer;
-  }
-  .modal {
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    max-width: 420px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .modal h3 {
-    margin: 0;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+  /* Modal chrome (.modal-bg/.modal-scrim/.modal + generic h3/label/input/
+     .modal-actions) lives in Modal.svelte now; only panel-specific styles here. */
   .help-head {
     display: flex;
     align-items: center;
@@ -2052,27 +1978,6 @@
   }
   .tips strong {
     color: var(--text);
-  }
-  /* Transient confirmation / error banner — bottom-centred, above the dock. */
-  .modal label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 12px;
-    color: var(--muted);
-  }
-  .modal input {
-    padding: 8px 10px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text);
-  }
-  .modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 4px;
   }
 
   /* Add-to-playlist chooser. */
