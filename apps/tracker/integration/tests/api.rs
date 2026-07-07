@@ -1,7 +1,7 @@
 //! End-to-end API tests. `cargo test -p tracker-e2e -- --ignored`
 //! (build the binary first: `cargo build -p tracker-backend`).
 
-use tracker_e2e::Stack;
+use tracker_integration::Stack;
 
 #[tokio::test]
 #[ignore]

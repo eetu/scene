@@ -11,10 +11,10 @@ homebrew family ([represent](../represent), [scribe](../scribe),
 ```
 backend/    Rust axum 0.8 — scans TRACKER_ROOT, SQLite cache, serves bytes + SPA
 frontend/   Svelte 5 + SvelteKit (adapter-static) — library browser + (todo) FT2 UI
-e2e/        spawned-binary integration tests (temp root + SQLite, real HTTP)
+integration/ spawned-binary integration tests (temp root + SQLite, real HTTP)
 ```
 
-Cargo workspace = `backend` + `e2e`.
+Cargo workspace = `backend` + `integration`.
 
 ## Conventions
 
@@ -119,7 +119,7 @@ Cargo workspace = `backend` + `e2e`.
   picks up on-disk changes.
 - Frontend dev `:5173`: `cd frontend && yarn install && yarn dev`; Vite proxies
   `/api` + `/status` to `:3010`. `yarn validate` = typecheck + lint + format.
-- e2e: `cargo build -p tracker-backend && cargo test -p tracker-e2e -- --ignored`.
+- integration: `cargo build -p tracker-backend && cargo test -p tracker-integration -- --ignored`.
 - Key env: `TRACKER_ROOT` (required), `TRACKER_BIND`, `TRACKER_DB_PATH`,
   `STATIC_DIR`, `DEV_AUTH`. See `backend/src/config.rs`.
 

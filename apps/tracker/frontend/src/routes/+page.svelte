@@ -19,6 +19,7 @@
   import {
     BoingBall,
     CopperBars,
+    cueInOrder,
     DiscoBall,
     Equalizer,
     GlowWave,
@@ -55,6 +56,7 @@
   import { api, ApiError, fileUrl, type Playlist, type StatusResponse, type Track } from "$lib/api";
   import PatternViewScroll from "$lib/PatternViewScroll.svelte";
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
+  import { buildShareUrl, parsePos } from "$lib/url-state";
 
   type GroupKey = "group" | "artist" | "ext";
 
@@ -355,9 +357,7 @@
   // An explicitly-shared start position (?t=&pos=<sec>, from the copy-link
   // button). Applied once, after the module decodes; never auto-persisted, so a
   // plain ?t or a fresh selection always starts at 0 (no surprise resumes).
-  const initialPos = initialTrackHash
-    ? Math.max(0, Math.floor(Number(page.url.searchParams.get("pos")) || 0))
-    : 0;
+  const initialPos = initialTrackHash ? parsePos(page.url.searchParams.get("pos")) : 0;
   let pendingSeek = $state<number | null>(initialPos > 0 ? initialPos : null);
 
   // Restore the bookmarked / pre-HMR track once the library has loaded. Runs
@@ -372,15 +372,13 @@
       showPattern = true;
       return;
     }
-    // Fresh load / bookmark: load the module so it decodes — the pattern grid
-    // needs a decoded song, and cueing alone never loads it — then open the
-    // player view. Loading plays it; the browser may block audio on a cold load
-    // without a gesture, but @scene/player resumes the context on the first
-    // interaction, and the pattern renders regardless. A shared ?pos seeks once
-    // decoded (pendingSeek effect below).
+    // Fresh load / bookmark: CUE the track — decode its pattern in the worker
+    // (no gesture needed) so the grid fills in, but do NOT autoplay: the browser
+    // blocks audio on a cold load without a gesture, so the transport shows ▶ and
+    // audio starts on the first tap. A shared ?pos seeks once decoded (below).
     const t = tracks.find((x) => x.hash === initialTrackHash);
     if (t) {
-      void playInOrder(
+      cueInOrder(
         untrack(() => flatTracks),
         t,
       );
@@ -737,11 +735,9 @@
   async function copyLinkAtPosition() {
     const cur = playback.current;
     if (!cur) return;
-    const u = new URL(location.href);
-    u.searchParams.set("t", cur.hash);
-    u.searchParams.set("pos", String(Math.floor(playback.position)));
+    const url = buildShareUrl(location.href, cur.hash, playback.position);
     try {
-      await navigator.clipboard.writeText(u.toString());
+      await navigator.clipboard.writeText(url);
       showToast(`Link copied at ${fmtTime(playback.position)}`);
     } catch {
       showToast("Couldn't copy link", "err");

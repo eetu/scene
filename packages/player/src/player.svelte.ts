@@ -5,10 +5,13 @@
 // back to the backend cache (/api/meta) — so titles/durations fill in as you
 // listen, keyed by content hash.
 
-import { host, type Track } from "./host";
-import { ChiptuneJsPlayer } from "./vendor/chiptune3.js";
+import { createActor, fromPromise } from "xstate";
 
-type ProgressMsg = {
+import { createEngine } from "./engine";
+import { host, type Track } from "./host";
+import { transportMachine } from "./transport-machine";
+
+export type ProgressMsg = {
   pos?: number;
   order?: number;
   pattern?: number;
@@ -65,7 +68,7 @@ export type Song = {
   orders?: { name: string; pat: number }[];
 };
 // libopenmpt metadata keys are flattened onto the object, plus `song` + totals.
-type Meta = {
+export type Meta = {
   title?: string;
   type_long?: string;
   tracker?: string;
@@ -316,10 +319,53 @@ let prefetchedUrl: string | null = null;
 // spin forever. Reset on the first progress tick of a track that actually plays.
 let consecutiveErrors = 0;
 
+// --- transport state machine -------------------------------------------------
+// The machine (transport-machine.ts) is the single source of truth for play /
+// pause / cued / decoding state; this subscription mirrors it onto
+// `playback.playing`/`paused`, so the transport can never show a state it isn't
+// in (the cold-reload "pause icon over a frozen clock" bug). The imperative
+// engine work (load / pause / stop, background routing, iOS) stays in the
+// functions below — the machine governs *state*, not the audio graph.
+let pendingTrack: Track | null = null;
+
+const transport = createActor(
+  transportMachine.provide({
+    actors: {
+      // Cold-restore decode: fetch the module + decode its song (pattern) on a
+      // throwaway module in the worker — no audio graph, so it works before a
+      // user gesture (when the browser keeps the audio worklet suspended).
+      decode: fromPromise(async () => {
+        const t = pendingTrack;
+        if (!t) return;
+        ensurePlayer(); // create the engine (its worker starts loading libopenmpt)
+        await player.whenWorkerReady(); // WASM ready — independent of the audio worklet
+        const buf = await fetch(host().fileUrl(t.hash)).then((r) => r.arrayBuffer());
+        if (pendingTrack !== t) return; // superseded by a newer cue/load
+        const meta = await player.decodeSong(buf);
+        if (!meta) throw new Error("decode failed");
+        if (playback.current?.hash === t.hash) applyMeta(meta);
+      }),
+      // Audio start is driven imperatively by playTrack (inside the gesture);
+      // this actor just lets `loading` settle into `playing`.
+      startPlayback: fromPromise(async () => {}),
+    },
+  }),
+);
+
+transport.subscribe(() => {
+  const s = transport.getSnapshot();
+  const paused = s.matches("paused");
+  // loading / playing / paused = an active session (the pause glyph shows only
+  // when playing && !paused); cued / stopped / ended / error / empty = ▶.
+  playback.playing = paused || s.matches("playing") || s.matches("loading");
+  playback.paused = paused;
+});
+transport.start();
+
 function ensurePlayer(): Promise<void> {
   if (player) return ready as Promise<void>;
   // Synchronous `new AudioContext()` keeps us inside the click gesture.
-  player = new ChiptuneJsPlayer({ repeatCount: 0 });
+  player = createEngine({ repeatCount: 0 });
   // Tap the output for the scope. The gain node exists immediately (the
   // worklet connects to it once it's ready); the analyser just observes.
   const a: AnalyserNode = player.context.createAnalyser();
@@ -343,6 +389,8 @@ function ensurePlayer(): Promise<void> {
   });
   player.onProgress((d: ProgressMsg) => {
     consecutiveErrors = 0; // a frame arrived → this track plays; clear the skip guard
+    // First frame confirms audio is actually running (loading → playing).
+    if (transport.getSnapshot().matches("loading")) transport.send({ type: "PROGRESS" });
     playback.position = d.pos ?? 0;
     playback.order = d.order ?? 0;
     playback.pattern = d.pattern ?? 0;
@@ -355,15 +403,7 @@ function ensurePlayer(): Promise<void> {
   });
   player.onMetadata((meta: Meta) => {
     player.setRepeatCount(playback.repeat ? -1 : 0);
-    playback.duration = meta?.dur ?? 0;
-    playback.song = meta?.song ?? null;
-    playback.samples = meta?.song?.samples ?? [];
-    playback.instruments = meta?.song?.instruments ?? [];
-    // Fresh mute state sized to this module's channels (createModule reset any
-    // libopenmpt-side mutes on load).
-    playback.channelMutes = new Array(meta?.song?.channels?.length ?? 0).fill(false);
-    if (playback.current) void saveMeta(playback.current, meta);
-    syncNowPlaying(); // title is known now → refresh OS Now Playing
+    applyMeta(meta); // song/duration/mutes + save + OS Now Playing
   });
   player.onEnded(() => {
     // (With repeat on, the module loops and onEnded never fires.) Auto-advance
@@ -373,7 +413,7 @@ function ensurePlayer(): Promise<void> {
       (playback.shuffle ? queue.length > 1 : playback.queueIndex + 1 < queue.length);
     if (canNext) playNext();
     else {
-      playback.playing = false;
+      transport.send({ type: "ENDED" });
       syncNowPlaying();
     }
   });
@@ -392,7 +432,7 @@ function ensurePlayer(): Promise<void> {
         if (playback.error) playNext();
       }, 900);
     } else {
-      playback.playing = false;
+      transport.send({ type: "ERROR" });
       syncNowPlaying();
     }
   });
@@ -592,6 +632,20 @@ async function wakeAudio() {
   }
 }
 
+/** Reflect a module's decoded metadata + song onto the store — used by both the
+ *  play path (onMetadata) and the cold-restore decode (cueInOrder). */
+function applyMeta(meta: Meta) {
+  playback.duration = meta?.dur ?? 0;
+  playback.song = meta?.song ?? null;
+  playback.samples = meta?.song?.samples ?? [];
+  playback.instruments = meta?.song?.instruments ?? [];
+  // Fresh mute state sized to this module's channels (a load resets any
+  // libopenmpt-side mutes).
+  playback.channelMutes = new Array(meta?.song?.channels?.length ?? 0).fill(false);
+  if (playback.current) void saveMeta(playback.current, meta);
+  syncNowPlaying(); // title/duration known now → refresh OS Now Playing
+}
+
 /** Load a track and play it from the start (audible unless muted). */
 export async function playTrack(track: Track) {
   // Stop the current module so the worklet drops it before we load the next.
@@ -599,8 +653,8 @@ export async function playTrack(track: Track) {
   resetJam(); // drop cached sample buffers + any live jam voices from the old module
   playback.error = null;
   playback.current = track;
-  playback.playing = true;
-  playback.paused = false;
+  pendingTrack = track;
+  transport.send({ type: "LOAD" }); // → loading; the subscription flips the transport to ⏸
   playback.position = 0;
   playback.duration = track.duration ?? 0;
   playback.song = null;
@@ -611,11 +665,13 @@ export async function playTrack(track: Track) {
   clearEdits(); // drop editor buffer + stop the editor sequencer
   resetBeat();
   const p = ensurePlayer();
-  await p;
-  // Resume a possibly iOS-suspended context and re-play a stalled background
-  // element (best-effort, inside the play gesture) — recovers a track-switch made
-  // after a long pause without a reload.
+  // Resume the context BEFORE awaiting init. A track cued on a cold reload created
+  // the AudioContext suspended (no gesture), and the worklet won't finish
+  // initialising — so `await p` would hang — until the context runs. We're inside
+  // the play gesture here, so the resume is allowed. (Also revives an
+  // iOS-suspended context / stalled background element on a track switch.)
   await wakeAudio();
+  await p;
   // Move output onto the media element (best-effort) so it survives the page
   // being backgrounded / the screen locking. Triggered from the play gesture.
   void routeAudioToElement();
@@ -663,22 +719,29 @@ export async function playInOrder(list: Track[], track: Track) {
   await playTrack(track);
 }
 
-/** Set `track` as the current/queued track WITHOUT playing it (a "cued",
- *  stopped state) — so the transport renders and next/prev work, but audio
- *  doesn't start until a user gesture (the play button). Used to restore a
- *  selection on reload, where the browser blocks autoplay anyway. */
+/** Restore a selection (e.g. from `?t=` on a cold reload) WITHOUT starting audio:
+ *  cue the track, decode its pattern in the worker (no gesture needed, so the
+ *  grid fills in), and leave the transport in a ready (▶) state. Audio starts on
+ *  the first user gesture (the play button), which the browser requires anyway. */
 export function cueInOrder(list: Track[], track: Track) {
   queue = list;
   playback.queueLength = list.length;
   const key = (t: Track) => t.path ?? t.hash;
   playback.queueIndex = list.findIndex((t) => key(t) === key(track));
+  playback.error = null;
   playback.current = track;
-  playback.playing = false;
-  playback.paused = false;
   playback.position = 0;
   playback.duration = track.duration ?? 0;
   playback.song = null;
+  playback.row = 0;
+  playback.order = 0;
+  playback.pattern = 0;
+  playback.channelMutes = [];
+  clearEdits();
+  resetBeat();
+  pendingTrack = track;
   rollNext(); // so next/prev + a later prefetch have a target
+  transport.send({ type: "CUE" }); // → cued.decoding; the decode actor fills in the song
 }
 
 /** Pre-roll the next queue index. Sequential → +1 (null at the end). Shuffle →
@@ -763,7 +826,7 @@ export function togglePause() {
   }
   if (!player || !playback.current || !playback.playing) return;
   player.togglePause();
-  playback.paused = !playback.paused;
+  transport.send({ type: "TOGGLE" }); // playing ⇄ paused; the subscription flips playback.paused
   if (playback.paused) {
     // Pause the routed <audio> too. Once output is moved to it, that element is
     // the only sink — the worklet going silent doesn't pause the element, so it
@@ -786,12 +849,11 @@ export function stop() {
   if (!player) return;
   if (playback.seqPlaying) seqStop();
   player.stop();
-  playback.playing = false;
-  playback.paused = false;
   playback.position = 0;
   playback.row = 0;
   playback.order = 0;
   resetBeat();
+  transport.send({ type: "STOP" }); // → stopped; the subscription clears playing/paused
   syncNowPlaying();
 }
 
@@ -1650,6 +1712,7 @@ async function saveMeta(track: Track, meta: Meta) {
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     try {
+      transport.stop();
       seqTeardown();
       player?.stop();
       player?.context?.close?.();

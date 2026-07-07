@@ -1,21 +1,14 @@
-import { sveltekit } from "@sveltejs/kit/vite";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+// @scene/player ships source-only (apps transpile it); this config exists only
+// for its own tests. Same split as the apps (see the testing skill):
+//   unit    — *.test.ts        → node (pure logic)
+//   browser — *.svelte.test.ts → real headless chromium (component render,
+//                                 WebGL shader compile — needs a real GL context)
 export default defineConfig({
-  plugins: [sveltekit()],
-  server: {
-    // Dev: proxy the backend so the SPA is same-origin in dev as in prod.
-    // The backend listens on 3010 (TRACKER_BIND default).
-    proxy: {
-      "/api": "http://localhost:3010",
-      "/status": "http://localhost:3010",
-    },
-  },
-  // Two vitest projects, split by filename (see the testing skill):
-  //   unit    — *.test.ts        → node, pure logic (api layer, parsers, stores)
-  //   browser — *.svelte.test.ts → real headless chromium, component render
-  // Playwright (e2e/) stays for the shipped-bundle playback guard + true e2e.
+  plugins: [svelte()],
   test: {
     projects: [
       {

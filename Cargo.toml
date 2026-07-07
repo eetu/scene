@@ -4,7 +4,7 @@
 resolver = "2"
 members = [
     "apps/tracker/backend",
-    "apps/tracker/e2e",
+    "apps/tracker/integration",
     "apps/party/backend",
     "services/transcoder",
 ]

@@ -2005,7 +2005,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracker-e2e"
+name = "tracker-integration"
 version = "0.1.0"
 dependencies = [
  "anyhow",
