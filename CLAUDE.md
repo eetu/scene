@@ -14,7 +14,7 @@ apps/
   tracker/         MOD/tracker-music player
     backend/         tracker-backend (cargo member)
     frontend/        SvelteKit SPA (yarn member, deps @scene/*)
-    e2e/             integration crate
+    integration/     spawned-binary integration crate
   party/           multi-party demoparty archive player
     backend/         party-backend (cargo member)
     frontend/        SvelteKit SPA (yarn member, deps @scene/*)
@@ -25,7 +25,7 @@ services/
   transcoder/      scene-transcoder — Rust axum ffmpeg sidecar for party media
                    (cargo member). Separate runtime; reached over loopback HTTP
                    with a bearer token.
-Cargo.toml         one Rust workspace (all backends + e2e + transcoder)
+Cargo.toml         one Rust workspace (all backends + integration + transcoder)
 package.json       one yarn workspace (packages/* + apps/*/frontend)
 justfile           task runner — `just dev party`, `just build`, `just lint`
 ```

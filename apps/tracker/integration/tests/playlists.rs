@@ -7,7 +7,7 @@
 //! `fetch-missing` downloads into the tree.
 
 use serde_json::json;
-use tracker_e2e::Stack;
+use tracker_integration::Stack;
 use wiremock::matchers::method;
 use wiremock::{Mock, MockServer, ResponseTemplate};
 

@@ -43,7 +43,7 @@ jobs:
               - '.github/workflows/ci.yaml'
             tracker_stack:
               - 'apps/tracker/backend/**'
-              - 'apps/tracker/e2e/**'
+              - 'apps/tracker/integration/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - '.github/workflows/ci.yaml'
@@ -77,6 +77,12 @@ jobs:
           yarn format
           yarn typecheck
           yarn build
+          # vitest tiers: node (unit — logic, api layer, the transport machine) +
+          # real headless chromium (browser — component render + the Tunnel shader
+          # compile, which needs a real WebGL context). Chromium is shared across
+          # every browser vitest project, so one install covers the workspace.
+          yarn workspace tracker-frontend exec playwright install --with-deps chromium
+          yarn test
 
   backend:
     name: "Backends (Rust workspace)"
@@ -95,8 +101,8 @@ jobs:
       - run: cargo test --workspace
       - run: cargo build --workspace --release
 
-  e2e:
-    name: "E2E smoke (tracker stack boots + talks)"
+  integration:
+    name: "Integration (tracker stack: real backend + HTTP)"
     needs: changes
     if: ${{ needs.changes.outputs.tracker_stack == 'true' }}
     runs-on: ubuntu-latest
@@ -106,11 +112,11 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: "."
-      # tracker-e2e boots the backend (DEV_AUTH + temp data dir + fixtures) and
-      # drives it over real HTTP. #[ignore]d so the backend job skips it; run it
-      # explicitly here.
+      # tracker-integration boots the REAL backend (DEV_AUTH + temp data dir +
+      # fixtures) and drives it over real HTTP, wiremocking only the external
+      # upstream. #[ignore]d so the backend job skips it; run it explicitly here.
       - run: cargo build -p tracker-backend
-      - run: cargo test -p tracker-e2e -- --ignored --nocapture
+      - run: cargo test -p tracker-integration -- --ignored --nocapture
 
   browser-e2e:
     name: "Browser E2E (${{ matrix.app }} playback)"
@@ -147,7 +153,7 @@ jobs:
   # for the browser-e2e matrix don't report reliable per-leg names when skipped).
   ci-gate:
     name: "CI gate"
-    needs: [changes, frontend, backend, e2e, browser-e2e]
+    needs: [changes, frontend, backend, integration, browser-e2e]
     if: always()
     runs-on: ubuntu-latest
     steps:
