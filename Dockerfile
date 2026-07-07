@@ -51,15 +51,15 @@ RUN xx-apk add --no-cache musl-dev gcc
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY apps/tracker/backend/Cargo.toml apps/tracker/backend/Cargo.toml
-COPY apps/tracker/e2e/Cargo.toml apps/tracker/e2e/Cargo.toml
+COPY apps/tracker/integration/Cargo.toml apps/tracker/integration/Cargo.toml
 COPY apps/party/backend/Cargo.toml apps/party/backend/Cargo.toml
 COPY services/transcoder/Cargo.toml services/transcoder/Cargo.toml
 # Stub sources so cargo can parse + warm the dep cache for every shipped crate.
-# e2e is test-only (never built here) but its manifest must parse → stub lib.
-RUN mkdir -p apps/tracker/backend/src apps/tracker/e2e/src apps/party/backend/src services/transcoder/src \
+# integration is test-only (never built here) but its manifest must parse → stub lib.
+RUN mkdir -p apps/tracker/backend/src apps/tracker/integration/src apps/party/backend/src services/transcoder/src \
     && printf 'fn main() {}\n' > apps/tracker/backend/src/main.rs \
     && : > apps/tracker/backend/src/lib.rs \
-    && : > apps/tracker/e2e/src/lib.rs \
+    && : > apps/tracker/integration/src/lib.rs \
     && printf 'fn main() {}\n' > apps/party/backend/src/main.rs \
     && : > apps/party/backend/src/lib.rs \
     && printf 'fn main() {}\n' > services/transcoder/src/main.rs \

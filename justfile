@@ -78,12 +78,6 @@ e2e app="tracker":
 e2e-install app="tracker":
     {{yarn}} workspace {{app}}-frontend exec playwright install --with-deps chromium webkit
 
-# Sync the chiptune3 engine (worker/worklet/glue) across apps — served from each
-# app's static/, must stay byte-identical (the engine-vendor-sync test guards it).
-# Canonical = tracker; run after editing the engine.
-sync-engine:
-    cp apps/tracker/frontend/static/vendor/chiptune3/* apps/party/frontend/static/vendor/chiptune3/
-
 # Run the party transcoder sidecar (loopback), auto-reloading via bacon.
 transcoder:
     cd services/transcoder && bacon --headless -j run
