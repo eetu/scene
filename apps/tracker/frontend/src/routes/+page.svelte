@@ -72,6 +72,7 @@
   import Modal from "$lib/Modal.svelte";
   import PatternViewScroll from "$lib/PatternViewScroll.svelte";
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
+  import { setPatternMode, settings } from "$lib/settings.svelte";
   import Toasts from "$lib/Toasts.svelte";
   import { buildShareUrl, parsePos } from "$lib/url-state";
 
@@ -158,14 +159,9 @@
     "ball",
   ];
   let pvVizMode = $state<VizMode>("vu");
-  // Pattern view style: 'locked' = fixed centerline + vertical VU; 'scroll' =
-  // free-scrolling rows + header VU. Persisted across sessions; set in Settings.
-  let patternMode = $state<"locked" | "scroll">(
-    (typeof localStorage !== "undefined" && localStorage.getItem("tracker:patternMode")) ===
-      "scroll"
-      ? "scroll"
-      : "locked",
-  );
+  // Pattern view style ('locked' centerline vs 'scroll'), persisted, set in
+  // Settings, read by the player view — a shared pref, so it lives in the
+  // settings rune store (see $lib/settings.svelte), not local component state.
   // Legacy tracker editing is keyboard-first (QWERTY note entry, hex fields), so
   // gate edit mode to real pointer+keyboard devices. Touch note entry needs a
   // purpose-built UI (future: the on-screen JamKeyboard feeding cells).
@@ -180,11 +176,6 @@
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
   });
-
-  function setPatternMode(m: "locked" | "scroll") {
-    patternMode = m;
-    if (typeof localStorage !== "undefined") localStorage.setItem("tracker:patternMode", m);
-  }
 
   function fmtTime(sec: number): string {
     if (!sec || !isFinite(sec)) return "0:00";
@@ -1186,10 +1177,16 @@
     <div class="setting">
       <span class="setting-label">pattern view</span>
       <div class="seg">
-        <button class:on={patternMode === "locked"} onclick={() => setPatternMode("locked")}>
+        <button
+          class:on={settings.patternMode === "locked"}
+          onclick={() => setPatternMode("locked")}
+        >
           <ScanLine size={15} /> centerline
         </button>
-        <button class:on={patternMode === "scroll"} onclick={() => setPatternMode("scroll")}>
+        <button
+          class:on={settings.patternMode === "scroll"}
+          onclick={() => setPatternMode("scroll")}
+        >
           free scroll
         </button>
       </div>
@@ -1409,7 +1406,7 @@
           </div>
         {/if}
         <div class="pfill">
-          {#if patternMode === "locked"}<PatternView />{:else}<PatternViewScroll />{/if}
+          {#if settings.patternMode === "locked"}<PatternView />{:else}<PatternViewScroll />{/if}
         </div>
       {:else if pvTab === "viz"}
         {@const vizActive = playback.playing && !playback.paused}
