@@ -54,11 +54,24 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { api, ApiError, fileUrl, type Playlist, type StatusResponse, type Track } from "$lib/api";
+  import { enrichTracks } from "$lib/enrich";
+  import {
+    buildRows,
+    facetFormats,
+    facetTrackers,
+    filterTracks,
+    type GroupKey,
+    GROUPLESS,
+    GROUPLESS_LABEL,
+    groupTracks,
+    letterRowMap,
+    type LibRow,
+    rowKey,
+    subLabel,
+  } from "$lib/library";
   import PatternViewScroll from "$lib/PatternViewScroll.svelte";
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
   import { buildShareUrl, parsePos } from "$lib/url-state";
-
-  type GroupKey = "group" | "artist" | "ext";
 
   // The main view is tabbed: the library list, the same list filtered to
   // favourites, or the playlists surface. Restored from last session.
@@ -302,37 +315,17 @@
     enrichDone = 0;
     enriching = true;
     try {
-      for (const t of todo) {
-        if (!enriching) break; // cancelled
-        try {
-          const buf = await (await fetch(fileUrl(t.hash))).arrayBuffer();
-          const m = await parseModule(buf);
-          if (m) {
-            const payload = {
-              title: m.title || null,
-              type_long: m.type_long || null,
-              tracker: m.tracker || null,
-              duration: m.dur ?? null,
-              channels: m.channels ?? null,
-              instruments: m.instruments ?? null,
-              samples: m.samples ?? null,
-              n_orders: m.orders ?? null,
-              n_patterns: m.patterns ?? null,
-            };
-            await api.putMeta(t.hash, payload);
-            t.title = payload.title;
-            t.type_long = payload.type_long;
-            t.tracker = payload.tracker;
-            t.duration = payload.duration;
-            t.channels = payload.channels;
-            t.instruments = payload.instruments;
-            t.samples = payload.samples;
-          }
-        } catch {
-          /* skip this module, keep going */
-        }
-        enrichDone++;
-      }
+      // Loop + payload mapping live in $lib/enrich (unit-tested); wire the engine
+      // + cancellation/progress here. Mutations land on the reactive tracks.
+      await enrichTracks(
+        todo,
+        {
+          fetchBytes: (hash) => fetch(fileUrl(hash)).then((r) => r.arrayBuffer()),
+          parse: parseModule,
+          save: api.putMeta,
+        },
+        { shouldContinue: () => enriching, onProgress: (done) => (enrichDone = done) },
+      );
     } finally {
       enriching = false;
     }
@@ -433,85 +426,14 @@
   });
 
   // Facet options come from the current tab's tracks (favourites vs all), so the
-  // dropdowns only offer values that can actually match.
+  // dropdowns only offer values that can actually match. Grouping / filtering /
+  // sort / rail logic lives in $lib/library (pure + unit-tested).
   const facetBase = $derived(favView ? tracks.filter((t) => t.favorite) : tracks);
-  const formats = $derived(
-    [...new Set(facetBase.map((t) => t.ext.toUpperCase()))].sort((a, b) => a.localeCompare(b)),
-  );
-  const trackers = $derived(
-    [...new Set(facetBase.map((t) => t.tracker).filter((t): t is string => !!t))].sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: "base" }),
-    ),
-  );
+  const formats = $derived(facetFormats(facetBase));
+  const trackers = $derived(facetTrackers(facetBase));
 
-  const filtered = $derived.by(() => {
-    const q = query.trim().toLowerCase();
-    let list = tracks;
-    if (favView) list = list.filter((t) => t.favorite);
-    if (fmtFilter) list = list.filter((t) => t.ext.toUpperCase() === fmtFilter);
-    if (trackerFilter) list = list.filter((t) => (t.tracker ?? "") === trackerFilter);
-    if (q)
-      list = list.filter((t) =>
-        [t.path, t.title, t.filename, t.group, t.artist, t.type_long]
-          .filter(Boolean)
-          .some((v) => (v as string).toLowerCase().includes(q)),
-      );
-    return list;
-  });
-
-  // Canonical "no group" bucket: files under the _groupless/ dir (or with an
-  // empty group) collect here. Shown as "Groupless", pinned last, styled apart.
-  const GROUPLESS = "_groupless";
-  const GROUPLESS_LABEL = "Groupless";
-
-  function keyOf(t: Track): string {
-    if (groupBy === "group") return t.group || GROUPLESS;
-    if (groupBy === "artist") return t.artist || "(unknown artist)";
-    return t.ext.toUpperCase();
-  }
-
-  const groups = $derived.by(() => {
-    const acc: Record<string, Track[]> = {};
-    for (const t of filtered) {
-      const k = keyOf(t);
-      (acc[k] ??= []).push(t);
-    }
-    // Within a bucket: 'name' keeps the server's order; the others sort by an
-    // enrichment field, biggest first, with un-enriched (null) values last.
-    // JS sort is stable, so ties keep the server order.
-    if (trackSort !== "name") {
-      const metric: (t: Track) => number =
-        trackSort === "duration"
-          ? (t) => t.duration ?? -1
-          : trackSort === "channels"
-            ? (t) => t.channels ?? -1
-            : (t) => t.play_count;
-      for (const items of Object.values(acc)) items.sort((a, b) => metric(b) - metric(a));
-    }
-    // Order the buckets themselves. 'name' = A-Z; 'plays' = busiest bucket first
-    // (sum of play counts); 'size' = most modules first. Non-name falls back to
-    // A-Z on ties.
-    const byName = (a: [string, Track[]], b: [string, Track[]]) =>
-      a[0].localeCompare(b[0], undefined, { sensitivity: "base" });
-    const plays = (items: Track[]) => items.reduce((n, t) => n + t.play_count, 0);
-    return Object.entries(acc).sort((a, b) => {
-      // Groupless always sinks to the bottom, whatever the bucket sort is.
-      const ag = a[0] === GROUPLESS;
-      const bg = b[0] === GROUPLESS;
-      if (ag !== bg) return ag ? 1 : -1;
-      if (groupSort === "plays") return plays(b[1]) - plays(a[1]) || byName(a, b);
-      if (groupSort === "size") return b[1].length - a[1].length || byName(a, b);
-      return byName(a, b);
-    });
-  });
-
-  function subLabel(t: Track): string {
-    // A groupless track has no real group to show as a prefix.
-    const grp = t.group === GROUPLESS ? "" : t.group;
-    if (groupBy === "group") return t.artist ?? "—";
-    if (groupBy === "artist") return grp || "—";
-    return [grp, t.artist].filter(Boolean).join(" · ") || "—";
-  }
+  const filtered = $derived(filterTracks(tracks, { favView, fmtFilter, trackerFilter, query }));
+  const groups = $derived(groupTracks(filtered, { groupBy, trackSort, groupSort }));
 
   // A row's label is rendered as styled parts (not one string): the *other*
   // dimension as a muted prefix (artist/group via subLabel), the song title in
@@ -534,26 +456,8 @@
   // ---- virtualized library list ----
   // Flatten the grouped tree into one row stream (a header row per group, plus
   // the track rows of open groups) and virtualize it with TanStack Virtual, so
-  // thousands of <li> never hit the DOM at once.
-  type LibRow =
-    | { kind: "header"; name: string; count: number; open: boolean; first: boolean }
-    | { kind: "track"; track: Track; last: boolean };
-
-  const rows = $derived.by<LibRow[]>(() => {
-    const out: LibRow[] = [];
-    for (const [name, items] of groups) {
-      const open = isOpen(name);
-      out.push({ kind: "header", name, count: items.length, open, first: out.length === 0 });
-      if (open)
-        items.forEach((t, i) =>
-          out.push({ kind: "track", track: t, last: i === items.length - 1 }),
-        );
-    }
-    return out;
-  });
-  function rowKey(r: LibRow): string {
-    return r.kind === "header" ? `h:${r.name}` : `t:${r.track.path}`;
-  }
+  // thousands of <li> never hit the DOM at once. (buildRows/rowKey in $lib/library.)
+  const rows = $derived<LibRow[]>(buildRows(groups, isOpen));
   function toggleGroup(name: string) {
     groupOverride.set(name, !isOpen(name));
   }
@@ -633,21 +537,8 @@
   // letter — click a letter, or drag along it (a scrubber, handy on touch). Only
   // meaningful when the buckets are actually in A-Z order (groupSort "name") and
   // there are enough of them to be worth the reach.
-  function railLetter(name: string): string {
-    const c = name[0]?.toUpperCase() ?? "#";
-    return c >= "A" && c <= "Z" ? c : "#";
-  }
-  // letter -> row index of its first group header. Buckets are contiguous per
-  // letter when sorted A-Z, so the first hit is the correct jump target.
-  const letterRows = $derived.by(() => {
-    // Throwaway lookup rebuilt each run (read-only), not reactive state.
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
-    const m = new Map<string, number>();
-    rows.forEach((r, i) => {
-      if (r.kind === "header" && !m.has(railLetter(r.name))) m.set(railLetter(r.name), i);
-    });
-    return m;
-  });
+  // letter -> row index of its first group header (letterRowMap in $lib/library).
+  const letterRows = $derived(letterRowMap(rows));
   const showRail = $derived(listView && groupSort === "name" && groups.length > 12);
   const railItems = $derived.by(() => {
     const base = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
@@ -1162,7 +1053,7 @@
             {:else if row?.kind === "track"}
               {@const t = row.track}
               {@const isCurrent = playback.current?.path === t.path}
-              {@const sub = subLabel(t)}
+              {@const sub = subLabel(t, groupBy)}
               <div class="card li" class:last={row.last} class:current={isCurrent}>
                 <button class="row" title={t.path} onclick={() => openTrack(t)}>
                   <span class="name"
