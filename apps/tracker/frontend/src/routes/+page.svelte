@@ -48,7 +48,7 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import AddToPlaylist from "$lib/AddToPlaylist.svelte";
-  import { api, ApiError, fileUrl, type Playlist, type StatusResponse, type Track } from "$lib/api";
+  import { api, ApiError, fileUrl, type Playlist, type Track } from "$lib/api";
   import { enrichTracks } from "$lib/enrich";
   import {
     buildRows,
@@ -64,6 +64,7 @@
     rowKey,
     subLabel,
   } from "$lib/library";
+  import { library, rescanLibrary } from "$lib/library.svelte";
   import Modal from "$lib/Modal.svelte";
   import PatternViewScroll from "$lib/PatternViewScroll.svelte";
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
@@ -183,11 +184,13 @@
     return n.toString(16).toUpperCase().padStart(2, "0");
   }
 
-  let tracks = $state<Track[]>([]);
-  let status = $state<StatusResponse | null>(null);
-  let loading = $state(true);
-  let error = $state<string | null>(null);
-  let rescanning = $state(false);
+  // Library data + scan lifecycle live in the shared library store (driven by
+  // scanMachine); read the reactive values here.
+  const tracks = $derived(library.tracks);
+  const status = $derived(library.status);
+  const loading = $derived(library.loading);
+  const error = $derived(library.error);
+  const scanning = $derived(library.scanning);
 
   let groupBy = $state<GroupKey>("group");
   // Two independent sort axes: `trackSort` orders the tracks *within* a group;
@@ -224,73 +227,6 @@
     }
   }
 
-  async function loadTracks() {
-    tracks = await api.tracks();
-  }
-  async function refreshStatus() {
-    status = await api.status();
-  }
-
-  // While a scan runs it holds the single DB connection, so poll only /status
-  // (cheap, lock-free) — never /api/tracks, which would block until it ends.
-  async function pollUntilIdle() {
-    while (status?.scanning) {
-      await new Promise((r) => setTimeout(r, 800));
-      try {
-        await refreshStatus();
-      } catch {
-        /* transient — keep polling */
-      }
-    }
-    await loadTracks();
-  }
-
-  async function init() {
-    loading = true;
-    error = null;
-    try {
-      await refreshStatus();
-      if (status?.scanning) await pollUntilIdle();
-      else await loadTracks();
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function rescan() {
-    rescanning = true;
-    error = null;
-    // Poll for progress in parallel while the (synchronous) rescan runs.
-    let done = false;
-    const poller = (async () => {
-      while (!done) {
-        try {
-          await refreshStatus();
-        } catch {
-          /* transient */
-        }
-        await new Promise((r) => setTimeout(r, 700));
-      }
-    })();
-    try {
-      await api.rescan();
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      done = true;
-      await poller;
-      try {
-        await refreshStatus();
-        await loadTracks();
-      } catch (e) {
-        error = e instanceof Error ? e.message : String(e);
-      }
-      rescanning = false;
-    }
-  }
-
   // ---- bulk metadata enrichment (parse every un-enriched module via WASM) ----
   let enriching = $state(false);
   let enrichDone = $state(0);
@@ -320,8 +256,9 @@
     }
   }
 
+  // The library store inits itself on import (scanMachine boots); just load the
+  // playlists here.
   onMount(() => {
-    void init();
     void refreshPlaylists();
   });
 
@@ -407,7 +344,6 @@
     };
   });
 
-  const scanning = $derived((status?.scanning ?? false) || rescanning);
   const scanPct = $derived.by(() => {
     const total = status?.scan_total ?? 0;
     if (!total) return null;
@@ -970,7 +906,7 @@
       <p class="msg err">{error}</p>
     {:else if tracks.length === 0}
       <p class="msg">
-        No modules indexed yet — try <button class="link" onclick={rescan}>rescan</button>.
+        No modules indexed yet — try <button class="link" onclick={rescanLibrary}>rescan</button>.
       </p>
     {:else if favView && flatTracks.length === 0}
       <p class="msg">No favourites yet — tap the ☆ on any track.</p>
@@ -1110,7 +1046,7 @@
     trackCount={tracks.length}
     scanProcessed={status?.scan_processed ?? 0}
     scanTotal={status?.scan_total ?? 0}
-    onRescan={rescan}
+    onRescan={rescanLibrary}
     onEnrich={enrichAll}
     onCancelEnrich={() => (enriching = false)}
   />
