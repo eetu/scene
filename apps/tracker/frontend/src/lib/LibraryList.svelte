@@ -229,7 +229,6 @@
                       >{t.title || t.filename}</span
                     ></span
                   >
-                  {#if view.groupBy !== "ext"}<span class="fmt-chip">{t.ext}</span>{/if}
                   <span
                     class="plays"
                     title={t.play_count > 0 ? `${t.play_count} plays` : undefined}
@@ -430,22 +429,6 @@
   }
   .song {
     color: var(--text);
-  }
-  /* Format as a small chip rather than inline "[XM]" text. The label uses the
-     main text colour, not --muted: on the light theme --muted (#a0a0a0) on the
-     chip's --panel-hi (#d9d9d9) is barely legible (~1.5:1). The chip still reads
-     as secondary via its size / uppercase / pill, not a washed-out colour. */
-  .fmt-chip {
-    flex: 0 0 auto;
-    font-size: 10px;
-    line-height: 1;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--text);
-    background: var(--panel-hi);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 3px 5px;
   }
   /* Right-aligned fixed-width metadata columns so the row's right edge lines up
      across rows (plays/duration are per-track optional — reserving the column
