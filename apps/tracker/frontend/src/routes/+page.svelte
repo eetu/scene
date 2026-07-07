@@ -71,6 +71,7 @@
   } from "$lib/library";
   import PatternViewScroll from "$lib/PatternViewScroll.svelte";
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
+  import Toasts from "$lib/Toasts.svelte";
   import { buildShareUrl, parsePos } from "$lib/url-state";
 
   // The main view is tabbed: the library list, the same list filtered to
@@ -1517,9 +1518,7 @@
   </div>
 {/if}
 
-{#if toast}
-  <div class="toast" class:err={toast.kind === "err"} role="status">{toast.msg}</div>
-{/if}
+<Toasts {toast} />
 
 {#if playback.current}
   <div class="transport-dock" bind:clientHeight={transportH}>
@@ -2055,25 +2054,6 @@
     color: var(--text);
   }
   /* Transient confirmation / error banner — bottom-centred, above the dock. */
-  .toast {
-    position: fixed;
-    left: 50%;
-    bottom: 76px;
-    transform: translateX(-50%);
-    z-index: 20;
-    max-width: calc(100vw - 32px);
-    padding: 8px 14px;
-    background: var(--panel-hi);
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    color: var(--text);
-    font-size: 13px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-  }
-  .toast.err {
-    border-color: var(--halo-error);
-    color: var(--halo-error);
-  }
   .modal label {
     display: flex;
     flex-direction: column;
