@@ -2355,14 +2355,18 @@ __metadata:
     "@sveltejs/vite-plugin-svelte": "npm:^7.0.0"
     "@tanstack/svelte-virtual": "npm:^3.13.29"
     "@types/node": "npm:^25"
+    "@vitest/browser-playwright": "npm:^4.1.10"
     eslint: "npm:^10.4.0"
     js-dos: "npm:^8.4.0"
+    playwright: "npm:^1.61.1"
     prettier: "npm:^3.8.3"
     prettier-plugin-svelte: "npm:^4.0.1"
     svelte: "npm:^5.56.1"
     svelte-check: "npm:^4.4.6"
     typescript: "npm:^6.0.2"
     vite: "npm:^8.0.16"
+    vitest: "npm:^4.1.10"
+    vitest-browser-svelte: "npm:^2.2.0"
   languageName: unknown
   linkType: soft
 

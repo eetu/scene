@@ -1,5 +1,7 @@
 import { sveltekit } from "@sveltejs/kit/vite";
-import { defineConfig, type PluginOption } from "vite";
+import { playwright } from "@vitest/browser-playwright";
+import { type PluginOption } from "vite";
+import { defineConfig } from "vitest/config";
 
 // Cross-origin isolation in dev (COOP+COEP) so SharedArrayBuffer — hence the
 // threaded emulator cores — is available under `vite dev`, matching the
@@ -28,5 +30,34 @@ export default defineConfig({
       "/api": "http://localhost:3020",
       "/status": "http://localhost:3020",
     },
+  },
+  // Same two-project split as the tracker frontend (see the testing skill):
+  //   unit    — *.test.ts        → node, pure logic
+  //   browser — *.svelte.test.ts → real headless chromium, component render
+  test: {
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          environment: "node",
+          include: ["src/**/*.{test,spec}.{js,ts}"],
+          exclude: ["src/**/*.svelte.{test,spec}.{js,ts}"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "browser",
+          include: ["src/**/*.svelte.{test,spec}.{js,ts}"],
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright(),
+            instances: [{ browser: "chromium" }],
+          },
+        },
+      },
+    ],
   },
 });

@@ -56,6 +56,7 @@
   import { api, ApiError, fileUrl, type Playlist, type StatusResponse, type Track } from "$lib/api";
   import PatternViewScroll from "$lib/PatternViewScroll.svelte";
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
+  import { buildShareUrl, parsePos } from "$lib/url-state";
 
   type GroupKey = "group" | "artist" | "ext";
 
@@ -356,9 +357,7 @@
   // An explicitly-shared start position (?t=&pos=<sec>, from the copy-link
   // button). Applied once, after the module decodes; never auto-persisted, so a
   // plain ?t or a fresh selection always starts at 0 (no surprise resumes).
-  const initialPos = initialTrackHash
-    ? Math.max(0, Math.floor(Number(page.url.searchParams.get("pos")) || 0))
-    : 0;
+  const initialPos = initialTrackHash ? parsePos(page.url.searchParams.get("pos")) : 0;
   let pendingSeek = $state<number | null>(initialPos > 0 ? initialPos : null);
 
   // Restore the bookmarked / pre-HMR track once the library has loaded. Runs
@@ -736,11 +735,9 @@
   async function copyLinkAtPosition() {
     const cur = playback.current;
     if (!cur) return;
-    const u = new URL(location.href);
-    u.searchParams.set("t", cur.hash);
-    u.searchParams.set("pos", String(Math.floor(playback.position)));
+    const url = buildShareUrl(location.href, cur.hash, playback.position);
     try {
-      await navigator.clipboard.writeText(u.toString());
+      await navigator.clipboard.writeText(url);
       showToast(`Link copied at ${fmtTime(playback.position)}`);
     } catch {
       showToast("Couldn't copy link", "err");
