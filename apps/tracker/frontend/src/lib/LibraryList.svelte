@@ -224,10 +224,14 @@
               {@const sub = subLabel(t, view.groupBy)}
               <div class="card li" class:last={row.last} class:current={isCurrent}>
                 <button class="row" title={t.path} onclick={() => onOpen(t)}>
+                  <!-- Title leads (the primary identifier), muted artist/group
+                       context trails — mirrors the transport's title-over-meta
+                       order. The "—" placeholder is dropped when trailing (a bare
+                       title reads cleaner than "title —" for no-artist tracks). -->
                   <span class="name"
-                    ><span class="sub">{sub}&nbsp;</span><span class="song"
-                      >{t.title || t.filename}</span
-                    ></span
+                    ><span class="song">{t.title || t.filename}</span>{#if sub && sub !== "—"}<span
+                        class="sub">&nbsp;{sub}</span
+                      >{/if}</span
                   >
                   <span
                     class="plays"
