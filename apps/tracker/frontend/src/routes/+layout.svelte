@@ -152,6 +152,20 @@
     }
   }
 
+  /* Icon-only button (topbar + player-view header) — square, no text padding;
+     accent fill when it's an active toggle. Shared, so it's global too. */
+  :global(.icon-btn) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+  }
+  :global(.icon-btn.on) {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
   /* Lucide icons: square the caps/joins and thicken the stroke so they read as
 	   blocky/retro alongside the pixel fonts (the default round strokes clash). */
   :global(button svg) {
