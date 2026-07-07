@@ -257,19 +257,19 @@ function parse(id, file) {
 }
 
 // --- full metadata (for the now-playing track) ------------------------------
-function getSong() {
+function getSong(mod) {
 	const song = { channels: [], instruments: [], samples: [], orders: [], patterns: [] };
-	const chNum = lib._openmpt_module_get_num_channels(modulePtr);
+	const chNum = lib._openmpt_module_get_num_channels(mod);
 	for (let i = 0; i < chNum; i++)
-		song.channels.push(lib.UTF8ToString(lib._openmpt_module_get_channel_name(modulePtr, i)));
-	for (let i = 0, e = lib._openmpt_module_get_num_instruments(modulePtr); i < e; i++)
-		song.instruments.push(lib.UTF8ToString(lib._openmpt_module_get_instrument_name(modulePtr, i)));
-	for (let i = 0, e = lib._openmpt_module_get_num_samples(modulePtr); i < e; i++)
-		song.samples.push(lib.UTF8ToString(lib._openmpt_module_get_sample_name(modulePtr, i)));
-	for (let i = 0, e = lib._openmpt_module_get_num_orders(modulePtr); i < e; i++)
+		song.channels.push(lib.UTF8ToString(lib._openmpt_module_get_channel_name(mod, i)));
+	for (let i = 0, e = lib._openmpt_module_get_num_instruments(mod); i < e; i++)
+		song.instruments.push(lib.UTF8ToString(lib._openmpt_module_get_instrument_name(mod, i)));
+	for (let i = 0, e = lib._openmpt_module_get_num_samples(mod); i < e; i++)
+		song.samples.push(lib.UTF8ToString(lib._openmpt_module_get_sample_name(mod, i)));
+	for (let i = 0, e = lib._openmpt_module_get_num_orders(mod); i < e; i++)
 		song.orders.push({
-			name: lib.UTF8ToString(lib._openmpt_module_get_order_name(modulePtr, i)),
-			pat: lib._openmpt_module_get_order_pattern(modulePtr, i)
+			name: lib.UTF8ToString(lib._openmpt_module_get_order_name(mod, i)),
+			pat: lib._openmpt_module_get_order_pattern(mod, i)
 		});
 	// Structured per-cell fields (note/inst/volcmd/vol/fx/param) for the editor —
 	// only when the custom build exports the getter (else `cells` stays absent and
@@ -278,24 +278,24 @@ function getSong() {
 	// VOLUME 4, PARAMETER 5. Each cell is a compact [note,inst,volcmd,vol,fx,param].
 	const cmd = lib._openmpt_module_get_pattern_row_channel_command;
 	const wantCells = typeof cmd === 'function';
-	for (let pi = 0, pn = lib._openmpt_module_get_num_patterns(modulePtr); pi < pn; pi++) {
-		const pattern = { name: lib.UTF8ToString(lib._openmpt_module_get_pattern_name(modulePtr, pi)), rows: [] };
+	for (let pi = 0, pn = lib._openmpt_module_get_num_patterns(mod); pi < pn; pi++) {
+		const pattern = { name: lib.UTF8ToString(lib._openmpt_module_get_pattern_name(mod, pi)), rows: [] };
 		if (wantCells) pattern.cells = [];
-		for (let ri = 0, rn = lib._openmpt_module_get_pattern_num_rows(modulePtr, pi); ri < rn; ri++) {
+		for (let ri = 0, rn = lib._openmpt_module_get_pattern_num_rows(mod, pi); ri < rn; ri++) {
 			const rowArr = [];
 			const cellArr = wantCells ? [] : null;
 			for (let ci = 0; ci < chNum; ci++) {
-				const cell = lib._openmpt_module_format_pattern_row_channel(modulePtr, pi, ri, ci, 0, 0);
+				const cell = lib._openmpt_module_format_pattern_row_channel(mod, pi, ri, ci, 0, 0);
 				rowArr.push(lib.UTF8ToString(cell));
 				lib._openmpt_free_string(cell);
 				if (wantCells)
 					cellArr.push([
-						cmd(modulePtr, pi, ri, ci, 0), // note
-						cmd(modulePtr, pi, ri, ci, 1), // instrument
-						cmd(modulePtr, pi, ri, ci, 2), // volume effect
-						cmd(modulePtr, pi, ri, ci, 4), // volume
-						cmd(modulePtr, pi, ri, ci, 3), // effect
-						cmd(modulePtr, pi, ri, ci, 5) // parameter
+						cmd(mod, pi, ri, ci, 0), // note
+						cmd(mod, pi, ri, ci, 1), // instrument
+						cmd(mod, pi, ri, ci, 2), // volume effect
+						cmd(mod, pi, ri, ci, 4), // volume
+						cmd(mod, pi, ri, ci, 3), // effect
+						cmd(mod, pi, ri, ci, 5) // parameter
 					]);
 			}
 			pattern.rows.push(rowArr);
@@ -305,23 +305,45 @@ function getSong() {
 	}
 	return song;
 }
-function getMeta() {
+// Build the full metadata object (incl. the structured song) for a given module.
+function metaFor(mod) {
 	const data = {};
-	data.dur = lib._openmpt_module_get_duration_seconds(modulePtr);
-	if (data.dur === 0) self.postMessage({ cmd: 'err', val: 'dur' });
-	const keys = lib.UTF8ToString(lib._openmpt_module_get_metadata_keys(modulePtr)).split(';');
+	data.dur = lib._openmpt_module_get_duration_seconds(mod);
+	const keys = lib.UTF8ToString(lib._openmpt_module_get_metadata_keys(mod)).split(';');
 	for (let i = 0; i < keys.length; i++) {
 		const kb = lib._malloc(keys[i].length + 1);
 		writeAscii(keys[i], kb);
-		data[keys[i]] = lib.UTF8ToString(lib._openmpt_module_get_metadata(modulePtr, kb));
+		data[keys[i]] = lib.UTF8ToString(lib._openmpt_module_get_metadata(mod, kb));
 		lib._free(kb);
 	}
-	data.song = getSong();
+	data.song = getSong(mod);
 	data.totalOrders = data.song.orders.length;
 	data.totalPatterns = data.song.patterns.length;
 	data.libopenmptVersion = lib.version;
 	data.libopenmptBuild = lib.build;
 	return data;
+}
+function getMeta() {
+	const data = metaFor(modulePtr);
+	if (data.dur === 0) self.postMessage({ cmd: 'err', val: 'dur' });
+	return data;
+}
+
+// Decode a module's full metadata + song (patterns/cells) on a THROWAWAY module,
+// without touching playback (no pcmPort, no `playing`, no pump). Lets the app show
+// the pattern for a track restored on a cold reload, where the browser blocks the
+// audio worklet until a user gesture — audio then starts later via a normal load.
+function decodeSong(id, file) {
+	if (!lib) return self.postMessage({ cmd: 'decoded', id, meta: null });
+	const bytes = new Int8Array(file);
+	const p = lib._malloc(bytes.byteLength);
+	lib.HEAPU8.set(bytes, p);
+	const m = lib._openmpt_module_create_from_memory(p, bytes.byteLength, 0, 0, 0);
+	lib._free(p);
+	if (!m) return self.postMessage({ cmd: 'decoded', id, meta: null });
+	const meta = metaFor(m);
+	lib._openmpt_module_destroy(m);
+	self.postMessage({ cmd: 'decoded', id, meta });
 }
 
 // --- command handling -------------------------------------------------------
@@ -411,6 +433,9 @@ self.onmessage = (e) => {
 			break;
 		case 'parse':
 			if (lib) parse(d.id, d.file);
+			break;
+		case 'decodeSong':
+			decodeSong(d.id, d.file);
 			break;
 		case 'readSample': {
 			const res = readSample(d.idx | 0);

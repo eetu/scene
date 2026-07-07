@@ -19,6 +19,7 @@
   import {
     BoingBall,
     CopperBars,
+    cueInOrder,
     DiscoBall,
     Equalizer,
     GlowWave,
@@ -372,15 +373,13 @@
       showPattern = true;
       return;
     }
-    // Fresh load / bookmark: load the module so it decodes — the pattern grid
-    // needs a decoded song, and cueing alone never loads it — then open the
-    // player view. Loading plays it; the browser may block audio on a cold load
-    // without a gesture, but @scene/player resumes the context on the first
-    // interaction, and the pattern renders regardless. A shared ?pos seeks once
-    // decoded (pendingSeek effect below).
+    // Fresh load / bookmark: CUE the track — decode its pattern in the worker
+    // (no gesture needed) so the grid fills in, but do NOT autoplay: the browser
+    // blocks audio on a cold load without a gesture, so the transport shows ▶ and
+    // audio starts on the first tap. A shared ?pos seeks once decoded (below).
     const t = tracks.find((x) => x.hash === initialTrackHash);
     if (t) {
-      void playInOrder(
+      cueInOrder(
         untrack(() => flatTracks),
         t,
       );

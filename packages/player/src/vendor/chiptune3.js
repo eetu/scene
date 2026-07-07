@@ -75,6 +75,13 @@ export class ChiptuneJsPlayer {
 		this.rawReqId = 0;
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		this.pendingRaw = new Map();
+		this.decodeReqId = 0;
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		this.pendingDecode = new Map();
+		// Resolves once the decoder Worker's WASM is up (independent of the audio
+		// worklet, which the browser may not init until a user gesture). Lets the
+		// app decode a module for display before audio can start.
+		this.workerReadyPromise = new Promise((res) => (this._resolveWorkerReady = res));
 
 		// Decoder Worker (module worker → can `import` the libopenmpt glue).
 		this.worker = new Worker(workerUrl, { type: 'module' });
@@ -121,8 +128,17 @@ export class ChiptuneJsPlayer {
 			case 'ready':
 				this.workerReady = true;
 				if (d.caps) this.capabilities = d.caps;
+				this._resolveWorkerReady?.();
 				this.maybeInit_();
 				break;
+			case 'decoded': {
+				const r = this.pendingDecode.get(d.id);
+				if (r) {
+					this.pendingDecode.delete(d.id);
+					r(d.meta ?? null);
+				}
+				break;
+			}
 			case 'sample': {
 				const r = this.pendingSample.get(d.id);
 				if (r) {
@@ -289,6 +305,23 @@ export class ChiptuneJsPlayer {
 	}
 	parse(id, ab) {
 		this.worker.postMessage({ cmd: 'parse', id, file: ab });
+	}
+
+	/** Resolves once the decoder Worker's WASM is ready — independent of the audio
+	 *  worklet (which the browser may hold suspended until a user gesture). */
+	whenWorkerReady() {
+		return this.workerReadyPromise;
+	}
+
+	/** Decode a module's full metadata + song (patterns/cells) on a throwaway
+	 *  module WITHOUT starting audio — for showing the pattern of a track restored
+	 *  on a cold reload. Resolves with the meta object (incl. `song`) or null. */
+	decodeSong(ab) {
+		const id = ++this.decodeReqId;
+		return new Promise((resolve) => {
+			this.pendingDecode.set(id, resolve);
+			this.worker.postMessage({ cmd: 'decodeSong', id, file: ab });
+		});
 	}
 
 	/** Read one sample's PCM + metadata (1-based index). Resolves with
