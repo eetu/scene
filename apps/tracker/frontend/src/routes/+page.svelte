@@ -49,12 +49,10 @@
   import AddToPlaylist from "$lib/AddToPlaylist.svelte";
   import AlphabetRail from "$lib/AlphabetRail.svelte";
   import { api, ApiError, type Playlist, type Track } from "$lib/api";
+  import FacetBar from "$lib/FacetBar.svelte";
   import {
     buildRows,
-    facetFormats,
-    facetTrackers,
     filterTracks,
-    type GroupKey,
     GROUPLESS,
     GROUPLESS_LABEL,
     groupTracks,
@@ -71,22 +69,13 @@
   import SettingsPanel from "$lib/SettingsPanel.svelte";
   import Toasts from "$lib/Toasts.svelte";
   import { buildShareUrl, parsePos } from "$lib/url-state";
+  import { bucketNoun, setTab, view } from "$lib/view.svelte";
 
-  // The main view is tabbed: the library list, the same list filtered to
-  // favourites, or the playlists surface. Restored from last session.
-  type Tab = "library" | "favourites" | "playlists";
-  let activeTab = $state<Tab>(
-    ((typeof localStorage !== "undefined" && localStorage.getItem("tracker:tab")) as Tab) ||
-      "library",
-  );
-  function setTab(t: Tab) {
-    activeTab = t;
-    if (typeof localStorage !== "undefined") localStorage.setItem("tracker:tab", t);
-  }
-  // Library and Favourites share the grouped/virtualized list; only the filter
-  // predicate differs. (Playlists tab renders its own surface.)
-  const favView = $derived(activeTab === "favourites");
-  const listView = $derived(activeTab === "library" || activeTab === "favourites");
+  // View/filter state (tab, group-by, sorts, facets, query) lives in the shared
+  // view store; the FacetBar controls + list derivations read it. Library and
+  // Favourites share the grouped list; only the filter predicate differs.
+  const favView = $derived(view.tab === "favourites");
+  const listView = $derived(view.tab === "library" || view.tab === "favourites");
 
   let showPattern = $state(false);
   // Measured height of the fixed transport dock, so the player view reserves
@@ -191,30 +180,9 @@
   const error = $derived(library.error);
   const scanning = $derived(library.scanning);
 
-  let groupBy = $state<GroupKey>("group");
-  // Two independent sort axes: `trackSort` orders the tracks *within* a group;
-  // `groupSort` orders the group buckets themselves. Plus two facet filters
-  // over the enrichment (format, tracker) and the free-text query.
-  let trackSort = $state<"name" | "duration" | "channels" | "plays">("name");
-  let groupSort = $state<"name" | "plays" | "size">("name");
-  let fmtFilter = $state("");
-  let trackerFilter = $state("");
-  let query = $state("");
+  // The topbar filter input (query lives in the view store; this ref lets
+  // type-to-filter focus it).
   let filterEl = $state<HTMLInputElement>();
-  function resetControls() {
-    trackSort = "name";
-    groupSort = "name";
-    fmtFilter = "";
-    trackerFilter = "";
-  }
-  const controlsActive = $derived(
-    trackSort !== "name" || groupSort !== "name" || !!fmtFilter || !!trackerFilter,
-  );
-  // What the buckets are called for the current group-by — used for the bucket
-  // sort label and the count line so they read "artists" / "formats" / "groups".
-  const bucketNoun = $derived(
-    groupBy === "ext" ? "formats" : groupBy === "artist" ? "artists" : "groups",
-  );
 
   async function toggleFavorite(t: Track) {
     const next = !t.favorite;
@@ -323,15 +291,23 @@
     return Math.round((Math.min(status?.scan_processed ?? 0, total) / total) * 100);
   });
 
-  // Facet options come from the current tab's tracks (favourites vs all), so the
-  // dropdowns only offer values that can actually match. Grouping / filtering /
-  // sort / rail logic lives in $lib/library (pure + unit-tested).
-  const facetBase = $derived(favView ? tracks.filter((t) => t.favorite) : tracks);
-  const formats = $derived(facetFormats(facetBase));
-  const trackers = $derived(facetTrackers(facetBase));
-
-  const filtered = $derived(filterTracks(tracks, { favView, fmtFilter, trackerFilter, query }));
-  const groups = $derived(groupTracks(filtered, { groupBy, trackSort, groupSort }));
+  // Grouping / filtering / sort logic lives in $lib/library (pure + unit-tested);
+  // the view controls (+ facet options) live in FacetBar reading the view store.
+  const filtered = $derived(
+    filterTracks(tracks, {
+      favView,
+      fmtFilter: view.fmtFilter,
+      trackerFilter: view.trackerFilter,
+      query: view.query,
+    }),
+  );
+  const groups = $derived(
+    groupTracks(filtered, {
+      groupBy: view.groupBy,
+      trackSort: view.trackSort,
+      groupSort: view.groupSort,
+    }),
+  );
 
   // A row's label is rendered as styled parts (not one string): the *other*
   // dimension as a muted prefix (artist/group via subLabel), the song title in
@@ -416,13 +392,13 @@
   // artist→format while scrolled down left stale, unclickable cards at the
   // bottom until you scrolled. Tracked deps below define "a different list".
   $effect(() => {
-    void groupBy;
+    void view.groupBy;
     void favView;
-    void query;
-    void fmtFilter;
-    void trackerFilter;
-    void trackSort;
-    void groupSort;
+    void view.query;
+    void view.fmtFilter;
+    void view.trackerFilter;
+    void view.trackSort;
+    void view.groupSort;
     untrack(() => {
       if (!scrollEl) return;
       scrollEl.scrollTop = 0;
@@ -437,7 +413,7 @@
   // there are enough of them to be worth the reach.
   // letter -> row index of its first group header (letterRowMap in $lib/library).
   const letterRows = $derived(letterRowMap(rows));
-  const showRail = $derived(listView && groupSort === "name" && groups.length > 12);
+  const showRail = $derived(listView && view.groupSort === "name" && groups.length > 12);
   const railItems = $derived.by(() => {
     const base = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
     const letters = letterRows.has("#") ? ["#", ...base] : base;
@@ -560,9 +536,9 @@
       /^[\p{L}\p{N}]$/u.test(e.key)
     ) {
       e.preventDefault();
-      query += e.key;
+      view.query += e.key;
       filterEl?.focus();
-      void tick().then(() => filterEl?.setSelectionRange(query.length, query.length));
+      void tick().then(() => filterEl?.setSelectionRange(view.query.length, view.query.length));
       return;
     }
     if (!playback.current) return;
@@ -699,7 +675,7 @@
       class="filter"
       type="search"
       placeholder="filter…"
-      bind:value={query}
+      bind:value={view.query}
       disabled={scanning}
     />
   {/if}
@@ -713,13 +689,13 @@
         {(status?.scan_processed ?? 0).toLocaleString()} modules
       {/if}
       {#if status?.scan_hashed}· {status.scan_hashed.toLocaleString()} hashed{/if}
-    {:else if activeTab === "playlists"}
+    {:else if view.tab === "playlists"}
       {playlists.length} {playlists.length === 1 ? "playlist" : "playlists"}
     {:else if status}
       {filtered.length}{#if !favView}
         / {tracks.length}{/if}
       {favView ? "favourites" : "modules"} · {groups.length}
-      {bucketNoun}
+      {bucketNoun()}
     {/if}
   </div>
   <button
@@ -741,72 +717,15 @@
 </header>
 
 <nav class="tabs" aria-label="view">
-  <button class:on={activeTab === "library"} onclick={() => setTab("library")}>library</button>
-  <button class:on={activeTab === "favourites"} onclick={() => setTab("favourites")}>
+  <button class:on={view.tab === "library"} onclick={() => setTab("library")}>library</button>
+  <button class:on={view.tab === "favourites"} onclick={() => setTab("favourites")}>
     favourites
   </button>
-  <button class:on={activeTab === "playlists"} onclick={() => setTab("playlists")}>playlists</button
-  >
+  <button class:on={view.tab === "playlists"} onclick={() => setTab("playlists")}>playlists</button>
 </nav>
 
 {#if listView}
-  <div class="controls" aria-label="library controls">
-    <!-- Cluster 1 — how the list is organised: bucket dimension + bucket order. -->
-    <div class="cgroup">
-      <label class="groupby">
-        group by
-        <select bind:value={groupBy} disabled={scanning}>
-          <option value="group">group</option>
-          <option value="artist">artist</option>
-          <option value="ext">format</option>
-        </select>
-      </label>
-      <label class="groupby opt">
-        {bucketNoun}
-        <select bind:value={groupSort} disabled={scanning} aria-label="order {bucketNoun}">
-          <option value="name">A-Z</option>
-          <option value="plays">play count</option>
-          <option value="size">size</option>
-        </select>
-      </label>
-    </div>
-    <!-- Cluster 2 — how tracks are ordered within each bucket. -->
-    <div class="cgroup">
-      <label class="groupby">
-        sort
-        <select bind:value={trackSort} disabled={scanning}>
-          <option value="name">name</option>
-          <option value="duration">duration</option>
-          <option value="channels">channels</option>
-          <option value="plays">plays</option>
-        </select>
-      </label>
-    </div>
-    <!-- Cluster 3 — facet filters over the enrichment. -->
-    <div class="cgroup">
-      <label class="groupby">
-        format
-        <select bind:value={fmtFilter} disabled={scanning}>
-          <option value="">all</option>
-          {#each formats as f (f)}
-            <option value={f}>{f}</option>
-          {/each}
-        </select>
-      </label>
-      <label class="groupby opt">
-        tracker
-        <select bind:value={trackerFilter} disabled={scanning}>
-          <option value="">all</option>
-          {#each trackers as tr (tr)}
-            <option value={tr}>{tr}</option>
-          {/each}
-        </select>
-      </label>
-    </div>
-    {#if controlsActive}
-      <button class="reset" onclick={resetControls} disabled={scanning}>reset</button>
-    {/if}
-  </div>
+  <FacetBar />
 {/if}
 
 {#if scanning}
@@ -824,7 +743,7 @@
 
 <div class="listwrap">
   <main bind:this={scrollEl} class:has-rail={showRail} style:--row-h="{ROW_H}px">
-    {#if activeTab === "playlists"}
+    {#if view.tab === "playlists"}
       <PlaylistsTab {playlists} onRefresh={refreshPlaylists} onPlay={playList} />
     {:else if scanning && tracks.length === 0}
       <div class="scan-panel">
@@ -878,7 +797,7 @@
             {:else if row?.kind === "track"}
               {@const t = row.track}
               {@const isCurrent = playback.current?.path === t.path}
-              {@const sub = subLabel(t, groupBy)}
+              {@const sub = subLabel(t, view.groupBy)}
               <div class="card li" class:last={row.last} class:current={isCurrent}>
                 <button class="row" title={t.path} onclick={() => openTrack(t)}>
                   <span class="name"
@@ -886,7 +805,7 @@
                       >{t.title || t.filename}</span
                     ></span
                   >
-                  {#if groupBy !== "ext"}<span class="fmt-chip">{t.ext}</span>{/if}
+                  {#if view.groupBy !== "ext"}<span class="fmt-chip">{t.ext}</span>{/if}
                   <span
                     class="plays"
                     title={t.play_count > 0 ? `${t.play_count} plays` : undefined}
@@ -1249,13 +1168,6 @@
     border-radius: 4px;
     color: var(--text);
   }
-  .groupby {
-    color: var(--muted);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  select,
   button {
     background: var(--panel-hi);
     color: var(--text);
@@ -1301,27 +1213,6 @@
 	   grouped into `.cgroup` clusters (organise / sort / filter); the wider
 	   column-gap separates clusters, the tighter gap binds controls within one.
 	   Clusters wrap as whole units rather than splitting mid-cluster. */
-  .controls {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 18px;
-    padding: 8px 14px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    font-size: 13px;
-  }
-  .cgroup {
-    display: flex;
-    align-items: center;
-    gap: 6px 10px;
-  }
-  .controls .reset {
-    margin-left: auto;
-    font-size: 12px;
-    color: var(--muted);
-    padding: 4px 10px;
-  }
 
   .progress {
     height: 3px;
@@ -1930,23 +1821,10 @@
       max-width: none;
       flex-basis: 100%;
     }
-    .groupby {
-      font-size: 12px;
-    }
     .count {
       order: 4;
       flex-basis: 100%;
       margin-left: 0;
-    }
-    /* Library controls: tighter spacing and hide the least-used facets (bucket
-		   order + tracker filter, marked `.opt`) so the row stays short on a phone.
-		   Both remain available on desktop. group-by, track sort + format stay. */
-    .controls {
-      gap: 8px 12px;
-      padding: 8px 10px;
-    }
-    .controls .opt {
-      display: none;
     }
     .tabs button {
       flex: 1;
@@ -1968,8 +1846,7 @@
     .li .name {
       flex-basis: 100%;
     }
-    button,
-    select {
+    button {
       padding: 8px 12px;
     }
     /* Declutter narrow rows: fav + rename move to the player-view header
