@@ -2,11 +2,14 @@
   // Parallax starfield over a deep-space nebula backdrop: stars stream out of the
   // bright centre leaving motion-blur trails, their speed pulsing with the music's
   // energy and easing to a near-stop when it stops. Periodically the whole field
-  // barrel-rolls about the centre for a bit of demoscene flair. (A 3D ship model
-  // will be brought in later from ../maquette.) Backdrop is the shared nebula asset.
+  // barrel-rolls about the centre for a bit of demoscene flair. A software-rendered
+  // X-wing (the maquette model, software-projected — no three.js) rides in the
+  // foreground at bottom-centre, nose to the nebula, gliding with a turbulence
+  // tremor. Backdrop is the shared nebula asset.
   import { playback } from "./player.svelte";
   import { driveFrames } from "./raf";
   import bgUrl from "./assets/starfield-bg.jpg";
+  import { draw as drawShip } from "./models/xwing.js";
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -72,6 +75,33 @@
     // downsampled into small blocks here, then redrawn with a radial displacement.
     const buf = document.createElement("canvas");
     const bctx = buf.getContext("2d");
+
+    // The X-wing is software-projected once into a cached buffer at a fixed
+    // "rear 3/4, slightly above" hero pose (rotX/rotY below — engines toward the
+    // camera, nose to the nebula). Re-projecting 3k+ triangles every frame would
+    // be wasteful (and rough on a Pi), so the geometry is baked once per size and
+    // the per-frame glide/tremor is a cheap 2D transform of that bitmap.
+    const shipBuf = document.createElement("canvas");
+    const shipCtx = shipBuf.getContext("2d");
+    const SHIP_ROT_X = 0.5; // behind + above — we see the canopy/spine
+    const SHIP_ROT_Y = 0; // rear view: engines toward us, nose up into the nebula
+    let shipPx = -1; // device-px size the ship was last baked at (-1 = none yet)
+    function bakeShip(sizeCss: number) {
+      const px = Math.max(1, Math.round(sizeCss * dpr));
+      if (px === shipPx || !shipCtx) return;
+      shipBuf.width = px;
+      shipBuf.height = px;
+      shipCtx.clearRect(0, 0, px, px);
+      drawShip(shipCtx, px, px, {
+        rotX: SHIP_ROT_X,
+        rotY: SHIP_ROT_Y,
+        dist: 5,
+        scale: 1,
+        light: [0.35, 0.7, 0.55],
+      });
+      shipPx = px;
+    }
+    let shipLife = 0; // eased 0..1 presence, so the ship fades in on play
 
     // Accent-tinted stars follow the theme accent (orange/purple).
     const accentRgb = hexToRgb(getComputedStyle(el).getPropertyValue("--accent") || "#f78f08");
@@ -324,6 +354,54 @@
             g2.fill();
           }
           g2.globalAlpha = 1;
+
+          // --- foreground: the X-wing, gliding toward the nebula ---
+          // Anchored bottom-centre, pointed at the glow. It never re-projects: the
+          // baked bitmap is stamped with a 2D transform doing (a) a slow glide bob
+          // "into" the scene and (b) a higher-frequency turbulence tremor (roll +
+          // position jitter) that grows with the music, so it reads as a live ship
+          // riding rough space rather than a decal. Fades in on play, calms on stop.
+          shipLife += ((active ? 1 : 0) - shipLife) * 0.03;
+          if (shipLife > 0.01) {
+            const shipSize = Math.min(w, h) * 0.56;
+            bakeShip(shipSize);
+            // Turbulence intensity: a calm idle floor that swells with the music.
+            const turb = shipLife * (0.5 + raster * 1.2);
+            // Slow glide: a gentle drift "forward" toward the centre and back.
+            const glideY = Math.sin(clock * 0.3) * h * 0.014 - h * 0.012;
+            // Tremor = a couple of LOW-frequency out-of-phase sines, so the ship
+            // sways/banks smoothly (a glide through light turbulence) rather than
+            // buzzing. Amplitudes are small; frequencies stay under ~2Hz.
+            const roll =
+              (Math.sin(clock * 0.5) * 0.6 + Math.sin(clock * 0.9 + 2) * 0.4) * 0.05 * turb;
+            const jx = (Math.sin(clock * 0.7) * 1.8 + Math.sin(clock * 1.3 + 1) * 1.0) * turb;
+            const jy = (Math.sin(clock * 0.9) * 1.5 + Math.sin(clock * 1.7 + 0.5) * 0.8) * turb;
+            const shipX = w / 2 + jx;
+            const shipY = h * 0.73 + glideY + jy;
+
+            // Engine wash: a soft additive glow at the ship's rear (toward us),
+            // breathing with the beat — a little life behind the thrusters.
+            const eR = shipSize * (0.16 + energy * 0.12 + pulse * 0.1);
+            const eg = g2.createRadialGradient(shipX, shipY, 0, shipX, shipY, eR);
+            const ei = (0.18 + energy * 0.35 + pulse * 0.4) * shipLife;
+            eg.addColorStop(0, `rgba(255,190,120,${ei})`);
+            eg.addColorStop(0.5, `rgba(120,180,255,${ei * 0.4})`);
+            eg.addColorStop(1, "rgba(120,180,255,0)");
+            g2.globalCompositeOperation = "lighter";
+            g2.fillStyle = eg;
+            g2.beginPath();
+            g2.arc(shipX, shipY, eR, 0, TAU);
+            g2.fill();
+            g2.globalCompositeOperation = "source-over";
+
+            g2.save();
+            g2.translate(shipX, shipY);
+            g2.rotate(roll);
+            g2.globalAlpha = Math.min(1, shipLife * 1.2);
+            g2.drawImage(shipBuf, -shipSize / 2, -shipSize / 2, shipSize, shipSize);
+            g2.restore();
+            g2.globalAlpha = 1;
+          }
         }
       },
       { fps: 60 },
