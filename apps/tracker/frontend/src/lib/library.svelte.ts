@@ -138,6 +138,18 @@ enrichActor.subscribe(() => {
 });
 enrichActor.start();
 
+/** Toggle a track's favourite flag — optimistic (the $state proxy re-renders the
+ *  row + re-derives the facets), reverted if the write fails. */
+export async function toggleFavorite(t: Track) {
+  const next = !t.favorite;
+  t.favorite = next;
+  try {
+    await api.setFavorite(t.hash, next);
+  } catch {
+    t.favorite = !next;
+  }
+}
+
 /** Trigger a rescan (from the Settings panel). No-op unless idle/errored. */
 export function rescanLibrary() {
   actor.send({ type: "RESCAN" });
