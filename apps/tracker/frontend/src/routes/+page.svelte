@@ -48,6 +48,7 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import AddToPlaylist from "$lib/AddToPlaylist.svelte";
+  import AlphabetRail from "$lib/AlphabetRail.svelte";
   import { api, ApiError, fileUrl, type Playlist, type Track } from "$lib/api";
   import { enrichTracks } from "$lib/enrich";
   import {
@@ -471,39 +472,9 @@
     return letters.map((letter) => ({ letter, index: letterRows.get(letter) ?? null }));
   });
 
-  let railEl = $state<HTMLElement | undefined>(undefined);
-  let railActive = $state<string | null>(null);
-
+  // Scroll the virtualized list to a row (the A-Z rail jumps here).
   function jumpToRow(index: number) {
     if (scrollEl) $virtualizer.scrollToIndex(index, { align: "start" });
-  }
-  // Snap a rail position to the nearest letter that has a group, so dragging over
-  // an empty letter still lands somewhere sensible instead of doing nothing.
-  function railJump(target: number) {
-    const items = railItems;
-    for (let d = 0; d < items.length; d++) {
-      const a = items[target - d];
-      const b = items[target + d];
-      if (a?.index != null) return ((railActive = a.letter), jumpToRow(a.index));
-      if (b?.index != null) return ((railActive = b.letter), jumpToRow(b.index));
-    }
-  }
-  function railIndexAtY(clientY: number): number {
-    if (!railEl) return 0;
-    const r = railEl.getBoundingClientRect();
-    const rel = (clientY - r.top) / r.height;
-    return Math.max(0, Math.min(railItems.length - 1, Math.floor(rel * railItems.length)));
-  }
-  function railDown(e: PointerEvent) {
-    railEl?.setPointerCapture(e.pointerId);
-    railJump(railIndexAtY(e.clientY));
-  }
-  function railMove(e: PointerEvent) {
-    if (railEl?.hasPointerCapture(e.pointerId)) railJump(railIndexAtY(e.clientY));
-  }
-  function railUp(e: PointerEvent) {
-    railEl?.releasePointerCapture(e.pointerId);
-    railActive = null;
   }
 
   // Loudest channel VU drives the Boing-ball visualizer energy.
@@ -981,27 +952,7 @@
     {/if}
   </main>
   {#if showRail}
-    <div
-      class="az-rail"
-      bind:this={railEl}
-      role="navigation"
-      aria-label="jump to letter"
-      onpointerdown={railDown}
-      onpointermove={railMove}
-      onpointerup={railUp}
-      onpointercancel={railUp}
-    >
-      {#each railItems as it (it.letter)}
-        <button
-          class="az-letter"
-          class:present={it.index != null}
-          class:active={railActive === it.letter}
-          disabled={it.index == null}
-          tabindex="-1"
-          onclick={() => it.index != null && jumpToRow(it.index)}>{it.letter}</button
-        >
-      {/each}
-    </div>
+    <AlphabetRail items={railItems} onJump={jumpToRow} />
   {/if}
 </div>
 
@@ -1459,49 +1410,6 @@
   /* A-Z quick-jump rail: content-height, vertically centred over the list, clear
      of the fixed transport dock. Content-sized so the drag-scrubber maps finger
      Y → letter exactly (each letter is a fixed slice of the rail's height). */
-  .az-rail {
-    position: absolute;
-    right: 2px;
-    top: 50%;
-    transform: translateY(-50%);
-    max-height: calc(100% - 88px);
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    z-index: 4;
-    padding: 2px 1px;
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-  .az-letter {
-    appearance: none;
-    border: 0;
-    background: none;
-    margin: 0;
-    padding: 0;
-    width: 18px;
-    height: 14px;
-    line-height: 14px;
-    font-size: 10px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-    color: var(--muted);
-    opacity: 0.3;
-    cursor: pointer;
-  }
-  .az-letter.present {
-    opacity: 0.8;
-  }
-  .az-letter.present:hover,
-  .az-letter.active {
-    opacity: 1;
-    color: var(--accent);
-  }
-  .az-letter:disabled {
-    cursor: default;
-  }
   .msg {
     color: var(--muted);
     padding: 24px 0;
