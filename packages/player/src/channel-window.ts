@@ -14,7 +14,7 @@ export const CELL_W = 130;
  *  keep their size and the extra stays plain surface, rather than ballooning). */
 export const MAX_CELL_W = 160;
 /** Slim edge divider reserved on each side when paging (holds the chevron). */
-export const EDGE_W = 24;
+export const EDGE_W = 22;
 
 export type ChannelWindow = {
   /** How many whole channels are shown (≥1). */
