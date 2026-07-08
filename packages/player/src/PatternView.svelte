@@ -298,7 +298,9 @@
     flex-direction: column;
     justify-content: center;
     gap: 2px;
-    padding: 2px 6px;
+    /* Horizontal padding matches .cell (8px) so the header lines up with the
+       columns below; the 2px top/bottom keeps the header compact. */
+    padding: 2px 8px;
     /* Thicker inter-channel divider — the tracker look. */
     border-left: 2px solid var(--surface-line);
     border-bottom: 1px solid var(--surface-line-2);

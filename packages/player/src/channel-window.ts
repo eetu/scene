@@ -10,9 +10,12 @@
 export const ROWNUM_W = 30;
 /** Fixed channel column width (px) — one whole channel steps the window by this. */
 export const CELL_W = 130;
-/** Width reserved for each edge divider when paging, so its embedded chevron
- *  always fits (the truncation remainder can be ~0px). */
+/** Right edge-divider reserve when paging — holds the › chevron and absorbs the
+ *  truncation remainder (so a whole column is never cut). */
 export const PAGER_W = 52;
+/** Left edge divider — just wide enough to hold the ‹ chevron (no slack to fill),
+ *  so it stays a slim frame rather than matching the right edge's width. */
+export const LEFT_EDGE_W = 30;
 
 export type ChannelWindow = {
   /** How many whole channels fit between the two edge dividers (≥1). */
@@ -55,12 +58,13 @@ export function channelWindow(
     leftEdgeW = 0;
     rightEdgeW = 0;
   } else {
-    // Reserve a divider on BOTH sides so the frame is static as you page; the
-    // left is fixed PAGER_W, the right absorbs the truncation remainder too.
-    const usable = Math.max(0, avail - 2 * PAGER_W);
+    // Reserve a divider on BOTH sides so the frame is static as you page: a slim
+    // left edge (just the chevron) + a wider right edge that absorbs the
+    // truncation remainder too.
+    const usable = Math.max(0, avail - LEFT_EDGE_W - PAGER_W);
     visible = Math.max(1, Math.floor(usable / cellW));
     windowW = visible * cellW;
-    leftEdgeW = PAGER_W;
+    leftEdgeW = LEFT_EDGE_W;
     rightEdgeW = Math.max(0, avail - leftEdgeW - windowW); // ≥ PAGER_W in practice
   }
 
