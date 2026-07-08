@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { CELL_W, channelWindow, ROWNUM_W } from "./channel-window";
+  import ChannelPager from "./ChannelPager.svelte";
   import ChannelScope from "./ChannelScope.svelte";
+  import { pageSwipe } from "./pageSwipe";
   import {
     cellFieldText,
     handleEditKey,
@@ -15,14 +18,14 @@
 
   const FIELDS = [0, 1, 2, 3, 4]; // note, inst, vol, fx, param
 
-  // Fixed-metrics tracker layout (px). Topaz is 8×16, so 8px/char.
+  // Fixed-metrics tracker layout (px). Topaz is 8×16, so 8px/char. Channel width
+  // + row-number gutter are shared with the scroll view (channel-window.ts).
   const ROW_H = 18;
-  const ROWNUM_W = 30;
-  const CELL_W = 130;
   const BAR_W = 10;
   const VU_MAX = ROW_H * 6; // tallest VU bar
 
   let vpH = $state(0); // viewport height, for centering the current row
+  let vpW = $state(0); // viewport width, for the channel window
   let gridEl = $state<HTMLDivElement | null>(null);
 
   // Focus the grid when entering edit mode so QWERTY note entry works at once.
@@ -34,7 +37,23 @@
   const editCells = $derived(playback.editing ? patternCells(playback.pattern) : null);
   const channels = $derived(playback.song?.channels ?? []);
   const vu = $derived(playback.vu);
-  const contentW = $derived(ROWNUM_W + channels.length * CELL_W);
+
+  // Channel window: only whole channels show; page through them (chevrons/swipe).
+  // `offset` is stored unclamped and re-clamped on every read via channelWindow,
+  // so a resize that shrinks how many fit self-corrects.
+  let offset = $state(0);
+  const win = $derived(channelWindow(vpW, channels.length, offset));
+  const stripW = $derived(channels.length * CELL_W);
+  const shiftX = $derived(-win.offset * CELL_W);
+  function page(dir: 1 | -1) {
+    offset = win.offset + dir; // based on the clamped offset; channelWindow re-clamps
+  }
+  // Keep the edit cursor's channel in view when arrows walk it off the window.
+  $effect(() => {
+    const c = playback.cursorCh;
+    if (c < win.offset) offset = c;
+    else if (c >= win.offset + win.visible) offset = c - win.visible + 1;
+  });
 
   // Translate the rows so the tracked row sits on the fixed centerline; the
   // pattern moves under the line "like a stick in the river". In edit mode the
@@ -46,8 +65,8 @@
   function hex2(n: number): string {
     return n.toString(16).toUpperCase().padStart(2, "0");
   }
-  function colX(i: number): number {
-    return ROWNUM_W + i * CELL_W + (CELL_W - BAR_W) / 2;
+  function colXin(i: number): number {
+    return i * CELL_W + (CELL_W - BAR_W) / 2; // within the (translated) channel strip
   }
 
   // Cursor nav — only while the grid is focused. stopPropagation on handled keys
@@ -97,85 +116,104 @@
     tabindex="0"
     bind:this={gridEl}
     bind:clientHeight={vpH}
+    bind:clientWidth={vpW}
     onkeydown={onGridKey}
     onclick={onGridClick}
+    use:pageSwipe={{ onPage: page }}
   >
-    <div class="content" style:width="{contentW}px">
-      {#if playback.canMuteChannels}
-        <!-- Column-aligned channel header (mute/solo), scrolls with the columns. -->
-        <div class="phead" class:edit={playback.editing}>
-          <span class="hgutter" style:width="{ROWNUM_W}px"></span>
-          {#each channels as _ch, i (i)}
-            <span class="chead" class:muted={playback.channelMutes[i]} style:width="{CELL_W}px">
-              <span class="chead-top">
-                <span class="chnum">{String(i + 1).padStart(2, "0")}</span>
-                <span class="ms-wrap">
-                  <button
-                    class="ms m"
-                    class:on={playback.channelMutes[i]}
-                    aria-pressed={playback.channelMutes[i]}
-                    title="mute channel {i + 1}"
-                    onclick={() => toggleChannelMute(i)}>M</button
-                  >
-                  <button
-                    class="ms s"
-                    class:on={isChannelSolo(i)}
-                    aria-pressed={isChannelSolo(i)}
-                    title="solo channel {i + 1}"
-                    onclick={() => soloChannel(i)}>S</button
-                  >
+    {#if playback.canMuteChannels}
+      <!-- Column-aligned channel header (mute/solo), windowed with the columns. -->
+      <div class="phead" class:edit={playback.editing}>
+        <span class="hgutter" style:width="{ROWNUM_W}px"></span>
+        <div class="clip" style:width="{win.windowW}px">
+          <div class="strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
+            {#each channels as _ch, i (i)}
+              <span class="chead" class:muted={playback.channelMutes[i]} style:width="{CELL_W}px">
+                <span class="chead-top">
+                  <span class="chnum">{String(i + 1).padStart(2, "0")}</span>
+                  <span class="ms-wrap">
+                    <button
+                      class="ms m"
+                      class:on={playback.channelMutes[i]}
+                      aria-pressed={playback.channelMutes[i]}
+                      title="mute channel {i + 1}"
+                      onclick={() => toggleChannelMute(i)}>M</button
+                    >
+                    <button
+                      class="ms s"
+                      class:on={isChannelSolo(i)}
+                      aria-pressed={isChannelSolo(i)}
+                      title="solo channel {i + 1}"
+                      onclick={() => soloChannel(i)}>S</button
+                    >
+                  </span>
                 </span>
+                {#if playback.editing}<ChannelScope ch={i} h={14} />{/if}
               </span>
-              {#if playback.editing}<ChannelScope ch={i} h={14} />{/if}
-            </span>
-          {/each}
-        </div>
-      {/if}
-      <div class="centerline" style:height="{ROW_H}px"></div>
-      <div class="rows" style:transform="translateY({translateY}px)">
-        {#each pattern.rows as cells, r (r)}
-          <div
-            class="prow"
-            class:beat={r % 4 === 0}
-            class:measure={r % 16 === 0}
-            class:active={r === playback.row}
-            class:playhead={playback.seqPlaying && r === playback.seqRow}
-            data-r={r}
-            style:height="{ROW_H}px"
-          >
-            <span class="rownum">{hex2(r)}</span>
-            {#each cells as cell, c (c)}{#if editCells}{@const ec = editCells[r]?.[c]}<span
-                  class="cell ecell"
-                  class:muted={playback.channelMutes[c]}
-                  data-c={c}
-                  >{#if ec}{#each FIELDS as f (f)}<span
-                        class="fld"
-                        class:cursor={r === playback.cursorRow &&
-                          c === playback.cursorCh &&
-                          f === playback.cursorField}
-                        data-field={f}>{cellFieldText(ec, f)}</span
-                      >{/each}{/if}</span
-                >{:else}<span
-                  class="cell"
-                  class:cursor={r === playback.cursorRow && c === playback.cursorCh}
-                  class:muted={playback.channelMutes[c]}
-                  data-c={c}>{cell}</span
-                >{/if}{/each}
+            {/each}
           </div>
-        {/each}
+        </div>
       </div>
-      <!-- Per-channel VU bars rising from the centerline (ProTracker style). -->
-      <div class="vu-overlay">
+    {/if}
+    <div class="centerline" style:height="{ROW_H}px"></div>
+    <div class="rows" style:transform="translateY({translateY}px)">
+      {#each pattern.rows as cells, r (r)}
+        <div
+          class="prow"
+          class:beat={r % 4 === 0}
+          class:measure={r % 16 === 0}
+          class:active={r === playback.row}
+          class:playhead={playback.seqPlaying && r === playback.seqRow}
+          data-r={r}
+          style:height="{ROW_H}px"
+        >
+          <span class="rownum" style:width="{ROWNUM_W}px">{hex2(r)}</span>
+          <div class="clip" style:width="{win.windowW}px">
+            <div class="strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
+              {#each cells as cell, c (c)}{#if editCells}{@const ec = editCells[r]?.[c]}<span
+                    class="cell ecell"
+                    class:muted={playback.channelMutes[c]}
+                    style:width="{CELL_W}px"
+                    data-c={c}
+                    >{#if ec}{#each FIELDS as f (f)}<span
+                          class="fld"
+                          class:cursor={r === playback.cursorRow &&
+                            c === playback.cursorCh &&
+                            f === playback.cursorField}
+                          data-field={f}>{cellFieldText(ec, f)}</span
+                        >{/each}{/if}</span
+                  >{:else}<span
+                    class="cell"
+                    class:cursor={r === playback.cursorRow && c === playback.cursorCh}
+                    class:muted={playback.channelMutes[c]}
+                    style:width="{CELL_W}px"
+                    data-c={c}>{cell}</span
+                  >{/if}{/each}
+            </div>
+          </div>
+        </div>
+      {/each}
+    </div>
+    <!-- Per-channel VU bars rising from the centerline (ProTracker style), windowed. -->
+    <div class="vu-overlay" style:left="{ROWNUM_W}px" style:width="{win.windowW}px">
+      <div class="vu-strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
         {#each channels as _ch, i (i)}
           <div
             class="vubar"
-            style:left="{colX(i)}px"
+            style:left="{colXin(i)}px"
             style:width="{BAR_W}px"
             style:height="{Math.min(1, vu[i] ?? 0) * VU_MAX}px"
           ></div>
         {/each}
       </div>
     </div>
+    <ChannelPager
+      canLeft={win.canLeft}
+      canRight={win.canRight}
+      slack={win.slack}
+      gutterW={ROWNUM_W}
+      onPage={page}
+    />
   </div>
 {:else}
   <div class="pv-empty">{playback.current ? "decoding pattern…" : "nothing playing"}</div>
@@ -184,32 +222,29 @@
 <style>
   .pv {
     height: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: hidden;
     position: relative;
     background: var(--surface);
     color: var(--surface-fg);
     /* App sets --tracker-font (party: per-platform DOS/Amiga). Fall back to the
-		   retro mono font both apps define, then a universal monospace — never an
-		   undefined var (which would drop to the default serif/sans). */
+			   retro mono font both apps define, then a universal monospace — never an
+			   undefined var (which would drop to the default serif/sans). */
     font-family: var(--tracker-font, var(--font-mono-retro, ui-monospace, monospace));
     font-size: 16px;
     line-height: 1;
     white-space: nowrap;
-    -webkit-overflow-scrolling: touch;
-    /* Swipe between whole channel columns: snap each column flush past the
-		   frozen row-number gutter, so a column is never half-cut. */
-    scroll-snap-type: x mandatory;
-    scroll-padding-left: 30px; /* = ROWNUM_W (frozen gutter) */
-    scrollbar-width: none; /* Firefox — no scrollbar, swipe only */
+    /* Vertical is fixed (centerline); horizontal swipe pages channels (pageSwipe). */
+    touch-action: none;
   }
-  .pv::-webkit-scrollbar {
-    display: none;
-  } /* WebKit/Blink */
-  .content {
-    position: relative;
-    height: 100%;
-    min-width: 100%;
+  /* Clip/slide wrapper for one whole-channel window; the strip inside holds every
+     channel and translates by whole columns (animated) so paging glides. */
+  .clip {
+    flex: 0 0 auto;
+    overflow: hidden;
+  }
+  .strip {
+    display: flex;
+    transition: transform 0.18s ease;
   }
   /* The fixed current-row line. */
   .centerline {
@@ -228,10 +263,10 @@
     position: absolute;
     top: 0;
     left: 0;
+    right: 0;
     z-index: 1;
   }
-  /* Column-aligned channel header (mute/solo), pinned to the top and scrolling
-     horizontally with the columns. */
+  /* Column-aligned channel header (mute/solo), pinned to the top. */
   .phead {
     position: absolute;
     top: 0;
@@ -245,9 +280,6 @@
   }
   .hgutter {
     flex: 0 0 auto;
-    position: sticky;
-    left: 0;
-    z-index: 4;
     background: var(--surface-bar);
     border-bottom: 1px solid var(--surface-line-2);
   }
@@ -258,7 +290,8 @@
     justify-content: center;
     gap: 2px;
     padding: 2px 6px;
-    border-left: 1px solid var(--surface-line);
+    /* Thicker inter-channel divider — the tracker look. */
+    border-left: 2px solid var(--surface-line);
     border-bottom: 1px solid var(--surface-line-2);
     background: var(--surface-bar);
     color: var(--accent);
@@ -330,23 +363,17 @@
   }
   .rownum {
     flex: 0 0 auto;
-    width: 30px;
     text-align: right;
     padding: 0 6px;
     color: var(--surface-fg-dim);
-    /* Frozen left gutter so row numbers stay put while channels scroll. */
-    position: sticky;
-    left: 0;
-    z-index: 2;
     background: var(--surface);
+    z-index: 2;
   }
   .cell {
     flex: 0 0 auto;
-    width: 130px;
     padding: 0 8px;
-    border-left: 1px solid var(--surface-line);
+    border-left: 2px solid var(--surface-line);
     overflow: hidden;
-    scroll-snap-align: start;
   }
   /* Muted channel — dim the whole column so it reads as silenced. */
   .cell.muted {
@@ -376,9 +403,16 @@
   }
   .vu-overlay {
     position: absolute;
-    inset: 0;
+    top: 0;
+    bottom: 0;
     z-index: 2;
+    overflow: hidden;
     pointer-events: none;
+  }
+  .vu-strip {
+    position: absolute;
+    inset: 0;
+    transition: transform 0.18s ease;
   }
   .vubar {
     position: absolute;

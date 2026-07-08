@@ -1,15 +1,22 @@
 <script lang="ts">
   // Alternate pattern view: free-scrolling rows (current row auto-centred) with
   // per-channel VU bars in the sticky channel header. Toggle against the locked
-  // centerline view (PatternView.svelte) in the player bar.
+  // centerline view (PatternView.svelte) in the player bar. Channels are windowed
+  // (whole columns only, chevron/swipe paging) exactly like the locked view; only
+  // the vertical behaviour differs (native row scroll here vs the centerline).
   import {
+    CELL_W,
     cellFieldText,
+    ChannelPager,
     ChannelScope,
+    channelWindow,
     handleEditKey,
     isChannelSolo,
     moveCursor,
+    pageSwipe,
     patternCells,
     playback,
+    ROWNUM_W,
     seekToCursor,
     setCursor,
     soloChannel,
@@ -19,11 +26,35 @@
   const FIELDS = [0, 1, 2, 3, 4]; // note, inst, vol, fx, param
 
   let scroller = $state<HTMLDivElement | null>(null);
+  let vpW = $state(0); // viewport width, for the channel window
+
+  const pattern = $derived(playback.song?.patterns?.[playback.pattern] ?? null);
+  const editCells = $derived(playback.editing ? patternCells(playback.pattern) : null);
+  const channels = $derived(playback.song?.channels ?? []);
+  const vu = $derived(playback.vu);
+
+  // Channel window (shared with PatternView) — whole channels only, page ±1.
+  let offset = $state(0);
+  const win = $derived(channelWindow(vpW, channels.length, offset));
+  const stripW = $derived(channels.length * CELL_W);
+  const shiftX = $derived(-win.offset * CELL_W);
+  function page(dir: 1 | -1) {
+    offset = win.offset + dir;
+  }
+  // Keep the edit cursor's channel in view when arrows walk it off the window.
+  $effect(() => {
+    const c = playback.cursorCh;
+    if (c < win.offset) offset = c;
+    else if (c >= win.offset + win.visible) offset = c - win.visible + 1;
+  });
+
+  function hex2(n: number): string {
+    return n.toString(16).toUpperCase().padStart(2, "0");
+  }
 
   // Cursor nav — mirrors PatternView (stops handled keys from reaching the
   // app's global arrows; unhandled keys still bubble).
   function onGridKey(e: KeyboardEvent) {
-    // Edit mode: note/hex/field-nav entry (consumes the key if handled).
     if (playback.editing && handleEditKey(e)) {
       e.preventDefault();
       e.stopPropagation();
@@ -59,15 +90,6 @@
     }
   }
 
-  const pattern = $derived(playback.song?.patterns?.[playback.pattern] ?? null);
-  const editCells = $derived(playback.editing ? patternCells(playback.pattern) : null);
-  const channels = $derived(playback.song?.channels ?? []);
-  const vu = $derived(playback.vu);
-
-  function hex2(n: number): string {
-    return n.toString(16).toUpperCase().padStart(2, "0");
-  }
-
   // Focus the grid when entering edit mode so QWERTY note entry works at once.
   $effect(() => {
     if (playback.editing) scroller?.focus();
@@ -88,109 +110,135 @@
 </script>
 
 {#if pattern}
-  <div
-    class="pv"
-    role="grid"
-    tabindex="0"
-    bind:this={scroller}
-    onkeydown={onGridKey}
-    onclick={onGridClick}
-  >
-    <div class="phead">
-      <span class="rownum">··</span>
-      {#each channels as ch, i (i)}
-        <span class="cell head" class:muted={playback.channelMutes[i]}>
-          <span class="hrow">
-            <span class="chname">{ch || `ch ${i + 1}`}</span>
-            {#if playback.canMuteChannels}
-              <span class="ms-wrap">
-                <button
-                  class="ms m"
-                  class:on={playback.channelMutes[i]}
-                  aria-pressed={playback.channelMutes[i]}
-                  title="mute channel {i + 1}"
-                  onclick={() => toggleChannelMute(i)}>M</button
-                >
-                <button
-                  class="ms s"
-                  class:on={isChannelSolo(i)}
-                  aria-pressed={isChannelSolo(i)}
-                  title="solo channel {i + 1}"
-                  onclick={() => soloChannel(i)}>S</button
-                >
+  <div class="pv-wrap" bind:clientWidth={vpW}>
+    <div
+      class="pv"
+      role="grid"
+      tabindex="0"
+      bind:this={scroller}
+      onkeydown={onGridKey}
+      onclick={onGridClick}
+      use:pageSwipe={{ onPage: page }}
+    >
+      <div class="phead">
+        <span class="rownum">··</span>
+        <div class="clip" style:width="{win.windowW}px">
+          <div class="strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
+            {#each channels as ch, i (i)}
+              <span
+                class="cell head"
+                class:muted={playback.channelMutes[i]}
+                style:width="{CELL_W}px"
+              >
+                <span class="hrow">
+                  <span class="chname">{ch || `ch ${i + 1}`}</span>
+                  {#if playback.canMuteChannels}
+                    <span class="ms-wrap">
+                      <button
+                        class="ms m"
+                        class:on={playback.channelMutes[i]}
+                        aria-pressed={playback.channelMutes[i]}
+                        title="mute channel {i + 1}"
+                        onclick={() => toggleChannelMute(i)}>M</button
+                      >
+                      <button
+                        class="ms s"
+                        class:on={isChannelSolo(i)}
+                        aria-pressed={isChannelSolo(i)}
+                        title="solo channel {i + 1}"
+                        onclick={() => soloChannel(i)}>S</button
+                      >
+                    </span>
+                  {/if}
+                </span>
+                {#if playback.editing}
+                  <ChannelScope ch={i} />
+                {:else}
+                  <span class="vu"
+                    ><span class="vu-fill" style:width="{(vu[i] ?? 0) * 100}%"></span></span
+                  >
+                {/if}
               </span>
-            {/if}
-          </span>
-          {#if playback.editing}
-            <ChannelScope ch={i} />
-          {:else}
-            <span class="vu"><span class="vu-fill" style:width="{(vu[i] ?? 0) * 100}%"></span></span
-            >
-          {/if}
-        </span>
+            {/each}
+          </div>
+        </div>
+      </div>
+      {#each pattern.rows as cells, r (r)}
+        <div
+          class="prow"
+          class:active={r === playback.row}
+          class:beat={r % 4 === 0}
+          class:measure={r % 16 === 0}
+          class:playhead={playback.seqPlaying && r === playback.seqRow}
+          data-r={r}
+        >
+          <span class="rownum">{hex2(r)}</span>
+          <div class="clip" style:width="{win.windowW}px">
+            <div class="strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
+              {#each cells as cell, c (c)}{#if editCells}{@const ec = editCells[r]?.[c]}<span
+                    class="cell ecell"
+                    class:muted={playback.channelMutes[c]}
+                    style:width="{CELL_W}px"
+                    data-c={c}
+                    >{#if ec}{#each FIELDS as f (f)}<span
+                          class="fld"
+                          class:cursor={r === playback.cursorRow &&
+                            c === playback.cursorCh &&
+                            f === playback.cursorField}
+                          data-field={f}>{cellFieldText(ec, f)}</span
+                        >{/each}{/if}</span
+                  >{:else}<span
+                    class="cell"
+                    class:cursor={r === playback.cursorRow && c === playback.cursorCh}
+                    class:muted={playback.channelMutes[c]}
+                    style:width="{CELL_W}px"
+                    data-c={c}>{cell}</span
+                  >{/if}{/each}
+            </div>
+          </div>
+        </div>
       {/each}
     </div>
-    {#each pattern.rows as cells, r (r)}
-      <div
-        class="prow"
-        class:active={r === playback.row}
-        class:beat={r % 4 === 0}
-        class:measure={r % 16 === 0}
-        class:playhead={playback.seqPlaying && r === playback.seqRow}
-        data-r={r}
-      >
-        <span class="rownum">{hex2(r)}</span>
-        {#each cells as cell, c (c)}
-          {#if editCells}
-            {@const ec = editCells[r]?.[c]}
-            <span class="cell ecell" class:muted={playback.channelMutes[c]} data-c={c}>
-              {#if ec}
-                {#each FIELDS as f (f)}
-                  <span
-                    class="fld"
-                    class:cursor={r === playback.cursorRow &&
-                      c === playback.cursorCh &&
-                      f === playback.cursorField}
-                    data-field={f}>{cellFieldText(ec, f)}</span
-                  >
-                {/each}
-              {/if}
-            </span>
-          {:else}
-            <span
-              class="cell"
-              class:cursor={r === playback.cursorRow && c === playback.cursorCh}
-              class:muted={playback.channelMutes[c]}
-              data-c={c}>{cell}</span
-            >
-          {/if}
-        {/each}
-      </div>
-    {/each}
+    <ChannelPager
+      canLeft={win.canLeft}
+      canRight={win.canRight}
+      slack={win.slack}
+      gutterW={ROWNUM_W}
+      onPage={page}
+    />
   </div>
 {:else}
   <div class="pv-empty">{playback.current ? "decoding pattern…" : "nothing playing"}</div>
 {/if}
 
 <style>
+  /* Outer box holds the scroller + the (non-scrolling) channel pager overlay. */
+  .pv-wrap {
+    position: relative;
+    height: 100%;
+    background: var(--surface);
+  }
   .pv {
     height: 100%;
-    overflow: auto;
-    background: var(--surface);
+    overflow-x: hidden;
+    overflow-y: auto;
     color: var(--surface-fg);
     font-family: var(--font-mono-retro);
     font-size: 16px;
     line-height: 1.2;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
-    /* Swipe between whole channel columns (x only — rows still scroll
-		   freely on y); snap flush past the frozen row-number gutter. */
-    scroll-snap-type: x mandatory;
-    scroll-padding-left: 30px; /* = row-number gutter */
-    scrollbar-width: none;
+    /* Rows scroll on y natively; horizontal swipe pages channels (pageSwipe). */
+    touch-action: pan-y;
   }
-  .pv::-webkit-scrollbar {
-    display: none;
+  /* Clip/slide wrapper — same windowing as PatternView. */
+  .clip {
+    flex: 0 0 auto;
+    overflow: hidden;
+  }
+  .strip {
+    display: flex;
+    transition: transform 0.18s ease;
   }
   .phead {
     position: sticky;
@@ -229,18 +277,14 @@
     text-align: right;
     padding: 0 6px;
     color: var(--surface-fg-dim);
-    position: sticky;
-    left: 0;
-    z-index: 2;
     background: inherit;
   }
   .cell {
     flex: 0 0 auto;
-    min-width: 112px;
     padding: 0 8px;
-    border-left: 1px solid var(--surface-line);
+    /* Thicker inter-channel divider — the tracker look. */
+    border-left: 2px solid var(--surface-line);
     letter-spacing: 0.02em;
-    scroll-snap-align: start;
   }
   .cell.cursor {
     box-shadow: inset 0 0 0 1px var(--accent);
