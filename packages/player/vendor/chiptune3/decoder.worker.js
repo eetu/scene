@@ -329,10 +329,17 @@ function getMeta() {
 	return data;
 }
 
-// Decode a module's full metadata + song (patterns/cells) on a THROWAWAY module,
-// without touching playback (no pcmPort, no `playing`, no pump). Lets the app show
-// the pattern for a track restored on a cold reload, where the browser blocks the
-// audio worklet until a user gesture — audio then starts later via a normal load.
+// Decode a module's full metadata + song (patterns/cells) without starting audio
+// (no pcmPort, no pump). Lets the app show the pattern for a track restored on a
+// cold reload, where the browser blocks the audio worklet until a user gesture —
+// audio then starts later via a normal load.
+//
+// When nothing is playing (the cold-restore case) we keep the decoded module
+// RESIDENT as `modulePtr` instead of discarding it: readSample/readSampleRaw read
+// off `modulePtr`, so a throwaway would leave the samples view with names but no
+// waveform/props/jam until a gesture starts audio. If a song is actively playing
+// we stay a throwaway (destroy `m`) so we never disturb live playback; a later
+// `load` (play) recreates the module fresh via createModule().
 function decodeSong(id, file) {
 	if (!lib) return self.postMessage({ cmd: 'decoded', id, meta: null });
 	const bytes = new Int8Array(file);
@@ -342,7 +349,13 @@ function decodeSong(id, file) {
 	lib._free(p);
 	if (!m) return self.postMessage({ cmd: 'decoded', id, meta: null });
 	const meta = metaFor(m);
-	lib._openmpt_module_destroy(m);
+	if (playing) {
+		lib._openmpt_module_destroy(m);
+	} else {
+		destroyModule(); // drop any previously-resident (idle) module first
+		modulePtr = m;
+		channels = lib._openmpt_module_get_num_channels(m);
+	}
 	self.postMessage({ cmd: 'decoded', id, meta });
 }
 
