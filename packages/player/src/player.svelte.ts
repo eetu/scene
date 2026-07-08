@@ -790,8 +790,18 @@ export function playNext() {
   void playTrack(queue[idx]);
 }
 
+// Seconds into a track past which "previous" restarts it instead of stepping
+// back — the familiar music-player behaviour (first tap → back to the start,
+// second → the previous track).
+const PREV_RESTART_SEC = 10;
+
 export function playPrev() {
-  if (playback.queueIndex > 0) void playInOrder(queue, queue[playback.queueIndex - 1]);
+  // Past the threshold (or already on the first track): restart from the top.
+  if (playback.position > PREV_RESTART_SEC || playback.queueIndex <= 0) {
+    seekSeconds(0);
+    return;
+  }
+  void playInOrder(queue, queue[playback.queueIndex - 1]);
 }
 
 export function toggleShuffle() {
