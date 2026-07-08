@@ -114,18 +114,30 @@
     return false;
   }
 
+  // Physical key → the note it started, so key-up releases the exact note that
+  // key-down sounded even if the octave changed while it was held (otherwise the
+  // note recomputed from the current octave misses, leaving the voice + the key
+  // highlight stuck).
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const keyNotes = new Map<string, number>();
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
     if (isTextTarget(e.target as HTMLElement | null)) return;
-    const off = KEYMAP[e.key.toLowerCase()];
-    if (off === undefined) return;
+    const key = e.key.toLowerCase();
+    const off = KEYMAP[key];
+    if (off === undefined || keyNotes.has(key)) return;
     e.preventDefault();
-    void down(octave * 12 + off);
+    const note = octave * 12 + off;
+    keyNotes.set(key, note);
+    void down(note);
   }
   function onKeyUp(e: KeyboardEvent) {
-    const off = KEYMAP[e.key.toLowerCase()];
-    if (off === undefined) return;
-    up(octave * 12 + off);
+    const key = e.key.toLowerCase();
+    const note = keyNotes.get(key);
+    if (note === undefined) return;
+    keyNotes.delete(key);
+    up(note);
   }
 
   // --- pointer glissando (drag / swipe across keys, multi-touch) -------------
@@ -171,6 +183,7 @@
     jamStopAll();
     active.clear();
     pointers.clear();
+    keyNotes.clear();
     held = [];
     playback.jamHeld = 0;
   });
@@ -181,6 +194,7 @@
       jamStopAll();
       active.clear();
       pointers.clear();
+      keyNotes.clear();
       held = [];
       playback.jamHeld = 0;
     };
@@ -283,8 +297,12 @@
     gap: 6px;
   }
   .oct button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 22px;
     height: 22px;
+    padding: 0;
     border: 1px solid var(--border);
     border-radius: 4px;
     background: var(--panel);
