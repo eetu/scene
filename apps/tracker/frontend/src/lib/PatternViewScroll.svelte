@@ -16,7 +16,6 @@
     pageSwipe,
     patternCells,
     playback,
-    ROWNUM_W,
     seekToCursor,
     setCursor,
     soloChannel,
@@ -199,13 +198,7 @@
         </div>
       {/each}
     </div>
-    <ChannelPager
-      canLeft={win.canLeft}
-      canRight={win.canRight}
-      slack={win.slack}
-      gutterW={ROWNUM_W}
-      onPage={page}
-    />
+    <ChannelPager canLeft={win.canLeft} canRight={win.canRight} slack={win.slack} onPage={page} />
   </div>
 {:else}
   <div class="pv-empty">{playback.current ? "decoding pattern…" : "nothing playing"}</div>
@@ -276,7 +269,8 @@
     width: 30px;
     text-align: right;
     padding: 0 6px;
-    color: var(--surface-fg-dim);
+    /* --surface-fg (muted), not --surface-fg-dim which is near-invisible on light. */
+    color: var(--surface-fg);
     background: inherit;
   }
   .cell {

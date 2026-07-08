@@ -9,6 +9,9 @@
 export const ROWNUM_W = 30;
 /** Fixed channel column width (px) — one whole channel steps the window by this. */
 export const CELL_W = 130;
+/** Minimum width reserved for the edge divider when paging, so the chevron that
+ *  lives inside it always fits (the truncation remainder can be ~0px). */
+export const PAGER_W = 44;
 
 export type ChannelWindow = {
   /** How many whole channels fit right of the gutter (≥1). */
@@ -37,14 +40,17 @@ export function channelWindow(
   gutterW = ROWNUM_W,
 ): ChannelWindow {
   const avail = Math.max(0, containerW - gutterW);
-  const visible = Math.max(1, Math.floor(avail / cellW));
+  // Do all channels fit with no pager? If not, reserve PAGER_W on the right for
+  // the edge divider (which holds the chevron), so a whole column is never cut
+  // AND the chevron always has room even when the truncation remainder is ~0.
+  const fits = count > 0 && count <= Math.floor(avail / cellW);
+  const usable = fits ? avail : Math.max(0, avail - PAGER_W);
+  const visible = Math.max(1, Math.floor(usable / cellW));
   const maxOffset = Math.max(0, count - visible);
   const off = Math.min(Math.max(0, offset), maxOffset);
   const windowW = Math.min(visible, count) * cellW;
-  // The thick edge divider only fills the leftover from *truncating* a partial
-  // channel (paging active). When every channel already fits, the trailing space
-  // is just empty surface — no giant divider.
-  const fits = count <= visible;
+  // The edge divider fills everything past the last whole column (≥ PAGER_W when
+  // paging). When all channels fit, the trailing space is plain surface — no bar.
   const slack = fits ? 0 : avail - windowW;
   return {
     visible,

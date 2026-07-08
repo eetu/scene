@@ -207,13 +207,7 @@
         {/each}
       </div>
     </div>
-    <ChannelPager
-      canLeft={win.canLeft}
-      canRight={win.canRight}
-      slack={win.slack}
-      gutterW={ROWNUM_W}
-      onPage={page}
-    />
+    <ChannelPager canLeft={win.canLeft} canRight={win.canRight} slack={win.slack} onPage={page} />
   </div>
 {:else}
   <div class="pv-empty">{playback.current ? "decoding pattern…" : "nothing playing"}</div>
@@ -365,7 +359,9 @@
     flex: 0 0 auto;
     text-align: right;
     padding: 0 6px;
-    color: var(--surface-fg-dim);
+    /* --surface-fg (muted), NOT --surface-fg-dim: the dim token is halo's lightest
+       text and is near-invisible on the light theme. This stays legible on both. */
+    color: var(--surface-fg);
     background: var(--surface);
     z-index: 2;
   }
