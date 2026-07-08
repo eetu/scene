@@ -69,7 +69,7 @@
   }
   /* Borderless, tall, embedded — no button box, just the glyph. */
   .chev {
-    width: 24px;
+    width: 20px;
     height: 40vh;
     max-height: 220px;
     display: flex;

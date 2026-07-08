@@ -10,12 +10,12 @@
 export const ROWNUM_W = 30;
 /** Fixed channel column width (px) — one whole channel steps the window by this. */
 export const CELL_W = 130;
-/** Right edge-divider reserve when paging — holds the › chevron and absorbs the
- *  truncation remainder (so a whole column is never cut). */
-export const PAGER_W = 52;
-/** Left edge divider — just wide enough to hold the ‹ chevron (no slack to fill),
- *  so it stays a slim frame rather than matching the right edge's width. */
-export const LEFT_EDGE_W = 30;
+/** Right edge-divider MINIMUM reserve when paging — holds the › chevron; the
+ *  right edge grows past this to absorb the truncation remainder (so a whole
+ *  column is never cut). */
+export const PAGER_W = 24;
+/** Left edge divider — a slim fixed frame, just wide enough for the ‹ chevron. */
+export const LEFT_EDGE_W = 24;
 
 export type ChannelWindow = {
   /** How many whole channels fit between the two edge dividers (≥1). */
