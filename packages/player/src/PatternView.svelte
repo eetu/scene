@@ -133,7 +133,7 @@
       <!-- Column-aligned channel header (mute/solo), windowed with the columns. -->
       <div class="phead" class:edit={playback.editing}>
         <span class="hgutter" style:width="{ROWNUM_W}px"></span>
-        <div class="clip" style:width="{win.windowW}px">
+        <div class="clip" style:width="{win.windowW}px" style:margin-left="{win.leftEdgeW}px">
           <div class="strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
             {#each channels as _ch, i (i)}
               <span class="chead" class:muted={playback.channelMutes[i]} style:width="{CELL_W}px">
