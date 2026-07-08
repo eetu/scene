@@ -9,20 +9,18 @@
     canRight,
     leftEdgeW,
     rightEdgeW,
-    gutterW,
     onPage,
   }: {
     canLeft: boolean;
     canRight: boolean;
     leftEdgeW: number;
     rightEdgeW: number;
-    gutterW: number;
     onPage: (dir: 1 | -1) => void;
   } = $props();
 </script>
 
 {#if leftEdgeW > 0}
-  <div class="edge left" style:left="{gutterW}px" style:width="{leftEdgeW}px">
+  <div class="edge left" style:left="0px" style:width="{leftEdgeW}px">
     {#if canLeft}
       <button class="chev" aria-label="previous channels" onclick={() => onPage(-1)}
         ><span>‹</span></button

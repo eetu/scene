@@ -15,7 +15,6 @@
     pageSwipe,
     patternCells,
     playback,
-    ROWNUM_W,
     seekToCursor,
     setCursor,
     soloChannel,
@@ -125,8 +124,8 @@
       use:pageSwipe={{ onPage: page }}
     >
       <div class="phead">
-        <span class="rownum">··</span>
-        <div class="clip" style:width="{win.windowW}px" style:margin-left="{win.leftEdgeW}px">
+        <span class="rownum" style:margin-left="{win.leftEdgeW}px">··</span>
+        <div class="clip" style:width="{win.windowW}px">
           <div class="strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
             {#each channels as ch, i (i)}
               <span
@@ -176,8 +175,8 @@
           class:playhead={playback.seqPlaying && r === playback.seqRow}
           data-r={r}
         >
-          <span class="rownum">{hex2(r)}</span>
-          <div class="clip" style:width="{win.windowW}px" style:margin-left="{win.leftEdgeW}px">
+          <span class="rownum" style:margin-left="{win.leftEdgeW}px">{hex2(r)}</span>
+          <div class="clip" style:width="{win.windowW}px">
             <div class="strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
               {#each cells as cell, c (c)}{#if editCells}{@const ec = editCells[r]?.[c]}<span
                     class="cell ecell"
@@ -208,7 +207,6 @@
       canRight={win.canRight}
       leftEdgeW={win.leftEdgeW}
       rightEdgeW={win.rightEdgeW}
-      gutterW={ROWNUM_W}
       onPage={page}
     />
   </div>

@@ -9,9 +9,10 @@
 export const ROWNUM_W = 30;
 /** Minimum channel column width (px) — decides how many whole channels fit. */
 export const CELL_W = 130;
-/** Cap on the flexed column width — high enough that normal channel counts fill
- *  the width, low enough that 1–2 channels on an ultrawide pane don't explode. */
-export const MAX_CELL_W = 320;
+/** Cap on the flexed column width — columns expand to fill only up to a natural
+ *  tracker width; beyond this they DON'T stretch (a few channels on a wide pane
+ *  keep their size and the extra stays plain surface, rather than ballooning). */
+export const MAX_CELL_W = 160;
 /** Slim edge divider reserved on each side when paging (holds the chevron). */
 export const EDGE_W = 24;
 
