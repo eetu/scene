@@ -176,7 +176,7 @@
           style:height="{ROW_H}px"
         >
           <span class="rownum" style:width="{ROWNUM_W}px">{hex2(r)}</span>
-          <div class="clip" style:width="{win.windowW}px">
+          <div class="clip" style:width="{win.windowW}px" style:margin-left="{win.leftEdgeW}px">
             <div class="strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
               {#each cells as cell, c (c)}{#if editCells}{@const ec = editCells[r]?.[c]}<span
                     class="cell ecell"
@@ -203,7 +203,7 @@
       {/each}
     </div>
     <!-- Per-channel VU bars rising from the centerline (ProTracker style), windowed. -->
-    <div class="vu-overlay" style:left="{ROWNUM_W}px" style:width="{win.windowW}px">
+    <div class="vu-overlay" style:left="{ROWNUM_W + win.leftEdgeW}px" style:width="{win.windowW}px">
       <div class="vu-strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
         {#each channels as _ch, i (i)}
           <div
@@ -215,7 +215,14 @@
         {/each}
       </div>
     </div>
-    <ChannelPager canLeft={win.canLeft} canRight={win.canRight} slack={win.slack} onPage={page} />
+    <ChannelPager
+      canLeft={win.canLeft}
+      canRight={win.canRight}
+      leftEdgeW={win.leftEdgeW}
+      rightEdgeW={win.rightEdgeW}
+      gutterW={ROWNUM_W}
+      onPage={page}
+    />
   </div>
 {:else}
   <div class="pv-empty">{playback.current ? "decoding pattern…" : "nothing playing"}</div>

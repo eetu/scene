@@ -1,35 +1,42 @@
 <script lang="ts">
-  // The thick edge divider that fills the slack past the last whole channel, with
-  // the ‹ › paging chevrons living INSIDE it (so they never overlap the grid
-  // cells). Auto-shown per direction; the whole thing only exists when channels
-  // overflow (slack > 0). Absolutely positioned over the right of the grid.
+  // Static edge dividers that frame the windowed channels on both sides, each
+  // with its ‹ / › paging chevron embedded (shown only when there are hidden
+  // channels that way). Borderless, tall chevrons so they read as part of the
+  // divider, never overlapping the grid cells. Only present when paging (edge
+  // widths > 0). Absolutely positioned over the grid.
   let {
     canLeft,
     canRight,
-    slack,
+    leftEdgeW,
+    rightEdgeW,
+    gutterW,
     onPage,
   }: {
     canLeft: boolean;
     canRight: boolean;
-    slack: number;
+    leftEdgeW: number;
+    rightEdgeW: number;
+    gutterW: number;
     onPage: (dir: 1 | -1) => void;
   } = $props();
 </script>
 
-{#if slack > 0}
-  <div class="edge" style:width="{slack}px">
-    <div class="pager">
-      {#if canLeft}
-        <button class="chev" aria-label="previous channels" onclick={() => onPage(-1)}
-          ><span>‹</span></button
-        >
-      {/if}
-      {#if canRight}
-        <button class="chev" aria-label="next channels" onclick={() => onPage(1)}
-          ><span>›</span></button
-        >
-      {/if}
-    </div>
+{#if leftEdgeW > 0}
+  <div class="edge left" style:left="{gutterW}px" style:width="{leftEdgeW}px">
+    {#if canLeft}
+      <button class="chev" aria-label="previous channels" onclick={() => onPage(-1)}
+        ><span>‹</span></button
+      >
+    {/if}
+  </div>
+{/if}
+{#if rightEdgeW > 0}
+  <div class="edge right" style:width="{rightEdgeW}px">
+    {#if canRight}
+      <button class="chev" aria-label="next channels" onclick={() => onPage(1)}
+        ><span>›</span></button
+      >
+    {/if}
   </div>
 {/if}
 
@@ -37,25 +44,25 @@
   .edge {
     position: absolute;
     top: 0;
-    right: 0;
     height: 100%;
     z-index: 4;
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Soft "end of channels": a surface-line rule + faint fill, with only a thin
-       accent hint at the seam — not a loud bar. */
+    /* Soft "end of channels": faint fill with a thin accent rule facing the
+       channels — a quiet frame, not a loud bar. */
     background: color-mix(in srgb, var(--surface-bar) 55%, transparent);
+  }
+  .edge.left {
+    border-right: 2px solid var(--surface-line);
+    box-shadow: inset -2px 0 0 color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .edge.right {
+    right: 0;
     border-left: 2px solid var(--surface-line);
     box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 22%, transparent);
   }
-  .pager {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0;
-  }
-  /* Borderless, tall, embedded in the divider — no button box, just the glyph. */
+  /* Borderless, tall, embedded — no button box, just the glyph. */
   .chev {
     width: 24px;
     height: 40vh;
@@ -69,7 +76,6 @@
     color: var(--surface-fg);
     cursor: pointer;
   }
-  /* Stretch the chevron glyph vertically so it reads as a tall nav arrow. */
   .chev span {
     display: block;
     font-size: 22px;

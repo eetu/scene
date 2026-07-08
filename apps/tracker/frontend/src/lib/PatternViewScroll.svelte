@@ -16,6 +16,7 @@
     pageSwipe,
     patternCells,
     playback,
+    ROWNUM_W,
     seekToCursor,
     setCursor,
     soloChannel,
@@ -126,7 +127,7 @@
     >
       <div class="phead">
         <span class="rownum">··</span>
-        <div class="clip" style:width="{win.windowW}px">
+        <div class="clip" style:width="{win.windowW}px" style:margin-left="{win.leftEdgeW}px">
           <div class="strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
             {#each channels as ch, i (i)}
               <span
@@ -177,7 +178,7 @@
           data-r={r}
         >
           <span class="rownum">{hex2(r)}</span>
-          <div class="clip" style:width="{win.windowW}px">
+          <div class="clip" style:width="{win.windowW}px" style:margin-left="{win.leftEdgeW}px">
             <div class="strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
               {#each cells as cell, c (c)}{#if editCells}{@const ec = editCells[r]?.[c]}<span
                     class="cell ecell"
@@ -203,7 +204,14 @@
         </div>
       {/each}
     </div>
-    <ChannelPager canLeft={win.canLeft} canRight={win.canRight} slack={win.slack} onPage={page} />
+    <ChannelPager
+      canLeft={win.canLeft}
+      canRight={win.canRight}
+      leftEdgeW={win.leftEdgeW}
+      rightEdgeW={win.rightEdgeW}
+      gutterW={ROWNUM_W}
+      onPage={page}
+    />
   </div>
 {:else}
   <div class="pv-empty">{playback.current ? "decoding pattern…" : "nothing playing"}</div>
