@@ -49,18 +49,23 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Soft "end of channels": faint fill with a thin accent rule facing the
-       channels — a quiet frame, not a loud bar. */
-    background: color-mix(in srgb, var(--surface-bar) 55%, transparent);
+    /* Recessed frame matching the carved column dividers (FT2 feel): a dark rule
+       + light highlight facing the channels, and a darker inner shadow on the
+       outer side — so the edge reads as the pattern's carved outer frame. */
+    background: var(--surface-2);
   }
   .edge.left {
-    border-right: 2px solid var(--surface-line);
-    box-shadow: inset -2px 0 0 color-mix(in srgb, var(--accent) 22%, transparent);
+    border-right: 1px solid color-mix(in srgb, var(--surface-line) 70%, #000);
+    box-shadow:
+      inset -1px 0 0 color-mix(in srgb, var(--surface-line) 70%, #fff),
+      inset 2px 0 0 color-mix(in srgb, var(--surface) 60%, #000);
   }
   .edge.right {
     right: 0;
-    border-left: 2px solid var(--surface-line);
-    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 22%, transparent);
+    border-left: 1px solid color-mix(in srgb, var(--surface-line) 70%, #000);
+    box-shadow:
+      inset 1px 0 0 color-mix(in srgb, var(--surface-line) 70%, #fff),
+      inset -2px 0 0 color-mix(in srgb, var(--surface) 60%, #000);
   }
   /* Borderless, tall, embedded — no button box, just the glyph. */
   .chev {

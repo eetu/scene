@@ -289,8 +289,10 @@
   .cell {
     flex: 0 0 auto;
     padding: 0 8px;
-    /* Thicker inter-channel divider — the tracker look. */
-    border-left: 2px solid var(--surface-line);
+    /* Carved column divider (FT2 feel): dark rule + light inset highlight = a
+       subtle recessed groove between channels. */
+    border-left: 1px solid color-mix(in srgb, var(--surface-line) 70%, #000);
+    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--surface-line) 70%, #fff);
     letter-spacing: 0.02em;
   }
   .cell.cursor {
