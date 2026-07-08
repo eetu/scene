@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
 
-  import { CELL_W, channelWindow, ROWNUM_W } from "./channel-window";
+  import { channelWindow, ROWNUM_W } from "./channel-window";
   import ChannelPager from "./ChannelPager.svelte";
   import ChannelScope from "./ChannelScope.svelte";
   import { pageSwipe } from "./pageSwipe";
@@ -23,7 +23,7 @@
   // Fixed-metrics tracker layout (px). Topaz is 8×16, so 8px/char. Channel width
   // + row-number gutter are shared with the scroll view (channel-window.ts).
   const ROW_H = 18;
-  const BAR_W = 10;
+  const BAR_W = 16; // per-channel VU bar width (ProTracker-style, rises from centerline)
   const VU_MAX = ROW_H * 6; // tallest VU bar
 
   let vpH = $state(0); // viewport height, for centering the current row
@@ -45,8 +45,8 @@
   // so a resize that shrinks how many fit self-corrects.
   let offset = $state(0);
   const win = $derived(channelWindow(vpW, channels.length, offset));
-  const stripW = $derived(channels.length * CELL_W);
-  const shiftX = $derived(-win.offset * CELL_W);
+  const stripW = $derived(channels.length * win.colW);
+  const shiftX = $derived(-win.offset * win.colW);
   function page(dir: 1 | -1) {
     offset = win.offset + dir; // based on the clamped offset; channelWindow re-clamps
   }
@@ -74,7 +74,7 @@
     return n.toString(16).toUpperCase().padStart(2, "0");
   }
   function colXin(i: number): number {
-    return i * CELL_W + (CELL_W - BAR_W) / 2; // within the (translated) channel strip
+    return i * win.colW + (win.colW - BAR_W) / 2; // within the (translated) channel strip
   }
 
   // Cursor nav — only while the grid is focused. stopPropagation on handled keys
@@ -136,7 +136,7 @@
         <div class="clip" style:width="{win.windowW}px" style:margin-left="{win.leftEdgeW}px">
           <div class="strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
             {#each channels as _ch, i (i)}
-              <span class="chead" class:muted={playback.channelMutes[i]} style:width="{CELL_W}px">
+              <span class="chead" class:muted={playback.channelMutes[i]} style:width="{win.colW}px">
                 <span class="chead-top">
                   <span class="chnum">{String(i + 1).padStart(2, "0")}</span>
                   <span class="ms-wrap">
@@ -181,7 +181,7 @@
               {#each cells as cell, c (c)}{#if editCells}{@const ec = editCells[r]?.[c]}<span
                     class="cell ecell"
                     class:muted={playback.channelMutes[c]}
-                    style:width="{CELL_W}px"
+                    style:width="{win.colW}px"
                     data-c={c}
                     >{#if ec}{#each FIELDS as f (f)}<span
                           class="fld"
@@ -194,7 +194,7 @@
                     class="cell"
                     class:cursor={r === playback.cursorRow && c === playback.cursorCh}
                     class:muted={playback.channelMutes[c]}
-                    style:width="{CELL_W}px"
+                    style:width="{win.colW}px"
                     data-c={c}>{cell}</span
                   >{/if}{/each}
             </div>
@@ -256,16 +256,18 @@
     transition: transform 0.18s ease;
   }
   /* The fixed current-row line. */
+  /* Current row — the strongest cue (accent band + accent rules), clearly above
+     the measure/beat tints so "you are here" reads instantly. */
   .centerline {
     position: absolute;
     left: 0;
     right: 0;
     top: 50%;
     transform: translateY(-50%);
-    background: color-mix(in srgb, var(--accent) 22%, var(--surface-2));
+    background: color-mix(in srgb, var(--accent) 34%, var(--surface-2));
     box-shadow:
-      0 -1px 0 var(--surface-line-2),
-      0 1px 0 var(--surface-line-2);
+      0 -1px 0 color-mix(in srgb, var(--accent) 60%, transparent),
+      0 1px 0 color-mix(in srgb, var(--accent) 60%, transparent);
     z-index: 0;
   }
   .rows {
@@ -310,11 +312,13 @@
     font-size: 11px;
     line-height: 1;
   }
+  /* Group the channel number + M/S together (left-aligned) rather than stranding
+     them at opposite ends of a wide column. */
   .chead-top {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 4px;
+    justify-content: flex-start;
+    gap: 8px;
   }
   .chead.muted {
     opacity: 0.55;
@@ -356,12 +360,15 @@
   }
   /* Beat (every 4th row) + measure (every 16th) tints — the FT2/OpenMPT grid
      rhythm cue. Measure is stronger; both stay subtle so text keeps priority. */
+  /* Rhythm cue as a NEUTRAL 2-step (beat faint, measure medium) so it never
+     competes with the accent current-row band above it. */
   .prow.beat {
     color: var(--surface-fg-beat);
     background: color-mix(in srgb, var(--surface-fg) 6%, transparent);
   }
   .prow.measure {
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--surface-fg-beat);
+    background: color-mix(in srgb, var(--surface-fg) 14%, transparent);
   }
   .prow.active {
     color: var(--surface-fg-active);

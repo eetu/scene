@@ -5,7 +5,6 @@
   // (whole columns only, chevron/swipe paging) exactly like the locked view; only
   // the vertical behaviour differs (native row scroll here vs the centerline).
   import {
-    CELL_W,
     cellFieldText,
     ChannelPager,
     ChannelScope,
@@ -37,8 +36,8 @@
   // Channel window (shared with PatternView) — whole channels only, page ±1.
   let offset = $state(0);
   const win = $derived(channelWindow(vpW, channels.length, offset));
-  const stripW = $derived(channels.length * CELL_W);
-  const shiftX = $derived(-win.offset * CELL_W);
+  const stripW = $derived(channels.length * win.colW);
+  const shiftX = $derived(-win.offset * win.colW);
   function page(dir: 1 | -1) {
     offset = win.offset + dir;
   }
@@ -133,7 +132,7 @@
               <span
                 class="cell head"
                 class:muted={playback.channelMutes[i]}
-                style:width="{CELL_W}px"
+                style:width="{win.colW}px"
               >
                 <span class="hrow">
                   <span class="chname">{ch || `ch ${i + 1}`}</span>
@@ -183,7 +182,7 @@
               {#each cells as cell, c (c)}{#if editCells}{@const ec = editCells[r]?.[c]}<span
                     class="cell ecell"
                     class:muted={playback.channelMutes[c]}
-                    style:width="{CELL_W}px"
+                    style:width="{win.colW}px"
                     data-c={c}
                     >{#if ec}{#each FIELDS as f (f)}<span
                           class="fld"
@@ -196,7 +195,7 @@
                     class="cell"
                     class:cursor={r === playback.cursorRow && c === playback.cursorCh}
                     class:muted={playback.channelMutes[c]}
-                    style:width="{CELL_W}px"
+                    style:width="{win.colW}px"
                     data-c={c}>{cell}</span
                   >{/if}{/each}
             </div>
@@ -259,15 +258,18 @@
     display: flex;
     align-items: center;
   }
+  /* Neutral rhythm steps (beat faint, measure medium) so they don't compete with
+     the accent current-row band. */
   .prow.beat {
     background: var(--surface-2);
   }
-  /* Measure line (every 16th row) — a stronger cue than the beat rows. */
   .prow.measure {
-    background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+    background: color-mix(in srgb, var(--surface-fg) 14%, var(--surface-2));
   }
+  /* Current (playing) row — the strongest cue: accent band + a bold left marker. */
   .prow.active {
-    background: color-mix(in srgb, var(--accent) 28%, var(--surface-2));
+    background: color-mix(in srgb, var(--accent) 34%, var(--surface-2));
+    box-shadow: inset 3px 0 0 var(--accent);
     color: var(--surface-fg-active);
   }
   /* Sequencer playhead — a bold, sweeping row bar, distinct from the per-cell

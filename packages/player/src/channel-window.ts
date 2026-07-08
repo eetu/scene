@@ -1,30 +1,30 @@
 // Shared channel-windowing math for the pattern views. The grid shows a frozen
-// row-number gutter plus fixed-width channel columns; rather than a free scroll
-// with a half-cut column at the edge, we show only WHOLE channels that fit and
-// page through them one at a time (chevrons / swipe). When paging is needed, a
-// static edge divider frames the channels on BOTH sides (each holds its chevron
-// when there are hidden channels that way). Both PatternView (locked) and
-// PatternViewScroll (free) use this so they behave identically.
+// row-number gutter plus channel columns; rather than a free scroll with a
+// half-cut column at the edge, we show only WHOLE channels and page through them
+// (chevrons / swipe). The visible columns FLEX to fill the width (no empty
+// leftover), between slim static edge dividers that hold the chevrons. Both
+// PatternView (locked) and PatternViewScroll (free) use this so they match.
 
 /** Row-number gutter width (px) — frozen at the left of both views. */
 export const ROWNUM_W = 30;
-/** Fixed channel column width (px) — one whole channel steps the window by this. */
+/** Minimum channel column width (px) — decides how many whole channels fit. */
 export const CELL_W = 130;
-/** Right edge-divider MINIMUM reserve when paging — holds the › chevron; the
- *  right edge grows past this to absorb the truncation remainder (so a whole
- *  column is never cut). */
-export const PAGER_W = 24;
-/** Left edge divider — a slim fixed frame, just wide enough for the ‹ chevron. */
-export const LEFT_EDGE_W = 24;
+/** Cap on the flexed column width — high enough that normal channel counts fill
+ *  the width, low enough that 1–2 channels on an ultrawide pane don't explode. */
+export const MAX_CELL_W = 320;
+/** Slim edge divider reserved on each side when paging (holds the chevron). */
+export const EDGE_W = 24;
 
 export type ChannelWindow = {
-  /** How many whole channels fit between the two edge dividers (≥1). */
+  /** How many whole channels are shown (≥1). */
   visible: number;
   /** Offset clamped into range for the current width/count. */
   offset: number;
   /** Largest valid offset (0 when everything fits). */
   maxOffset: number;
-  /** Width of the visible-channels viewport (visible × CELL_W), px. */
+  /** Actual (flexed) column width, px — columns stretch to fill the window. */
+  colW: number;
+  /** Width of the visible-channels viewport (visible × colW), px. */
   windowW: number;
   /** Left / right edge-divider widths (0 when everything fits — no dividers). */
   leftEdgeW: number;
@@ -41,31 +41,33 @@ export function channelWindow(
   containerW: number,
   count: number,
   offset: number,
-  cellW = CELL_W,
+  minCell = CELL_W,
   gutterW = ROWNUM_W,
 ): ChannelWindow {
   const avail = Math.max(0, containerW - gutterW);
-  // Everything fits (or nothing to show) → no paging, no edge dividers.
-  const fits = count === 0 || count <= Math.floor(avail / cellW);
+  const fits = count === 0 || count <= Math.floor(avail / minCell);
 
   let visible: number;
+  let colW: number;
   let windowW: number;
   let leftEdgeW: number;
   let rightEdgeW: number;
   if (fits) {
+    // All channels show; stretch them to fill (capped), no edge dividers.
     visible = Math.max(1, count);
-    windowW = count * cellW;
+    colW = count > 0 ? Math.min(MAX_CELL_W, Math.floor(avail / count)) : minCell;
+    windowW = visible * colW;
     leftEdgeW = 0;
     rightEdgeW = 0;
   } else {
-    // Reserve a divider on BOTH sides so the frame is static as you page: a slim
-    // left edge (just the chevron) + a wider right edge that absorbs the
-    // truncation remainder too.
-    const usable = Math.max(0, avail - LEFT_EDGE_W - PAGER_W);
-    visible = Math.max(1, Math.floor(usable / cellW));
-    windowW = visible * cellW;
-    leftEdgeW = LEFT_EDGE_W;
-    rightEdgeW = Math.max(0, avail - leftEdgeW - windowW); // ≥ PAGER_W in practice
+    // Paging: reserve a slim edge on each side, then flex the visible columns to
+    // fill the space between them — so there's no empty leftover on the right.
+    const usable = Math.max(0, avail - 2 * EDGE_W);
+    visible = Math.max(1, Math.floor(usable / minCell));
+    colW = Math.min(MAX_CELL_W, Math.floor(usable / visible));
+    windowW = visible * colW;
+    leftEdgeW = EDGE_W;
+    rightEdgeW = Math.max(EDGE_W, avail - EDGE_W - windowW); // = EDGE_W unless colW is capped
   }
 
   const maxOffset = Math.max(0, count - visible);
@@ -74,6 +76,7 @@ export function channelWindow(
     visible,
     offset: off,
     maxOffset,
+    colW,
     windowW,
     leftEdgeW,
     rightEdgeW,
