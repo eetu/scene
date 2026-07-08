@@ -1,15 +1,7 @@
 <script module lang="ts">
   // Party's enabled visualizers (its own set — the tracker keeps a separate list).
   type VizMode =
-    | "vu"
-    | "bars"
-    | "wave"
-    | "stars"
-    | "copper"
-    | "plasma"
-    | "tunnel"
-    | "disco"
-    | "ball";
+    "vu" | "bars" | "wave" | "stars" | "copper" | "plasma" | "tunnel" | "disco" | "ball";
   const VIZ: VizMode[] = [
     "vu",
     "bars",
