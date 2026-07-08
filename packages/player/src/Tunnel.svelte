@@ -285,6 +285,12 @@
     // bright steel rails. The floor sits at a≈0.25 (straight down) in the wall
     // coordinate — the shape + angle share the rolled frame, so the track stays
     // glued to the floor as the tube banks. Warm work-light ambience.
+    //
+    // Metro STOPS: periodically the running tunnel opens into a brightly lit
+    // station — white glazed subway tiles clad the walls and a fluorescent strip
+    // lights the platform ceiling. Stations are keyed on absolute z, so one
+    // approaches through the fog and slides past rather than popping in; the
+    // track bed runs straight through. (A decorative wall mural is on the shelf.)
     vec3 themeMetro(float z, float a, float t) {
       float cell = mod(floor(a * 40.0), 40.0); // wrap the grain cell → no seam at a=0/1
       float grain = fract(sin(floor(z * 4.0) * 12.9 + cell * 78.2 + uSeed) * 43758.5);
@@ -300,6 +306,34 @@
       float rails = smoothstep(0.012, 0.0, abs(a - 0.205)) + smoothstep(0.012, 0.0, abs(a - 0.295));
       col += vec3(0.9, 0.85, 0.7) * rails * (0.55 + 0.45 * sin(z * 10.0));
       col += vec3(0.24, 0.14, 0.05) * (0.4 + 0.3 * sin(z * 0.5 - t * 0.4)); // work-lights
+
+      // --- metro stop -------------------------------------------------------
+      float SPACING = 48.0;                                // world units between stops
+      float sIdx = floor(z / SPACING + 0.5);               // nearest station index (per-stop variety)
+      float dCenter = abs(z - sIdx * SPACING);             // distance to its centre
+      float station = smoothstep(9.0, 6.5, dCenter);       // ~13-unit platform, feathered ends
+      float wall = 1.0 - floorBand;                        // tile the walls, keep the track bed
+      // White glazed subway tiles, running-bond (alternate rows offset half a tile).
+      float NA = 44.0, NZ = 6.0;
+      float ra = a * NA, row = floor(ra);
+      float rz = z * NZ + 0.5 * mod(row, 2.0);
+      vec2 e = abs(vec2(fract(rz), fract(ra)) - 0.5) * 2.0; // 0 centre → 1 tile border
+      float grout = smoothstep(0.80, 0.96, max(e.x, e.y));
+      float bevel = smoothstep(0.5, 0.95, max(e.x, e.y));
+      float tvar = 0.92 + 0.08 * fract(sin(row * 12.9 + floor(rz) * 78.2) * 43758.5);
+      vec3 tile = vec3(0.95, 0.94, 0.88) * tvar;           // cream glaze
+      tile *= 1.0 - 0.45 * bevel;                          // bevel shading toward the edges
+      tile = mix(tile, vec3(0.30, 0.30, 0.33), grout);     // grey grout lines
+      // (A decorative mural frieze on the side walls is parked for now — the
+      // stops read as clean tiled, lit platforms until it's ready.)
+      vec3 wallCol = tile;
+      // Even, cool-white platform light on the tiles; a fluorescent strip along the
+      // ceiling (a≈0.75) and a gentle overall lift as you pull in.
+      vec3 stationCol = wallCol * 0.9 + vec3(0.55, 0.62, 0.72) * 0.22;
+      float ceilLight = smoothstep(0.03, 0.0, abs(a - 0.75)) * station;
+      stationCol += vec3(1.0, 0.98, 0.9) * ceilLight * 1.3;
+      col = mix(col, stationCol, station * wall);
+      col += vec3(0.5, 0.55, 0.62) * station * 0.12;       // platform ambience (incl. the floor)
       return col;
     }
     // Abyss mothership: deep violet hull veined with bright cyan-white tech seams —
@@ -656,19 +690,18 @@
     // theme, 'l' locks/unlocks the theme rotation.
     let clock = 0; // seconds elapsed, for wall animation (uTime)
     const SLOT = 24; // seconds a wall theme holds before crossfading to the next
-    // A drop may hard-cut the theme, but only after the current one has had this
-    // much dwell — so a drop can't immediately re-switch a theme that a natural
-    // rotation (or a prior drop) just brought in.
-    const DROP_MIN_DWELL = SLOT * 1000 * 0.5;
     let themeTime = 0; // theme-selection clock (frozen while locked)
-    let locked = false; // 'l' freezes the theme rotation
+    let locked = false; // freezes the rotation ('l', or picking a theme with 'n'/tap)
     let scanOn = true; // CRT scanlines on by default
     // Advance to the next wall theme and flash its label. Bound to 'n' and to a
     // tap on the view (the touch equivalent for mobile, where there's no 'n' key).
+    // Choosing a theme manually also LOCKS the rotation, so it stays on your pick
+    // (no more surprise auto-switches) until you unlock it with 'l'.
     function nextTheme() {
       themeTime = (Math.floor(themeTime / SLOT) + 1) * SLOT;
       themeName = THEMES[themeSlot(Math.floor(themeTime / SLOT))];
       labelSeq++;
+      locked = true;
     }
     const onKey = (e: KeyboardEvent) => {
       const ae = document.activeElement;
@@ -717,12 +750,10 @@
 
     // JS-authoritative theme rotation (mirrored out of the shader): a seeded
     // per-slot random, held one SLOT then crossfaded to the next.
-    // Drop detection state: slow energy floor + last-jump timers.
+    // Drop detection state (drives only the burst flash — not a theme change).
     let energyBase = 0;
     let prevEnergy = 0;
     let lastDrop = -1e9;
-    let lastSwitchAt = -1e9; // ms of the last actual theme change (natural or drop)
-    let curSlot = -1; // slot whose theme is currently showing (detects a switch)
     let burst = 0; // drop flash, decays
     const smooth01 = (e0: number, e1: number, x: number) => {
       const s = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
@@ -762,8 +793,9 @@
         }
 
         const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
-        // Drop detection: a big jump above the slow energy floor fires a burst
-        // (screen flash) and, spaced out, a theme switch — synced to musical drops.
+        // Drop detection: a big jump above the slow energy floor fires a brief
+        // burst (screen flash) synced to musical drops. It no longer switches the
+        // wall theme — a theme changing on its own just read as confusing.
         energyBase += ((active ? energy : 0) - energyBase) * 0.02;
         if (
           active &&
@@ -773,13 +805,6 @@
         ) {
           lastDrop = now;
           burst = 1;
-          // A drop only *lands* a theme change on the beat, and only once the
-          // current theme has had a minimum dwell — so a drop can't hard-cut a
-          // theme a natural rotation (or a prior drop) just switched to. The jump
-          // moves themeTime; lastSwitchAt updates below when the slot changes.
-          if (!locked && now - lastSwitchAt > DROP_MIN_DWELL) {
-            themeTime = (Math.floor(themeTime / SLOT) + 1) * SLOT;
-          }
         }
         prevEnergy = energy;
         burst *= Math.exp(-dt / 0.45);
@@ -789,13 +814,6 @@
         if (!locked) themeTime += dt;
         const tp = themeTime / SLOT;
         const nSlot = Math.floor(tp);
-        // Record when the shown theme actually changes (natural boundary, a drop
-        // jump, or a manual advance all move nSlot) — the drop gate above keys its
-        // minimum dwell off this, so no switch can immediately follow another.
-        if (nSlot !== curSlot) {
-          curSlot = nSlot;
-          lastSwitchAt = now;
-        }
         let idA = themeSlot(nSlot);
         let idB = themeSlot(nSlot + 1);
         if (idA === idB) idB = (idB + 1) % THEMES.length;
