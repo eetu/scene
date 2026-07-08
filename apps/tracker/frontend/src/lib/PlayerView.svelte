@@ -86,6 +86,17 @@
     return () => mq.removeEventListener("change", update);
   });
 
+  // Keep the currently-playing pattern centred in the (horizontally-scrolling)
+  // order list, so it never scrolls out of view as playback advances the order.
+  let ordersEl = $state<HTMLDivElement | null>(null);
+  $effect(() => {
+    const o = playback.order;
+    const el = ordersEl;
+    if (!el) return;
+    const on = el.querySelectorAll<HTMLElement>(".ord")[o];
+    if (on) el.scrollLeft = on.offsetLeft - el.clientWidth / 2 + on.offsetWidth / 2;
+  });
+
   // Copy a deep-link to the current track at the current position (?t=&pos=),
   // YouTube-style — the only thing that ever writes ?pos. Copies to the
   // clipboard; never touches the app's own URL (the writer keeps that clean).
@@ -230,12 +241,12 @@
       </button>
     </div>
   </div>
-  <div class="pv-wrap" style:padding-bottom="{transportH + 8}px">
+  <div class="pv-wrap" style:padding-bottom="{transportH}px">
     {#if pv.tab === "pattern"}
       <div class="scope-strip"><Scope /></div>
       {#if (playback.song?.orders?.length ?? 0) > 1}
         <!-- Order list: click a position to jump there; current is highlighted. -->
-        <div class="orders" aria-label="order list">
+        <div class="orders" aria-label="order list" bind:this={ordersEl}>
           {#each playback.song?.orders ?? [] as o, i (i)}
             <button
               type="button"

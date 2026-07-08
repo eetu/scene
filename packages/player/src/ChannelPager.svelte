@@ -47,23 +47,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Recessed frame matching the carved column dividers (FT2 feel): a dark rule
-       + light highlight facing the channels, and a darker inner shadow on the
-       outer side — so the edge reads as the pattern's carved outer frame. */
+    /* A single-line divider on the channel-facing side only (matches the column
+       dividers); no border on the OUTER side, so the edge blends into the frame. */
     background: var(--surface-2);
   }
   .edge.left {
-    border-right: 1px solid color-mix(in srgb, var(--surface-line) 70%, #000);
-    box-shadow:
-      inset -1px 0 0 color-mix(in srgb, var(--surface-line) 70%, #fff),
-      inset 2px 0 0 color-mix(in srgb, var(--surface) 60%, #000);
+    border-right: 1px solid var(--surface-line);
   }
   .edge.right {
     right: 0;
-    border-left: 1px solid color-mix(in srgb, var(--surface-line) 70%, #000);
-    box-shadow:
-      inset 1px 0 0 color-mix(in srgb, var(--surface-line) 70%, #fff),
-      inset -2px 0 0 color-mix(in srgb, var(--surface) 60%, #000);
+    border-left: 1px solid var(--surface-line);
   }
   /* Borderless, tall, embedded — no button box, just the glyph. */
   .chev {

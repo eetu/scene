@@ -257,6 +257,11 @@
     display: flex;
     transition: transform 0.18s ease;
   }
+  /* Header strip fills the header height so the channel headers' bottom border
+     lines up with the row-number gutter's (they were 2px short otherwise). */
+  .phead .strip {
+    height: 100%;
+  }
   /* The fixed current-row line. */
   /* Current row — the strongest cue (accent band + accent rules), clearly above
      the measure/beat tints so "you are here" reads instantly. */
@@ -305,9 +310,8 @@
     /* Horizontal padding matches .cell (8px) so the header lines up with the
        columns below; the 2px top/bottom keeps the header compact. */
     padding: 2px 8px;
-    /* Carved column divider (matches the cells below). */
-    border-left: 1px solid color-mix(in srgb, var(--surface-line) 70%, #000);
-    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--surface-line) 70%, #fff);
+    /* Single-line column divider (matches the cells below). */
+    border-left: 1px solid var(--surface-line);
     border-bottom: 1px solid var(--surface-line-2);
     background: var(--surface-bar);
     color: var(--accent);
@@ -395,10 +399,8 @@
   .cell {
     flex: 0 0 auto;
     padding: 0 8px;
-    /* Carved column divider (FT2 feel): a dark rule + a light inset highlight to
-       its right = a subtle recessed groove between channels, theme-relative. */
-    border-left: 1px solid color-mix(in srgb, var(--surface-line) 70%, #000);
-    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--surface-line) 70%, #fff);
+    /* Single-line column divider (no dark bevel) — a clean --surface-line rule. */
+    border-left: 1px solid var(--surface-line);
     overflow: hidden;
   }
   /* Muted channel — dim the whole column so it reads as silenced. */
