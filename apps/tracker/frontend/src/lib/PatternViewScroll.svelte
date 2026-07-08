@@ -21,6 +21,7 @@
     soloChannel,
     toggleChannelMute,
   } from "@scene/player";
+  import { untrack } from "svelte";
 
   const FIELDS = [0, 1, 2, 3, 4]; // note, inst, vol, fx, param
 
@@ -40,11 +41,15 @@
   function page(dir: 1 | -1) {
     offset = win.offset + dir;
   }
-  // Keep the edit cursor's channel in view when arrows walk it off the window.
+  // In EDIT mode, follow the edit cursor's channel (tracks only cursorCh, reads
+  // win/offset untracked) so it doesn't fight manual chevron/swipe paging.
   $effect(() => {
+    if (!playback.editing) return;
     const c = playback.cursorCh;
-    if (c < win.offset) offset = c;
-    else if (c >= win.offset + win.visible) offset = c - win.visible + 1;
+    untrack(() => {
+      if (c < win.offset) offset = c;
+      else if (c >= win.offset + win.visible) offset = c - win.visible + 1;
+    });
   });
 
   function hex2(n: number): string {

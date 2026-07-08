@@ -20,10 +20,14 @@
   <div class="edge" style:width="{slack}px">
     <div class="pager">
       {#if canLeft}
-        <button class="chev" aria-label="previous channels" onclick={() => onPage(-1)}>‹</button>
+        <button class="chev" aria-label="previous channels" onclick={() => onPage(-1)}
+          ><span>‹</span></button
+        >
       {/if}
       {#if canRight}
-        <button class="chev" aria-label="next channels" onclick={() => onPage(1)}>›</button>
+        <button class="chev" aria-label="next channels" onclick={() => onPage(1)}
+          ><span>›</span></button
+        >
       {/if}
     </div>
   </div>
@@ -48,24 +52,31 @@
   .pager {
     display: flex;
     align-items: center;
-    gap: 2px;
+    justify-content: center;
+    gap: 0;
   }
+  /* Borderless, tall, embedded in the divider — no button box, just the glyph. */
   .chev {
-    width: 20px;
-    height: 52px;
+    width: 24px;
+    height: 40vh;
+    max-height: 220px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 22px;
-    line-height: 1;
-    color: var(--surface-fg-active);
-    background: color-mix(in srgb, var(--surface-bar) 70%, transparent);
-    border: 1px solid var(--surface-line);
-    border-radius: 5px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--surface-fg);
     cursor: pointer;
   }
+  /* Stretch the chevron glyph vertically so it reads as a tall nav arrow. */
+  .chev span {
+    display: block;
+    font-size: 22px;
+    line-height: 1;
+    transform: scaleY(2.4);
+  }
   .chev:hover {
-    background: var(--surface-bar);
-    border-color: var(--accent);
+    color: var(--accent);
   }
 </style>

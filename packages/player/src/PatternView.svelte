@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { untrack } from "svelte";
+
   import { CELL_W, channelWindow, ROWNUM_W } from "./channel-window";
   import ChannelPager from "./ChannelPager.svelte";
   import ChannelScope from "./ChannelScope.svelte";
@@ -48,11 +50,17 @@
   function page(dir: 1 | -1) {
     offset = win.offset + dir; // based on the clamped offset; channelWindow re-clamps
   }
-  // Keep the edit cursor's channel in view when arrows walk it off the window.
+  // In EDIT mode, follow the edit cursor's channel when arrows walk it off the
+  // window. Tracks only cursorCh (win/offset read untracked) so it reacts to the
+  // cursor moving — not to manual paging, which it would otherwise fight (paging
+  // right with the cursor at ch0 used to snap straight back).
   $effect(() => {
+    if (!playback.editing) return;
     const c = playback.cursorCh;
-    if (c < win.offset) offset = c;
-    else if (c >= win.offset + win.visible) offset = c - win.visible + 1;
+    untrack(() => {
+      if (c < win.offset) offset = c;
+      else if (c >= win.offset + win.visible) offset = c - win.visible + 1;
+    });
   });
 
   // Translate the rows so the tracked row sits on the fixed centerline; the

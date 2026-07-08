@@ -11,7 +11,7 @@ export const ROWNUM_W = 30;
 export const CELL_W = 130;
 /** Minimum width reserved for the edge divider when paging, so the chevron that
  *  lives inside it always fits (the truncation remainder can be ~0px). */
-export const PAGER_W = 44;
+export const PAGER_W = 52;
 
 export type ChannelWindow = {
   /** How many whole channels fit right of the gutter (≥1). */
