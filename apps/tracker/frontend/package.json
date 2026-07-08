@@ -21,22 +21,22 @@
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
-    "@lucide/svelte": "^1.21.0",
+    "@lucide/svelte": "^1.22.0",
     "@scene/design": "workspace:*",
     "@scene/player": "workspace:*",
-    "@tanstack/svelte-virtual": "^3.13.29"
+    "@tanstack/svelte-virtual": "^3.13.31"
   },
   "devDependencies": {
     "@anarkisti/eslint-config": "^1.0.0",
     "@playwright/test": "^1.61.1",
     "@sveltejs/adapter-static": "^3.0.10",
-    "@sveltejs/kit": "^2.57.0",
+    "@sveltejs/kit": "^2.68.0",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "@types/node": "^25",
     "@vitest/browser-playwright": "^4.1.10",
-    "eslint": "^10.4.0",
+    "eslint": "^10.6.0",
     "playwright": "^1.61.1",
-    "prettier": "^3.8.3",
+    "prettier": "^3.9.4",
     "prettier-plugin-svelte": "^4.0.1",
     "svelte": "^5.56.1",
     "svelte-check": "^4.4.6",
