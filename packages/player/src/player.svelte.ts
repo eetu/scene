@@ -1084,8 +1084,15 @@ function triggerDownload(blob: Blob, filename: string) {
 const bufCache = new Map<number, { buffer: AudioBuffer; info: SampleInfo } | null>();
 let bufGen = 0;
 
+// Tiny note-on/off gain ramps to declick jammed samples: a raw PCM buffer whose
+// first/last frame sits away from zero snaps audibly on an instant start/stop, so
+// each voice gets its own gain node ramped up on start and down before stop.
+const JAM_ATTACK = 0.004; // s — fade-in on note-on
+const JAM_RELEASE = 0.006; // s — fade-out on note-off
+
 type JamVoice = {
   src: AudioBufferSourceNode;
+  env: GainNode; // per-voice declick envelope (src → env → jamOutput)
   start: number; // ctx time at start
   startFrame: number; // sample-frame the playback started from (click-to-audition)
   rate: number; // buffer sample rate (sample's middle-C freq)
@@ -1131,14 +1138,26 @@ export function setJamLevel(v: number) {
   applyJamGain();
 }
 
+// Fade a voice out over the release ramp, then stop its source — declicks the
+// note-off (an instant stop mid-waveform snaps just like an instant start). The
+// source keeps rendering until the scheduled stop even after we drop our
+// bookkeeping, so the tail plays out.
+function releaseVoice(v: JamVoice) {
+  if (!player) return;
+  const t = player.context.currentTime;
+  try {
+    v.env.gain.cancelScheduledValues(t);
+    v.env.gain.setValueAtTime(v.env.gain.value, t);
+    v.env.gain.linearRampToValueAtTime(0, t + JAM_RELEASE);
+    v.src.stop(t + JAM_RELEASE);
+  } catch {
+    /* already stopped */
+  }
+}
+
 /** Stop every sounding jam voice (e.g. when the selected sample changes). */
 export function jamStopAll() {
-  for (const v of voices.values())
-    try {
-      v.src.stop();
-    } catch {
-      /* already stopped */
-    }
+  for (const v of voices.values()) releaseVoice(v);
   voices.clear();
   lastVoice = null;
   playback.jamPos = -1;
@@ -1148,12 +1167,7 @@ export function jamStopAll() {
 function resetJam() {
   bufGen++;
   bufCache.clear();
-  for (const v of voices.values())
-    try {
-      v.src.stop();
-    } catch {
-      /* already stopped */
-    }
+  for (const v of voices.values()) releaseVoice(v);
   voices.clear();
   lastVoice = null;
 }
@@ -1209,11 +1223,17 @@ export async function jamNote(sampleIdx: number, note: number, offsetFrames = 0)
     src.loopStart = sb.info.loopStart / sb.info.rate;
     src.loopEnd = sb.info.loopEnd / sb.info.rate;
   }
-  src.connect(jamOutput());
+  const now = player.context.currentTime;
+  // Per-voice envelope: ramp 0→1 over the attack so the note-on doesn't snap.
+  const env = player.context.createGain();
+  env.gain.setValueAtTime(0, now);
+  env.gain.linearRampToValueAtTime(1, now + JAM_ATTACK);
+  src.connect(env).connect(jamOutput());
   const id = ++voiceId;
   const voice: JamVoice = {
     src,
-    start: player.context.currentTime,
+    env,
+    start: now,
     startFrame: offsetFrames,
     rate: sb.info.rate,
     speed,
@@ -1225,7 +1245,7 @@ export async function jamNote(sampleIdx: number, note: number, offsetFrames = 0)
   src.onended = () => dropVoice(id, voice);
   voices.set(id, voice);
   lastVoice = voice;
-  src.start(0, Math.max(0, offsetFrames) / sb.info.rate);
+  src.start(now, Math.max(0, offsetFrames) / sb.info.rate);
   if (!cursorRaf) cursorRaf = requestAnimationFrame(tickCursor);
   return id;
 }
@@ -1242,11 +1262,7 @@ function dropVoice(id: number, voice: JamVoice) {
 export function jamStop(id: number) {
   const v = voices.get(id);
   if (!v) return;
-  try {
-    v.src.stop();
-  } catch {
-    /* already stopped */
-  }
+  releaseVoice(v);
   dropVoice(id, v);
 }
 

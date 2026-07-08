@@ -313,9 +313,10 @@ export class ChiptuneJsPlayer {
 		return this.workerReadyPromise;
 	}
 
-	/** Decode a module's full metadata + song (patterns/cells) on a throwaway
-	 *  module WITHOUT starting audio — for showing the pattern of a track restored
-	 *  on a cold reload. Resolves with the meta object (incl. `song`) or null. */
+	/** Decode a module's full metadata + song (patterns/cells) WITHOUT starting
+	 *  audio — for showing the pattern of a track restored on a cold reload. When
+	 *  idle, the worker keeps the decoded module resident so the samples view can
+	 *  read waveforms without a gesture. Resolves with the meta (incl. `song`). */
 	decodeSong(ab) {
 		const id = ++this.decodeReqId;
 		return new Promise((resolve) => {

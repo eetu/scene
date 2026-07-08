@@ -50,3 +50,33 @@ test("cold reload of /?t= decodes the pattern and keeps the transport honest", a
     `transport lies after reload: playBtn=${label} time="${txt}"`,
   ).toBe(false);
 });
+
+// After a cold reload the module is decoded (for the pattern) but no gesture has
+// started audio, so nothing is "loaded" for playback. The samples view reads
+// waveforms/props off the resident module via readSample — which used to fail
+// (decodeSong discarded its throwaway module), leaving the samples tab with names
+// but no waveform/props until you pressed play. The worker now keeps the decoded
+// module resident while idle, so sample data is available with no gesture.
+test("cold reload leaves samples readable without a gesture", async ({ context, page }) => {
+  await mockLibrary(context); // one track (test.xm — 3 samples)
+
+  await page.goto("/");
+  await page.locator("button.row").first().click();
+  await expect(page.getByTestId("transport-time")).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("transport-time")).toBeVisible();
+  // Pattern must have decoded (resident-module path shares the decode).
+  await expect(page.getByText("decoding pattern…")).toHaveCount(0, { timeout: 8000 });
+
+  // Open the samples tab — still no play gesture.
+  await page.getByRole("button", { name: "samples", exact: true }).click();
+
+  // The properties block only renders when readSample returned real data
+  // (`info.length > 0`) — i.e. the module was resident for sample reads. Before
+  // the fix this stayed empty (readSample → null) on a cold restore.
+  const props = page.locator(".samples .props");
+  await expect(props, "sample properties missing → readSample failed on cold restore").toBeVisible({
+    timeout: 8000,
+  });
+  await expect(props.getByText(/\d+\.\d\ds/)).toBeVisible(); // length in seconds
+});

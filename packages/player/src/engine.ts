@@ -48,9 +48,11 @@ export interface Engine {
 
   // Decode / parse without starting audio.
   parse(id: number, ab: ArrayBuffer): void;
-  /** Decode a module's full metadata + song (patterns/cells) on a throwaway
-   *  module — no audio graph involved. For showing the pattern of a track
-   *  restored on a cold reload before a gesture can start audio. */
+  /** Decode a module's full metadata + song (patterns/cells) — no audio graph
+   *  involved. For showing the pattern of a track restored on a cold reload
+   *  before a gesture can start audio. When idle (nothing playing) the decoded
+   *  module is kept resident, so the samples view can read waveforms/props
+   *  without a gesture; it's replaced by the real module once playback starts. */
   decodeSong(ab: ArrayBuffer): Promise<Meta | null>;
   /** Resolves once the decoder Worker's WASM is ready — independent of the audio
    *  worklet (which the browser may keep suspended until a user gesture). */
