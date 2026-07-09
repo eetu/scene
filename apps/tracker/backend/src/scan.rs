@@ -305,8 +305,13 @@ pub fn scan_into(
         drop(upsert);
 
         // Drop rows for files that no longer exist on disk.
-        let seen: std::collections::HashSet<&String> = resolved.iter().map(|r| &r.rel_path).collect();
-        let stale: Vec<String> = cache.keys().filter(|k| !seen.contains(k)).cloned().collect();
+        let seen: std::collections::HashSet<&String> =
+            resolved.iter().map(|r| &r.rel_path).collect();
+        let stale: Vec<String> = cache
+            .keys()
+            .filter(|k| !seen.contains(k))
+            .cloned()
+            .collect();
         for rel_path in &stale {
             tx.execute("DELETE FROM files WHERE rel_path = ?1", [rel_path])?;
             result.removed += 1;
@@ -336,7 +341,10 @@ mod tests {
             group_artist("_groupless/Purple Motion/song.mod"),
             (GROUPLESS.into(), Some("Purple Motion".into()))
         );
-        assert_eq!(group_artist("_groupless/song.mod"), (GROUPLESS.into(), None));
+        assert_eq!(
+            group_artist("_groupless/song.mod"),
+            (GROUPLESS.into(), None)
+        );
     }
 
     #[test]

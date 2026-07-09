@@ -114,7 +114,10 @@ mod tests {
 
     #[test]
     fn author_from_modland_path() {
-        assert_eq!(author_from_path("Protracker/4-Mat/intro.mod").as_deref(), Some("4-Mat"));
+        assert_eq!(
+            author_from_path("Protracker/4-Mat/intro.mod").as_deref(),
+            Some("4-Mat")
+        );
         assert_eq!(
             author_from_path("Fasttracker 2/Purple Motion/sundance.xm").as_deref(),
             Some("Purple Motion")

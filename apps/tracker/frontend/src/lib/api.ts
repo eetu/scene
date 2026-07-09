@@ -205,6 +205,11 @@ export const api = {
     request<void>(`/api/meta/${hash}`, { method: "POST", body: JSON.stringify(meta) }),
   rename: (req: RenameRequest) =>
     request<RenameResult>("/api/rename", { method: "POST", body: JSON.stringify(req) }),
+  deleteTrack: (path: string) =>
+    request<{ path: string; removed: number }>("/api/delete", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    }),
   setFavorite: (hash: string, favorite: boolean) =>
     request<void>(`/api/favorite/${hash}`, {
       method: "POST",

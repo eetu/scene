@@ -150,6 +150,13 @@ export async function toggleFavorite(t: Track) {
   }
 }
 
+/** Drop a track from the in-memory index after it's been deleted on disk, so the
+ *  library list reflects it without a full rescan (the $state proxy re-renders +
+ *  re-derives the facets). Keyed by path — the index's unique key. */
+export function removeTrackLocal(path: string) {
+  library.tracks = library.tracks.filter((t) => t.path !== path);
+}
+
 /** Trigger a rescan (from the Settings panel). No-op unless idle/errored. */
 export function rescanLibrary() {
   actor.send({ type: "RESCAN" });
