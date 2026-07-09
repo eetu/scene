@@ -377,16 +377,40 @@ function ensurePlayer(): Promise<void> {
   a.smoothingTimeConstant = 0.82;
   player.gain.connect(a);
   analyser = a;
-  ready = new Promise<void>((resolve) => player.onInitialized(() => resolve()));
-  // Once the graph exists: reflect the engine's capabilities (jam/samples), then
-  // tap it for the background-capable media-element route.
-  void ready.then(() => {
-    playback.canReadSamples = player.capabilities?.canReadSamples ?? false;
-    playback.canMuteChannels = player.capabilities?.canMuteChannels ?? false;
-    playback.canReadCells = player.capabilities?.canReadCells ?? false;
-    if (playback.mono) player.setMono(true); // restore persisted mono downmix
-    setupMediaElementRoute();
+  let initSettled = false;
+  ready = new Promise<void>((resolve, reject) => {
+    player.onInitialized(() => {
+      initSettled = true;
+      resolve();
+    });
+    // A fatal bring-up failure (worklet/worker module 404, CSP block, unsupported
+    // browser) must REJECT rather than leave the graph half-built — otherwise
+    // `onInitialized` never fires and every awaiter (playTrack's `await p`,
+    // parseModule) hangs forever behind a frozen transport. A merely-suspended
+    // worklet (no user gesture yet) does not error, so this can't false-fire; the
+    // per-track playback errors (Load/decode) are handled by the main onError
+    // handler below and must not reject init.
+    player.onError((e: { type?: string }) => {
+      if (!initSettled && (e?.type === "Worklet" || e?.type === "Worker")) {
+        initSettled = true;
+        reject(new Error(e?.type ?? "engine init failed"));
+      }
+    });
   });
+  // Once the graph exists: reflect the engine's capabilities (jam/samples), then
+  // tap it for the background-capable media-element route. Swallow a rejected init
+  // here — playTrack/parseModule surface it; this chain just shouldn't go unhandled.
+  void ready
+    .then(() => {
+      playback.canReadSamples = player.capabilities?.canReadSamples ?? false;
+      playback.canMuteChannels = player.capabilities?.canMuteChannels ?? false;
+      playback.canReadCells = player.capabilities?.canReadCells ?? false;
+      if (playback.mono) player.setMono(true); // restore persisted mono downmix
+      setupMediaElementRoute();
+    })
+    .catch(() => {
+      /* engine init failed; surfaced by awaiters */
+    });
   player.onProgress((d: ProgressMsg) => {
     consecutiveErrors = 0; // a frame arrived → this track plays; clear the skip guard
     // First frame confirms audio is actually running (loading → playing).
@@ -420,11 +444,17 @@ function ensurePlayer(): Promise<void> {
   player.onError((e: { type?: string }) => {
     playback.error = e?.type ?? "playback error";
     consecutiveErrors++;
+    // Engine bring-up failures (worklet/worker module load) are fatal: the audio
+    // graph never comes up, so skipping to the next track can't help — every track
+    // hits the same dead engine. Surface the error immediately instead of cycling
+    // the whole queue. Per-track errors (corrupt/unsupported module) still auto-skip.
+    const fatal = e?.type === "Worklet" || e?.type === "Worker";
     // Auto-skip past an unplayable module (corrupt / unsupported) to the next
     // queued track — but stop once we've cycled ~the whole queue, so a fully
     // broken playlist surfaces the error instead of spinning. A short delay lets
     // the error register before the next track clears it.
     const canAdvance =
+      !fatal &&
       playback.queueIndex >= 0 &&
       (playback.shuffle ? queue.length > 1 : playback.queueIndex + 1 < queue.length);
     if (canAdvance && consecutiveErrors <= queue.length) {
@@ -671,7 +701,14 @@ export async function playTrack(track: Track) {
   // the play gesture here, so the resume is allowed. (Also revives an
   // iOS-suspended context / stalled background element on a track switch.)
   await wakeAudio();
-  await p;
+  try {
+    await p;
+  } catch {
+    // Engine failed to initialise (worklet/worker load failure). The onError
+    // handler already moved the transport into its error state; there's nothing
+    // to load, so bail instead of throwing an unhandled rejection out of playTrack.
+    return;
+  }
   // Move output onto the media element (best-effort) so it survives the page
   // being backgrounded / the screen locking. Triggered from the play gesture.
   void routeAudioToElement();
@@ -886,7 +923,11 @@ export function setMono(on: boolean) {
 
 /** Parse a module's metadata without playing it (bulk library enrichment). */
 export async function parseModule(buffer: ArrayBuffer): Promise<ParsedMeta | null> {
-  await ensurePlayer();
+  try {
+    await ensurePlayer();
+  } catch {
+    return null; // engine unavailable (init failed) — nothing to parse against
+  }
   const id = ++parseId;
   return new Promise((resolve) => {
     const timer = setTimeout(() => {

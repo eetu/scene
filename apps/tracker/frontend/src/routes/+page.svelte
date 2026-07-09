@@ -18,6 +18,7 @@
   import { page } from "$app/state";
   import AddToPlaylist from "$lib/AddToPlaylist.svelte";
   import { api, ApiError, type Playlist, type Track } from "$lib/api";
+  import DupesPanel from "$lib/DupesPanel.svelte";
   import FacetBar from "$lib/FacetBar.svelte";
   import { GROUPLESS } from "$lib/library";
   import { library } from "$lib/library.svelte";
@@ -42,6 +43,7 @@
   // keyboard being clipped behind the transport.
   let transportH = $state(56);
   let showSettings = $state(false);
+  let showDupes = $state(false);
   let showHelp = $state(false);
   // The full-screen player overlay + its fullscreen/viz plumbing live in
   // PlayerView; its tab + visualizer are the shared `pv` store (read by the key
@@ -227,6 +229,10 @@
       showSettings = false;
       return;
     }
+    if (e.key === "Escape" && showDupes) {
+      showDupes = false;
+      return;
+    }
     if (e.key === "Escape" && editingTrack) {
       cancelEdit();
       return;
@@ -243,7 +249,13 @@
     // top routes further typing straight to it. SELECT keeps its native
     // type-ahead. Works regardless of playback (must precede the guard below).
     const listForeground =
-      lib.listView && !showPattern && !showHelp && !showSettings && !addTrack && !editingTrack;
+      lib.listView &&
+      !showPattern &&
+      !showHelp &&
+      !showSettings &&
+      !showDupes &&
+      !addTrack &&
+      !editingTrack;
     if (
       listForeground &&
       el?.tagName !== "SELECT" &&
@@ -464,6 +476,7 @@
   {playlists}
   onRefreshPlaylists={refreshPlaylists}
   onPlayList={playList}
+  onToast={showToast}
 />
 
 {#if editingTrack}
@@ -497,7 +510,17 @@
 {/if}
 
 {#if showSettings}
-  <SettingsPanel onClose={() => (showSettings = false)} />
+  <SettingsPanel
+    onClose={() => (showSettings = false)}
+    onDupes={() => {
+      showSettings = false;
+      showDupes = true;
+    }}
+  />
+{/if}
+
+{#if showDupes}
+  <DupesPanel onClose={() => (showDupes = false)} onToast={showToast} />
 {/if}
 
 {#if addTrack}

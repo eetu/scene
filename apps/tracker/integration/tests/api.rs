@@ -221,3 +221,77 @@ async fn api_requires_auth_header_without_dev_auth() {
     let r = s.get("/api/tracks").await;
     assert!(r.status().is_success());
 }
+
+#[tokio::test]
+#[ignore]
+async fn delete_removes_file_and_clears_the_dupe_report() {
+    let s = Stack::start().await.unwrap();
+    // Add an exact copy of song.mod at a second path (same bytes → same md5).
+    std::fs::write(s.root.join("Demo/song.mod"), b"fixture-mod-aaa").unwrap();
+    s.rescan().await;
+    assert_eq!(s.tracks().await.len(), 4);
+
+    // The two copies are reported as one exact-duplicate set.
+    let dupes = s.get_json("/api/dupes").await;
+    let exact = dupes["exact"].as_array().unwrap();
+    assert_eq!(exact.len(), 1, "one exact dupe set: {dupes}");
+    let paths: Vec<&str> = exact[0]["paths"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p.as_str().unwrap())
+        .collect();
+    assert!(paths.contains(&"Acme/Coder/song.mod") && paths.contains(&"Demo/song.mod"));
+
+    // Delete one copy.
+    let r = s
+        .post_json(
+            "/api/delete",
+            serde_json::json!({ "path": "Demo/song.mod" }),
+        )
+        .await;
+    assert!(r.status().is_success(), "delete failed: {}", r.status());
+    let body: serde_json::Value = r.json().await.unwrap();
+    assert_eq!(body["removed"], 1);
+
+    // Gone from disk + index; the other copy is untouched; no longer a dupe.
+    assert!(!s.root.join("Demo/song.mod").exists());
+    assert!(s.root.join("Acme/Coder/song.mod").is_file());
+    let tracks = s.tracks().await;
+    assert_eq!(tracks.len(), 3);
+    assert!(tracks.iter().all(|t| t["path"] != "Demo/song.mod"));
+    let dupes = s.get_json("/api/dupes").await;
+    assert!(
+        dupes["exact"].as_array().unwrap().is_empty(),
+        "dupes cleared: {dupes}"
+    );
+}
+
+#[tokio::test]
+#[ignore]
+async fn delete_rejects_path_escape_and_unknown() {
+    let s = Stack::start().await.unwrap();
+    s.rescan().await;
+
+    // Escaping the root (canonicalize + prefix check) → 404, not a real delete.
+    let escape = s
+        .post_json(
+            "/api/delete",
+            serde_json::json!({ "path": "../../etc/hosts" }),
+        )
+        .await;
+    assert_eq!(escape.status().as_u16(), 404);
+
+    // A path not under the root's index → 404.
+    let missing = s
+        .post_json(
+            "/api/delete",
+            serde_json::json!({ "path": "Acme/Coder/nope.mod" }),
+        )
+        .await;
+    assert_eq!(missing.status().as_u16(), 404);
+
+    // Nothing was touched.
+    assert!(s.root.join("Acme/Coder/song.mod").is_file());
+    assert_eq!(s.tracks().await.len(), 3);
+}

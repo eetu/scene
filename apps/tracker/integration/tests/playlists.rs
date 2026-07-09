@@ -45,9 +45,21 @@ async fn playlist_crud_and_ordering() {
 
     // Add two items; adding a dup (same md5) is idempotent.
     let route = format!("/api/playlists/{id}/items");
-    assert!(s.post_json(&route, json!({ "md5": m0 })).await.status().is_success());
-    assert!(s.post_json(&route, json!({ "md5": m1 })).await.status().is_success());
-    assert!(s.post_json(&route, json!({ "md5": m0 })).await.status().is_success()); // dup
+    assert!(s
+        .post_json(&route, json!({ "md5": m0 }))
+        .await
+        .status()
+        .is_success());
+    assert!(s
+        .post_json(&route, json!({ "md5": m1 }))
+        .await
+        .status()
+        .is_success());
+    assert!(s
+        .post_json(&route, json!({ "md5": m0 }))
+        .await
+        .status()
+        .is_success()); // dup
 
     let detail = s.get_json(&format!("/api/playlists/{id}")).await;
     let items = detail["items"].as_array().unwrap();
@@ -122,7 +134,9 @@ async fn fetch_missing_downloads_and_resolves_item() {
     assert_eq!(detail["items"][0]["present"], false);
 
     // Kick off the fetch; poll status until it finishes having seen work.
-    let r = s.post_empty(&format!("/api/playlists/{id}/fetch-missing")).await;
+    let r = s
+        .post_empty(&format!("/api/playlists/{id}/fetch-missing"))
+        .await;
     assert!(r.status().is_success(), "fetch start: {}", r.status());
     let mut done = false;
     for _ in 0..100 {
@@ -153,7 +167,9 @@ async fn fetch_missing_downloads_and_resolves_item() {
     assert_eq!(detail["items"][0]["filename"], "newtune.mod");
 
     // Re-fetch: it's present now (file with that md5 exists) → nothing to do.
-    let r = s.post_empty(&format!("/api/playlists/{id}/fetch-missing")).await;
+    let r = s
+        .post_empty(&format!("/api/playlists/{id}/fetch-missing"))
+        .await;
     assert!(r.status().is_success());
     for _ in 0..100 {
         let st = s.get_json("/api/fetch/status").await;

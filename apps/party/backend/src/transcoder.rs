@@ -50,7 +50,21 @@ impl<'a> TranscoderClient<'a> {
     pub async fn transcode(&self, kind: &str, ext: &str, src: Vec<u8>) -> AppResult<Vec<u8>> {
         let base = self.base()?;
         let url = format!("{base}/{kind}?ext={ext}");
-        let resp = self.auth(self.state.http.post(url).body(src)).send().await?;
+        // The shared client's default timeout (120s) is far shorter than the
+        // sidecar's own transcode budget (video ≤600s, image ≤30s — see
+        // transcoder `VIDEO_TIMEOUT`/`IMAGE_TIMEOUT`). Without a per-request
+        // override the backend aborts a long video encode mid-flight → 502, even
+        // though the sidecar would have finished (and it re-encodes from scratch
+        // on the next view). Give each request a ceiling just above the sidecar's
+        // so its clean 504 wins over a client-side abort.
+        let timeout = match kind {
+            "video" => std::time::Duration::from_secs(630),
+            _ => std::time::Duration::from_secs(60),
+        };
+        let resp = self
+            .auth(self.state.http.post(url).body(src).timeout(timeout))
+            .send()
+            .await?;
         let status = resp.status();
         // Permanent failures — the sidecar can never convert this source (ffmpeg
         // failed → 422, unsupported ext → 400, too large → 413). Surface these as

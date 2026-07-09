@@ -113,7 +113,14 @@ export class ChiptuneJsPlayer {
 				this.nodeReady = true;
 				this.maybeInit_();
 			})
-			.catch((e) => console.error(e));
+			.catch((e) => {
+				// Worklet module load/compile failure (bad deploy, CSP block,
+				// unsupported browser). Surface it like the worker path
+				// (`worker.onerror`) so awaiters of init don't hang forever —
+				// otherwise `nodeReady` never flips and `onInitialized` never fires.
+				console.error(e);
+				this.fireEvent('onError', { type: 'Worklet' });
+			});
 	}
 
 	maybeInit_() {
