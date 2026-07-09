@@ -580,25 +580,38 @@ async fn api_asset(
     let cache_rel = format!("{hash}.{target}");
     let cache_path = state.cfg.cache_dir.join(&cache_rel);
 
-    // Serve from cache if recorded `ok` and present on disk.
-    let have_cached: bool = state
+    // Recorded outcome for this (hash, target), if any.
+    let recorded: Option<String> = state
         .db
         .with({
             let hash = hash.clone();
             let target = target.clone();
             move |c| {
                 c.query_row(
-                    "SELECT 1 FROM derived WHERE content_hash=?1 AND target=?2 AND status='ok'",
+                    "SELECT status FROM derived WHERE content_hash=?1 AND target=?2",
                     rusqlite::params![hash, target],
-                    |_| Ok(true),
+                    |r| r.get::<_, String>(0),
                 )
-                .or(Ok(false))
+                .map(Some)
+                .or(Ok::<_, rusqlite::Error>(None))
             }
         })
         .await?;
-    if have_cached && cache_path.is_file() {
-        let bytes = tokio::fs::read(&cache_path).await?;
-        return Ok(asset_response(content_type, bytes));
+    match recorded.as_deref() {
+        // Cached success + bytes on disk → serve straight from cache.
+        Some("ok") if cache_path.is_file() => {
+            let bytes = tokio::fs::read(&cache_path).await?;
+            return Ok(asset_response(content_type, bytes));
+        }
+        // Negative cache: the sidecar already rejected this source. Don't re-run
+        // ffmpeg on every view — fall back immediately (SPA offers the original).
+        Some("failed") => {
+            return Err(AppError::Unprocessable(
+                "asset previously failed to transcode".into(),
+            ));
+        }
+        // No row, or an `ok` row whose cache file went missing → (re)transcode.
+        _ => {}
     }
 
     let tc = crate::transcoder::TranscoderClient::new(&state);
@@ -631,7 +644,30 @@ async fn api_asset(
     }
 
     let src = tokio::fs::read(&canon).await?;
-    let out = tc.transcode(kind, &src_ext, src).await?;
+    let out = match tc.transcode(kind, &src_ext, src).await {
+        Ok(out) => out,
+        // Permanent failure → record it so subsequent views short-circuit instead
+        // of re-encoding. Transient upstream errors are NOT cached (they retry).
+        Err(e @ AppError::Unprocessable(_)) => {
+            let now = chrono::Utc::now().to_rfc3339();
+            let hash = hash.clone();
+            let target = target.clone();
+            state
+                .db
+                .with(move |c| {
+                    c.execute(
+                        "INSERT INTO derived (content_hash, target, rel_cache, status, updated_at)
+                         VALUES (?1, ?2, '', 'failed', ?3)
+                         ON CONFLICT(content_hash, target) DO UPDATE SET
+                           status='failed', rel_cache='', bytes=NULL, updated_at=excluded.updated_at",
+                        rusqlite::params![hash, target, now],
+                    )
+                })
+                .await?;
+            return Err(e);
+        }
+        Err(e) => return Err(e),
+    };
 
     tokio::fs::create_dir_all(&state.cfg.cache_dir).await.ok();
     let partial = state.cfg.cache_dir.join(format!("{cache_rel}.partial"));

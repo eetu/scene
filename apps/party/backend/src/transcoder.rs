@@ -64,8 +64,23 @@ impl<'a> TranscoderClient<'a> {
         let resp = self
             .auth(self.state.http.post(url).body(src).timeout(timeout))
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        let status = resp.status();
+        // Permanent failures — the sidecar can never convert this source (ffmpeg
+        // failed → 422, unsupported ext → 400, too large → 413). Surface these as
+        // `Unprocessable` (not `Upstream`) so the asset handler negatively caches
+        // them instead of re-running ffmpeg on every view. Everything else
+        // (unreachable, 504 timeout, 500 misconfig) stays a transient `Upstream`.
+        use reqwest::StatusCode;
+        if matches!(
+            status,
+            StatusCode::UNPROCESSABLE_ENTITY | StatusCode::BAD_REQUEST | StatusCode::PAYLOAD_TOO_LARGE
+        ) {
+            return Err(AppError::Unprocessable(format!(
+                "transcoder rejected the source ({kind}, .{ext}): {status}"
+            )));
+        }
+        let resp = resp.error_for_status()?;
         Ok(resp.bytes().await?.to_vec())
     }
 }

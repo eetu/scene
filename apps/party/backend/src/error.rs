@@ -19,6 +19,12 @@ pub enum AppError {
     /// 502 so the SPA can fall back to a download/placeholder.
     #[error("upstream: {0}")]
     Upstream(String),
+    /// The transcoder can never convert this source (ffmpeg failed / unsupported
+    /// ext / too large) — a *permanent* failure, distinct from a transient
+    /// `Upstream`. Maps to 422 so the SPA falls back without retrying, and lets
+    /// the asset handler negatively cache it (no re-encode on every view).
+    #[error("unprocessable: {0}")]
+    Unprocessable(String),
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
@@ -32,6 +38,7 @@ impl AppError {
             AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
             AppError::Conflict(_) => StatusCode::CONFLICT,
             AppError::Upstream(_) => StatusCode::BAD_GATEWAY,
+            AppError::Unprocessable(_) => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
