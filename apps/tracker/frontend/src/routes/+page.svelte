@@ -464,6 +464,7 @@
   {playlists}
   onRefreshPlaylists={refreshPlaylists}
   onPlayList={playList}
+  onToast={showToast}
 />
 
 {#if editingTrack}
