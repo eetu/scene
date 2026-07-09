@@ -38,6 +38,10 @@
   let kickstartA500 = $state<string | null>(null);
   let kickstartA4000 = $state<string | null>(null);
   let error = $state<string | null>(null);
+  // The productions fetch can block for a while when the backend is mid-scan (it
+  // holds the single DB connection), so show a loading state instead of a bare
+  // empty catalog on a deep link opened during indexing.
+  let loading = $state(true);
   let selected = $state<Production | null>(null);
   let detail = $state<ProductionDetail | null>(null);
 
@@ -75,6 +79,8 @@
   // Fetch the productions for the current party.
   $effect(() => {
     const s = slug;
+    loading = true;
+    error = null;
     api
       .productions(s)
       .then((r) => {
@@ -83,7 +89,8 @@
         kickstartA500 = r.kickstart_a500_url;
         kickstartA4000 = r.kickstart_a4000_url;
       })
-      .catch((e) => (error = String(e)));
+      .catch((e) => (error = String(e)))
+      .finally(() => (loading = false));
   });
 
   // Selection is derived from the URL: this runs on click (goto changed ?p), on
@@ -282,6 +289,8 @@
 <main>
   {#if error}
     <p class="error">{error}</p>
+  {:else if loading && prods.length === 0}
+    <p class="loading">Loading the archive… (if it's still indexing, this can take a moment.)</p>
   {/if}
 
   <div class="cols" class:nav-hidden={!navOpen}>
@@ -826,6 +835,11 @@
   .error {
     color: #ff4136;
     padding: 0 20px;
+  }
+  .loading {
+    color: var(--muted);
+    padding: 12px 20px;
+    font-size: 13px;
   }
   .muted {
     color: var(--muted);
