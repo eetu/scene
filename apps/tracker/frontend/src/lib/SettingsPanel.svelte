@@ -2,7 +2,7 @@
   // Settings overlay. Everything it shows is shared rune state read directly — no
   // props beyond onClose: theme (@scene/design), patternMode ($lib/settings), and
   // the library scan/enrich state + actions ($lib/library.svelte).
-  import { Monitor, Moon, RefreshCw, ScanLine, Sun } from "@lucide/svelte";
+  import { Copy, Monitor, Moon, RefreshCw, ScanLine, Sun } from "@lucide/svelte";
   import { setAccent, setTheme, theme } from "@scene/design";
 
   import {
@@ -15,7 +15,7 @@
   import Modal from "$lib/Modal.svelte";
   import { setPatternMode, settings } from "$lib/settings.svelte";
 
-  let { onClose }: { onClose: () => void } = $props();
+  let { onClose, onDupes }: { onClose: () => void; onDupes: () => void } = $props();
 </script>
 
 <Modal label="settings" {onClose}>
@@ -83,6 +83,15 @@
           · {unEnriched().toLocaleString()} need metadata{/if}
       {/if}
     </span>
+  </div>
+  <div class="setting">
+    <span class="setting-label">cleanup</span>
+    <div class="seg">
+      <button onclick={onDupes} disabled={library.scanning}>
+        <Copy size={15} /> find duplicates
+      </button>
+    </div>
+    <span class="setting-hint">Review identical / same-named modules and delete extras.</span>
   </div>
   <div class="modal-actions">
     <button onclick={onClose}>close</button>

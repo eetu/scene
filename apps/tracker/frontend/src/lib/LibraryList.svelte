@@ -34,6 +34,7 @@
     playlists,
     onRefreshPlaylists,
     onPlayList,
+    onToast,
   }: {
     onOpen: (t: Track) => void;
     onAdd: (t: Track) => void;
@@ -41,6 +42,7 @@
     playlists: Playlist[];
     onRefreshPlaylists: () => void;
     onPlayList: (list: Track[], start?: Track) => void;
+    onToast: (msg: string, kind?: "ok" | "err") => void;
   } = $props();
 
   function fmtTime(sec: number): string {
@@ -168,7 +170,7 @@
 <div class="listwrap">
   <main bind:this={scrollEl} class:has-rail={showRail} style:--row-h="{ROW_H}px">
     {#if view.tab === "playlists"}
-      <PlaylistsTab {playlists} onRefresh={onRefreshPlaylists} onPlay={onPlayList} />
+      <PlaylistsTab {playlists} onRefresh={onRefreshPlaylists} onPlay={onPlayList} {onToast} />
     {:else if library.scanning && library.tracks.length === 0}
       <div class="scan-panel">
         <div class="boing"><BoingBall /></div>
@@ -188,8 +190,13 @@
       </div>
     {:else if library.loading}
       <p class="msg">loading library…</p>
-    {:else if library.error}
-      <p class="msg err">{library.error}</p>
+    {:else if library.error && library.tracks.length === 0}
+      <!-- Cold failure (no library to fall back to): show the error full-width
+           with a retry, instead of a dead-end error string. -->
+      <div class="msg err">
+        <p>{library.error}</p>
+        <button class="link" onclick={rescanLibrary}>retry</button>
+      </div>
     {:else if library.tracks.length === 0}
       <p class="msg">
         No modules indexed yet — try <button class="link" onclick={rescanLibrary}>rescan</button>.
@@ -272,6 +279,16 @@
   {#if showRail}
     <AlphabetRail items={railItems} onJump={jumpToRow} />
   {/if}
+  {#if library.error && library.tracks.length > 0}
+    <!-- A rescan failed but we still have the previously-loaded library — keep it
+         visible and surface the failure non-destructively (fixed overlay, so it
+         doesn't offset the virtualizer's scroll math) with retry + dismiss. -->
+    <div class="err-banner" role="alert">
+      <span class="et">rescan failed: {library.error}</span>
+      <button class="link" onclick={rescanLibrary}>retry</button>
+      <button class="link" aria-label="dismiss" onclick={() => (library.error = null)}>✕</button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -303,9 +320,41 @@
   }
   .msg.err {
     color: var(--halo-error);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .msg.err p {
+    margin: 0;
   }
   .link {
     padding: 2px 8px;
+  }
+  /* Non-destructive rescan-failure bar — pinned above the mini-player, styled
+     like the shared Toasts.svelte error toast but persistent (needs a retry). */
+  .err-banner {
+    position: fixed;
+    left: 50%;
+    bottom: 76px;
+    transform: translateX(-50%);
+    z-index: 20;
+    max-width: calc(100vw - 32px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px 8px 14px;
+    background: var(--panel-hi);
+    border: 1px solid var(--halo-error);
+    border-radius: 6px;
+    color: var(--halo-error);
+    font-size: 13px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  }
+  .err-banner .et {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .scan-panel {

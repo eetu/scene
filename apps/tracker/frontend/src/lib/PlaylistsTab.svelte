@@ -19,9 +19,16 @@
     onRefresh: () => Promise<void> | void;
     /** Play a list of present tracks in order, optionally starting at `start`. */
     onPlay: (tracks: Track[], start?: Track) => void;
+    /** Surface a transient banner (shared app toast). */
+    onToast: (msg: string, kind?: "ok" | "err") => void;
   };
 
-  let { playlists, onRefresh, onPlay }: Props = $props();
+  let { playlists, onRefresh, onPlay, onToast }: Props = $props();
+
+  // Every action here talks to the backend; on failure surface it as an error
+  // toast instead of silently swallowing it (the busy flag would just reset and
+  // the user would see nothing happen).
+  const fail = (e: unknown) => onToast(e instanceof Error ? e.message : String(e), "err");
 
   let newName = $state("");
   let detail = $state<PlaylistDetail | null>(null);
@@ -44,6 +51,8 @@
       newName = "";
       await onRefresh();
       await openDetail(pl.id);
+    } catch (e) {
+      fail(e);
     } finally {
       busy = false;
     }
@@ -53,6 +62,8 @@
     detailLoading = true;
     try {
       detail = await api.getPlaylist(id);
+    } catch (e) {
+      fail(e);
     } finally {
       detailLoading = false;
     }
@@ -70,6 +81,8 @@
       await api.deletePlaylist(id);
       if (detail?.playlist.id === id) detail = null;
       await onRefresh();
+    } catch (e) {
+      fail(e);
     } finally {
       busy = false;
     }
@@ -78,9 +91,13 @@
   async function rename(p: Playlist) {
     const name = prompt("Rename playlist", p.name)?.trim();
     if (!name || name === p.name) return;
-    await api.renamePlaylist(p.id, name);
-    await onRefresh();
-    if (detail?.playlist.id === p.id) await openDetail(p.id);
+    try {
+      await api.renamePlaylist(p.id, name);
+      await onRefresh();
+      if (detail?.playlist.id === p.id) await openDetail(p.id);
+    } catch (e) {
+      fail(e);
+    }
   }
 
   function playDetail() {
@@ -103,9 +120,13 @@
 
   async function removeItem(itemId: number) {
     if (!detail) return;
-    await api.removeFromPlaylist(detail.playlist.id, itemId);
-    await openDetail(detail.playlist.id);
-    await onRefresh();
+    try {
+      await api.removeFromPlaylist(detail.playlist.id, itemId);
+      await openDetail(detail.playlist.id);
+      await onRefresh();
+    } catch (e) {
+      fail(e);
+    }
   }
 
   async function move(index: number, delta: number) {
@@ -114,8 +135,12 @@
     const j = index + delta;
     if (j < 0 || j >= ids.length) return;
     [ids[index], ids[j]] = [ids[j], ids[index]];
-    await api.reorderPlaylist(detail.playlist.id, ids);
-    await openDetail(detail.playlist.id);
+    try {
+      await api.reorderPlaylist(detail.playlist.id, ids);
+      await openDetail(detail.playlist.id);
+    } catch (e) {
+      fail(e);
+    }
   }
 
   async function fetchMissing() {
@@ -129,6 +154,8 @@
       } while (fetchp.running);
       await openDetail(detail.playlist.id);
       await onRefresh();
+    } catch (e) {
+      fail(e);
     } finally {
       fetching = false;
     }
@@ -146,7 +173,7 @@
       await onRefresh();
       await openDetail(pl.id);
     } catch (err) {
-      alert(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
+      onToast(`Import failed: ${err instanceof Error ? err.message : String(err)}`, "err");
     } finally {
       busy = false;
       input.value = ""; // allow re-importing the same file
@@ -154,14 +181,18 @@
   }
 
   async function exportPlaylist(p: Playlist) {
-    const doc = await api.exportPlaylist(p.id);
-    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${p.name.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}.playlist.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const doc = await api.exportPlaylist(p.id);
+      const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${p.name.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}.playlist.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      fail(e);
+    }
   }
 
   function song(i: PlaylistItem): string {

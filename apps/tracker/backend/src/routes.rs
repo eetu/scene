@@ -29,10 +29,14 @@ pub fn router(state: AppState) -> Router {
         .route("/api/play/{hash}", post(api_play))
         // Rename / move a module on disk (organise the collection in place).
         .route("/api/rename", post(api_rename))
+        .route("/api/delete", post(api_delete))
         // Re-walk the collection (e.g. after moving files around).
         .route("/api/rescan", post(api_rescan))
         // Playlists: list/create, fetch/rename/delete one, manage its items.
-        .route("/api/playlists", get(api_playlists).post(api_create_playlist))
+        .route(
+            "/api/playlists",
+            get(api_playlists).post(api_create_playlist),
+        )
         // Import a md5-keyed playlist document (static segment before {id}).
         .route("/api/playlists/import", post(api_import_playlist))
         .route(
@@ -46,7 +50,10 @@ pub fn router(state: AppState) -> Router {
             "/api/playlists/{id}/items",
             post(api_add_item).put(api_reorder_items),
         )
-        .route("/api/playlists/{id}/items/{item_id}", delete(api_remove_item))
+        .route(
+            "/api/playlists/{id}/items/{item_id}",
+            delete(api_remove_item),
+        )
         // Download a playlist's missing songs by md5 via Modland; poll progress.
         .route("/api/playlists/{id}/fetch-missing", post(api_fetch_missing))
         .route("/api/fetch/status", get(api_fetch_status))
@@ -463,6 +470,55 @@ async fn api_rename(
     })))
 }
 
+#[derive(Deserialize)]
+struct DeleteIn {
+    /// Relative path under the root (the track's `path`) — as stored in the
+    /// index, which is where the dupes report's paths come from.
+    path: String,
+}
+
+/// Permanently delete a module file (primarily to clean up duplicates). Removes
+/// it from disk and drops its index row; hash-keyed `meta`/`stats` are retained
+/// (they follow the content — other copies of an exact dupe still reference them,
+/// and a rescan reconciles regardless). Irreversible; the collection mount is
+/// read-write (see the tracker CLAUDE.md).
+async fn api_delete(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Json(req): Json<DeleteIn>,
+) -> AppResult<Json<Value>> {
+    let root = state.cfg.root.clone();
+    let rel = req.path.clone();
+    // Validate the target is a real file inside the root (rejects `..` escapes).
+    let abs = root.join(&rel);
+    let (canon, root_canon) = match (abs.canonicalize(), root.canonicalize()) {
+        (Ok(a), Ok(b)) => (a, b),
+        _ => return Err(AppError::NotFound),
+    };
+    if !canon.starts_with(&root_canon) || !canon.is_file() {
+        return Err(AppError::NotFound);
+    }
+
+    // Remove the file on a blocking thread.
+    let for_fs = canon.clone();
+    tokio::task::spawn_blocking(move || std::fs::remove_file(&for_fs))
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => AppError::NotFound,
+            _ => AppError::Internal(e.into()),
+        })?;
+
+    // Drop the index row (rel_path is unique; the path came from the index).
+    let for_db = rel.clone();
+    let removed = state
+        .db
+        .with(move |c| c.execute("DELETE FROM files WHERE rel_path=?1", [for_db]))
+        .await?;
+
+    Ok(Json(json!({ "path": rel, "removed": removed })))
+}
+
 async fn api_rescan(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
     let result = crate::run_scan(state.db.clone(), state.cfg.root.clone(), state.scan.clone())
         .await
@@ -759,7 +815,11 @@ impl ItemIn {
             .filter(|m| m.len() == 32 && m.bytes().all(|b| b.is_ascii_hexdigit()))
     }
     fn norm_path(&self) -> Option<String> {
-        self.path.as_deref().map(str::trim).filter(|p| !p.is_empty()).map(str::to_string)
+        self.path
+            .as_deref()
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .map(str::to_string)
     }
     /// Normalised url (http/https only — never let an import write arbitrary
     /// schemes like file:// into a fetch reference).
@@ -772,7 +832,9 @@ impl ItemIn {
     }
     /// De-dup / identity key: md5 if present, else path, else url.
     fn key(&self) -> Option<String> {
-        self.norm_md5().or_else(|| self.norm_path()).or_else(|| self.norm_url())
+        self.norm_md5()
+            .or_else(|| self.norm_path())
+            .or_else(|| self.norm_url())
     }
 }
 
@@ -788,8 +850,12 @@ async fn api_add_item(
     if md5.is_none() && path.is_none() && url.is_none() {
         return Err(AppError::BadRequest("md5, path, or url is required".into()));
     }
-    let (title, artist, format, filename) =
-        (req.title.clone(), req.artist.clone(), req.format.clone(), req.filename.clone());
+    let (title, artist, format, filename) = (
+        req.title.clone(),
+        req.artist.clone(),
+        req.format.clone(),
+        req.filename.clone(),
+    );
     let touched = chrono::Utc::now().to_rfc3339();
     state
         .db
@@ -1041,7 +1107,9 @@ async fn api_export_playlist(
             Ok((name, source, items))
         })
         .await?;
-    Ok(Json(json!({ "name": name, "source": source, "items": items })))
+    Ok(Json(
+        json!({ "name": name, "source": source, "items": items }),
+    ))
 }
 
 /// All distinct content MD5s in the library — lets an external curator diff a
@@ -1169,7 +1237,11 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
     tracing::info!(count = missing.len(), "fetch-missing: downloading");
 
     if missing.len() > FETCH_MAX {
-        tracing::warn!(cap = FETCH_MAX, total = missing.len(), "capping downloads this run");
+        tracing::warn!(
+            cap = FETCH_MAX,
+            total = missing.len(),
+            "capping downloads this run"
+        );
     }
     let client = crate::modland::Client::new(state.cfg.modland_base.clone())?;
     let mut wrote_any = false;
@@ -1224,8 +1296,14 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
                     (group, artist, filename)
                 }
             };
-            if let Err(e) =
-                write_module(&state.cfg.root, &group, artist.as_deref(), &filename, &bytes).await
+            if let Err(e) = write_module(
+                &state.cfg.root,
+                &group,
+                artist.as_deref(),
+                &filename,
+                &bytes,
+            )
+            .await
             {
                 tracing::warn!(file = %filename, error = %e, "write failed");
                 state.fetch.failed.fetch_add(1, Ordering::Relaxed);
