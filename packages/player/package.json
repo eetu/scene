@@ -23,8 +23,12 @@
     "svelte": "^5"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.4.1",
+    "@gltf-transform/extensions": "^4.4.1",
+    "@gltf-transform/functions": "^4.4.1",
     "@sveltejs/vite-plugin-svelte": "^7.1.4",
     "@vitest/browser-playwright": "^4.1.10",
+    "meshoptimizer": "^1.2.0",
     "playwright": "^1.61.1",
     "vite": "^8.1.3",
     "vitest": "^4.1.10",
