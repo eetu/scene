@@ -91,17 +91,28 @@ pub async fn run_scan(
     parties: Arc<PartyConfigs>,
     progress: Arc<ScanProgress>,
 ) -> anyhow::Result<ScanResult> {
-    progress.scanning.store(true, Ordering::Relaxed);
-    let joined = tokio::task::spawn_blocking({
-        let progress = progress.clone();
-        move || {
-            let mut conn = db.blocking_lock();
-            scan::scan_into(&mut conn, &root, &parties, &progress)
-        }
+    // Own the `scanning` flag INSIDE the blocking task, not around the `.await`.
+    // spawn_blocking runs to completion even if the awaiting future is cancelled
+    // — e.g. the client aborts POST /api/rescan (a UI reload / navigation) — so
+    // resetting the flag after the await would leak `scanning = true` forever
+    // while the scan actually finished. A drop guard resets it on any exit
+    // (return, error, or panic), and the blocking task can't be cancelled.
+    tokio::task::spawn_blocking(move || {
+        progress.scanning.store(true, Ordering::Relaxed);
+        let _done = ScanFlagGuard(progress.clone());
+        let mut conn = db.blocking_lock();
+        scan::scan_into(&mut conn, &root, &parties, &progress)
     })
-    .await;
-    progress.scanning.store(false, Ordering::Relaxed);
-    joined?
+    .await?
+}
+
+/// Resets the `scanning` flag to false when dropped, so a scan always clears it
+/// regardless of how it ends. Lives inside the (non-cancellable) blocking task.
+struct ScanFlagGuard(Arc<ScanProgress>);
+impl Drop for ScanFlagGuard {
+    fn drop(&mut self) {
+        self.0.scanning.store(false, Ordering::Relaxed);
+    }
 }
 
 /// Whether real party data is present under `root`. The mountpoint always
