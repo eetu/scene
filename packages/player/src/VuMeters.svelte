@@ -33,6 +33,7 @@
 
     let posL = 0;
     let posR = 0;
+    let posM = 0; // combined L+R needle (mono downmix → one meter)
     const SWEEP = Math.PI * 0.4; // ±72° total
 
     function bank(lo: number, hi: number): number {
@@ -177,11 +178,16 @@
 
     const stopFrames = driveFrames(
       () => {
-        const tL = active ? bank(0, 0.5) : 0;
-        const tR = active ? bank(0.5, 1) : 0;
+        // Mono downmix → one combined meter (the two banks carry the same signal,
+        // so a single L+R dial is honest); stereo → the L/R pair.
+        const mono = playback.mono;
+        const tL = active && !mono ? bank(0, 0.5) : 0;
+        const tR = active && !mono ? bank(0.5, 1) : 0;
+        const tM = active && mono ? bank(0, 1) : 0;
         // Eased attack, slower release (≈ VU ballistics).
         posL += (tL - posL) * (tL > posL ? 0.3 : 0.1);
         posR += (tR - posR) * (tR > posR ? 0.3 : 0.1);
+        posM += (tM - posM) * (tM > posM ? 0.3 : 0.1);
 
         if (w > 0 && h > 0) {
           if (document.documentElement.dataset.theme === "light") drawBrushedSteel();
@@ -189,8 +195,12 @@
             g2.fillStyle = "#120d07";
             g2.fillRect(0, 0, w, h);
           }
-          meter(0, 0, w / 2, h, posL, "L");
-          meter(w / 2, 0, w / 2, h, posR, "R");
+          if (mono) {
+            meter(0, 0, w, h, posM, "L+R");
+          } else {
+            meter(0, 0, w / 2, h, posL, "L");
+            meter(w / 2, 0, w / 2, h, posR, "R");
+          }
         }
       },
       { fps: 60 },

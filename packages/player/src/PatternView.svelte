@@ -180,7 +180,14 @@
             >{hex2(r)}</span
           >
           <div class="clip" style:width="{win.windowW}px">
-            <div class="strip" style:width="{stripW}px" style:transform="translateX({shiftX}px)">
+            <div
+              class="strip rstrip"
+              class:beat={r % 4 === 0}
+              class:measure={r % 16 === 0}
+              style:width="{stripW}px"
+              style:height="{ROW_H}px"
+              style:transform="translateX({shiftX}px)"
+            >
               {#each cells as cell, c (c)}{#if editCells}{@const ec = editCells[r]?.[c]}<span
                     class="cell ecell"
                     class:muted={playback.channelMutes[c]}
@@ -368,12 +375,21 @@
      rhythm cue. Measure is stronger; both stay subtle so text keeps priority. */
   /* Rhythm cue as a NEUTRAL 2-step (beat faint, measure medium) so it never
      competes with the accent current-row band above it. */
-  .prow.beat {
-    color: var(--surface-fg-beat);
-    background: color-mix(in srgb, var(--surface-fg) 6%, transparent);
-  }
+  .prow.beat,
   .prow.measure {
     color: var(--surface-fg-beat);
+  }
+  /* The rhythm tint rides the sliding channel strip (not the static row), so on a
+     highlighted beat/measure row it pages together with the cells — otherwise the
+     cells appeared to slide against a fixed band while plain rows didn't, which
+     read as the highlighted rows animating out of step. */
+  .rstrip {
+    align-items: center;
+  }
+  .rstrip.beat {
+    background: color-mix(in srgb, var(--surface-fg) 6%, transparent);
+  }
+  .rstrip.measure {
     background: color-mix(in srgb, var(--surface-fg) 14%, transparent);
   }
   .prow.active {

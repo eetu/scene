@@ -47,16 +47,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    /* A single-line divider on the channel-facing side only (matches the column
-       dividers); no border on the OUTER side, so the edge blends into the frame. */
-    background: var(--surface-2);
+    background: var(--surface-bar);
   }
   .edge.left {
-    border-right: 1px solid var(--surface-line);
+    border-right: 1px solid var(--surface-line-2);
   }
   .edge.right {
     right: 0;
-    border-left: 1px solid var(--surface-line);
+    border-left: 1px solid var(--surface-line-2);
   }
   /* Borderless, tall, embedded — no button box, just the glyph. */
   .chev {
@@ -74,7 +72,7 @@
   }
   .chev span {
     display: block;
-    font-size: 22px;
+    font-size: 32px;
     line-height: 1;
     transform: scaleY(2.4);
   }
