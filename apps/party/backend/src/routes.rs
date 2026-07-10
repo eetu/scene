@@ -121,7 +121,10 @@ struct PartyOut {
     n_productions: i64,
     n_files: i64,
     logo_hash: Option<String>,
-    logo_kind: Option<String>,
+    /// MIME of the logo file (when a party sets one), so the SPA can serve a
+    /// browser-native format raw and route anything else through the transcoder —
+    /// same native-vs-transcode decision as the file browser.
+    logo_mime: Option<String>,
 }
 
 async fn api_parties(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
@@ -130,12 +133,18 @@ async fn api_parties(_auth: Auth, State(state): State<AppState>) -> AppResult<Js
         .with(|c| {
             let mut stmt = c.prepare(
                 "SELECT p.slug, p.name, p.year, p.location, p.organizer,
-                        p.n_productions, p.n_files, f.content_hash, f.kind
+                        p.n_productions, p.n_files, f.content_hash, f.ext, f.filename
                  FROM parties p
                  LEFT JOIN files f ON f.rel_path = p.logo_rel
                  ORDER BY p.year, p.name COLLATE NOCASE",
             )?;
             let rows = stmt.query_map([], |r| {
+                let ext: Option<String> = r.get(8)?;
+                let filename: Option<String> = r.get(9)?;
+                let logo_mime = ext
+                    .as_deref()
+                    .zip(filename.as_deref())
+                    .map(|(e, f)| crate::scan::mime_for(e, f).to_string());
                 Ok(PartyOut {
                     slug: r.get(0)?,
                     name: r.get(1)?,
@@ -145,7 +154,7 @@ async fn api_parties(_auth: Auth, State(state): State<AppState>) -> AppResult<Js
                     n_productions: r.get(5)?,
                     n_files: r.get(6)?,
                     logo_hash: r.get(7)?,
-                    logo_kind: r.get(8)?,
+                    logo_mime,
                 })
             })?;
             rows.collect::<rusqlite::Result<Vec<_>>>()
