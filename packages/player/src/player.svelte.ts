@@ -24,13 +24,15 @@ import {
   NUM_FIELDS,
 } from "./notes";
 import { plannedNext } from "./queue";
+import { SCOPE_SIZE, setScopeSource } from "./scope";
 import { transportMachine } from "./transport-machine";
 import { buildWav } from "./wav";
 
-// Re-export the pure note/cell helpers (moved to ./notes) so the package's
-// public API — and in-package components importing from "./player.svelte" — are
-// unchanged.
+// Re-export the pure/self-contained helpers moved to sibling modules so the
+// package's public API — and in-package components importing from
+// "./player.svelte" — are unchanged.
 export { CELL, cellFieldText, FIELD, isRealNote, noteName, noteToJam, NUM_FIELDS } from "./notes";
+export { readScope, readSpectrum, sampleBands, SCOPE_SIZE, SPECTRUM_SIZE } from "./scope";
 
 export type ProgressMsg = {
   pos?: number;
@@ -107,7 +109,6 @@ export type ParsedMeta = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let player: any = null;
 let ready: Promise<void> | null = null;
-let analyser: AnalyserNode | null = null;
 let parseId = 0;
 let wakeLock: WakeLockSentinel | null = null;
 let platformWired = false;
@@ -118,50 +119,6 @@ let playCountHash: string | null = null;
 // Plain (non-reactive) registry of in-flight parse resolvers — not UI state.
 // eslint-disable-next-line svelte/prefer-svelte-reactivity
 const pendingParse = new Map<number, (m: ParsedMeta | null) => void>();
-
-/** Output-waveform sample count for the scope (power of two). */
-export const SCOPE_SIZE = 2048;
-
-/** Fill `buf` (length SCOPE_SIZE) with the current output waveform (0–255,
- *  128 = silence). Returns false until the audio graph exists. */
-export function readScope(buf: Uint8Array<ArrayBuffer>): boolean {
-  if (!analyser) return false;
-  analyser.getByteTimeDomainData(buf);
-  return true;
-}
-
-/** Number of frequency bins the analyser exposes (fftSize / 2). */
-export const SPECTRUM_SIZE = SCOPE_SIZE / 2;
-
-/** Fill `buf` (length SPECTRUM_SIZE) with the current output frequency
- *  magnitudes (0–255). Returns false until the audio graph exists. Powers the
- *  equalizer/spectrum visualizer. */
-export function readSpectrum(buf: Uint8Array<ArrayBuffer>): boolean {
-  if (!analyser) return false;
-  analyser.getByteFrequencyData(buf);
-  return true;
-}
-
-// Reused across sampleBands() calls so a per-frame viz doesn't allocate.
-const bandBuf = new Uint8Array(SPECTRUM_SIZE);
-
-/** Current output energy split into three bands (bass / mid / treble), each
- *  roughly 0–1, from the analyser's frequency magnitudes averaged over fixed Hz
- *  ranges. Zeros until the audio graph exists. Lets visualizers react per-band
- *  (e.g. bass → pulse, treble → sparkle) instead of to one overall level. */
-export function sampleBands(): { bass: number; mid: number; treble: number } {
-  if (!analyser) return { bass: 0, mid: 0, treble: 0 };
-  analyser.getByteFrequencyData(bandBuf);
-  const hzPerBin = analyser.context.sampleRate / 2 / bandBuf.length;
-  const avg = (loHz: number, hiHz: number) => {
-    const lo = Math.max(0, Math.floor(loHz / hzPerBin));
-    const hi = Math.min(bandBuf.length, Math.ceil(hiHz / hzPerBin));
-    let sum = 0;
-    for (let i = lo; i < hi; i++) sum += bandBuf[i];
-    return hi > lo ? sum / (hi - lo) / 255 : 0;
-  };
-  return { bass: avg(20, 200), mid: avg(200, 2000), treble: avg(2000, 8000) };
-}
 
 // --- Beat tracking (module row/tempo) ---------------------------------------
 // In tracker music the pattern rows are the beat grid; a musical beat is the
@@ -341,7 +298,7 @@ function ensurePlayer(): Promise<void> {
   a.maxDecibels = -10;
   a.smoothingTimeConstant = 0.82;
   player.gain.connect(a);
-  analyser = a;
+  setScopeSource(a);
   let initSettled = false;
   ready = new Promise<void>((resolve, reject) => {
     player.onInitialized(() => {
