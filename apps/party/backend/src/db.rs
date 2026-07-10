@@ -69,23 +69,9 @@ impl Db {
 
     fn migrate(conn: &Connection) -> anyhow::Result<()> {
         conn.execute_batch(SCHEMA)?;
-        // Additive column migrations — `CREATE TABLE IF NOT EXISTS` won't alter a
-        // table that already exists, so columns added after first run need this.
-        // Safe + idempotent every boot. (table/col are code constants, not input.)
-        ensure_column(conn, "parties", "kickstart_rel", "TEXT")?;
         conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         Ok(())
     }
-}
-
-fn ensure_column(conn: &Connection, table: &str, col: &str, decl: &str) -> anyhow::Result<()> {
-    let present: i64 = conn
-        .prepare(&format!("SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = ?1"))?
-        .query_row([col], |r| r.get(0))?;
-    if present == 0 {
-        conn.execute(&format!("ALTER TABLE {table} ADD COLUMN {col} {decl}"), [])?;
-    }
-    Ok(())
 }
 
 /// The declarative schema, for tests that need a raw connection (the scanner
@@ -106,7 +92,6 @@ CREATE TABLE IF NOT EXISTS parties (
   location      TEXT,
   organizer     TEXT,
   logo_rel      TEXT,
-  kickstart_rel TEXT,
   n_productions INTEGER NOT NULL DEFAULT 0,
   n_files       INTEGER NOT NULL DEFAULT 0
 );

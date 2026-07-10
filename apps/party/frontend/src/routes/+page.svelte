@@ -5,7 +5,7 @@
   import { stop as stopPlayback } from "@scene/player";
   import { onMount } from "svelte";
 
-  import { api, fileUrl, type Party, type StatusResponse } from "$lib/api";
+  import { api, assetUrl, fileUrl, type Party, type StatusResponse } from "$lib/api";
   import { listKeys } from "$lib/listkeys";
   import Settings from "$lib/Settings.svelte";
 
@@ -18,7 +18,9 @@
   let lastProcessed = -1;
   let stalledPolls = 0;
 
-  const NATIVE_IMG = new Set(["gif", "jpg", "jpeg", "png"]);
+  // Browser-native image MIMEs are served raw; anything else (e.g. a scene-native
+  // ILBM logo) goes through the transcoder → PNG. Mirrors FileBrowser's decision.
+  const NATIVE_IMG = new Set(["image/gif", "image/jpeg", "image/png", "image/bmp"]);
 
   // Thumbnail fallback glyph: each word's first letter (skipping words that
   // start with a digit or symbol) + a scene-style 'YY year, so the same party
@@ -112,8 +114,13 @@
       {#each parties as p (p.slug)}
         <a class="card" href={`/${p.slug}`}>
           <div class="thumb">
-            {#if p.logo_hash && p.logo_kind && NATIVE_IMG.has(p.logo_kind === "image" ? "gif" : p.logo_kind)}
-              <img src={fileUrl(p.logo_hash)} alt="" />
+            {#if p.logo_hash && p.logo_mime?.startsWith("image/")}
+              <img
+                src={NATIVE_IMG.has(p.logo_mime)
+                  ? fileUrl(p.logo_hash)
+                  : assetUrl(p.logo_hash, "png")}
+                alt=""
+              />
             {:else}
               <span class="glyph">{glyph(p)}</span>
             {/if}

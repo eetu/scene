@@ -11,7 +11,7 @@ export type Party = {
   n_productions: number;
   n_files: number;
   logo_hash: string | null;
-  logo_kind: string | null;
+  logo_mime: string | null;
 };
 
 /** A competition entry as shown in a party's catalog. */
