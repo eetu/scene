@@ -11,6 +11,16 @@ import { BeatTracker } from "./beat";
 import { createEngine } from "./engine";
 import { host, type Track } from "./host";
 import {
+  attachJam,
+  cachedBuffer,
+  jamNote,
+  jamStop,
+  jamStopAll,
+  resetJam,
+  sampleBuffer,
+  setJamLevel,
+} from "./jam";
+import {
   CELL,
   EDIT_FIELDS,
   FIELD,
@@ -25,8 +35,12 @@ import {
 } from "./notes";
 import { plannedNext } from "./queue";
 import { SCOPE_SIZE, setScopeSource } from "./scope";
+import { playback } from "./state.svelte";
 import { transportMachine } from "./transport-machine";
 import { buildWav } from "./wav";
+
+export { playback } from "./state.svelte";
+export { jamNote, jamStop, jamStopAll, setJamLevel } from "./jam";
 
 // Re-export the pure/self-contained helpers moved to sibling modules so the
 // package's public API — and in-package components importing from
@@ -151,80 +165,9 @@ export function beatBpm(): number {
   return beat.bpm();
 }
 
-// Playback is a small state machine over one loaded module:
-//   stopped: playing=false            (transport shows ▶; play restarts from top)
-//   playing: playing=true, paused=false
-//   paused:  playing=true, paused=true
-// `current`/`song` persist through stop so the player view stays put; only
-// opening another track replaces them.
-export const playback = $state({
-  current: null as Track | null,
-  playing: false,
-  paused: false,
-  position: 0,
-  duration: 0,
-  order: 0,
-  pattern: 0,
-  row: 0,
-  // Edit/inspect cursor in the pattern grid (row + channel) — groundwork for the
-  // editor; today it highlights a cell, navigates by arrows, and can seek to its
-  // row. Independent of the playing row.
-  cursorRow: 0,
-  cursorCh: 0,
-  // Editor: which sub-column of the cursor cell is active (0 note, 1 inst, 2 vol,
-  // 3 fx, 4 param), and whether edit mode is on. Edit mode swaps the pattern grid
-  // to a structured, per-field-editable render and enables note/hex entry.
-  cursorField: 0,
-  editing: false,
-  editOctave: 5, // base octave for QWERTY note entry (C-5 = middle C)
-  editStep: 1, // rows the cursor advances after entering a note
-  editInst: 1, // instrument written with a newly entered note
-  // Editor sequencer (our own Web Audio playback of the edited pattern, so edits
-  // are audible independently of libopenmpt). Loops the current pattern.
-  seqPlaying: false,
-  seqRow: 0, // row the sequencer is currently sounding
-  followPlay: false, // edit mode: view + cursor ride the playhead (live-record)
-  seqBpm: 125, // classic default (row secs = 2.5 * speed / bpm)
-  seqSpeed: 6,
-  beat: 0, // bumps once per musical beat (see noteRow) — a reactive on-beat tick
-  vu: [] as number[],
-  song: null as Song | null,
-  samples: [] as string[],
-  instruments: [] as string[],
-  muted: false,
-  // Downmix output to mono (accessibility). Persisted; applied once the engine
-  // is ready. Read at startup so the choice survives reloads.
-  mono: typeof localStorage !== "undefined" && localStorage.getItem("player:mono") === "1",
-  shuffle: false,
-  repeat: false, // loop the current module forever (libopenmpt repeat_count = -1)
-  // Position in the play queue (the ordered list the current track was opened
-  // from), so next/prev and auto-advance work. -1 = no queue.
-  queueIndex: -1,
-  queueLength: 0,
-  error: null as string | null,
-  // Custom-build capability (this app's vendored WASM carries the sample-read
-  // shim; party's stock build doesn't). Set once the engine reports ready. UI
-  // (keyboard, waveform pane) gates on it so the shared package degrades.
-  canReadSamples: false,
-  // Custom-build capabilities for the editor: per-channel mute/solo and structured
-  // pattern cells. Both false on party's stock build (UI hides accordingly).
-  canMuteChannels: false,
-  canReadCells: false,
-  // Per-channel mute state (index = channel), length = the loaded module's channel
-  // count; reset on load. Solo mutes every other channel. Applied to the live
-  // module via chan_mute so the song's own render drops the channel.
-  channelMutes: [] as boolean[],
-  // Live sample-frame position of the current jammed note (-1 = none), for the
-  // waveform play cursor. Reported by the worker synced to audio.
-  jamPos: -1,
-  // How many jam keys are currently held — lets the UI suppress track-switch
-  // arrows while jamming so you can navigate samples without changing tracks.
-  jamHeld: 0,
-  // Jam/audition level (0..2 → gain 0..1): a plain fader over the song.
-  jamLevel: 1,
-  // Force one-shot playback (ignore the sample's loop) when auditioning/jamming.
-  jamOneShot: false,
-});
+// The reactive `playback` store lives in ./state (imported above), re-exported
+// below so the public API + component imports from "./player.svelte" are
+// unchanged.
 
 let queue: Track[] = [];
 // Pre-rolled next queue index: chosen when a track *starts*, so the next song is
@@ -288,6 +231,7 @@ function ensurePlayer(): Promise<void> {
   if (player) return ready as Promise<void>;
   // Synchronous `new AudioContext()` keeps us inside the click gesture.
   player = createEngine({ repeatCount: 0 });
+  attachJam(player, wakeAudio); // wire the Web Audio sampler to this engine
   // Tap the output for the scope. The gain node exists immediately (the
   // worklet connects to it once it's ready); the analyser just observes.
   const a: AnalyserNode = player.context.createAnalyser();
@@ -985,193 +929,9 @@ function triggerDownload(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// AudioBuffers built from sample PCM, cached per index; invalidated on track load
-// (indices are reused for different samples across modules).
-// eslint-disable-next-line svelte/prefer-svelte-reactivity
-const bufCache = new Map<number, { buffer: AudioBuffer; info: SampleInfo } | null>();
-let bufGen = 0;
-
-// Tiny note-on/off gain ramps to declick jammed samples: a raw PCM buffer whose
-// first/last frame sits away from zero snaps audibly on an instant start/stop, so
-// each voice gets its own gain node ramped up on start and down before stop.
-const JAM_ATTACK = 0.004; // s — fade-in on note-on
-const JAM_RELEASE = 0.006; // s — fade-out on note-off
-
-type JamVoice = {
-  src: AudioBufferSourceNode;
-  env: GainNode; // per-voice declick envelope (src → env → jamOutput)
-  start: number; // ctx time at start
-  startFrame: number; // sample-frame the playback started from (click-to-audition)
-  rate: number; // buffer sample rate (sample's middle-C freq)
-  speed: number; // playbackRate for the pressed note
-  length: number;
-  loop: boolean;
-  loopStart: number;
-  loopEnd: number;
-};
-// eslint-disable-next-line svelte/prefer-svelte-reactivity
-const voices = new Map<number, JamVoice>();
-let voiceId = 0;
-let lastVoice: JamVoice | null = null;
-let cursorRaf = 0;
-
-// Jammed/auditioned samples play at full-scale PCM, but libopenmpt's song mix
-// sits below full-scale (mixing headroom), so a raw note would drown the song.
-// Route all jam voices through one gain node (a plain user fader, playback.jamLevel
-// 0..2 → gain jamLevel/2) so they sit ON TOP of the song. Connected to
-// player.gain, so it respects volume/mute.
-let jamGain: GainNode | null = null;
-
-function jamOutput(): AudioNode {
-  if (!jamGain) {
-    jamGain = (player.context as AudioContext).createGain();
-    jamGain.connect(player.gain);
-    applyJamGain();
-  }
-  return jamGain;
-}
-
-// Plain fader: gain = jamLevel/2 (1 = half-scale). Clamped + ramped so it never
-// clicks.
-function applyJamGain() {
-  if (!jamGain || !player) return;
-  const target = Math.min(1, Math.max(0, playback.jamLevel / 2));
-  jamGain.gain.setTargetAtTime(target, player.context.currentTime, 0.12);
-}
-
-/** Set the jam/audition level (0..2 → gain 0..1). */
-export function setJamLevel(v: number) {
-  playback.jamLevel = Math.max(0, Math.min(2, v));
-  applyJamGain();
-}
-
-// Fade a voice out over the release ramp, then stop its source — declicks the
-// note-off (an instant stop mid-waveform snaps just like an instant start). The
-// source keeps rendering until the scheduled stop even after we drop our
-// bookkeeping, so the tail plays out.
-function releaseVoice(v: JamVoice) {
-  if (!player) return;
-  const t = player.context.currentTime;
-  try {
-    v.env.gain.cancelScheduledValues(t);
-    v.env.gain.setValueAtTime(v.env.gain.value, t);
-    v.env.gain.linearRampToValueAtTime(0, t + JAM_RELEASE);
-    v.src.stop(t + JAM_RELEASE);
-  } catch {
-    /* already stopped */
-  }
-}
-
-/** Stop every sounding jam voice (e.g. when the selected sample changes). */
-export function jamStopAll() {
-  for (const v of voices.values()) releaseVoice(v);
-  voices.clear();
-  lastVoice = null;
-  playback.jamPos = -1;
-}
-
-/** Drop cached buffers + stop live voices (called on track change). */
-function resetJam() {
-  bufGen++;
-  bufCache.clear();
-  for (const v of voices.values()) releaseVoice(v);
-  voices.clear();
-  lastVoice = null;
-}
-
-async function sampleBuffer(idx: number) {
-  if (bufCache.has(idx)) return bufCache.get(idx) ?? null;
-  const gen = bufGen;
-  const data = await readSample(idx);
-  let entry: { buffer: AudioBuffer; info: SampleInfo } | null = null;
-  if (player && data && data.pcm.length > 0) {
-    const rate = data.info.rate || 8363;
-    const buffer = player.context.createBuffer(1, data.pcm.length, rate);
-    buffer.copyToChannel(data.pcm, 0);
-    entry = { buffer, info: data.info };
-  }
-  if (gen === bufGen) bufCache.set(idx, entry); // don't cache across a track change
-  return entry;
-}
-
-// Update the waveform play cursor (playback.jamPos) from the most recent voice.
-function tickCursor() {
-  if (!lastVoice || !player) {
-    playback.jamPos = -1;
-    cursorRaf = 0;
-    return;
-  }
-  const v = lastVoice;
-  let f = v.startFrame + (player.context.currentTime - v.start) * v.speed * v.rate;
-  if (v.loop && v.loopEnd > v.loopStart) {
-    if (f >= v.loopEnd) f = v.loopStart + ((f - v.loopStart) % (v.loopEnd - v.loopStart));
-    playback.jamPos = Math.floor(f);
-  } else {
-    playback.jamPos = f < v.length ? Math.floor(f) : -1;
-  }
-  cursorRaf = requestAnimationFrame(tickCursor);
-}
-
-/** Play sample `sampleIdx` (1-based) at `note` (60 = middle C), optionally from
- *  `offsetFrames` into the sample (for click-to-audition). Returns a voice id to
- *  stop on key-up, or -1. */
-export async function jamNote(sampleIdx: number, note: number, offsetFrames = 0): Promise<number> {
-  if (!player || !playback.canReadSamples) return -1;
-  await wakeAudio(); // resume a possibly-suspended context inside the key gesture
-  const sb = await sampleBuffer(sampleIdx);
-  if (!sb) return -1;
-  const src = player.context.createBufferSource();
-  src.buffer = sb.buffer;
-  const speed = Math.pow(2, (note - 60) / 12);
-  src.playbackRate.value = speed;
-  const loop = !playback.jamOneShot && !!(sb.info.flags & 1) && sb.info.loopEnd > sb.info.loopStart;
-  if (loop) {
-    src.loop = true;
-    src.loopStart = sb.info.loopStart / sb.info.rate;
-    src.loopEnd = sb.info.loopEnd / sb.info.rate;
-  }
-  const now = player.context.currentTime;
-  // Per-voice envelope: ramp 0→1 over the attack so the note-on doesn't snap.
-  const env = player.context.createGain();
-  env.gain.setValueAtTime(0, now);
-  env.gain.linearRampToValueAtTime(1, now + JAM_ATTACK);
-  src.connect(env).connect(jamOutput());
-  const id = ++voiceId;
-  const voice: JamVoice = {
-    src,
-    env,
-    start: now,
-    startFrame: offsetFrames,
-    rate: sb.info.rate,
-    speed,
-    length: sb.info.length,
-    loop,
-    loopStart: sb.info.loopStart,
-    loopEnd: sb.info.loopEnd,
-  };
-  src.onended = () => dropVoice(id, voice);
-  voices.set(id, voice);
-  lastVoice = voice;
-  src.start(now, Math.max(0, offsetFrames) / sb.info.rate);
-  if (!cursorRaf) cursorRaf = requestAnimationFrame(tickCursor);
-  return id;
-}
-
-function dropVoice(id: number, voice: JamVoice) {
-  voices.delete(id);
-  if (lastVoice === voice) {
-    const rest = [...voices.values()];
-    lastVoice = rest.length ? rest[rest.length - 1] : null;
-  }
-}
-
-/** Stop a jammed voice (from jamNote) on key-up. */
-export function jamStop(id: number) {
-  const v = voices.get(id);
-  if (!v) return;
-  releaseVoice(v);
-  dropVoice(id, v);
-}
+// The Web Audio sampler (jam voices) lives in ./jam — attached to the engine in
+// ensurePlayer, imported/re-exported here. resetJam + sampleBuffer are used
+// internally (track change / sequencer warm-up).
 
 // --- editor: edit buffer + Web Audio sequencer -------------------------------
 // The editor is a SEPARATE engine (libopenmpt is read-only). Edits live in a
@@ -1426,7 +1186,7 @@ function stopSeqVoice(c: number, when: number) {
 }
 
 function triggerSeqNote(c: number, inst: number, note: number, when: number) {
-  const sb = bufCache.get(inst); // preloaded in seqPlay → sync cache hit
+  const sb = cachedBuffer(inst); // preloaded in seqPlay → sync cache hit
   if (!sb) return;
   stopSeqVoice(c, when);
   const src = player.context.createBufferSource();

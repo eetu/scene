@@ -129,13 +129,16 @@
   <canvas
     bind:this={canvas}
     title="click to audition from here"
+    data-testid="sample-wave"
     onpointerdown={onDown}
     onpointerup={onUp}
     onpointerleave={(e) => e.buttons && onUp()}
     onpointercancel={onUp}
   ></canvas>
   {#if cursorPct >= 0}
-    <div class="cursor" style="left:{cursorPct}%"></div>
+    <!-- Present only while a jammed/auditioned voice is sounding (jamPos >= 0) —
+         the e2e jam test asserts on it. -->
+    <div class="cursor" data-testid="sample-cursor" style="left:{cursorPct}%"></div>
   {/if}
 </div>
 
