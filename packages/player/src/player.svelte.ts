@@ -7,6 +7,13 @@
 
 import { createActor, fromPromise } from "xstate";
 
+import {
+  attachBackground,
+  pauseMediaElement,
+  routeAudioToElement,
+  setupMediaElementRoute,
+  wakeAudio,
+} from "./background";
 import { BeatTracker } from "./beat";
 import { createEngine } from "./engine";
 import { host, type Track } from "./host";
@@ -231,6 +238,7 @@ function ensurePlayer(): Promise<void> {
   if (player) return ready as Promise<void>;
   // Synchronous `new AudioContext()` keeps us inside the click gesture.
   player = createEngine({ repeatCount: 0 });
+  attachBackground(player); // wire background routing + wakeAudio to this engine
   attachJam(player, wakeAudio); // wire the Web Audio sampler to this engine
   // Tap the output for the scope. The gain node exists immediately (the
   // worklet connects to it once it's ready); the analyser just observes.
@@ -453,80 +461,8 @@ function wirePlatformIntegration() {
   }
 }
 
-// --- Background playback ----------------------------------------------------
-// iOS Safari (and backgrounded desktop Safari) suspend a bare AudioContext when
-// the tab is hidden or the screen locks, which freezes the worklet → silence.
-// Audio routed through an <audio> *media element*, however, is allowed to keep
-// playing in the background. So we tap the graph with a MediaStreamDestination
-// and play its stream through a hidden <audio> element; once that element is
-// actually playing we move output entirely onto it (disconnecting
-// context.destination so it isn't heard twice). Best-effort: if the element
-// won't play we keep the normal destination, so audio still works everywhere.
-let mediaEl: HTMLAudioElement | null = null;
-let streamDest: MediaStreamAudioDestinationNode | null = null;
-let routedToElement = false;
-
-function setupMediaElementRoute() {
-  if (!player || streamDest || typeof Audio === "undefined") return;
-  try {
-    const dest: MediaStreamAudioDestinationNode = player.context.createMediaStreamDestination();
-    player.monoNode.connect(dest); // after the mono downmix, like the speaker path
-    const el = new Audio();
-    el.srcObject = dest.stream;
-    el.setAttribute("playsinline", "");
-    el.preload = "auto";
-    el.style.display = "none";
-    document.body.appendChild(el);
-    streamDest = dest;
-    mediaEl = el;
-  } catch {
-    streamDest = null;
-    mediaEl = null;
-  }
-}
-
-/** Move audible output onto the media element so playback survives the page
- *  being backgrounded. Call inside the play gesture; no-op once routed or if
- *  the element can't play (we then stay on context.destination). */
-async function routeAudioToElement() {
-  if (!mediaEl || routedToElement || !player) return;
-  try {
-    await mediaEl.play();
-    try {
-      player.monoNode.disconnect(player.context.destination);
-    } catch {
-      /* wasn't connected to the speakers */
-    }
-    routedToElement = true;
-  } catch {
-    /* element playback blocked — keep the normal destination path */
-  }
-}
-
-/** Revive the audio path on a user gesture (play / unpause / return-to-foreground).
- *  iOS suspends an idle or interrupted AudioContext AND pauses an idle media
- *  element after a while — and once output has been routed to the element, that
- *  element is the worklet's ONLY sink (we disconnected context.destination). So a
- *  long pause left playback dead: unpausing didn't resume the context, and even
- *  switching tracks didn't help because routeAudioToElement() no-ops once routed,
- *  so the stalled element was never replayed — only a page reload recovered. This
- *  resumes the context and re-plays the element; play() on an already-playing
- *  element resolves immediately, so it's safe to call on every gesture. */
-async function wakeAudio() {
-  if (!player) return;
-  try {
-    if (player.context.state !== "running") await player.context.resume();
-  } catch {
-    /* resume blocked/unsupported — recovers on the next gesture */
-  }
-  if (routedToElement && mediaEl) {
-    try {
-      await mediaEl.play();
-    } catch {
-      /* element won't replay — audible again after another gesture */
-    }
-  }
-}
+// Background playback (media-element route) + wakeAudio live in ./background —
+// attached to the engine in ensurePlayer, imported above.
 
 /** Reflect a module's decoded metadata + song onto the store — used by both the
  *  play path (onMetadata) and the cold-restore decode (cueInOrder). */
@@ -735,7 +671,7 @@ export function togglePause() {
     // hardware transport then reads it as still playing and keeps sending "pause"
     // (never "play"), so playback pauses but can't be resumed. Pausing it keeps
     // the element's state coherent with ours.
-    mediaEl?.pause();
+    pauseMediaElement();
   } else {
     // Unpausing: iOS may have suspended the context and stalled the background
     // <audio> element during the pause; nudge both back to life inside this tap.
