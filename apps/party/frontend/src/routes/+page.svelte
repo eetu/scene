@@ -1,7 +1,7 @@
 <script lang="ts">
   // Landing: the list of scanned parties. Each card links to that party's
   // catalog. Polls /status while an initial scan is running.
-  import { CalendarDays, MapPin, Music } from "@lucide/svelte";
+  import { CalendarDays, MapPin } from "@lucide/svelte";
   import { stop as stopPlayback } from "@scene/player";
   import { onMount } from "svelte";
 
@@ -113,7 +113,7 @@
     <div class="grid" use:listKeys>
       {#each parties as p (p.slug)}
         <a class="card" href={`/${p.slug}`}>
-          <div class="thumb">
+          <div class="bg">
             {#if p.logo_hash && p.logo_mime?.startsWith("image/")}
               <img
                 src={NATIVE_IMG.has(p.logo_mime)
@@ -125,15 +125,13 @@
               <span class="glyph">{glyph(p)}</span>
             {/if}
           </div>
-          <div class="meta">
+          <!-- Name + facts sit over the logo on a bottom scrim (+ text-shadow) so
+               they stay readable regardless of the artwork behind them. -->
+          <div class="overlay">
             <h2>{p.name}</h2>
             <div class="facts">
               {#if p.year}<span><CalendarDays size={13} /> {p.year}</span>{/if}
               {#if p.location}<span><MapPin size={13} /> {p.location}</span>{/if}
-            </div>
-            <div class="counts">
-              <span><Music size={13} /> {p.n_productions} productions</span>
-              <span>{p.n_files} files</span>
             </div>
           </div>
         </a>
@@ -202,63 +200,88 @@
   }
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 16px;
-  }
-  .card {
-    display: flex;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
     gap: 14px;
-    padding: 14px;
+  }
+  /* Full-bleed tile: the logo fills the card as a background, the party name +
+     facts overlay it on a dark bottom scrim. */
+  .card {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 10;
     border: 1px solid var(--border);
     border-radius: 8px;
-    background: var(--panel);
+    overflow: hidden;
+    background: var(--surface);
     text-decoration: none;
-    color: var(--text);
+    color: #fff;
     transition: border-color 0.15s;
   }
   .card:hover {
     border-color: var(--accent);
   }
-  .thumb {
-    flex: 0 0 64px;
-    width: 64px;
-    height: 64px;
+  .bg {
+    position: absolute;
+    inset: 0;
     display: grid;
     place-items: center;
     background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
   }
-  .thumb img {
+  .bg img {
+    /* Absolutely fill the box (pan/scan crop) — as a grid item an <img> can size
+       to its intrinsic aspect and letterbox; inset:0 forces it to the box so
+       object-fit: cover always fills, whatever the logo's aspect ratio. */
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    image-rendering: pixelated;
+    transition: transform 0.2s ease;
   }
+  .card:hover .bg img {
+    transform: scale(1.04);
+  }
+  /* No-logo fallback: the glyph is the "artwork". */
   .glyph {
     font-family: var(--font-retro);
-    font-size: 19px;
+    font-size: clamp(28px, 8vw, 52px);
     line-height: 1;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
     color: var(--accent);
     white-space: nowrap;
   }
-  .meta h2 {
-    margin: 0 0 4px;
-    font-size: 16px;
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 12px 14px;
+    /* Dark gradient, strongest at the bottom where the text sits, fading to clear
+       over the upper artwork — keeps the name legible on light or busy logos. */
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.82) 0%,
+      rgba(0, 0, 0, 0.5) 26%,
+      rgba(0, 0, 0, 0) 60%
+    );
   }
-  .facts,
-  .counts {
+  .overlay h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+  }
+  .facts {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    color: var(--muted);
+    color: rgba(255, 255, 255, 0.88);
     font-size: 12px;
-    margin-top: 4px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
   }
-  .facts span,
-  .counts span {
+  .facts span {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -287,7 +310,7 @@
       padding: 14px 12px;
     }
     .grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     }
   }
 </style>
