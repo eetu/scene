@@ -663,7 +663,7 @@ async fn api_asset(
             let target = target.clone();
             state
                 .db
-                .with(move |c| {
+                .write(move |c| {
                     c.execute(
                         "INSERT INTO derived (content_hash, target, rel_cache, status, updated_at)
                          VALUES (?1, ?2, '', 'failed', ?3)
@@ -687,7 +687,7 @@ async fn api_asset(
     let bytes_len = out.len() as i64;
     state
         .db
-        .with(move |c| {
+        .write(move |c| {
             c.execute(
                 "INSERT INTO derived (content_hash, target, rel_cache, status, bytes, updated_at)
                  VALUES (?1, ?2, ?3, 'ok', ?4, ?5)
@@ -724,7 +724,7 @@ async fn api_meta(
     let now = chrono::Utc::now().to_rfc3339();
     state
         .db
-        .with(|c| {
+        .write(|c| {
             c.execute(
                 "INSERT INTO meta (content_hash, title, type_long, tracker, duration, channels,
                                    instruments, samples, n_orders, n_patterns, updated_at)
