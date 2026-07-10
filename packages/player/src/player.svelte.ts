@@ -7,9 +7,30 @@
 
 import { createActor, fromPromise } from "xstate";
 
+import { BeatTracker } from "./beat";
 import { createEngine } from "./engine";
 import { host, type Track } from "./host";
+import {
+  CELL,
+  EDIT_FIELDS,
+  FIELD,
+  HEX,
+  isRealNote,
+  NOTE_CUT,
+  NOTE_FADE,
+  NOTE_KEYS,
+  NOTE_OFF,
+  noteToJam,
+  NUM_FIELDS,
+} from "./notes";
+import { plannedNext } from "./queue";
 import { transportMachine } from "./transport-machine";
+import { buildWav } from "./wav";
+
+// Re-export the pure note/cell helpers (moved to ./notes) so the package's
+// public API — and in-package components importing from "./player.svelte" — are
+// unchanged.
+export { CELL, cellFieldText, FIELD, isRealNote, noteName, noteToJam, NUM_FIELDS } from "./notes";
 
 export type ProgressMsg = {
   pos?: number;
@@ -29,36 +50,6 @@ export type Pattern = {
    *  Absent on the stock build — the editor gates on it (canReadCells). */
   cells?: number[][][];
 };
-/** Field order within a structured cell (indices into Pattern.cells[r][c]). */
-export const CELL = { note: 0, inst: 1, volcmd: 2, vol: 3, fx: 4, param: 5 } as const;
-
-// libopenmpt note values (soundlib/modcommand.h): 0 empty, 1..120 real notes
-// (NOTE_MIDDLEC = 61 = C-5), 253 fade, 254 cut, 255 key-off.
-const NOTE_MIN = 1;
-const NOTE_MAX = 120;
-const NOTE_MIDDLEC = 61;
-const NOTE_FADE = 253;
-const NOTE_CUT = 254;
-const NOTE_OFF = 255;
-const SEMI = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
-
-/** True for a playable pitch (not empty/off/cut/fade). */
-export function isRealNote(n: number): boolean {
-  return n >= NOTE_MIN && n <= NOTE_MAX;
-}
-/** libopenmpt note value → display name ("C-5", "===", "^^^", "~~~", "..."). */
-export function noteName(n: number): string {
-  if (isRealNote(n)) return SEMI[(n - 1) % 12] + Math.floor((n - 1) / 12);
-  if (n === NOTE_OFF) return "===";
-  if (n === NOTE_CUT) return "^^^";
-  if (n === NOTE_FADE) return "~~~";
-  return "...";
-}
-/** libopenmpt note value → jam/playbackRate note (jamNote's 60 = sample middle-C,
- *  libopenmpt's 61 = NOTE_MIDDLEC), so pattern note N plays at the right pitch. */
-export function noteToJam(n: number): number {
-  return n - (NOTE_MIDDLEC - 60);
-}
 export type Song = {
   channels?: string[];
   instruments?: string[];
@@ -179,54 +170,28 @@ export function sampleBands(): { bass: number; mid: number; treble: number } {
 // exact to the module and tracks tempo/speed changes for free (rows simply
 // arrive faster or slower). Visualizers read `playback.beat` for the on-beat
 // tick and `beatPhase()` for a smooth 0→1 ramp between beats.
-const ROWS_PER_BEAT = 4;
-let lastRow = -1;
-let lastOrder = -1;
-let lastPattern = -1;
-let lastBeatAt = 0; // performance.now() of the last beat onset (0 = none yet)
-let beatInterval = 500; // eased ms between beats, for the phase ramp
+// Beat timing lives in a pure, clock-injectable tracker (see ./beat); the store
+// just feeds it rows and bumps `playback.beat` on each onset.
+const beat = new BeatTracker();
 
 function resetBeat() {
-  lastRow = -1;
-  lastOrder = -1;
-  lastPattern = -1;
-  lastBeatAt = 0;
-  beatInterval = 500;
+  beat.reset();
 }
 
 function noteRow(order: number, pattern: number, row: number) {
-  const advanced = row !== lastRow || order !== lastOrder || pattern !== lastPattern;
-  if (!advanced) return;
-  lastRow = row;
-  lastOrder = order;
-  lastPattern = pattern;
-  if (row % ROWS_PER_BEAT !== 0) return;
-  const now = performance.now();
-  if (lastBeatAt > 0) {
-    const dt = now - lastBeatAt;
-    // Ease the interval toward the latest gap, ignoring seeks/stalls (out of a
-    // plausible 30ms–2s beat range) so the phase ramp stays smooth.
-    if (dt > 30 && dt < 2000) beatInterval += (dt - beatInterval) * 0.25;
-  }
-  lastBeatAt = now;
-  playback.beat++;
+  if (beat.row(order, pattern, row, performance.now())) playback.beat++;
 }
 
-/** A 0→1 ramp since the last beat, from the eased inter-beat interval (clamped at
- *  1, and 0 until the first beat). Lets a viz pulse on-beat without each one
- *  re-deriving timing from the raw row. */
+/** A 0→1 ramp since the last beat (clamped at 1, and 0 until the first beat).
+ *  Lets a viz pulse on-beat without re-deriving timing from the raw row. */
 export function beatPhase(now = performance.now()): number {
-  if (!lastBeatAt) return 0;
-  return Math.min(1, (now - lastBeatAt) / beatInterval);
+  return beat.phase(now);
 }
 
-/** Estimated musical tempo in BPM, from the eased inter-beat interval (a beat =
- *  ROWS_PER_BEAT rows). ~0 until the first beat. Clamped to a sane range so a
- *  stall/seek can't spike it. Lets visualizers scale motion to tempo, not just
- *  loudness — works in both apps (no libopenmpt tempo read needed). */
+/** Estimated musical tempo in BPM. ~0 until the first beat; clamped so a
+ *  stall/seek can't spike it. Lets visualizers scale motion to tempo. */
 export function beatBpm(): number {
-  if (!lastBeatAt) return 0;
-  return Math.max(40, Math.min(300, 60000 / beatInterval));
+  return beat.bpm();
 }
 
 // Playback is a small state machine over one loaded module:
@@ -785,19 +750,7 @@ export function cueInOrder(list: Track[], track: Track) {
  *  a random pick ≠ current, chosen NOW so the next song is fixed ahead of the
  *  transition (deterministic, prefetchable) instead of at the moment we advance. */
 function rollNext() {
-  const n = queue.length;
-  if (n === 0 || playback.queueIndex < 0) {
-    plannedNextIdx = null;
-  } else if (playback.shuffle && n > 1) {
-    let i: number;
-    do {
-      i = Math.floor(Math.random() * n);
-    } while (i === playback.queueIndex);
-    plannedNextIdx = i;
-  } else {
-    const i = playback.queueIndex + 1;
-    plannedNextIdx = i < n ? i : null;
-  }
+  plannedNextIdx = plannedNext(queue.length, playback.queueIndex, playback.shuffle);
 }
 
 /** Warm the browser HTTP cache with the pre-rolled next track's bytes, so the
@@ -1064,50 +1017,6 @@ export async function exportSampleWav(idx: number, name?: string) {
   triggerDownload(blob, `${base}.wav`);
 }
 
-// Build a PCM WAV from the sample's raw bytes at its native format. 16-bit data
-// is already little-endian signed (matches WAV); 8-bit is signed in the module
-// but WAV 8-bit is unsigned, so shift by 128 (bit-exact, just the format's
-// convention). Stereo bytes are already interleaved as WAV wants.
-function buildWav(raw: Uint8Array, info: SampleInfo): Blob {
-  const { bits, channels: ch, rate } = info;
-  let data = raw;
-  if (bits === 8) {
-    data = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) data[i] = (raw[i] + 128) & 0xff;
-  }
-  const blockAlign = ch * (bits >> 3);
-  const buf = new ArrayBuffer(44 + data.length);
-  const dv = new DataView(buf);
-  let o = 0;
-  const str = (s: string) => {
-    for (let i = 0; i < s.length; i++) dv.setUint8(o++, s.charCodeAt(i));
-  };
-  str("RIFF");
-  dv.setUint32(o, 36 + data.length, true);
-  o += 4;
-  str("WAVE");
-  str("fmt ");
-  dv.setUint32(o, 16, true);
-  o += 4;
-  dv.setUint16(o, 1, true); // PCM
-  o += 2;
-  dv.setUint16(o, ch, true);
-  o += 2;
-  dv.setUint32(o, rate, true);
-  o += 4;
-  dv.setUint32(o, rate * blockAlign, true); // byte rate
-  o += 4;
-  dv.setUint16(o, blockAlign, true);
-  o += 2;
-  dv.setUint16(o, bits, true);
-  o += 2;
-  str("data");
-  dv.setUint32(o, data.length, true);
-  o += 4;
-  new Uint8Array(buf, 44).set(data);
-  return new Blob([buf], { type: "audio/wav" });
-}
-
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -1359,81 +1268,8 @@ export function setEditing(on: boolean) {
 }
 
 // -- cell editing (note / hex-field entry) --
-/** Editable cursor columns (index into a structured cell). */
-export const FIELD = { note: 0, inst: 1, vol: 2, fx: 3, param: 4 } as const;
-export const NUM_FIELDS = 5;
-const EDIT_FIELDS = [CELL.note, CELL.inst, CELL.vol, CELL.fx, CELL.param]; // cursor field → cell index
-
-// QWERTY → semitone offset from the base octave's C (two-octave tracker layout,
-// same map as JamKeyboard). Bottom row 0..12, top row 12..24.
-const NOTE_KEYS: Record<string, number> = {
-  z: 0,
-  s: 1,
-  x: 2,
-  d: 3,
-  c: 4,
-  v: 5,
-  g: 6,
-  b: 7,
-  h: 8,
-  n: 9,
-  j: 10,
-  m: 11,
-  ",": 12,
-  q: 12,
-  "2": 13,
-  w: 14,
-  "3": 15,
-  e: 16,
-  r: 17,
-  "5": 18,
-  t: 19,
-  "6": 20,
-  y: 21,
-  "7": 22,
-  u: 23,
-  i: 24,
-};
-const HEX: Record<string, number> = {
-  "0": 0,
-  "1": 1,
-  "2": 2,
-  "3": 3,
-  "4": 4,
-  "5": 5,
-  "6": 6,
-  "7": 7,
-  "8": 8,
-  "9": 9,
-  a: 10,
-  b: 11,
-  c: 12,
-  d: 13,
-  e: 14,
-  f: 15,
-};
-
-function hx(n: number, w: number): string {
-  return n.toString(16).toUpperCase().padStart(w, "0");
-}
-
-/** Display text for one field of a structured cell (editor render). */
-export function cellFieldText(cell: number[], field: number): string {
-  switch (field) {
-    case FIELD.note:
-      return noteName(cell[CELL.note]);
-    case FIELD.inst:
-      return cell[CELL.inst] ? hx(cell[CELL.inst], 2) : "··";
-    case FIELD.vol:
-      return cell[CELL.volcmd] ? hx(cell[CELL.vol], 2) : "··";
-    case FIELD.fx:
-      return cell[CELL.fx] || cell[CELL.param] ? hx(cell[CELL.fx], 1) : "·";
-    case FIELD.param:
-      return cell[CELL.fx] || cell[CELL.param] ? hx(cell[CELL.param], 2) : "··";
-    default:
-      return "";
-  }
-}
+// FIELD / NUM_FIELDS / EDIT_FIELDS / NOTE_KEYS / HEX / cellFieldText live in
+// ./notes (pure, tested); imported above.
 
 function editCursorCell(): number[] | null {
   const cells = ensureEditable(playback.pattern);
