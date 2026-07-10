@@ -19,6 +19,7 @@ import { attachEditor, clearEdits, seqStop, seqToggle } from "./editor.svelte";
 import { createEngine } from "./engine";
 import { host, type Track } from "./host";
 import { attachJam, resetJam } from "./jam";
+import { syncNowPlaying, syncPosition, wirePlatformIntegration } from "./platform";
 import { plannedNext } from "./queue";
 import { SCOPE_SIZE, setScopeSource } from "./scope";
 import { playback } from "./state.svelte";
@@ -129,8 +130,6 @@ export type ParsedMeta = {
 let player: any = null;
 let ready: Promise<void> | null = null;
 let parseId = 0;
-let wakeLock: WakeLockSentinel | null = null;
-let platformWired = false;
 // Play-count gating: only count a tune once it's actually been listened to past
 // a threshold (so fast skips don't inflate counts). Reset per track start.
 let playCounted = false;
@@ -296,7 +295,7 @@ function ensurePlayer(): Promise<void> {
     noteRow(playback.order, playback.pattern, playback.row);
     maybeCountPlay(d.pos ?? 0);
     // Keep the OS scrubber roughly in step (throttled to ~1s of playback).
-    if (Math.abs(playback.position - lastPosSync) >= 1) updatePositionState();
+    syncPosition();
   });
   player.onMetadata((meta: Meta) => {
     player.setRepeatCount(playback.repeat ? -1 : 0);
@@ -346,122 +345,19 @@ function ensurePlayer(): Promise<void> {
       resolve(d.meta ?? null);
     }
   });
-  wirePlatformIntegration();
+  wirePlatformIntegration({
+    toggle: transportToggle,
+    togglePause,
+    next: playNext,
+    prev: playPrev,
+  });
   return ready as Promise<void>;
 }
 
-// --- OS / platform integration (Media Session, wake lock, foreground resume) ---
-//
-// iOS keeps Web Audio alive only while in the foreground (a long-standing
-// WebKit limitation — pure AudioContext output is suspended when backgrounded
-// or the screen locks; only HTMLMediaElement audio survives). So this is a
-// *foreground* convenience: OS transport buttons + Now Playing metadata
-// (lock-screen controls on Android/desktop), a screen wake lock so auto-lock
-// doesn't cut a listen short, and a resume when we return to the foreground.
-
-/** Reflect current track + transport state to the OS, and hold a wake lock
- *  while actually playing. */
-function syncNowPlaying() {
-  const playing = playback.playing && !playback.paused;
-  if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
-    const t = playback.current;
-    navigator.mediaSession.metadata = t
-      ? new MediaMetadata({
-          title: t.title || t.filename,
-          artist: t.artist || t.group || host().appName,
-          album: t.group || "",
-          artwork: [{ src: "/icon-512.png", sizes: "512x512", type: "image/png" }],
-        })
-      : null;
-    navigator.mediaSession.playbackState = t ? (playing ? "playing" : "paused") : "none";
-    updatePositionState();
-  }
-  if (playing) void acquireWakeLock();
-  else void releaseWakeLock();
-}
-
-// Tell the OS the track's real length + position. Output is routed through a
-// MediaStream-backed <audio> element (no intrinsic duration), which the media
-// transport otherwise treats as a live stream — muddying play/pause and hiding
-// prev/next. A finite position state presents it as a normal track (scrubber +
-// working transport keys).
-let lastPosSync = -1;
-function updatePositionState() {
-  if (
-    typeof navigator === "undefined" ||
-    !("mediaSession" in navigator) ||
-    typeof navigator.mediaSession.setPositionState !== "function"
-  )
-    return;
-  lastPosSync = playback.position;
-  const d = playback.duration;
-  try {
-    if (d > 0 && isFinite(d)) {
-      navigator.mediaSession.setPositionState({
-        duration: d,
-        position: Math.min(Math.max(0, playback.position), d),
-        playbackRate: 1,
-      });
-    }
-  } catch {
-    /* some engines throw on out-of-range values */
-  }
-}
-
-async function acquireWakeLock() {
-  try {
-    if (
-      typeof navigator !== "undefined" &&
-      "wakeLock" in navigator &&
-      document.visibilityState === "visible" &&
-      !wakeLock
-    ) {
-      wakeLock = await navigator.wakeLock.request("screen");
-      wakeLock.addEventListener("release", () => (wakeLock = null));
-    }
-  } catch {
-    /* denied / unsupported — non-fatal */
-  }
-}
-
-async function releaseWakeLock() {
-  try {
-    await wakeLock?.release();
-  } catch {
-    /* already gone */
-  }
-  wakeLock = null;
-}
-
-/** One-time wiring: resume the suspended/interrupted context on return to the
- *  foreground, re-arm the wake lock, and route OS transport buttons. */
-function wirePlatformIntegration() {
-  if (platformWired || typeof document === "undefined") return;
-  platformWired = true;
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") return;
-    if (playback.playing && !playback.paused) {
-      // iOS suspends Web Audio + stalls the routed element when hidden — revive
-      // both on return to the foreground.
-      void wakeAudio();
-      void acquireWakeLock(); // the OS drops the lock when hidden
-    }
-  });
-
-  if ("mediaSession" in navigator) {
-    const ms = navigator.mediaSession;
-    ms.setActionHandler("play", () => transportToggle());
-    ms.setActionHandler("pause", () => {
-      if (playback.playing && !playback.paused) togglePause();
-    });
-    ms.setActionHandler("previoustrack", () => playPrev());
-    ms.setActionHandler("nexttrack", () => playNext());
-  }
-}
-
-// Background playback (media-element route) + wakeAudio live in ./background —
-// attached to the engine in ensurePlayer, imported above.
+// OS / platform integration (Media Session, wake lock, foreground resume) lives
+// in ./platform; the media-session buttons drive the transport controls passed
+// into wirePlatformIntegration from ensurePlayer. Background playback (media-
+// element route) + wakeAudio live in ./background. Both imported above.
 
 /** Reflect a module's decoded metadata + song onto the store — used by both the
  *  play path (onMetadata) and the cold-restore decode (cueInOrder). */
