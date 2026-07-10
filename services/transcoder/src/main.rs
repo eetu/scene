@@ -238,9 +238,17 @@ async fn image(
         body,
         "out.png",
         |src, out| {
-            ["-y", "-loglevel", "error", "-i", src, "-frames:v", "1", out]
-                .map(String::from)
-                .to_vec()
+            [
+                "-y", "-loglevel", "error", "-i", src, "-frames:v", "1",
+                // Bake the source sample aspect into square pixels, so Amiga
+                // non-square-pixel graphics (e.g. an ILBM tagged 5:6 via CAMG)
+                // display at their intended proportions instead of stretched.
+                // No-op for square-pixel sources (sar 1:1 / undefined → 1).
+                "-vf", "scale=iw*sar:ih,setsar=1",
+                out,
+            ]
+            .map(String::from)
+            .to_vec()
         },
         IMAGE_TIMEOUT,
     )
