@@ -1,20 +1,33 @@
-//! Single-writer SQLite connection guarded by a tokio Mutex (house pattern —
-//! see tracker/scribe). This is a *cache*, not the source of truth: the tables
-//! are a path index of the `Parties/` tree (`files`), the productions derived
-//! from it (`productions`), the parties themselves (`parties`), libopenmpt
-//! enrichment (`meta`), and a transcoded-asset ledger (`derived`). Everything is
-//! rebuilt from the filesystem on demand, so losing the DB only costs a rescan
-//! (and re-transcoding cached assets).
+//! SQLite access split into one writer + one reader connection, each guarded by
+//! a tokio Mutex (house pattern — see tracker/scribe). This is a *cache*, not the
+//! source of truth: the tables are a path index of the `Parties/` tree (`files`),
+//! the productions derived from it (`productions`), the parties themselves
+//! (`parties`), libopenmpt enrichment (`meta`), and a transcoded-asset ledger
+//! (`derived`). Everything is rebuilt from the filesystem on demand, so losing
+//! the DB only costs a rescan (and re-transcoding cached assets).
+//!
+//! Two connections, because the scan holds a write transaction for its whole
+//! duration (seconds+). In WAL mode a reader on a *separate* connection reads the
+//! last committed snapshot without blocking on that transaction, so browsing
+//! stays responsive during a scan. All reads go through [`Db::with`] (the reader);
+//! all mutations + the scan go through the writer ([`Db::write`] / [`Db::with_mut`]
+//! / [`Db::blocking_lock`]), which serializes them on one connection.
 
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use rusqlite::Connection;
 use tokio::sync::Mutex;
 
 #[derive(Clone)]
 pub struct Db {
-    inner: Arc<Mutex<Connection>>,
+    /// Single writer — the scan (via `blocking_lock`) and every mutation
+    /// serialize here. Never used for reads.
+    writer: Arc<Mutex<Connection>>,
+    /// Read-only connection. In WAL it reads a committed snapshot concurrently
+    /// with the writer, so a long scan never blocks browsing.
+    reader: Arc<Mutex<Connection>>,
 }
 
 /// Informational schema marker. Migrations don't gate on it — the schema below
@@ -23,48 +36,75 @@ const SCHEMA_VERSION: i64 = 1;
 
 impl Db {
     pub fn open(path: &Path) -> anyhow::Result<Self> {
-        let conn = Connection::open(path)?;
-        conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.pragma_update(None, "synchronous", "NORMAL")?;
-        conn.pragma_update(None, "foreign_keys", "ON")?;
-        Self::migrate(&conn)?;
+        let writer = Connection::open(path)?;
+        writer.pragma_update(None, "journal_mode", "WAL")?;
+        writer.pragma_update(None, "synchronous", "NORMAL")?;
+        writer.pragma_update(None, "foreign_keys", "ON")?;
+        writer.busy_timeout(Duration::from_secs(5))?;
+        Self::migrate(&writer)?;
+
+        // Separate reader. WAL is a persistent property of the DB file (set by the
+        // writer above), so this connection reads snapshots without blocking on
+        // the writer's transaction. `query_only` guards the read path from ever
+        // writing (and thus contending for the write lock).
+        let reader = Connection::open(path)?;
+        reader.pragma_update(None, "foreign_keys", "ON")?;
+        reader.busy_timeout(Duration::from_secs(5))?;
+        reader.pragma_update(None, "query_only", "ON")?;
+
         Ok(Self {
-            inner: Arc::new(Mutex::new(conn)),
+            writer: Arc::new(Mutex::new(writer)),
+            reader: Arc::new(Mutex::new(reader)),
         })
     }
 
     #[cfg(test)]
     pub fn open_in_memory() -> anyhow::Result<Self> {
+        // Each `:memory:` connection is its own isolated database, so a separate
+        // reader would see a different (empty) DB. Tests don't need the
+        // concurrency, so point both at one shared connection.
         let conn = Connection::open_in_memory()?;
         Self::migrate(&conn)?;
+        let shared = Arc::new(Mutex::new(conn));
         Ok(Self {
-            inner: Arc::new(Mutex::new(conn)),
+            writer: shared.clone(),
+            reader: shared,
         })
     }
 
-    /// Run a closure with the locked connection.
+    /// Read via the dedicated reader connection — a WAL snapshot that never
+    /// blocks on the writer (or a running scan).
     pub async fn with<R>(
         &self,
         f: impl FnOnce(&Connection) -> rusqlite::Result<R>,
     ) -> rusqlite::Result<R> {
-        let guard = self.inner.lock().await;
+        let guard = self.reader.lock().await;
         f(&guard)
     }
 
-    /// Like [`Db::with`], but the closure gets a mutable connection so it can
+    /// Write via the single writer connection (serialized with the scan).
+    pub async fn write<R>(
+        &self,
+        f: impl FnOnce(&Connection) -> rusqlite::Result<R>,
+    ) -> rusqlite::Result<R> {
+        let guard = self.writer.lock().await;
+        f(&guard)
+    }
+
+    /// Like [`Db::write`], but the closure gets a mutable connection so it can
     /// open a transaction.
     pub async fn with_mut<R>(
         &self,
         f: impl FnOnce(&mut Connection) -> rusqlite::Result<R>,
     ) -> rusqlite::Result<R> {
-        let mut guard = self.inner.lock().await;
+        let mut guard = self.writer.lock().await;
         f(&mut guard)
     }
 
-    /// Acquire the connection from a blocking thread. Only call inside
+    /// Acquire the writer from a blocking thread. Only call inside
     /// `tokio::task::spawn_blocking` — the scan holds the lock for seconds.
     pub fn blocking_lock(&self) -> tokio::sync::MutexGuard<'_, Connection> {
-        self.inner.blocking_lock()
+        self.writer.blocking_lock()
     }
 
     fn migrate(conn: &Connection) -> anyhow::Result<()> {
@@ -178,5 +218,40 @@ mod tests {
         })
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn reads_dont_block_while_the_writer_is_held() {
+        // File-backed: an in-memory DB shares one connection, so it can't exercise
+        // the two-connection concurrency this test is about.
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open(&dir.path().join("party.db")).unwrap();
+
+        // Seed one committed row through the writer.
+        db.write(|c| {
+            c.execute(
+                "INSERT INTO parties (slug, dir, name) VALUES ('tg', 'TG', 'The Gathering')",
+                [],
+            )
+        })
+        .await
+        .unwrap();
+
+        // Simulate a scan mid-flight by holding the writer for the whole test.
+        // In the old single-connection design this would deadlock every read.
+        let held = db.writer.lock().await;
+
+        // A read must still complete promptly off the separate reader connection,
+        // seeing the committed snapshot.
+        let n = tokio::time::timeout(
+            Duration::from_secs(2),
+            db.with(|c| c.query_row("SELECT COUNT(*) FROM parties", [], |r| r.get::<_, i64>(0))),
+        )
+        .await
+        .expect("read blocked while the writer was held")
+        .unwrap();
+        assert_eq!(n, 1);
+
+        drop(held);
     }
 }
