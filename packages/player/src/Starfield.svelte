@@ -2,11 +2,15 @@
   // Parallax starfield over a deep-space nebula backdrop: stars stream out of the
   // bright centre leaving motion-blur trails, their speed pulsing with the music's
   // energy and easing to a near-stop when it stops. Periodically the whole field
-  // barrel-rolls about the centre for a bit of demoscene flair. (A 3D ship model
-  // will be brought in later from ../maquette.) Backdrop is the shared nebula asset.
+  // barrel-rolls about the centre for a bit of demoscene flair. A real 3D X-wing
+  // (precompiled glb → xwing.geometry.ts, drawn by the tiny WebGL renderer in
+  // xwing-render.ts — no three.js in the bundle) rides in the foreground at
+  // bottom-centre, nose to the horizon, weaving side to side with its engines
+  // lit; it eases near + still on pause. Backdrop is the shared nebula asset.
   import { playback } from "./player.svelte";
   import { driveFrames } from "./raf";
   import bgUrl from "./assets/starfield-bg.jpg";
+  import { createXwingRenderer } from "./xwing-render";
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -72,6 +76,18 @@
     // downsampled into small blocks here, then redrawn with a radial displacement.
     const buf = document.createElement("canvas");
     const bctx = buf.getContext("2d");
+
+    // The X-wing is a real 3D model now (precompiled glb → xwing.geometry.ts,
+    // drawn by the tiny WebGL renderer below into its own transparent canvas each
+    // frame, then composited here). Live 3D lets the tremor be true rotation, the
+    // engines glow from the model's baked emissive, and the ship dolly nearer when
+    // paused. Rendered at a fixed backing size and scaled to the on-screen size.
+    const SHIP_TEX = 768; // renderer backing resolution (scaled to shipSize)
+    const SHIP_ROT_X = 0.25; // behind + above: we look down on the spine/canopy, nose angled up-and-away toward the nebula core (climbing, not diving)
+    const SHIP_ROT_Y = Math.PI; // rear view: engines (glow) toward us, nose receding up into the nebula
+    const ship = createXwingRenderer(SHIP_TEX);
+    let shipLife = 0; // eased 0..1 presence, so the ship fades in with the viz
+    let near = 0; // eased 0..1: 0 = playing (far, gliding), 1 = paused (nearer, still)
 
     // Accent-tinted stars follow the theme accent (orange/purple).
     const accentRgb = hexToRgb(getComputedStyle(el).getPropertyValue("--accent") || "#f78f08");
@@ -324,6 +340,89 @@
             g2.fill();
           }
           g2.globalAlpha = 1;
+
+          // --- foreground: the X-wing, gliding toward the nebula ---
+          // Anchored bottom-centre, pointed at the glow. The 3D model is rendered
+          // live each frame at a pose that (a) slowly yaws/glides "into" the scene
+          // and (b) rides a low-frequency turbulence tremor (real pitch/yaw/roll +
+          // position jitter) that swells with the music. When paused it eases to a
+          // near, still hero shot (dolly in, tremor out). Engines glow from the
+          // model's baked emissive, pulsing on the beat.
+          shipLife += ((active ? 1 : 0) - shipLife) * 0.03;
+          const playingNow = playback.playing && !playback.paused;
+          near += ((playingNow ? 0 : 1) - near) * 0.04;
+          if (ship && shipLife > 0.01) {
+            const shipSize = Math.min(w, h) * 0.5 * (1 + near * 0.3); // grows when paused (comes nearer)
+            // "Adrift in space eddies." The ship HOLDS its heading (rear to us, nose
+            // up to the horizon) and is only gently pushed around by slow currents —
+            // a buoyant rock, like a boat on a slow swell. Every motion is small,
+            // slow, and a sum of incommensurate sines, so it drifts organically and
+            // never reads as a repeating loop, a spin, or a hard bank. Deliberately
+            // INDEPENDENT of the music — tying the amplitude to energy made the rock
+            // jerky. It just calms + pulls near on pause. A constant "sea state".
+            const sea = shipLife * (1 - near * 0.85);
+            const o = (f: number, p: number) => Math.sin(clock * f + p); // oscillator (period 2π/f s)
+            // Slow buoyant swell (the "eddies").
+            const rockRoll = o(0.31, 0.0) * 0.6 + o(0.19, 2.1) * 0.4; // lengthwise rock ~[-1,1]
+            const heave = o(0.24, 1.3) * 0.6 + o(0.41, 0.4) * 0.4; // rise + fall on the swell
+            const drift = o(0.16, 2.7) * 0.7 + o(0.29, 0.9) * 0.3; // slow lateral wander
+            // Fast micro-tremor on every axis — a fine shake/vibration in space, on
+            // top of the slow swell (higher freq, small amplitude).
+            const TR = 0.022; // tremor amplitude (rad)
+            const trR = o(2.7, 0.4) * 0.6 + o(3.9, 1.9) * 0.4;
+            const trP = o(2.3, 1.2) * 0.6 + o(4.3, 0.2) * 0.4;
+            const trY = o(3.1, 2.5) * 0.6 + o(2.5, 0.8) * 0.4;
+            // rotZ is the intrinsic LENGTHWISE roll (about the fuselage) — the
+            // dominant motion: the ship banks/rolls around its own length (~±20°).
+            const roll = (rockRoll * 0.36 + trR * TR) * sea;
+            const pitch = (heave * 0.06 + trP * TR) * sea; // bow eases up/down + tremor
+            const yaw = (drift * 0.05 + o(0.13, 1.1) * 0.03 + trY * TR) * sea; // heading wander + tremor
+            const shipX = w / 2 + drift * w * 0.045 * sea; // small lateral drift
+            const shipY = h * 0.72 + heave * h * 0.03 * sea - near * h * 0.05;
+
+            // Engine wash: a soft additive glow at the ship's rear (toward us). A
+            // slow, steady breathe (NOT the beat) so the thrusters read as lit
+            // without the music jerking them.
+            const breathe = 0.5 + 0.5 * o(0.7, 0.0);
+            const eR = shipSize * (0.17 + breathe * 0.05);
+            const eg = g2.createRadialGradient(shipX, shipY, 0, shipX, shipY, eR);
+            const ei = (0.24 + breathe * 0.12) * shipLife;
+            eg.addColorStop(0, `rgba(255,190,120,${ei})`);
+            eg.addColorStop(0.5, `rgba(120,180,255,${ei * 0.4})`);
+            eg.addColorStop(1, "rgba(120,180,255,0)");
+            g2.globalCompositeOperation = "lighter";
+            g2.fillStyle = eg;
+            g2.beginPath();
+            g2.arc(shipX, shipY, eR, 0, TAU);
+            g2.fill();
+            g2.globalCompositeOperation = "source-over";
+
+            // Render the model live at this pose, then stamp it centred on (shipX,shipY).
+            ship.render({
+              rotX: SHIP_ROT_X + pitch,
+              rotY: SHIP_ROT_Y + yaw,
+              rotZ: roll,
+              // The nebula/horizon is effectively infinitely far, so view the ship
+              // with near-parallel rays: a strong telephoto (far dist + narrow fov)
+              // is nearly orthographic, so there's no perspective foreshortening /
+              // near-wing ballooning. (The pause "come nearer" is the 2D scale above,
+              // since at this distance a dist change barely resizes.)
+              dist: 14,
+              fov: 0.145,
+              scale: 1,
+              engine: 0.4 + breathe * 0.4, // steady thruster glow, not music-driven
+              light: [0.35, 0.7, 0.55],
+            });
+            g2.globalAlpha = Math.min(1, shipLife * 1.2);
+            g2.drawImage(
+              ship.canvas,
+              shipX - shipSize / 2,
+              shipY - shipSize / 2,
+              shipSize,
+              shipSize,
+            );
+            g2.globalAlpha = 1;
+          }
         }
       },
       { fps: 60 },
@@ -332,6 +431,7 @@
     return () => {
       stopFrames();
       ro.disconnect();
+      ship?.dispose();
     };
   });
 </script>

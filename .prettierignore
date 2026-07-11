@@ -47,3 +47,7 @@ wasm/**/out/
 
 # Claude Code agent worktrees — transient checkouts, not repo source.
 .claude/
+
+# Generated X-wing geometry (base64 typed arrays baked from data/model.glb by
+# scripts/gen-xwing.mjs; regenerated on re-export, never hand-formatted).
+packages/player/src/models/xwing.geometry.ts
