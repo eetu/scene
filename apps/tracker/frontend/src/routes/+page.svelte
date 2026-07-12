@@ -470,6 +470,7 @@
 {/if}
 
 <LibraryList
+  active={!showPattern}
   onOpen={openTrack}
   onAdd={startAdd}
   onEdit={startEdit}
