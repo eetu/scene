@@ -29,3 +29,6 @@ apps/party/backend/cache
 .env
 .DS_Store
 data/roms/
+
+# Standalone (Pages) demo module — fetched at deploy time, never committed.
+apps/tracker/frontend/static/demo/
