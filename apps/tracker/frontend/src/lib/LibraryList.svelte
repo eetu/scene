@@ -8,7 +8,7 @@
   import { ListPlus, Pencil, Play, Star } from "@lucide/svelte";
   import { BoingBall, playback } from "@scene/player";
   import { createVirtualizer } from "@tanstack/svelte-virtual";
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
 
   import AlphabetRail from "$lib/AlphabetRail.svelte";
@@ -28,6 +28,7 @@
   import { view } from "$lib/view.svelte";
 
   let {
+    active,
     onOpen,
     onAdd,
     onEdit,
@@ -36,6 +37,9 @@
     onPlayList,
     onToast,
   }: {
+    // True when this list is the foreground view (the player overlay is closed).
+    // Its rising edge is what triggers "reveal the current track" (see below).
+    active: boolean;
     onOpen: (t: Track) => void;
     onAdd: (t: Track) => void;
     onEdit: (t: Track) => void;
@@ -164,6 +168,44 @@
   // Scroll the virtualized list to a row (the A-Z rail jumps here).
   function jumpToRow(index: number) {
     if (scrollEl) $virtualizer.scrollToIndex(index, { align: "start" });
+  }
+
+  // ---- reveal the currently-playing track when the list comes to the front ----
+  // Returning from the player overlay (or a reload that cued a bookmarked ?t)
+  // should surface the track you're on, not drop you at wherever you'd scrolled.
+  // On the hidden→shown edge only, open its group and centre it — the edge guard
+  // means passive auto-advance while you're browsing the list never yanks scroll.
+  let wasActive = false;
+  $effect(() => {
+    const shown = active;
+    if (shown && !wasActive) untrack(() => void revealCurrent());
+    wasActive = shown;
+  });
+
+  async function revealCurrent() {
+    const path = playback.current?.path;
+    if (!path || !scrollEl || !lib.listView) return;
+    // Open the group holding the current track — but only if the active
+    // grouping/filter still lists it (a query or facet may exclude it).
+    let inList = false;
+    for (const [name, items] of lib.groups) {
+      if (items.some((t) => t.path === path)) {
+        inList = true;
+        if (!isOpen(name)) groupOverride.set(name, true);
+        break;
+      }
+    }
+    if (!inList) return;
+    // Let the (possibly) opened group flow through the derived row list and the
+    // virtualizer's count/measure effect before we resolve the row index.
+    await tick();
+    const idx = rows.findIndex((r) => r.kind === "track" && r.track.path === path);
+    if (idx < 0) return;
+    // Skip the scroll when the row is already comfortably on screen, so a track
+    // that's already in view doesn't get a pointless re-centre jump.
+    const vis = $virtualizer.getVirtualItems();
+    const onScreen = vis.length > 0 && idx > vis[0].index && idx < vis[vis.length - 1].index;
+    if (!onScreen) $virtualizer.scrollToIndex(idx, { align: "center" });
   }
 </script>
 
