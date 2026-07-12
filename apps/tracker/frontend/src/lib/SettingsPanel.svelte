@@ -2,7 +2,16 @@
   // Settings overlay. Everything it shows is shared rune state read directly — no
   // props beyond onClose: theme (@scene/design), patternMode ($lib/settings), and
   // the library scan/enrich state + actions ($lib/library.svelte).
-  import { Copy, Monitor, Moon, RefreshCw, ScanLine, Sun } from "@lucide/svelte";
+  import {
+    Copy,
+    FolderPlus,
+    Monitor,
+    Moon,
+    RefreshCw,
+    ScanLine,
+    Sun,
+    Trash2,
+  } from "@lucide/svelte";
   import { setAccent, setTheme, theme } from "@scene/design";
 
   import {
@@ -14,8 +23,17 @@
   } from "$lib/library.svelte";
   import Modal from "$lib/Modal.svelte";
   import { setPatternMode, settings } from "$lib/settings.svelte";
+  import { STANDALONE } from "$lib/standalone";
+  import { pickFiles, pickFolder } from "$lib/standalone/intake";
+  import { clearAll } from "$lib/standalone/store.svelte";
 
   let { onClose, onDupes }: { onClose: () => void; onDupes: () => void } = $props();
+
+  async function clearLibrary() {
+    if (confirm("Remove all loaded modules from this browser? Favourites and playlists go too.")) {
+      await clearAll();
+    }
+  }
 </script>
 
 <Modal label="settings" {onClose}>
@@ -56,43 +74,60 @@
       </button>
     </div>
   </div>
-  <div class="setting">
-    <span class="setting-label">library</span>
-    <div class="seg">
-      <button onclick={rescanLibrary} disabled={library.scanning}>
-        <RefreshCw size={15} />
-        {library.scanning ? "scanning…" : "rescan"}
-      </button>
-      {#if library.enriching}
-        <button onclick={cancelEnrich}>cancel {library.enrichDone}/{library.enrichTotal}</button>
-      {:else}
-        <button onclick={enrichLibrary} disabled={library.scanning || unEnriched() === 0}>
-          {unEnriched() > 0 ? `enrich ${unEnriched()}` : "all enriched"}
+  {#if STANDALONE}
+    <div class="setting">
+      <span class="setting-label">library</span>
+      <div class="seg">
+        <button onclick={pickFiles}><FolderPlus size={15} /> add files</button>
+        <button onclick={pickFolder}><FolderPlus size={15} /> add folder</button>
+        <button onclick={clearLibrary} disabled={library.tracks.length === 0}>
+          <Trash2 size={15} /> clear
         </button>
-      {/if}
+      </div>
+      <span class="setting-hint">
+        {library.tracks.length.toLocaleString()} module{library.tracks.length === 1 ? "" : "s"} in this
+        browser · drag &amp; drop works too
+      </span>
     </div>
-    <span class="setting-hint">
-      {#if library.scanning}
-        scanning… {(
-          library.status?.scan_processed ?? 0
-        ).toLocaleString()}{#if (library.status?.scan_total ?? 0) > 0}/{(
-            library.status?.scan_total ?? 0
-          ).toLocaleString()}{/if}
-      {:else}
-        {library.tracks.length.toLocaleString()} modules{#if unEnriched() > 0}
-          · {unEnriched().toLocaleString()} need metadata{/if}
-      {/if}
-    </span>
-  </div>
-  <div class="setting">
-    <span class="setting-label">cleanup</span>
-    <div class="seg">
-      <button onclick={onDupes} disabled={library.scanning}>
-        <Copy size={15} /> find duplicates
-      </button>
+  {:else}
+    <div class="setting">
+      <span class="setting-label">library</span>
+      <div class="seg">
+        <button onclick={rescanLibrary} disabled={library.scanning}>
+          <RefreshCw size={15} />
+          {library.scanning ? "scanning…" : "rescan"}
+        </button>
+        {#if library.enriching}
+          <button onclick={cancelEnrich}>cancel {library.enrichDone}/{library.enrichTotal}</button>
+        {:else}
+          <button onclick={enrichLibrary} disabled={library.scanning || unEnriched() === 0}>
+            {unEnriched() > 0 ? `enrich ${unEnriched()}` : "all enriched"}
+          </button>
+        {/if}
+      </div>
+      <span class="setting-hint">
+        {#if library.scanning}
+          scanning… {(
+            library.status?.scan_processed ?? 0
+          ).toLocaleString()}{#if (library.status?.scan_total ?? 0) > 0}/{(
+              library.status?.scan_total ?? 0
+            ).toLocaleString()}{/if}
+        {:else}
+          {library.tracks.length.toLocaleString()} modules{#if unEnriched() > 0}
+            · {unEnriched().toLocaleString()} need metadata{/if}
+        {/if}
+      </span>
     </div>
-    <span class="setting-hint">Review identical / same-named modules and delete extras.</span>
-  </div>
+    <div class="setting">
+      <span class="setting-label">cleanup</span>
+      <div class="seg">
+        <button onclick={onDupes} disabled={library.scanning}>
+          <Copy size={15} /> find duplicates
+        </button>
+      </div>
+      <span class="setting-hint">Review identical / same-named modules and delete extras.</span>
+    </div>
+  {/if}
   <div class="modal-actions">
     <button onclick={onClose}>close</button>
   </div>

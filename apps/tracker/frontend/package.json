@@ -24,7 +24,8 @@
     "@lucide/svelte": "^1.22.0",
     "@scene/design": "workspace:*",
     "@scene/player": "workspace:*",
-    "@tanstack/svelte-virtual": "^3.13.31"
+    "@tanstack/svelte-virtual": "^3.13.31",
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "@anarkisti/eslint-config": "^1.0.0",

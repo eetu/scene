@@ -12,6 +12,7 @@
     type PlaylistItem,
     type Track,
   } from "$lib/api";
+  import { STANDALONE } from "$lib/standalone";
 
   type Props = {
     playlists: Playlist[];
@@ -264,7 +265,7 @@
     <div class="dactions">
       <button class="back" onclick={closeDetail}>‹ playlists</button>
       <span class="crumb">{detail?.playlist.name ?? "loading…"}</span>
-      {#if detail && missingCount > 0}
+      {#if detail && missingCount > 0 && !STANDALONE}
         <button
           class="ok"
           onclick={fetchMissing}

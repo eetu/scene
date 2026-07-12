@@ -21,8 +21,11 @@ const defaultCfg = {
 	stereoSeparation: 100, // percents
 	interpolationFilter: 0,
 	context: false,
-	workletUrl: '/vendor/chiptune3/chiptune3.worklet.js',
-	workerUrl: '/vendor/chiptune3/decoder.worker.js'
+	// Base-aware so the worklet/worker resolve under a non-root deploy (the
+	// GitHub Pages build serves the app + its /vendor assets under /scene/).
+	// import.meta.env.BASE_URL is '/' for the backend build, '/scene/' on Pages.
+	workletUrl: (import.meta.env.BASE_URL || '/') + 'vendor/chiptune3/chiptune3.worklet.js',
+	workerUrl: (import.meta.env.BASE_URL || '/') + 'vendor/chiptune3/decoder.worker.js'
 };
 
 export class ChiptuneJsPlayer {

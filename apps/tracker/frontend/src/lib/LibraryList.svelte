@@ -25,6 +25,7 @@
   import { library, rescanLibrary, toggleFavorite } from "$lib/library.svelte";
   import { lib } from "$lib/library-view.svelte";
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
+  import { STANDALONE } from "$lib/standalone";
   import { view } from "$lib/view.svelte";
 
   let {
@@ -239,10 +240,14 @@
         <p>{library.error}</p>
         <button class="link" onclick={rescanLibrary}>retry</button>
       </div>
-    {:else if library.tracks.length === 0}
+    {:else if library.tracks.length === 0 && !STANDALONE}
       <p class="msg">
         No modules indexed yet — try <button class="link" onclick={rescanLibrary}>rescan</button>.
       </p>
+    {:else if library.tracks.length === 0}
+      <!-- Standalone (backend-less): the StandaloneIntake hero overlays this
+           empty region with the drop zone, so the list itself stays blank. -->
+      <div class="vlist"></div>
     {:else if lib.favView && lib.flatTracks.length === 0}
       <p class="msg">No favourites yet — tap the ☆ on any track.</p>
     {:else}
@@ -308,9 +313,11 @@
                 >
                   <ListPlus size={14} />
                 </button>
-                <button class="edit" title="rename / move" onclick={() => onEdit(t)}>
-                  <Pencil size={14} />
-                </button>
+                {#if !STANDALONE}
+                  <button class="edit" title="rename / move" onclick={() => onEdit(t)}>
+                    <Pencil size={14} />
+                  </button>
+                {/if}
               </div>
             {/if}
           </div>

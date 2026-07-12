@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { CircleHelp, Settings, X } from "@lucide/svelte";
+  import { CircleHelp, FolderPlus, Settings, X } from "@lucide/svelte";
   import {
     cueInOrder,
     playback,
@@ -28,6 +28,9 @@
   import { pv } from "$lib/player-view.svelte";
   import PlayerView from "$lib/PlayerView.svelte";
   import SettingsPanel from "$lib/SettingsPanel.svelte";
+  import { STANDALONE } from "$lib/standalone";
+  import { pickFiles } from "$lib/standalone/intake";
+  import StandaloneIntake from "$lib/StandaloneIntake.svelte";
   import Toasts from "$lib/Toasts.svelte";
   import { parsePos } from "$lib/url-state";
   import { bucketNoun, setTab, view } from "$lib/view.svelte";
@@ -426,6 +429,11 @@
       {bucketNoun()}
     {/if}
   </div>
+  {#if STANDALONE}
+    <button class="icon-btn" onclick={pickFiles} title="add modules" aria-label="add modules">
+      <FolderPlus size={16} />
+    </button>
+  {/if}
   <button
     class="icon-btn"
     onclick={() => (showHelp = true)}
@@ -469,16 +477,21 @@
   </div>
 {/if}
 
-<LibraryList
-  active={!showPattern}
-  onOpen={openTrack}
-  onAdd={startAdd}
-  onEdit={startEdit}
-  {playlists}
-  onRefreshPlaylists={refreshPlaylists}
-  onPlayList={playList}
-  onToast={showToast}
-/>
+<div class="content">
+  <LibraryList
+    active={!showPattern}
+    onOpen={openTrack}
+    onAdd={startAdd}
+    onEdit={startEdit}
+    {playlists}
+    onRefreshPlaylists={refreshPlaylists}
+    onPlayList={playList}
+    onToast={showToast}
+  />
+  {#if STANDALONE}
+    <StandaloneIntake onToast={showToast} />
+  {/if}
+</div>
 
 {#if editingTrack}
   {@const et = editingTrack}
@@ -671,6 +684,16 @@
     100% {
       margin-left: 100%;
     }
+  }
+
+  /* Positioning context so the standalone intake hero can overlay the list
+     region (and flex host so LibraryList keeps filling the column). */
+  .content {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .rename-err {

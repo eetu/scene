@@ -10,7 +10,10 @@ container; shared frontend code lives in `packages/*`.
 - **tracker** (`apps/tracker`) — a FastTracker 2–style player for a filesystem
   collection of tracker modules (MOD/XM/S3M/IT and the legacy zoo). Browse by
   group/artist/format, play in-browser via libopenmpt (WASM), with a live
-  pattern view, playlists, and Modland fetch.
+  pattern view, playlists, and Modland fetch. A backend-less build also runs on
+  [GitHub Pages](https://eetu.github.io/scene/): drop / pick a module (or a
+  `.zip` / folder) and it plays entirely in the browser — the library, favourites
+  and playlists persist locally (IndexedDB + localStorage), nothing is uploaded.
 - **party** (`apps/party`) — a demoparty archive player. Browse a party's
   productions by competition, then play music, view graphics/NFOs, and **run the
   demos in the browser**: PC via js-dos, C64/Amiga via EmulatorJS. Amiga entries

@@ -1,0 +1,71 @@
+name: Pages (tracker web)
+
+# Deploys the backend-less tracker SPA to GitHub Pages (eetu.github.io/scene).
+# The build sets VITE_STANDALONE=1 (swaps the /api layer for the browser-local
+# store) and BASE_PATH=/scene (project-page base). Enable once in the repo:
+# Settings → Pages → Source: GitHub Actions.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/**"
+      - "apps/tracker/frontend/**"
+      - "yarn.lock"
+      - ".yarn/releases/**"
+      - ".node-version"
+      - ".github/workflows/pages.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; let a newer push supersede an in-flight run.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version-file: .node-version
+
+      # First-run demo module — Purple Motion's "Second Reality" theme (2nd_pm.s3m,
+      # ModArchive #212083). Fetched at deploy time, never committed (gitignored);
+      # served same-origin so the app can seed one playable track. Best-effort: if
+      # ModArchive is unreachable the site just opens on the empty drop zone.
+      - name: Fetch the demo module
+        run: |
+          mkdir -p apps/tracker/frontend/static/demo
+          curl -fsSL "https://api.modarchive.org/downloads.php?moduleid=212083" \
+            -o apps/tracker/frontend/static/demo/2nd_pm.s3m \
+            || echo "demo module unavailable — the site will open on the drop zone"
+
+      - name: Build the standalone SPA
+        env:
+          VITE_STANDALONE: "1"
+          BASE_PATH: /scene
+        run: |
+          yarn() { node .yarn/releases/yarn-*.cjs "$@"; }
+          yarn install --immutable
+          yarn workspace tracker-frontend build
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/tracker/frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deploy

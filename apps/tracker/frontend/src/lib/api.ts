@@ -1,6 +1,11 @@
 // Thin fetch layer over the backend's JSON API. Types are hand-written to match
 // the Rust structs (no codegen — see sibling-app). Keep in sync with
 // backend/src/routes.rs.
+//
+// In the backend-less GitHub Pages build (STANDALONE) the playable half of `api`
+// is swapped for a browser-local implementation — see the branch at the bottom.
+import { STANDALONE } from "$lib/standalone";
+import * as local from "$lib/standalone/store.svelte";
 
 /** One library entry. Path-derived fields are always present; the rest come
  *  from the metadata cache and are null until enrichment fills them. `md5` is
@@ -197,7 +202,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export const api = {
+const httpApi = {
   status: () => request<StatusResponse>("/status"),
   tracks: () => request<{ tracks: Track[] }>("/api/tracks").then((r) => r.tracks),
   rescan: () => request<RescanResult>("/api/rescan", { method: "POST" }),
@@ -247,7 +252,54 @@ export const api = {
   dupes: () => request<DupesReport>("/api/dupes"),
 };
 
-/** URL for the raw module bytes (player + WASM metadata extraction). */
+// The GitHub Pages build has no backend: the playable endpoints delegate to the
+// browser-local store (IndexedDB bytes + localStorage catalog/playlists), and the
+// backend-only ones (rename/delete/rescan/fetch-missing/dupes) keep their HTTP
+// form but are never reached — their UI is hidden when STANDALONE. Written as a
+// static branch on a build constant so the unused half + its imports are
+// tree-shaken out of the backend build.
+export const api = STANDALONE
+  ? {
+      ...httpApi,
+      status: async (): Promise<StatusResponse> => ({
+        service: "tracker",
+        version: "web",
+        db_healthy: true,
+        track_count: local.tracks.length,
+        root: "(browser)",
+        scanning: false,
+        scan_total: 0,
+        scan_processed: 0,
+        scan_hashed: 0,
+      }),
+      tracks: async () => local.tracks,
+      putMeta: local.putMeta,
+      setFavorite: local.setFavorite,
+      play: local.recordPlay,
+      playlists: async () => local.playlists.list(),
+      createPlaylist: async (name: string) => local.playlists.create(name),
+      getPlaylist: async (id: string) => local.playlists.get(id),
+      renamePlaylist: async (id: string, name: string) => local.playlists.rename(id, name),
+      deletePlaylist: async (id: string) => local.playlists.remove(id),
+      addToPlaylist: async (id: string, item: ImportItem) => local.playlists.add(id, item),
+      reorderPlaylist: async (id: string, ids: number[]) => local.playlists.reorder(id, ids),
+      removeFromPlaylist: async (id: string, itemId: number) =>
+        local.playlists.removeItem(id, itemId),
+      importPlaylist: async (doc: ImportDoc) => local.playlists.import(doc),
+      exportPlaylist: async (id: string) => local.playlists.export(id),
+      libraryMd5: async () => local.tracks.map((t) => t.md5).filter((m): m is string => !!m),
+      fetchStatus: async (): Promise<FetchStatus> => ({
+        running: false,
+        total: 0,
+        fetched: 0,
+        failed: 0,
+      }),
+      dupes: async (): Promise<DupesReport> => ({ exact: [], likely: [] }),
+    }
+  : httpApi;
+
+/** URL for the raw module bytes (player + WASM metadata extraction). Backend
+ *  build → `/api/file/{hash}`; Pages build → an in-memory object URL. */
 export function fileUrl(hash: string): string {
-  return `/api/file/${hash}`;
+  return STANDALONE ? local.objectUrl(hash) : `/api/file/${hash}`;
 }
