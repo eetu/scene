@@ -17,6 +17,28 @@ container; shared frontend code lives in `packages/*`.
   boot from per-prod disk images kept under `.support/`; PC demos get a baked
   DOSBox config (with a GUS-first sound-card hint).
 
+**tracker** — the FastTracker 2–style pattern view, playing an 8-channel module
+with the master scope and per-channel VU meters:
+
+![tracker — the FT2 pattern view mid-playback](docs/tracker.png)
+
+…plus a set of demoscene visualisers (here the tunnel) and a sample browser with
+a jam keyboard that plays the module's raw sample PCM:
+
+| tunnel visualiser | sample browser + jam keyboard |
+| --- | --- |
+| ![tracker — the tunnel visualiser](docs/tracker-viz.jpg) | ![tracker — the sample browser](docs/tracker-samples.png) |
+
+**party** — the landing page, one card per archived demoparty (logos are each
+party's winning graphics entry):
+
+![party — the demoparty archive landing](docs/party.png)
+
+…and the productions themselves run in the browser — here Nooon's _Stars: Wonders
+of the World_ (Assembly '95, 1st place) booted in js-dos:
+
+![party — a PC demo running in js-dos](docs/party-demo.png)
+
 ## Services
 
 - **transcoder** (`services/transcoder`) — a Rust + ffmpeg sidecar that turns
