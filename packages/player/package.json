@@ -16,6 +16,7 @@
     }
   },
   "dependencies": {
+    "@glowbox/svelte": "^1.0.0-rc.2",
     "@scene/design": "workspace:*",
     "xstate": "^5.32.4"
   },

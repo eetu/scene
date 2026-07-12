@@ -1,10 +1,11 @@
 <script module lang="ts">
   // Party's enabled visualizers (its own set — the tracker keeps a separate list).
   type VizMode =
-    "vu" | "bars" | "wave" | "stars" | "copper" | "plasma" | "tunnel" | "disco" | "ball";
+    "vu" | "bars" | "cube" | "wave" | "stars" | "copper" | "plasma" | "tunnel" | "disco" | "ball";
   const VIZ: VizMode[] = [
     "vu",
     "bars",
+    "cube",
     "wave",
     "stars",
     "copper",
@@ -34,6 +35,7 @@
   import DiscoBall from "./DiscoBall.svelte";
   import Equalizer from "./Equalizer.svelte";
   import GlowWave from "./GlowWave.svelte";
+  import LedBars from "./LedBars.svelte";
   import PatternView from "./PatternView.svelte";
   import { playback } from "./player.svelte";
   import Plasma from "./Plasma.svelte";
@@ -130,6 +132,8 @@
         <div class="vizbody">
           {#if vizMode === "bars"}
             <Equalizer active={playing} />
+          {:else if vizMode === "cube"}
+            <LedBars active={playing} />
           {:else if vizMode === "wave"}
             <GlowWave active={playing} />
           {:else if vizMode === "vu"}

@@ -12,6 +12,7 @@
     DiscoBall,
     Equalizer,
     GlowWave,
+    LedBars,
     PatternView,
     Plasma,
     playback,
@@ -314,6 +315,8 @@
         <div class="vizbody">
           {#if pv.vizMode === "bars"}
             <Equalizer active={vizActive} />
+          {:else if pv.vizMode === "cube"}
+            <LedBars active={vizActive} />
           {:else if pv.vizMode === "wave"}
             <GlowWave active={vizActive} />
           {:else if pv.vizMode === "vu"}

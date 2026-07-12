@@ -13,6 +13,7 @@ export { default as CopperBars } from "./CopperBars.svelte";
 export { default as DiscoBall } from "./DiscoBall.svelte";
 export { default as Equalizer } from "./Equalizer.svelte";
 export { default as GlowWave } from "./GlowWave.svelte";
+export { default as LedBars } from "./LedBars.svelte";
 export { default as PatternView } from "./PatternView.svelte";
 export { default as SampleBrowser } from "./SampleBrowser.svelte";
 export { default as Plasma } from "./Plasma.svelte";
