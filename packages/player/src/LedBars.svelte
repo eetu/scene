@@ -7,11 +7,22 @@
   // slow release) + a floating peak-hold cap; a blue→red heat gradient by height,
   // tips bloom (HDR >1). Idle decays to dark. The grid owns its own WebGL render +
   // orbit; we just write voxels in `draw`.
-  import { LedGrid, type LedDisplay } from "@glowbox/svelte";
+  // @glowbox/svelte's index re-exports the nixie component, which touches Path2D
+  // at import — fine in a browser, but it crashes node unit tests that transitively
+  // import @scene/player. So the value (LedGrid) is lazy-imported in onMount (also
+  // keeps it out of the main bundle); only the type is imported statically.
+  import type { LedDisplay } from "@glowbox/svelte";
+  import { onMount } from "svelte";
 
   import { readSpectrum, sampleBands, SPECTRUM_SIZE } from "./player.svelte";
 
   let { active = true }: { active?: boolean } = $props();
+
+  type LedGridComponent = (typeof import("@glowbox/svelte"))["LedGrid"];
+  let LedGrid = $state<LedGridComponent | null>(null);
+  onMount(async () => {
+    LedGrid = (await import("@glowbox/svelte")).LedGrid;
+  });
 
   const N = 8; // bars per side → N×N = 64 bars
   const FOOT = 2; // bar footprint (LEDs) — chunky blocks
@@ -122,17 +133,19 @@
   }
 </script>
 
-<LedGrid
-  size={[NX, NY, NZ]}
-  {draw}
-  led={{ style: "comic", shape: "square", size: 0.9, outline: 0.28 }}
-  color={{ background: "#04050a", gain: 1.0 }}
-  camera={{
-    autoOrbit: true,
-    orbitSpeed: 0.2,
-    pitch: 0.34,
-    distance: 4.2,
-    projection: "perspective",
-  }}
-  interaction={{ drag: true, zoom: true }}
-/>
+{#if LedGrid}
+  <LedGrid
+    size={[NX, NY, NZ]}
+    {draw}
+    led={{ style: "comic", shape: "square", size: 0.9, outline: 0.28 }}
+    color={{ background: "#04050a", gain: 1.0 }}
+    camera={{
+      autoOrbit: true,
+      orbitSpeed: 0.2,
+      pitch: 0.34,
+      distance: 4.2,
+      projection: "perspective",
+    }}
+    interaction={{ drag: true, zoom: true }}
+  />
+{/if}

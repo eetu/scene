@@ -4,13 +4,11 @@ import { expect, test } from "vitest";
 import LedBars from "../LedBars.svelte";
 
 // Smoke test (browser — needs a real WebGL context): the 3D "cube" spectrum viz
-// mounts over @glowbox/svelte's <LedGrid> and paints a canvas without throwing,
-// idle (active:false → no audio graph, the draw() just clears). Guards the
-// wiring — the glowbox import, the prop contract, and the per-frame draw
-// callback — and would catch a breaking @glowbox bump.
+// mounts, lazy-loads @glowbox/svelte and paints a canvas without throwing, idle
+// (active:false → no audio graph, the draw() just clears). Polls for the canvas —
+// the lazy import resolves a tick after mount. Guards the wiring — the glowbox
+// import, the prop contract, the per-frame draw — and would catch a breaking bump.
 test("LedBars mounts and renders a canvas over glowbox", async () => {
   render(LedBars, { props: { active: false } });
-  // glowbox creates its WebGL canvas on mount (in an effect) — give it a beat.
-  await new Promise((r) => setTimeout(r, 60));
-  expect(document.querySelector("canvas"), "glowbox LedGrid created a <canvas>").toBeTruthy();
+  await expect.poll(() => document.querySelector("canvas"), { timeout: 8000 }).toBeTruthy();
 });
