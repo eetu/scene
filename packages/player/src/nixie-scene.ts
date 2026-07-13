@@ -180,8 +180,10 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
-  controls.autoRotate = true;
-  controls.autoRotateSpeed = 1.2;
+  // No full auto-rotate — the clock is unreadable from behind. Instead the whole
+  // set sways gently side to side (see the loop), keeping the faces toward the
+  // camera; the user can still drag to look around.
+  controls.autoRotate = false;
   controls.enablePan = false;
   controls.minDistance = 6;
   controls.maxDistance = 40;
@@ -353,6 +355,8 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
     if (typeof document !== "undefined" && document.hidden) return;
     if (t - lastRender < MIN_FRAME_MS) return;
     lastRender = t;
+    // Gentle side-to-side sway (±~40°), so the tube faces stay toward the camera.
+    root.rotation.y = Math.sin(t * 0.00042) * 0.72;
     // Throb the glow + bloom with the bass.
     glowMat.emissiveIntensity = GLOW_INTENSITY * (1 + pulse * 0.6);
     bloom.strength = BLOOM_STRENGTH + pulse * 0.9;
