@@ -5,7 +5,7 @@
   // grouped list); the parent owns the overlays, so track actions come in as
   // callbacks (open the player view / add to playlist / rename), plus the
   // playlists tab's data (that tab's own state lives in +page for now).
-  import { ListPlus, Pencil, Play, Star } from "@lucide/svelte";
+  import { ListPlus, Pencil, Play, Star, Trash2 } from "@lucide/svelte";
   import { BoingBall, playback } from "@scene/player";
   import { createVirtualizer } from "@tanstack/svelte-virtual";
   import { tick, untrack } from "svelte";
@@ -26,6 +26,7 @@
   import { lib } from "$lib/library-view.svelte";
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
   import { STANDALONE } from "$lib/standalone";
+  import { remove as removeLocal } from "$lib/standalone/store.svelte";
   import { view } from "$lib/view.svelte";
 
   let {
@@ -55,6 +56,15 @@
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  // Standalone (backend-less) build: delete a module from the browser-local
+  // library (bytes + catalog). library.tracks is the store's array, so removing
+  // updates the list reactively.
+  async function deleteTrack(t: Track) {
+    if (!confirm(`Remove "${t.title || t.filename}" from your browser?`)) return;
+    await removeLocal(t.hash);
+    onToast(`Removed ${t.title || t.filename}`);
   }
 
   // First-run scan progress (shown in the scan panel). null = indeterminate.
@@ -313,7 +323,11 @@
                 >
                   <ListPlus size={14} />
                 </button>
-                {#if !STANDALONE}
+                {#if STANDALONE}
+                  <button class="edit" title="remove from browser" onclick={() => deleteTrack(t)}>
+                    <Trash2 size={14} />
+                  </button>
+                {:else}
                   <button class="edit" title="rename / move" onclick={() => onEdit(t)}>
                     <Pencil size={14} />
                   </button>

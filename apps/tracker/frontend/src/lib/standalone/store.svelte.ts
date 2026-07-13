@@ -192,6 +192,21 @@ export async function setFavorite(hash: string, favorite: boolean): Promise<void
   }
 }
 
+/** Delete one module from the local library — its bytes (IndexedDB), catalog row
+ *  and object URL. Playlists that referenced it just show it as missing. */
+export async function remove(hash: string): Promise<void> {
+  const i = tracks.findIndex((t) => t.hash === hash);
+  if (i < 0) return;
+  const url = urls.get(hash);
+  if (url) {
+    URL.revokeObjectURL(url);
+    urls.delete(hash);
+  }
+  await idb.del(hash).catch(() => {});
+  tracks.splice(i, 1);
+  persistCatalog();
+}
+
 /** Forget everything (catalog + bytes + playlists). */
 export async function clearAll(): Promise<void> {
   for (const u of urls.values()) URL.revokeObjectURL(u);
