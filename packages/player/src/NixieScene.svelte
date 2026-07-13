@@ -1,12 +1,14 @@
 <script lang="ts">
-  // A 3D nixie-tube scene visualiser: five glass tubes standing on a table,
-  // MM:SS of play time glowing inside them, the whole set gently rotating. Built
-  // on three.js (lazy-loaded — it's a big dep kept out of the main bundle via the
-  // dynamic import below). Each digit is a real @glowbox/nixie numeral rendered to
-  // an off-screen canvas and textured (additively, so only the glow shows) onto a
-  // plane inside its glass cylinder. The glass is partially transparent, so you
-  // see through the front tubes to the ones behind; it flushes toward the theme
-  // accent on the bass. Idle settles to dark glass and the time holds.
+  // A 3D nixie-tube scene visualiser: glass tubes standing on a table showing play
+  // time as a live MM:SS:CC stopwatch (the centisecond pair are smaller sub-tubes),
+  // the whole set gently swaying. Built on three.js (lazy-loaded — a big dep kept
+  // out of the main bundle via the dynamic import below). Each digit is a real
+  // @glowbox/nixie numeral rendered to an off-screen canvas and textured
+  // (additively, so only the glow shows) onto a plane inside its glass cylinder.
+  // The glass is partially transparent, so you see through the front tubes to the
+  // ones behind; it flushes toward the theme accent on the bass. The time runs off
+  // a smooth local clock (advanced by frame dt, re-synced to playback.position on a
+  // seek) so the ms stay fluid despite the decoder's coarser updates.
   import { createNixieTube, type NixieTube } from "@glowbox/nixie";
   import type * as THREE from "three";
   import { onMount } from "svelte";
@@ -20,14 +22,21 @@
   let canvasEl: HTMLCanvasElement;
   let sink: HTMLDivElement; // holds the (off-screen) nixie source canvases
 
-  // MM:SS → five slots; the middle one is the (slimmer) colon tube.
-  const LAYOUT = [
-    { colon: false },
-    { colon: false },
+  // MM:SS:CC → eight slots; the two `:` are slimmer, and the trailing CC pair are
+  // smaller "sub-counter" tubes.
+  type Kind = { colon?: boolean; ms?: boolean };
+  const LAYOUT: Kind[] = [
+    {},
+    {},
     { colon: true },
-    { colon: false },
-    { colon: false },
+    {},
+    {},
+    { colon: true, ms: true },
+    { ms: true },
+    { ms: true },
   ];
+  const radiusOf = (k: Kind) => (k.colon ? (k.ms ? 0.17 : 0.28) : k.ms ? 0.33 : 0.52);
+  const heightOf = (k: Kind) => (k.ms ? 1.12 : 1.75);
 
   onMount(() => {
     let stopped = false;
@@ -43,7 +52,7 @@
 
       const scene = new T.Scene();
       const camera = new T.PerspectiveCamera(42, 1, 0.1, 100);
-      camera.position.set(0, 1.3, 6.6);
+      camera.position.set(0, 1.3, 7);
       camera.lookAt(0, 0.05, 0);
 
       scene.add(new T.AmbientLight(0x8895b8, 0.7));
@@ -57,16 +66,13 @@
       const group = new T.Group();
       scene.add(group);
 
-      // Table the tubes stand on.
       const table = new T.Mesh(
-        new T.CylinderGeometry(3.2, 3.5, 0.32, 48),
+        new T.CylinderGeometry(3.4, 3.7, 0.32, 48),
         new T.MeshStandardMaterial({ color: 0x0b0d13, roughness: 0.55, metalness: 0.35 }),
       );
       table.position.y = -1.06;
       group.add(table);
 
-      // Shared, partially-transparent glass (pulsed via .emissive). depthWrite off
-      // so the tubes behind show through the front ones.
       const glass = new T.MeshStandardMaterial({
         color: 0x2b3a4d,
         roughness: 0.12,
@@ -81,26 +87,34 @@
         metalness: 0.6,
       });
 
-      const H = 1.75;
-      const gap = 1.16;
-      const x0 = -((LAYOUT.length - 1) * gap) / 2;
+      // Lay the row out left→right accounting for each tube's radius, then centre.
+      const GAP = 0.16;
+      const H = 1.75; // main tube height; tubes are bottom-aligned on the table
+      const rs = LAYOUT.map(radiusOf);
+      const totalW = rs.reduce((a, r) => a + 2 * r, 0) + GAP * (LAYOUT.length - 1);
+      let cursor = -totalW / 2;
+
       type Slot = { tube: NixieTube; tex: THREE.CanvasTexture; last: string };
       const slots: Slot[] = [];
       const geoms: THREE.BufferGeometry[] = [];
 
       LAYOUT.forEach((L, i) => {
-        const r = L.colon ? 0.28 : 0.52;
-        const x = x0 + i * gap;
+        const r = rs[i];
+        const h = heightOf(L);
+        const x = cursor + r;
+        cursor += 2 * r + GAP;
+        const yBottom = -H / 2; // all tubes sit on the same table top
+        const yc = yBottom + h / 2;
 
-        const cylGeo = new T.CylinderGeometry(r, r, H, 40, 1, true);
+        const cylGeo = new T.CylinderGeometry(r, r, h, 40, 1, true);
         geoms.push(cylGeo);
         const cyl = new T.Mesh(cylGeo, glass);
-        cyl.position.x = x;
+        cyl.position.set(x, yc, 0);
         group.add(cyl);
 
         for (const [yy, rt, rb, hh] of [
-          [-H / 2, r * 1.15, r * 1.25, 0.18],
-          [H / 2, r * 1.05, r * 1.12, 0.12],
+          [yBottom, r * 1.15, r * 1.25, 0.16],
+          [yBottom + h, r * 1.05, r * 1.12, 0.11],
         ] as const) {
           const g = new T.CylinderGeometry(rt, rb, hh, 28);
           geoms.push(g);
@@ -109,9 +123,8 @@
           group.add(cap);
         }
 
-        // Off-screen nixie canvas → additive glow texture on a plane inside the tube.
         const c = document.createElement("canvas");
-        c.style.cssText = `display:block;width:${L.colon ? 72 : 132}px;height:210px`;
+        c.style.cssText = `display:block;width:${Math.round(r * 250)}px;height:${Math.round(h * 120)}px`;
         sink.appendChild(c);
         const tube = createNixieTube(c, {
           value: L.colon ? ":" : "0",
@@ -121,11 +134,11 @@
           ghost: false,
           background: [0.008, 0.008, 0.012],
         })!;
-        tube.resize(); // force an initial draw at the canvas box size
+        tube.resize();
 
         const tex = new T.CanvasTexture(c);
         tex.colorSpace = T.SRGBColorSpace;
-        const planeGeo = new T.PlaneGeometry(L.colon ? 0.5 : 0.84, 1.34);
+        const planeGeo = new T.PlaneGeometry(r * 1.6, h * 0.76);
         geoms.push(planeGeo);
         const plane = new T.Mesh(
           planeGeo,
@@ -136,7 +149,7 @@
             depthWrite: false,
           }),
         );
-        plane.position.set(x, 0, 0.001);
+        plane.position.set(x, yc, 0.001);
         group.add(plane);
 
         slots.push({ tube, tex, last: "" });
@@ -169,6 +182,7 @@
 
       let pulse = 0;
       let t = 0;
+      let shown = 0; // smooth elapsed seconds
       const stopFrames = driveFrames(
         (dt) => {
           readAccent();
@@ -181,11 +195,26 @@
           accentLight.color.copy(accent);
           accentLight.intensity = 0.35 + 1.7 * pulse;
 
-          const total = Math.max(0, Math.floor(playback.position || 0));
+          // Smooth clock: advance by real dt while playing, snap to the true
+          // position on a seek / track change / pause (fluid ms, stays honest).
+          const pos = playback.position || 0;
+          if (active) {
+            shown += dt;
+            if (Math.abs(shown - pos) > 0.3) shown = pos;
+          } else {
+            shown = pos;
+          }
+          const total = Math.max(0, shown);
           const mm = Math.min(99, Math.floor(total / 60))
             .toString()
             .padStart(2, "0");
-          const s = `${mm}:${(total % 60).toString().padStart(2, "0")}`;
+          const ss = Math.floor(total % 60)
+            .toString()
+            .padStart(2, "0");
+          const cc = Math.floor((total * 100) % 100)
+            .toString()
+            .padStart(2, "0");
+          const s = `${mm}:${ss}:${cc}`; // 8 chars → 8 slots
           for (let i = 0; i < slots.length; i++) {
             const ch = s[i] ?? "";
             if (ch !== slots[i].last) {

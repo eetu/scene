@@ -10,7 +10,6 @@
     | "plasma"
     | "tunnel"
     | "disco"
-    | "clock"
     | "tubes"
     | "ball";
   const VIZ: VizMode[] = [
@@ -23,7 +22,6 @@
     "plasma",
     "tunnel",
     "disco",
-    "clock",
     "tubes",
     "ball",
   ];
@@ -50,7 +48,6 @@
   import GlowWave from "./GlowWave.svelte";
   import LedBars from "./LedBars.svelte";
   import NixieScene from "./NixieScene.svelte";
-  import NixieTime from "./NixieTime.svelte";
   import PatternView from "./PatternView.svelte";
   import { playback } from "./player.svelte";
   import Plasma from "./Plasma.svelte";
@@ -163,8 +160,6 @@
             <Tunnel active={playing} />
           {:else if vizMode === "disco"}
             <DiscoBall active={playing} />
-          {:else if vizMode === "clock"}
-            <NixieTime active={playing} />
           {:else if vizMode === "tubes"}
             <NixieScene active={playing} />
           {:else}

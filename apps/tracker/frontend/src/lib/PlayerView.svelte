@@ -14,7 +14,6 @@
     GlowWave,
     LedBars,
     NixieScene,
-    NixieTime,
     PatternView,
     Plasma,
     playback,
@@ -333,8 +332,6 @@
             <Tunnel active={vizActive} />
           {:else if pv.vizMode === "disco"}
             <DiscoBall active={vizActive} />
-          {:else if pv.vizMode === "clock"}
-            <NixieTime active={vizActive} />
           {:else if pv.vizMode === "tubes"}
             <NixieScene active={vizActive} />
           {:else}
