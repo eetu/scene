@@ -357,9 +357,12 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
     lastRender = t;
     // Gentle side-to-side sway (±~40°), so the tube faces stay toward the camera.
     root.rotation.y = Math.sin(t * 0.00042) * 0.72;
-    // Throb the glow + bloom with the bass.
-    glowMat.emissiveIntensity = GLOW_INTENSITY * (1 + pulse * 0.6);
-    bloom.strength = BLOOM_STRENGTH + pulse * 0.9;
+    // Subtle beat response (the disco ball owns "flashy"): a gentle lift of the
+    // glow + bloom on the bass, and a faint accent bloom in the glass tint so the
+    // tubes breathe with the music without strobing.
+    glowMat.emissiveIntensity = GLOW_INTENSITY * (1 + pulse * 0.3);
+    bloom.strength = BLOOM_STRENGTH + pulse * 0.4;
+    glassMat.emissive.copy(glowMat.emissive).multiplyScalar(pulse * 0.08);
     controls.update();
     composer.render();
   }
