@@ -56,6 +56,7 @@
         (dt) => {
           pulse = Math.max(active ? sampleBands().bass : 0, pulse - dt * 1.6);
           scene!.setPulse(pulse);
+          scene!.setActive(active); // idle-throttle the scene's own render loop
 
           const col = accentHex();
           if (col !== lastColor) {
@@ -76,7 +77,9 @@
             lastStr = str;
           }
         },
-        { fps: () => (active ? 60 : 20) },
+        // The scene renders on its own capped loop; this only feeds it, so a
+        // modest rate is plenty (and drops right down when paused).
+        { fps: () => (active ? 30 : 10) },
       );
     })();
 

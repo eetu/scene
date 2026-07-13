@@ -326,7 +326,7 @@
           g2.globalAlpha = 1;
         }
       },
-      { fps: 60 },
+      { fps: () => (active ? 45 : 15) },
     );
 
     return () => {

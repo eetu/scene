@@ -147,7 +147,7 @@
         bctx.putImageData(img, 0, 0);
         if (w > 0 && h > 0) g2.drawImage(buf, 0, 0, w, h);
       },
-      { fps: 60 },
+      { fps: () => (active ? 45 : 15) },
     );
 
     return () => {

@@ -130,7 +130,7 @@
 
         head = (head + 1) % TRAILS;
       },
-      { fps: 60 },
+      { fps: () => (active ? 45 : 15) },
     );
 
     return () => {

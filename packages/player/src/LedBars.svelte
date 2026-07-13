@@ -147,5 +147,6 @@
       projection: "perspective",
     }}
     interaction={{ drag: true, zoom: true }}
+    quality={{ fps: active ? 45 : 15 }}
   />
 {/if}

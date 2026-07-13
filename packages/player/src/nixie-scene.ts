@@ -42,6 +42,8 @@ export interface NixieScene {
   setOptions(patch: Partial<Omit<NixieSceneOptions, "digits">>): void;
   /** Bass energy 0..1 — throbs the glow + bloom with the music. */
   setPulse(v: number): void;
+  /** Playing? Idle-throttles the (fill-rate-heavy) render loop to save battery. */
+  setActive(active: boolean): void;
   resize(): void;
   dispose(): void;
 }
@@ -347,24 +349,29 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
   composer.addPass(new OutputPass());
 
   let pulse = 0;
+  let sceneActive = true;
   let raf = 0;
   let lastRender = 0;
-  const MIN_FRAME_MS = 1000 / 40;
+  // Fill-rate heavy (transmission + bloom), so cap tightly: ~36fps playing, and
+  // idle right down when paused/stopped to spare the battery on an always-on tab.
   function loop(t: number) {
     raf = requestAnimationFrame(loop);
     if (typeof document !== "undefined" && document.hidden) return;
-    if (t - lastRender < MIN_FRAME_MS) return;
+    if (t - lastRender < 1000 / (sceneActive ? 36 : 12)) return;
     lastRender = t;
-    // Gentle side-to-side sway (±~40°), so the tube faces stay toward the camera.
-    root.rotation.y = Math.sin(t * 0.00042) * 0.72;
+    // Sway (±~40°, faces toward the camera) only while playing — at the idle fps
+    // cap the motion judders, and a still clock reads better paused anyway.
+    if (sceneActive) root.rotation.y = Math.sin(t * 0.00042) * 0.72;
     // Subtle beat response (the disco ball owns "flashy"): a gentle lift of the
     // glow + bloom on the bass, and a faint accent bloom in the glass tint so the
     // tubes breathe with the music without strobing.
     glowMat.emissiveIntensity = GLOW_INTENSITY * (1 + pulse * 0.3);
     bloom.strength = BLOOM_STRENGTH + pulse * 0.4;
     glassMat.emissive.copy(glowMat.emissive).multiplyScalar(pulse * 0.08);
-    controls.update();
-    composer.render();
+    const moved = controls.update();
+    // Idle + settled + not being dragged → nothing changed, so skip the heavy
+    // transmission + bloom render entirely (big battery saving on an always-on tab).
+    if (sceneActive || pulse >= 0.005 || moved) composer.render();
   }
 
   function frameContent() {
@@ -427,6 +434,9 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
     },
     setPulse(v) {
       pulse = v;
+    },
+    setActive(v) {
+      sceneActive = v;
     },
     resize,
     dispose() {

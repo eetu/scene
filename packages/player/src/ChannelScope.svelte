@@ -42,7 +42,7 @@
       paint(); // one flat frame, no loop
       return;
     }
-    return driveFrames(paint, { fps: 60 });
+    return driveFrames(paint, { fps: 45 });
   });
 </script>
 
