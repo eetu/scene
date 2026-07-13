@@ -125,7 +125,7 @@
 <LedGrid
   size={[NX, NY, NZ]}
   {draw}
-  led={{ glow: 1.5, shape: "square", size: 0.82 }}
+  led={{ style: "comic", shape: "square", size: 0.9, outline: 0.28 }}
   color={{ background: "#04050a", gain: 1.0 }}
   camera={{
     autoOrbit: true,
