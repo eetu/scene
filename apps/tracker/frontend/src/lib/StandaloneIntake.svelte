@@ -7,7 +7,7 @@
   import { library } from "$lib/library.svelte";
   import { ACCEPT } from "$lib/standalone";
   import { registerFiles, registerFolder } from "$lib/standalone/intake";
-  import { addFiles } from "$lib/standalone/store.svelte";
+  import { addFiles, addFsEntries } from "$lib/standalone/store.svelte";
 
   let { onToast }: { onToast: (msg: string, kind?: "ok" | "err") => void } = $props();
 
@@ -31,11 +31,11 @@
     return () => registerFolder(null);
   });
 
-  async function take(files: FileList | File[] | null) {
-    if (!files || busy) return;
+  async function take(add: () => Promise<number>) {
+    if (busy) return;
     busy = true;
     try {
-      const n = await addFiles(files);
+      const n = await add();
       onToast(
         n > 0 ? `Added ${n} module${n === 1 ? "" : "s"}` : "No playable modules found",
         n > 0 ? "ok" : "err",
@@ -51,7 +51,20 @@
     e.preventDefault();
     dragging = false;
     depth = 0;
-    void take(e.dataTransfer?.files ?? null);
+    // Prefer the entries API so dropped *folders* recurse (DataTransfer.files
+    // skips folder contents). Capture entries synchronously — the DataTransfer is
+    // invalid once the event returns. Fall back to the flat file list.
+    const items = e.dataTransfer?.items;
+    const entries = items
+      ? Array.from(items)
+          .map((it) => (it.kind === "file" ? it.webkitGetAsEntry?.() : null))
+          .filter((en): en is FileSystemEntry => !!en)
+      : [];
+    if (entries.length) void take(() => addFsEntries(entries));
+    else if (e.dataTransfer?.files?.length) {
+      const files = e.dataTransfer.files;
+      void take(() => addFiles(files));
+    }
   }
   function onDragEnter(e: DragEvent) {
     if (e.dataTransfer?.types.includes("Files")) {
@@ -64,7 +77,8 @@
   }
   function onInput(e: Event) {
     const el = e.currentTarget as HTMLInputElement;
-    void take(el.files);
+    const files = el.files;
+    if (files?.length) void take(() => addFiles(files));
     el.value = ""; // allow re-picking the same file
   }
 </script>

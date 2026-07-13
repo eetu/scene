@@ -14,8 +14,11 @@ import type {
   Playlist,
   PlaylistDetail,
   PlaylistItem,
+  RenameRequest,
+  RenameResult,
   Track,
 } from "$lib/api";
+import { ApiError } from "$lib/api";
 import { toMeta } from "$lib/enrich";
 import { extOf, isModule } from "$lib/standalone";
 import * as idb from "$lib/standalone/idb";
@@ -79,7 +82,19 @@ function makeTrack(relPath: string, hash: string, size: number): Track {
 // -------------------------------------------------------------- intake ----
 type Entry = { path: string; bytes: ArrayBuffer };
 
-/** Unzip an archive into its module entries (flat, keeping inner paths). */
+/** A path whose FIRST segment is the import root (the folder the user picked or
+ *  dropped) → the collection-relative `group/artist/song` path. Mirrors the
+ *  backend, whose paths are relative to TRACKER_ROOT: the picked/dropped folder
+ *  IS that root, so its own name is dropped (a folder picked at the top level of
+ *  a `group/artist/song` tree yields group=first-inner-dir, not the wrapper).
+ *  A bare filename (a loose file, no folder) has no root to strip → groupless. */
+function rootRelative(p: string): string {
+  const parts = p.split("/").filter(Boolean);
+  return parts.length > 1 ? parts.slice(1).join("/") : (parts[0] ?? p);
+}
+
+/** Unzip an archive into its module entries (keeping inner paths as group/artist/
+ *  song — the zip itself is the import root, like a picked folder's contents). */
 function unzipEntries(buf: ArrayBuffer): Promise<Entry[]> {
   return new Promise((resolve) => {
     unzip(new Uint8Array(buf), (err, files) => {
@@ -97,10 +112,52 @@ function unzipEntries(buf: ArrayBuffer): Promise<Entry[]> {
 }
 
 async function fileEntries(file: File): Promise<Entry[]> {
-  const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
   if (extOf(file.name) === "zip") return unzipEntries(await file.arrayBuffer());
-  if (isModule(file.name)) return [{ path: rel, bytes: await file.arrayBuffer() }];
+  if (!isModule(file.name)) return [];
+  // A webkitdirectory pick carries the picked folder as the first path segment
+  // (strip it); a plain file pick has no relative path → the bare name.
+  const wrp = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+  const path = wrp ? rootRelative(wrp) : file.name;
+  return [{ path, bytes: await file.arrayBuffer() }];
+}
+
+/** Recursively read a dropped filesystem entry (Chrome/Safari drag-drop expose
+ *  directories only via this API — `DataTransfer.files` skips folder contents).
+ *  Paths come from the entry's fullPath, root-stripped like the pickers. */
+async function readFsEntry(entry: FileSystemEntry): Promise<Entry[]> {
+  if (entry.isFile) {
+    const file = await new Promise<File>((res, rej) =>
+      (entry as FileSystemFileEntry).file(res, rej),
+    );
+    if (extOf(file.name) === "zip") return unzipEntries(await file.arrayBuffer());
+    if (!isModule(file.name)) return [];
+    return [{ path: rootRelative(entry.fullPath), bytes: await file.arrayBuffer() }];
+  }
+  if (entry.isDirectory) {
+    const reader = (entry as FileSystemDirectoryEntry).createReader();
+    const kids: FileSystemEntry[] = [];
+    // readEntries returns in batches; keep reading until it's drained.
+    for (;;) {
+      const batch = await new Promise<FileSystemEntry[]>((res, rej) =>
+        reader.readEntries(res, rej),
+      );
+      if (!batch.length) break;
+      kids.push(...batch);
+    }
+    const out: Entry[] = [];
+    for (const k of kids) out.push(...(await readFsEntry(k)));
+    return out;
+  }
   return [];
+}
+
+/** Add dropped filesystem entries (files AND directories). Callers capture the
+ *  entries synchronously in the drop handler via `webkitGetAsEntry()` (the
+ *  DataTransfer is invalid after the event). Returns how many new modules landed. */
+export async function addFsEntries(entries: FileSystemEntry[]): Promise<number> {
+  const all: Entry[] = [];
+  for (const e of entries) all.push(...(await readFsEntry(e)));
+  return addEntries(all);
 }
 
 /** Add already-resolved entries (path + bytes) — the group/artist come from the
@@ -208,6 +265,49 @@ export async function remove(hash: string): Promise<void> {
   await idb.del(hash).catch(() => {});
   tracks.splice(i, 1);
   persistCatalog();
+}
+
+/** A safe single path segment (trimmed; not empty / `.` / `..`; no separators),
+ *  or null. Mirrors the backend's `clean_segment`. */
+function cleanSegment(s: string): string | null {
+  const t = s.trim();
+  return !t || t === "." || t === ".." || /[/\\\0]/.test(t) ? null : t;
+}
+
+/** Rename / move a module by editing its group / artist / filename — the
+ *  browser-local mirror of the backend's POST /api/rename. There's no filesystem
+ *  here, so it's a pure catalog edit: re-derive the path + fields and persist.
+ *  Same validation as the backend (safe segments, keep a module extension, blank
+ *  group = groupless), and it refuses to collide with another track's path (409).
+ *  Throws ApiError so the edit dialog shows the same 400/409 messages. */
+export function rename(req: RenameRequest): RenameResult {
+  const group = req.group.trim() === "" ? "" : cleanSegment(req.group);
+  if (group === null) throw new ApiError(400, "invalid group");
+  const filename = cleanSegment(req.filename);
+  if (filename === null) throw new ApiError(400, "invalid filename");
+  if (!isModule(filename))
+    throw new ApiError(400, "filename must keep a recognised module extension");
+  let artist: string | null = null;
+  const at = req.artist?.trim();
+  if (at) {
+    artist = cleanSegment(at);
+    if (artist === null) throw new ApiError(400, "invalid artist");
+  }
+  const path = [group, artist, filename].filter((s): s is string => !!s).join("/");
+
+  const t = tracks.find((x) => x.path === req.from);
+  if (!t) throw new ApiError(404, "no such track");
+  // Refuse to shadow a *different* track already sitting at the destination path.
+  if (path !== req.from && tracks.some((x) => x !== t && x.path === path))
+    throw new ApiError(409, "destination already exists");
+
+  t.path = path;
+  t.group = group;
+  t.artist = artist;
+  t.filename = filename;
+  t.ext = extOf(filename);
+  persistCatalog();
+  return { path, group, artist, filename, ext: t.ext };
 }
 
 /** Forget everything (catalog + bytes + playlists). */
