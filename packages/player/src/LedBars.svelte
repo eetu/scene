@@ -33,8 +33,10 @@
   }
 
   const buf = new Uint8Array(SPECTRUM_SIZE);
-  const levels = new Float32Array(NB); // smoothed band heights 0..1
+  const bandRaw = new Float32Array(NB); // this-frame dB norm per band
+  const levels = new Float32Array(NB); // smoothed band heights 0..1 (post-AGC)
   const peaks = new Float32Array(NB); // floating peak-hold 0..1
+  let ref = 0.4; // adaptive loudness reference for the AGC (see draw)
 
   // Blue → cyan → green → yellow → red heat ramp by height (0..1).
   const STOPS: Array<[number, number, number]> = [
@@ -59,20 +61,36 @@
     const have = active && readSpectrum(buf);
     const pump = 1 + (active ? sampleBands().bass : 0) * 0.25;
 
-    // Advance each frequency band (one per diagonal).
+    // Pass 1 — per-band dB (log) magnitude, and the loudest band this frame.
+    let curMax = 0;
     for (let b = 0; b < NB; b++) {
-      let target = 0;
+      let dbn = 0;
       if (have) {
         const [lo, hi] = ranges[b];
         let sum = 0;
         for (let j = lo; j < hi; j++) sum += buf[j];
         const raw = sum / (hi - lo) / 255;
-        // Log (dB) magnitude so quiet highs read as tall bars, not a flat edge.
         const db = 20 * Math.log10(raw + 1e-6);
-        const norm = Math.max(0, (db + DB_FLOOR) / DB_FLOOR);
-        const tilt = 0.7 + 0.45 * (b / (NB - 1)); // extra lift toward the highs
-        target = Math.min(1, norm * tilt);
+        dbn = Math.min(1, Math.max(0, (db + DB_FLOOR) / DB_FLOOR));
       }
+      bandRaw[b] = dbn;
+      if (dbn > curMax) curMax = dbn;
+    }
+
+    // AGC: track an adaptive reference (fast attack, slow release, floored so a
+    // quiet passage doesn't amplify noise). Normalizing to it — with headroom, so
+    // the loudest band tops out ~0.9, not pegged — turns the field into a relative
+    // spectral landscape instead of a solid, saturated cube. Log-scale alone can't
+    // do this: on a loud broadband tune every band hits the ceiling.
+    ref += (curMax - ref) * (curMax > ref ? 0.4 : 0.03);
+    const denom = Math.max(ref, 0.4);
+    for (let b = 0; b < NB; b++) {
+      // Normalize to the reference, then cut the base + curve it so only bands
+      // near this frame's peak rise and the rest fall to dark — that contrast is
+      // what stops a loud broadband beat from filling the whole cube.
+      const rel = bandRaw[b] / denom;
+      const shaped = Math.max(0, (rel - 0.3) / 0.7);
+      const target = Math.min(1, shaped ** 1.6 * 0.95);
       const lv = levels[b];
       levels[b] = target > lv ? target : lv + (target - lv) * 0.32; // attack/release
       peaks[b] = levels[b] >= peaks[b] ? levels[b] : Math.max(levels[b], peaks[b] - 0.012);
