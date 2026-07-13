@@ -13,6 +13,7 @@
     Equalizer,
     GlowWave,
     LedBars,
+    NixieTime,
     PatternView,
     Plasma,
     playback,
@@ -331,6 +332,8 @@
             <Tunnel active={vizActive} />
           {:else if pv.vizMode === "disco"}
             <DiscoBall active={vizActive} />
+          {:else if pv.vizMode === "clock"}
+            <NixieTime active={vizActive} />
           {:else}
             <BoingBall energy={vizActive ? vuEnergy : 0} live={vizActive} react />
           {/if}

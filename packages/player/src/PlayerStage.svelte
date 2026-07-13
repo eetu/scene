@@ -1,7 +1,17 @@
 <script module lang="ts">
   // Party's enabled visualizers (its own set — the tracker keeps a separate list).
   type VizMode =
-    "vu" | "bars" | "cube" | "wave" | "stars" | "copper" | "plasma" | "tunnel" | "disco" | "ball";
+    | "vu"
+    | "bars"
+    | "cube"
+    | "wave"
+    | "stars"
+    | "copper"
+    | "plasma"
+    | "tunnel"
+    | "disco"
+    | "clock"
+    | "ball";
   const VIZ: VizMode[] = [
     "vu",
     "bars",
@@ -12,6 +22,7 @@
     "plasma",
     "tunnel",
     "disco",
+    "clock",
     "ball",
   ];
 
@@ -36,6 +47,7 @@
   import Equalizer from "./Equalizer.svelte";
   import GlowWave from "./GlowWave.svelte";
   import LedBars from "./LedBars.svelte";
+  import NixieTime from "./NixieTime.svelte";
   import PatternView from "./PatternView.svelte";
   import { playback } from "./player.svelte";
   import Plasma from "./Plasma.svelte";
@@ -148,6 +160,8 @@
             <Tunnel active={playing} />
           {:else if vizMode === "disco"}
             <DiscoBall active={playing} />
+          {:else if vizMode === "clock"}
+            <NixieTime active={playing} />
           {:else}
             <BoingBall energy={playing ? energy : 0} live={playing} react {format} />
           {/if}
