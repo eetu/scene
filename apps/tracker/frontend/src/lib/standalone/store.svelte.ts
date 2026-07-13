@@ -4,7 +4,7 @@
 // playlists persist in localStorage. This module is the single source the app's
 // `api` shim and player host delegate to when STANDALONE is set — the rest of
 // the app (list, grouping, player, playlists UI) is unchanged.
-import { parseModule } from "@scene/player";
+import { eject, parseModule, playback } from "@scene/player";
 import { unzip } from "fflate";
 
 import type {
@@ -197,6 +197,9 @@ export async function setFavorite(hash: string, favorite: boolean): Promise<void
 export async function remove(hash: string): Promise<void> {
   const i = tracks.findIndex((t) => t.hash === hash);
   if (i < 0) return;
+  // If it's the track that's loaded/playing, unload it first — otherwise the
+  // bytes vanish under a still-playing engine and a ghost mini-player lingers.
+  if (playback.current?.hash === hash) eject();
   const url = urls.get(hash);
   if (url) {
     URL.revokeObjectURL(url);
