@@ -16,8 +16,10 @@
     }
   },
   "dependencies": {
+    "@glowbox/nixie": "^1.0.0-rc.2",
     "@glowbox/svelte": "^1.0.0-rc.2",
     "@scene/design": "workspace:*",
+    "three": "^0.185.1",
     "xstate": "^5.32.4"
   },
   "peerDependencies": {
@@ -25,6 +27,7 @@
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.4",
+    "@types/three": "^0.185.1",
     "@vitest/browser-playwright": "^4.1.10",
     "playwright": "^1.61.1",
     "vite": "^8.1.3",
