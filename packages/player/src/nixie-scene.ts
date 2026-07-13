@@ -193,6 +193,18 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
   controls.maxDistance = 40;
   controls.target.set(0, 0, 0);
 
+  // Track drag interaction + the default view, so a beat after the user lets go
+  // the camera eases back to the front (where the swaying reads the time).
+  let interacting = false;
+  let interactEnd = -Infinity;
+  let defAzimuth = 0;
+  let defPolar = 0;
+  controls.addEventListener("start", () => (interacting = true));
+  controls.addEventListener("end", () => {
+    interacting = false;
+    interactEnd = performance.now();
+  });
+
   scene.add(new THREE.AmbientLight(0xffffff, 0.28));
   const key = new THREE.DirectionalLight(0xffffff, 0.34);
   key.position.set(4, 6, 5);
@@ -354,22 +366,43 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
   let sceneActive = true;
   let raf = 0;
   let lastRender = 0;
-  // Fill-rate heavy (transmission + bloom), so cap tightly: ~36fps playing, and
-  // idle right down when paused/stopped to spare the battery on an always-on tab.
+  const _off = new THREE.Vector3(); // scratch for the ease-back spherical lerp
+  const _sph = new THREE.Spherical();
   function loop(t: number) {
     raf = requestAnimationFrame(loop);
     if (typeof document !== "undefined" && document.hidden) return;
-    // Follow the shared policy, but cap this fill-rate-heavy scene lower (≤40
-    // playing, ≤12 idle) than the light 2D viz.
-    const cap = sceneActive ? Math.min(activeFps(), 40) : Math.min(idleFps(), 12);
+
+    // A beat after a drag ends, ease the camera back to the default front view
+    // (separate from the tube-group sway) so the time stays readable.
+    const az = controls.getAzimuthalAngle();
+    const po = controls.getPolarAngle();
+    const offView = Math.abs(az - defAzimuth) > 1e-3 || Math.abs(po - defPolar) > 1e-3;
+    const returning = !interacting && t - interactEnd > 600 && offView;
+
+    // Fill-rate heavy (transmission + bloom), so cap lower than the 2D viz: run at
+    // the active rate while playing, being dragged, or easing back; idle low else.
+    const busy = sceneActive || interacting || returning;
+    const cap = busy ? Math.min(activeFps(), 40) : Math.min(idleFps(), 12);
     const elapsed = t - lastRender;
     if (elapsed < 1000 / cap - 1) return;
     lastRender = t;
+
     // Sway (±~40°, faces toward the camera) only while playing — at the idle fps
     // cap the motion judders, and a still clock reads better paused anyway.
     if (sceneActive) {
       root.rotation.y = Math.sin(t * 0.00042) * 0.72;
       reportFrame(elapsed, 1000 / cap); // feed the adaptive controller
+    }
+    if (returning) {
+      // No setAzimuthalAngle/setPolarAngle in this three version — ease the camera
+      // via its spherical offset from the target (θ = azimuth, φ = polar).
+      const k = Math.min(1, (elapsed / 1000) * 0.7); // slow, ~few-second ease
+      _off.subVectors(camera.position, controls.target);
+      _sph.setFromVector3(_off);
+      _sph.theta += (defAzimuth - _sph.theta) * k;
+      _sph.phi += (defPolar - _sph.phi) * k;
+      _sph.makeSafe();
+      camera.position.copy(controls.target).add(_off.setFromSpherical(_sph));
     }
     // Subtle beat response (the disco ball owns "flashy"): a gentle lift of the
     // glow + bloom on the bass, and a faint accent bloom in the glass tint so the
@@ -378,9 +411,8 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
     bloom.strength = BLOOM_STRENGTH + pulse * 0.4;
     glassMat.emissive.copy(glowMat.emissive).multiplyScalar(pulse * 0.08);
     const moved = controls.update();
-    // Idle + settled + not being dragged → nothing changed, so skip the heavy
-    // transmission + bloom render entirely (big battery saving on an always-on tab).
-    if (sceneActive || pulse >= 0.005 || moved) composer.render();
+    // Idle + settled + not moving → skip the heavy transmission + bloom render.
+    if (busy || pulse >= 0.005 || moved) composer.render();
   }
 
   function frameContent() {
@@ -413,6 +445,8 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
 
   setDigits(opts.digits);
   resize();
+  defAzimuth = controls.getAzimuthalAngle();
+  defPolar = controls.getPolarAngle();
   raf = requestAnimationFrame(loop);
 
   return {

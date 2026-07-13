@@ -299,6 +299,33 @@
     let prevEnergy = 0;
     let lastDrop = -1e9;
     let lastBeat = -1;
+
+    // Interaction: a touch/press stops the auto-tumble (hold to freeze), a swipe
+    // spins the ball by hand, and releasing resumes the automatic spin from there.
+    let dragging = false;
+    let lastX = 0;
+    const onDown = (e: PointerEvent) => {
+      dragging = true;
+      lastX = e.clientX;
+      el.setPointerCapture?.(e.pointerId);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      spin += (e.clientX - lastX) * 0.01; // swipe → yaw
+      lastX = e.clientX;
+    };
+    const onUp = (e: PointerEvent) => {
+      dragging = false;
+      try {
+        el.releasePointerCapture?.(e.pointerId);
+      } catch {
+        /* pointer already released */
+      }
+    };
+    el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointercancel", onUp);
     // Render through the shared driver: caps at ~60fps (a 120Hz ProMotion iPad
     // won't raymarch twice as often for no visible gain) and pauses while the
     // tab is hidden. dt is real elapsed seconds, so motion speed is unchanged.
@@ -322,7 +349,8 @@
         const bpmF = bpm ? Math.max(0.6, Math.min(1.8, bpm / 120)) : 1;
         const targetSpin = (0.25 + (glow * 0.9 + pulse * 1.2) * motion) * bpmF;
         spinRate += (targetSpin - spinRate) * (1 - Math.exp(-dt / 0.18));
-        spin += dt * spinRate;
+        // Auto-tumble only when the user isn't holding/swiping the ball.
+        if (!dragging) spin += dt * spinRate;
 
         if (lastBeat < 0) lastBeat = playback.beat;
         else if (playback.beat !== lastBeat) {
@@ -375,6 +403,10 @@
     return () => {
       stop();
       ro.disconnect();
+      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointercancel", onUp);
       gl.deleteProgram(prog);
       gl.deleteShader(vs);
       gl.deleteShader(fs);
@@ -391,5 +423,6 @@
     display: block;
     width: 100%;
     height: 100%;
+    touch-action: none; /* let touch swipes rotate the ball, not scroll the page */
   }
 </style>
