@@ -228,6 +228,7 @@ transport.subscribe(() => {
   // when playing && !paused); cued / stopped / ended / error / empty = ▶.
   playback.playing = paused || s.matches("playing") || s.matches("loading");
   playback.paused = paused;
+  playback.ended = s.matches("ended");
 });
 transport.start();
 

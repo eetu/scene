@@ -161,6 +161,17 @@
     }
   });
 
+  // When the queue reaches its natural end (last track finished, no auto-advance),
+  // drop back to the list instead of leaving the full-screen player up over a
+  // stopped track. Edge-triggered on the false→true transition so reopening the
+  // view on the finished track (tap the mini-player) isn't immediately re-closed.
+  let wasEnded = false;
+  $effect(() => {
+    const ended = playback.ended;
+    if (ended && !wasEnded) showPattern = false;
+    wasEnded = ended;
+  });
+
   // Lock body scroll while the full-screen player overlay is open, so the
   // page's own (now-pointless) scrollbar for the list behind it disappears.
   $effect(() => {
