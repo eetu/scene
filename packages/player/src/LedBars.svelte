@@ -1,11 +1,12 @@
 <script lang="ts">
   // A 3D spectrum bar chart on a glowbox LED cube (@glowbox/svelte): an 8×8 field
-  // of chunky bars standing on the floor, each a log-frequency band (bass at the
-  // front, treble at the back), its height the band level. Bars have meter
-  // ballistics (fast attack / slow release) and a floating peak-hold cap that
-  // drifts down — the classic analyzer look, in 3D. A blue→red heat gradient by
-  // height, tips bloom (HDR >1). Idle decays to dark. The grid owns its own WebGL
-  // render + orbit; we just write voxels in `draw`.
+  // of chunky bars standing on the floor. Frequency is anchored to a corner — a
+  // bar's band is its diagonal distance from the near corner (bx+bz), so bass sits
+  // at that corner and the spectrum compounds outward in ridges toward the far
+  // corner. Height is a dB (log) magnitude with meter ballistics (fast attack /
+  // slow release) + a floating peak-hold cap; a blue→red heat gradient by height,
+  // tips bloom (HDR >1). Idle decays to dark. The grid owns its own WebGL render +
+  // orbit; we just write voxels in `draw`.
   import { LedGrid, type LedDisplay } from "@glowbox/svelte";
 
   import { readSpectrum, sampleBands, SPECTRUM_SIZE } from "./player.svelte";
@@ -19,21 +20,21 @@
   const NX = N * STEP - 1; // 23
   const NY = 24; // bar height range (tall for dramatic, log-scaled bars)
   const NZ = N * STEP - 1; // 23
-  const BARS = N * N;
+  const NB = 2 * N - 1; // frequency bands = diagonals from the corner (bx+bz: 0..14)
 
-  // Log-spaced FFT bin ranges per band (most energy is low → spread bars over
-  // audible content, cap the top bin under Nyquist). One per bar, computed once.
+  // Log-spaced FFT bin ranges per band — most energy is low, so spread the bands
+  // over audible content and cap the top bin under Nyquist. One per diagonal.
   const TOP_BIN = Math.floor(SPECTRUM_SIZE * 0.7);
   const ranges: Array<[number, number]> = [];
-  for (let i = 0; i < BARS; i++) {
-    const lo = Math.floor(TOP_BIN ** (i / BARS));
-    const hi = Math.max(lo + 1, Math.floor(TOP_BIN ** ((i + 1) / BARS)));
+  for (let b = 0; b < NB; b++) {
+    const lo = Math.floor(TOP_BIN ** (b / NB));
+    const hi = Math.max(lo + 1, Math.floor(TOP_BIN ** ((b + 1) / NB)));
     ranges.push([lo, Math.min(hi, SPECTRUM_SIZE)]);
   }
 
   const buf = new Uint8Array(SPECTRUM_SIZE);
-  const levels = new Float32Array(BARS); // smoothed bar heights 0..1
-  const peaks = new Float32Array(BARS); // floating peak-hold 0..1
+  const levels = new Float32Array(NB); // smoothed band heights 0..1
+  const peaks = new Float32Array(NB); // floating peak-hold 0..1
 
   // Blue → cyan → green → yellow → red heat ramp by height (0..1).
   const STOPS: Array<[number, number, number]> = [
@@ -58,45 +59,46 @@
     const have = active && readSpectrum(buf);
     const pump = 1 + (active ? sampleBands().bass : 0) * 0.25;
 
-    for (let i = 0; i < BARS; i++) {
+    // Advance each frequency band (one per diagonal).
+    for (let b = 0; b < NB; b++) {
       let target = 0;
       if (have) {
-        const [lo, hi] = ranges[i];
+        const [lo, hi] = ranges[b];
         let sum = 0;
         for (let j = lo; j < hi; j++) sum += buf[j];
         const raw = sum / (hi - lo) / 255;
-        // Log (dB) magnitude: quiet high-frequency bins become tall bars instead
-        // of a flat back row — the ear hears loudness logarithmically. Normalized
-        // from a -DB_FLOOR floor up to 0 dBFS; a gentle tilt still lifts the very top.
+        // Log (dB) magnitude so quiet highs read as tall bars, not a flat edge.
         const db = 20 * Math.log10(raw + 1e-6);
         const norm = Math.max(0, (db + DB_FLOOR) / DB_FLOOR);
-        const tilt = 0.7 + 0.45 * (i / (BARS - 1)); // extra lift toward the highs
+        const tilt = 0.7 + 0.45 * (b / (NB - 1)); // extra lift toward the highs
         target = Math.min(1, norm * tilt);
       }
-      const lv = levels[i];
-      levels[i] = target > lv ? target : lv + (target - lv) * 0.32; // attack/release
-      peaks[i] = levels[i] >= peaks[i] ? levels[i] : Math.max(levels[i], peaks[i] - 0.012);
+      const lv = levels[b];
+      levels[b] = target > lv ? target : lv + (target - lv) * 0.32; // attack/release
+      peaks[b] = levels[b] >= peaks[b] ? levels[b] : Math.max(levels[b], peaks[b] - 0.012);
+    }
 
-      const bx = i % N;
-      const bz = (i / N) | 0;
-      const x0 = bx * STEP;
-      const z0 = bz * STEP;
-      const h = levels[i];
-      const barH = Math.round(h * (NY - 1));
-      const [r, g, b] = heat(h);
+    // Draw the field — each cell's band is its diagonal distance from the corner.
+    for (let bz = 0; bz < N; bz++) {
+      for (let bx = 0; bx < N; bx++) {
+        const b = bx + bz;
+        const h = levels[b];
+        const x0 = bx * STEP;
+        const z0 = bz * STEP;
+        const barH = Math.round(h * (NY - 1));
+        const [r, g, bl] = heat(h);
 
-      if (h >= 0.02) {
-        const body = 0.28 + 0.5 * h;
-        d.box([x0, 0, z0], [x0 + FOOT - 1, barH, z0 + FOOT - 1], [r * body, g * body, b * body]);
-        // Slightly brighter top face (blooms just at the cap, not the whole bar).
-        const tip = (0.85 + 0.4 * h) * pump;
-        d.box([x0, barH, z0], [x0 + FOOT - 1, barH, z0 + FOOT - 1], [r * tip, g * tip, b * tip]);
-      }
-      // Floating peak-hold cap (bright, hue of its height), a rung above the bar.
-      const py = Math.round(peaks[i] * (NY - 1));
-      if (py > barH) {
-        const [pr, pg, pb] = heat(peaks[i]);
-        d.box([x0, py, z0], [x0 + FOOT - 1, py, z0 + FOOT - 1], [pr * 1.4, pg * 1.4, pb * 1.4]);
+        if (h >= 0.02) {
+          const body = 0.28 + 0.5 * h;
+          d.box([x0, 0, z0], [x0 + FOOT - 1, barH, z0 + FOOT - 1], [r * body, g * body, bl * body]);
+          const tip = (0.85 + 0.4 * h) * pump; // bloom just at the cap
+          d.box([x0, barH, z0], [x0 + FOOT - 1, barH, z0 + FOOT - 1], [r * tip, g * tip, bl * tip]);
+        }
+        const py = Math.round(peaks[b] * (NY - 1));
+        if (py > barH) {
+          const [pr, pg, pb] = heat(peaks[b]);
+          d.box([x0, py, z0], [x0 + FOOT - 1, py, z0 + FOOT - 1], [pr * 1.4, pg * 1.4, pb * 1.4]);
+        }
       }
     }
   }
@@ -105,7 +107,7 @@
 <LedGrid
   size={[NX, NY, NZ]}
   {draw}
-  led={{ glow: 1.2, shape: "square" }}
+  led={{ glow: 1.5, shape: "square", size: 0.82 }}
   color={{ background: "#04050a", gain: 1.0 }}
   camera={{
     autoOrbit: true,
