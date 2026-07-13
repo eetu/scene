@@ -13,9 +13,13 @@
 // a stop() to cancel the loop and detach listeners.
 //
 // Pass `active: () => boolean` (preferred) and the shared frame-rate policy picks
-// the cap — playing → the auto/smooth/battery active rate, paused → idle-throttled
-// — and the loop feeds real frame timing back to the policy so "auto" can adapt.
-// (Or pass a raw `fps` number/function to opt out of the policy, e.g. non-viz loops.)
+// the cap — playing → the auto/smooth/battery active rate — and the loop feeds
+// real frame timing back to the policy so "auto" can adapt. When it goes inactive
+// (paused/stopped) the loop paints a brief settle window then FREEZES (tears down
+// rAF, wakes on a cheap watchdog): a paused full-screen viz re-painting at an idle
+// cap still burns ~10% CPU, frozen it costs nothing.
+// (Or pass a raw `fps` number/function to opt out of the policy — those loops run
+// continuously and never freeze, e.g. non-viz/always-on loops.)
 import { reportFrame, vizFps } from "./perf.svelte";
 
 export function driveFrames(
@@ -28,11 +32,27 @@ export function driveFrames(
   const targetFps = () =>
     activeFn ? vizFps(activeFn()) : typeof fpsOpt === "function" ? fpsOpt() : fpsOpt;
   let raf = 0;
+  let watch: ReturnType<typeof setTimeout> | 0 = 0;
   let last = performance.now();
+  // When did the effect go inactive? (0 while active.) An `active`-driven loop
+  // paints a short settle window after going idle — so damped motion (orbit
+  // damping, particle/pulse decay) lands on a resting frame — then FREEZES: the
+  // rAF loop is torn down and a cheap watchdog wakes it when it's active again.
+  // A paused viz that just re-paints a near-static frame at the idle cap still
+  // costs real canvas/compositing CPU (≈10% for a full-screen 2D effect); frozen
+  // it costs nothing. Loops with no `active` predicate (fps-only) never freeze.
+  let idleSince = 0;
+  const SETTLE_MS = 800;
 
   function tick(now: number) {
     raf = requestAnimationFrame(tick);
     if (typeof document !== "undefined" && document.hidden) return;
+    if (activeFn && !activeFn()) {
+      if (!idleSince) idleSince = now;
+      if (now - idleSince > SETTLE_MS) return freeze();
+    } else {
+      idleSince = 0;
+    }
     const fps = targetFps();
     const elapsed = now - last;
     // −1ms slack so two 8.33ms (120Hz) ticks clear the 60fps gate cleanly.
@@ -42,6 +62,23 @@ export function driveFrames(
     if (activeFn && activeFn()) reportFrame(elapsed, 1000 / fps);
     render(Math.min(0.05, elapsed / 1000), now);
   }
+
+  // Stop painting entirely; poll (cheaply) for reactivation, then resume the loop.
+  function freeze() {
+    cancelAnimationFrame(raf);
+    raf = 0;
+    const check = () => {
+      if (activeFn && activeFn()) {
+        idleSince = 0;
+        last = performance.now();
+        raf = requestAnimationFrame(tick);
+      } else {
+        watch = setTimeout(check, 250);
+      }
+    };
+    watch = setTimeout(check, 250);
+  }
+
   raf = requestAnimationFrame(tick);
 
   const onVis = () => {
@@ -53,6 +90,7 @@ export function driveFrames(
 
   return () => {
     cancelAnimationFrame(raf);
+    if (watch) clearTimeout(watch);
     if (typeof document !== "undefined") {
       document.removeEventListener("visibilitychange", onVis);
     }
