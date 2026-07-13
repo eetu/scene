@@ -871,7 +871,7 @@
       },
       // Idle down to 30fps while paused — the tunnel only coasts then, with no
       // music to react to, so full 60fps is wasted GPU.
-      { fps: () => (active ? 60 : 30) },
+      { active: () => active },
     );
 
     return () => {

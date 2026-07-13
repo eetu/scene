@@ -81,7 +81,8 @@
           }
         }
       },
-      { fps: 60 },
+      // Idle low when silent — the scope is flat when paused/stopped anyway.
+      { active: () => playback.playing && !playback.paused },
     );
 
     return () => {

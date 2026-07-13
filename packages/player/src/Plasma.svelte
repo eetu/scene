@@ -75,9 +75,11 @@
         // purple via the magenta side (never green) — on-style dark orange ↔ purple.
         const tri = (1 - Math.cos((i / 256) * Math.PI * 2)) / 2;
         const hue = (((baseHue - 110 * tri) % 360) + 360) % 360;
-        // Wider dark→bright range + a hot peak, so the field reads with depth and
-        // contrast instead of a flat mid-lightness wash.
-        const l = 22 + 42 * tri + 16 * Math.pow(tri, 6);
+        // Dark→bright range with a modest hot peak — kept well below white so the
+        // magenta reads rich and deep, not a washed-out near-white wash. (The
+        // plasma value distribution clusters at the palette's bright middle, so a
+        // high peak lightness floods the whole field.)
+        const l = 16 + 34 * tri + 6 * Math.pow(tri, 6);
         const [r, g, b] = hslToRgb(hue, 82, l);
         palette[i * 3] = r;
         palette[i * 3 + 1] = g;
@@ -145,7 +147,7 @@
         bctx.putImageData(img, 0, 0);
         if (w > 0 && h > 0) g2.drawImage(buf, 0, 0, w, h);
       },
-      { fps: 60 },
+      { active: () => active },
     );
 
     return () => {

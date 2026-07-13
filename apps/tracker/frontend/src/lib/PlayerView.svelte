@@ -12,6 +12,8 @@
     DiscoBall,
     Equalizer,
     GlowWave,
+    LedBars,
+    NixieScene,
     PatternView,
     Plasma,
     playback,
@@ -314,6 +316,8 @@
         <div class="vizbody">
           {#if pv.vizMode === "bars"}
             <Equalizer active={vizActive} />
+          {:else if pv.vizMode === "cube"}
+            <LedBars active={vizActive} />
           {:else if pv.vizMode === "wave"}
             <GlowWave active={vizActive} />
           {:else if pv.vizMode === "vu"}
@@ -328,6 +332,8 @@
             <Tunnel active={vizActive} />
           {:else if pv.vizMode === "disco"}
             <DiscoBall active={vizActive} />
+          {:else if pv.vizMode === "tubes"}
+            <NixieScene active={vizActive} />
           {:else}
             <BoingBall energy={vizActive ? vuEnergy : 0} live={vizActive} react />
           {/if}

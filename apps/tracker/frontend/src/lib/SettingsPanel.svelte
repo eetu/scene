@@ -22,7 +22,7 @@
     unEnriched,
   } from "$lib/library.svelte";
   import Modal from "$lib/Modal.svelte";
-  import { setPatternMode, settings } from "$lib/settings.svelte";
+  import { setFrameRate, setPatternMode, settings } from "$lib/settings.svelte";
   import { STANDALONE } from "$lib/standalone";
   import { pickFiles, pickFolder } from "$lib/standalone/intake";
   import { clearAll } from "$lib/standalone/store.svelte";
@@ -73,6 +73,24 @@
         free scroll
       </button>
     </div>
+  </div>
+  <div class="setting">
+    <span class="setting-label">visualiser frame rate</span>
+    <div class="seg">
+      <button class:on={settings.frameRate === "auto"} onclick={() => setFrameRate("auto")}>
+        auto
+      </button>
+      <button class:on={settings.frameRate === "smooth"} onclick={() => setFrameRate("smooth")}>
+        smooth
+      </button>
+      <button class:on={settings.frameRate === "battery"} onclick={() => setFrameRate("battery")}>
+        battery
+      </button>
+    </div>
+    <span class="setting-hint">
+      Auto adapts to the device; smooth favours 60fps, battery caps at 30. Reduced-motion always
+      uses the low rate.
+    </span>
   </div>
   {#if STANDALONE}
     <div class="setting">

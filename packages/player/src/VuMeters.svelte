@@ -203,7 +203,7 @@
           }
         }
       },
-      { fps: 60 },
+      { active: () => active },
     );
 
     return () => {
