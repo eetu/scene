@@ -103,12 +103,9 @@ async function fileEntries(file: File): Promise<Entry[]> {
   return [];
 }
 
-/** Add dropped / picked files (and any zips). Returns how many new modules landed. */
-export async function addFiles(files: File[] | FileList): Promise<number> {
-  const list = Array.from(files);
-  const entries: Entry[] = [];
-  for (const f of list) entries.push(...(await fileEntries(f)));
-
+/** Add already-resolved entries (path + bytes) — the group/artist come from the
+ *  path. Dedupes by content hash. Returns how many new modules landed. */
+async function addEntries(entries: Entry[]): Promise<number> {
   let added = 0;
   for (const e of entries) {
     const hash = await sha256(e.bytes);
@@ -123,6 +120,14 @@ export async function addFiles(files: File[] | FileList): Promise<number> {
     void parsePending();
   }
   return added;
+}
+
+/** Add dropped / picked files (and any zips). Returns how many new modules landed. */
+export async function addFiles(files: File[] | FileList): Promise<number> {
+  const list = Array.from(files);
+  const entries: Entry[] = [];
+  for (const f of list) entries.push(...(await fileEntries(f)));
+  return addEntries(entries);
 }
 
 // ---------------------------------------------------- metadata (parse) ----
@@ -212,7 +217,10 @@ export async function seedDemoIfEmpty(): Promise<void> {
     if (tracks.length > 0 || localStorage.getItem(SEEDED_KEY)) return;
     const res = await fetch(DEMO_URL);
     if (!res.ok) return;
-    await addFiles([new File([await res.arrayBuffer()], "2nd_pm.s3m")]);
+    // Path → group / artist: this is Purple Motion's Second Reality tune.
+    await addEntries([
+      { path: "Future Crew/Purple Motion/2nd_pm.s3m", bytes: await res.arrayBuffer() },
+    ]);
     localStorage.setItem(SEEDED_KEY, "1");
   } catch {
     /* offline or not bundled — no seed, just the empty drop zone */
