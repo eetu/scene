@@ -25,6 +25,8 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
+import { activeFps, idleFps, reportFrame } from "./perf.svelte";
+
 export interface NixieSceneOptions {
   digits: string[];
   /** Glow / lit-numeral colour (CSS string). */
@@ -357,11 +359,18 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
   function loop(t: number) {
     raf = requestAnimationFrame(loop);
     if (typeof document !== "undefined" && document.hidden) return;
-    if (t - lastRender < 1000 / (sceneActive ? 36 : 12)) return;
+    // Follow the shared policy, but cap this fill-rate-heavy scene lower (≤40
+    // playing, ≤12 idle) than the light 2D viz.
+    const cap = sceneActive ? Math.min(activeFps(), 40) : Math.min(idleFps(), 12);
+    const elapsed = t - lastRender;
+    if (elapsed < 1000 / cap - 1) return;
     lastRender = t;
     // Sway (±~40°, faces toward the camera) only while playing — at the idle fps
     // cap the motion judders, and a still clock reads better paused anyway.
-    if (sceneActive) root.rotation.y = Math.sin(t * 0.00042) * 0.72;
+    if (sceneActive) {
+      root.rotation.y = Math.sin(t * 0.00042) * 0.72;
+      reportFrame(elapsed, 1000 / cap); // feed the adaptive controller
+    }
     // Subtle beat response (the disco ball owns "flashy"): a gentle lift of the
     // glow + bloom on the bass, and a faint accent bloom in the glass tint so the
     // tubes breathe with the music without strobing.

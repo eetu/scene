@@ -4,6 +4,7 @@
 // startup, then drive `playback` + the exported transport functions.
 export * from "./host";
 export * from "./player.svelte";
+export { type FpsMode, perf } from "./perf.svelte";
 export { default as BoingBall } from "./BoingBall.svelte";
 export { default as ChannelPager } from "./ChannelPager.svelte";
 export { default as ChannelScope } from "./ChannelScope.svelte";

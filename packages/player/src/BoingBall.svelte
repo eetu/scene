@@ -366,7 +366,7 @@
           main.drawImage(off, 0, 0, oW, oH, 0, 0, W, H);
         }
       },
-      { fps: () => (live ? 45 : 15) },
+      { active: () => live },
     );
 
     return () => {

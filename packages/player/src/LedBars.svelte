@@ -14,6 +14,7 @@
   import type { LedDisplay } from "@glowbox/svelte";
   import { onMount } from "svelte";
 
+  import { vizFps } from "./perf.svelte";
   import { readSpectrum, sampleBands, SPECTRUM_SIZE } from "./player.svelte";
 
   let { active = true }: { active?: boolean } = $props();
@@ -147,6 +148,6 @@
       projection: "perspective",
     }}
     interaction={{ drag: true, zoom: true }}
-    quality={{ fps: active ? 45 : 15 }}
+    quality={{ fps: vizFps(active) }}
   />
 {/if}
