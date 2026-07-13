@@ -12,6 +12,7 @@ export type PatternMode = "locked" | "scroll";
 
 const PATTERN_MODE_KEY = "tracker:patternMode";
 const FRAME_RATE_KEY = "tracker:frameRate";
+const SCOPE_KEY = "tracker:scope";
 
 function read(key: string): string | null {
   return typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
@@ -28,6 +29,9 @@ export const settings = $state({
   patternMode: (read(PATTERN_MODE_KEY) === "scroll" ? "scroll" : "locked") as PatternMode,
   /** Visualiser frame rate: auto (adaptive) / smooth (60) / battery (30). */
   frameRate: loadedFrameRate,
+  /** Master oscilloscope strip on the pattern tab. On by default; opt-out to
+   *  save the per-frame canvas draw while playing. */
+  scope: read(SCOPE_KEY) !== "0",
 });
 
 export function setPatternMode(m: PatternMode) {
@@ -44,6 +48,15 @@ export function setFrameRate(m: FpsMode) {
   perf.mode = m;
   try {
     localStorage.setItem(FRAME_RATE_KEY, m);
+  } catch {
+    /* storage unavailable — non-fatal */
+  }
+}
+
+export function setScope(on: boolean) {
+  settings.scope = on;
+  try {
+    localStorage.setItem(SCOPE_KEY, on ? "1" : "0");
   } catch {
     /* storage unavailable — non-fatal */
   }
