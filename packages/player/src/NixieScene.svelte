@@ -66,25 +66,30 @@
       const group = new T.Group();
       scene.add(group);
 
-      const table = new T.Mesh(
-        new T.CylinderGeometry(3.4, 3.7, 0.32, 48),
-        new T.MeshStandardMaterial({ color: 0x0b0d13, roughness: 0.55, metalness: 0.35 }),
-      );
-      table.position.y = -1.06;
-      group.add(table);
+      // (the metal base plate is built below, once the row width is known)
 
-      const glass = new T.MeshStandardMaterial({
+      // Clearcoat glass — a glossy specular layer over faint transparent glass,
+      // for the bright dome highlights. Pulsed toward the accent via .emissive.
+      const glass = new T.MeshPhysicalMaterial({
         color: 0x2b3a4d,
-        roughness: 0.12,
+        roughness: 0.08,
         metalness: 0,
         transparent: true,
-        opacity: 0.16,
+        opacity: 0.15,
         depthWrite: false,
+        clearcoat: 1,
+        clearcoatRoughness: 0.12,
+        ior: 1.5,
       });
       const capMat = new T.MeshStandardMaterial({
-        color: 0x1a1e26,
-        roughness: 0.4,
-        metalness: 0.6,
+        color: 0x23262e,
+        roughness: 0.35,
+        metalness: 0.8,
+      });
+      const baseMat = new T.MeshStandardMaterial({
+        color: 0x3a3d44,
+        roughness: 0.35,
+        metalness: 0.85,
       });
 
       // Lay the row out left→right accounting for each tube's radius, then centre.
@@ -92,11 +97,18 @@
       const H = 1.75; // main tube height; tubes are bottom-aligned on the table
       const rs = LAYOUT.map(radiusOf);
       const totalW = rs.reduce((a, r) => a + 2 * r, 0) + GAP * (LAYOUT.length - 1);
+      const maxR = Math.max(...rs);
       let cursor = -totalW / 2;
+
+      // Rectangular brushed-metal base plate the tubes stand on.
+      const baseGeo = new T.BoxGeometry(totalW + 0.7, 0.3, 2 * maxR + 0.7);
+      const base = new T.Mesh(baseGeo, baseMat);
+      base.position.y = -H / 2 - 0.15;
+      group.add(base);
 
       type Slot = { tube: NixieTube; tex: THREE.CanvasTexture; last: string };
       const slots: Slot[] = [];
-      const geoms: THREE.BufferGeometry[] = [];
+      const geoms: THREE.BufferGeometry[] = [baseGeo];
 
       LAYOUT.forEach((L, i) => {
         const r = rs[i];
@@ -112,16 +124,19 @@
         cyl.position.set(x, yc, 0);
         group.add(cyl);
 
-        for (const [yy, rt, rb, hh] of [
-          [yBottom, r * 1.15, r * 1.25, 0.16],
-          [yBottom + h, r * 1.05, r * 1.12, 0.11],
-        ] as const) {
-          const g = new T.CylinderGeometry(rt, rb, hh, 28);
-          geoms.push(g);
-          const cap = new T.Mesh(g, capMat);
-          cap.position.set(x, yy, 0);
-          group.add(cap);
-        }
+        // Metal socket where the tube meets the base plate.
+        const socketGeo = new T.CylinderGeometry(r * 1.15, r * 1.28, 0.2, 28);
+        geoms.push(socketGeo);
+        const socket = new T.Mesh(socketGeo, capMat);
+        socket.position.set(x, yBottom + 0.04, 0);
+        group.add(socket);
+
+        // Rounded glass dome on top (a real nixie's domed envelope), same glass.
+        const domeGeo = new T.SphereGeometry(r, 32, 20, 0, Math.PI * 2, 0, Math.PI / 2);
+        geoms.push(domeGeo);
+        const dome = new T.Mesh(domeGeo, glass);
+        dome.position.set(x, yBottom + h, 0);
+        group.add(dome);
 
         const c = document.createElement("canvas");
         c.style.cssText = `display:block;width:${Math.round(r * 250)}px;height:${Math.round(h * 120)}px`;
@@ -238,6 +253,7 @@
         geoms.forEach((g) => g.dispose());
         glass.dispose();
         capMat.dispose();
+        baseMat.dispose();
         renderer.dispose();
         sink.replaceChildren();
       };
