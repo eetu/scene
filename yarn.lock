@@ -277,31 +277,29 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@glowbox/led-grid@npm:^1.0.0-rc.3":
-  version: 1.0.0-rc.3
-  resolution: "@glowbox/led-grid@npm:1.0.0-rc.3"
-  checksum: 10/c123c36410454a8ffd2ba198d1801c53f1c265c29c38056f9e7461c3b0a5f869708703b34e8cb54207191aac1503e435d8d90d37f95a409f050ee32700f4ca3a
+"@glowbox/led-grid@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "@glowbox/led-grid@npm:1.1.0"
+  checksum: 10/4a8c719b21b69f564f9e07ab6090359198fbc061e7d92be66f7c505224114a73479a3a536edb381c714ea19b9a79112363054f24ed485de965adf5417cd54ac9
   languageName: node
   linkType: hard
 
-"@glowbox/nixie@npm:^1.0.0-rc.3":
-  version: 1.0.0-rc.3
-  resolution: "@glowbox/nixie@npm:1.0.0-rc.3"
-  dependencies:
-    "@glowbox/led-grid": "npm:^1.0.0-rc.3"
-  checksum: 10/23d96a10ce1f67e520706f4a051cadfa7f6be26f1bcea858865a99e8d9688df037c593b88a8ec7bddf0ffbca7e4682f08cc01478b3640e3b680ccd5387cee490
+"@glowbox/nixie@npm:^1.0.0, @glowbox/nixie@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "@glowbox/nixie@npm:1.1.0"
+  checksum: 10/b2fad37e15e6be2dcd2706988b9f027f9966c72c9548750df5e518c72b2ad574e13296a3c0529ca018f48bf4a7e9a9ec8f764ea99cdded2738432e8ffe855a6d
   languageName: node
   linkType: hard
 
-"@glowbox/svelte@npm:^1.0.0-rc.3":
-  version: 1.0.0-rc.3
-  resolution: "@glowbox/svelte@npm:1.0.0-rc.3"
+"@glowbox/svelte@npm:^1.0.0":
+  version: 1.1.0
+  resolution: "@glowbox/svelte@npm:1.1.0"
   dependencies:
-    "@glowbox/led-grid": "npm:^1.0.0-rc.3"
-    "@glowbox/nixie": "npm:^1.0.0-rc.3"
+    "@glowbox/led-grid": "npm:^1.1.0"
+    "@glowbox/nixie": "npm:^1.1.0"
   peerDependencies:
     svelte: ^5
-  checksum: 10/c97534cee510c0c05b5b8d50c3abc3150f1bac787c23949283cc50081931e6153195b944538f90a1f7ecb3ad7ba48f9d30b54400bd01a861576760f765a496fb
+  checksum: 10/6f0cb6cea0180a06d148883b0684d49e62b0f07b0624a8a05fd3ada595885c19376660fa8fbf669ace2b2d17e23747afba34b109192a3313baacc77461a91288
   languageName: node
   linkType: hard
 
@@ -591,13 +589,14 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@scene/player@workspace:packages/player"
   dependencies:
-    "@glowbox/nixie": "npm:^1.0.0-rc.3"
-    "@glowbox/svelte": "npm:^1.0.0-rc.3"
+    "@glowbox/nixie": "npm:^1.0.0"
+    "@glowbox/svelte": "npm:^1.0.0"
     "@scene/design": "workspace:*"
     "@sveltejs/vite-plugin-svelte": "npm:^7.1.4"
     "@types/three": "npm:^0.185.1"
     "@vitest/browser-playwright": "npm:^4.1.10"
     playwright: "npm:^1.61.1"
+    svelte: "npm:^5.56.4"
     three: "npm:^0.185.1"
     vite: "npm:^8.1.3"
     vitest: "npm:^4.1.10"
@@ -2827,7 +2826,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"svelte@npm:^5.56.1":
+"svelte@npm:^5.56.1, svelte@npm:^5.56.4":
   version: 5.56.4
   resolution: "svelte@npm:5.56.4"
   dependencies:
