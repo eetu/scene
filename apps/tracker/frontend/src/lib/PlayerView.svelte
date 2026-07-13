@@ -260,7 +260,9 @@
   </div>
   <div class="pv-wrap" style:padding-bottom="{transportH}px">
     {#if pv.tab === "pattern"}
-      <div class="scope-strip"><Scope /></div>
+      {#if settings.scope}
+        <div class="scope-strip"><Scope /></div>
+      {/if}
       {#if (playback.song?.orders?.length ?? 0) > 1}
         <!-- Order list: click a position to jump there; current is highlighted. -->
         <div class="orders" aria-label="order list" bind:this={ordersEl}>

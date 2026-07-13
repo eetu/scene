@@ -4,8 +4,8 @@
 //  - a frame-rate cap: a 120Hz ProMotion iPad fires rAF twice as often as a
 //    60Hz screen, so an uncapped full-screen raymarcher renders (and heats)
 //    twice as hard for no visible gain. We render at most `fps` times/second.
-//  - hidden-tab pause: skip rendering entirely while the document is hidden
-//    (belt-and-braces over the browser's own background throttling), and reset
+//  - hidden-tab stop: tear the loop down entirely while the document is hidden
+//    (deterministic, not just the browser's background-rAF throttling), and reset
 //    the clock on return so the first visible frame doesn't get a huge dt.
 //
 // `render(dt, now)` receives the real elapsed seconds since the last *rendered*
@@ -31,22 +31,39 @@ export function driveFrames(
   const activeFn = opts.active;
   const targetFps = () =>
     activeFn ? vizFps(activeFn()) : typeof fpsOpt === "function" ? fpsOpt() : fpsOpt;
+  const hidden = () => typeof document !== "undefined" && document.hidden;
+
   let raf = 0;
   let watch: ReturnType<typeof setTimeout> | 0 = 0;
   let last = performance.now();
   // When did the effect go inactive? (0 while active.) An `active`-driven loop
   // paints a short settle window after going idle — so damped motion (orbit
   // damping, particle/pulse decay) lands on a resting frame — then FREEZES: the
-  // rAF loop is torn down and a cheap watchdog wakes it when it's active again.
-  // A paused viz that just re-paints a near-static frame at the idle cap still
+  // rAF loop is torn down and a cheap watchdog wakes it when active again. A
+  // paused viz that just re-paints a near-static frame at the idle cap still
   // costs real canvas/compositing CPU (≈10% for a full-screen 2D effect); frozen
   // it costs nothing. Loops with no `active` predicate (fps-only) never freeze.
   let idleSince = 0;
   const SETTLE_MS = 800;
+  const WATCH_MS = 250;
+
+  function startRaf() {
+    if (!raf && !hidden()) {
+      last = performance.now();
+      raf = requestAnimationFrame(tick);
+    }
+  }
+  function stopRaf() {
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+  }
+  function clearWatch() {
+    if (watch) clearTimeout(watch);
+    watch = 0;
+  }
 
   function tick(now: number) {
     raf = requestAnimationFrame(tick);
-    if (typeof document !== "undefined" && document.hidden) return;
     if (activeFn && !activeFn()) {
       if (!idleSince) idleSince = now;
       if (now - idleSince > SETTLE_MS) return freeze();
@@ -63,34 +80,44 @@ export function driveFrames(
     render(Math.min(0.05, elapsed / 1000), now);
   }
 
-  // Stop painting entirely; poll (cheaply) for reactivation, then resume the loop.
+  // Inactive → stop painting; poll cheaply for reactivation, then resume. Parks
+  // silently while hidden (onVis resumes it), so it never spins in the background.
   function freeze() {
-    cancelAnimationFrame(raf);
-    raf = 0;
+    stopRaf();
     const check = () => {
+      watch = 0;
+      if (hidden()) return;
       if (activeFn && activeFn()) {
         idleSince = 0;
-        last = performance.now();
-        raf = requestAnimationFrame(tick);
+        startRaf();
       } else {
-        watch = setTimeout(check, 250);
+        watch = setTimeout(check, WATCH_MS);
       }
     };
-    watch = setTimeout(check, 250);
+    watch = setTimeout(check, WATCH_MS);
   }
 
-  raf = requestAnimationFrame(tick);
-
+  // Tab hidden/minimized → tear the loop (and any watchdog) down entirely so it
+  // burns zero cycles in the background; resume on return. (Stronger than relying
+  // on the browser's own background-rAF throttling.)
   const onVis = () => {
-    if (!document.hidden) last = performance.now();
+    if (hidden()) {
+      stopRaf();
+      clearWatch();
+    } else {
+      idleSince = 0;
+      startRaf();
+    }
   };
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", onVis);
   }
 
+  startRaf();
+
   return () => {
-    cancelAnimationFrame(raf);
-    if (watch) clearTimeout(watch);
+    stopRaf();
+    clearWatch();
     if (typeof document !== "undefined") {
       document.removeEventListener("visibilitychange", onVis);
     }

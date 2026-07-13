@@ -449,6 +449,19 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
   defPolar = controls.getPolarAngle();
   raf = requestAnimationFrame(loop);
 
+  // Tab hidden/minimized → tear the render loop down (not just early-return each
+  // tick) so the WebGL scene burns zero cycles in the background; resume on return.
+  const onVis = () => {
+    if (document.hidden) {
+      cancelAnimationFrame(raf);
+      raf = 0;
+    } else if (!raf) {
+      lastRender = 0;
+      raf = requestAnimationFrame(loop);
+    }
+  };
+  document.addEventListener("visibilitychange", onVis);
+
   return {
     setDigits,
     setOptions(patch) {
@@ -484,6 +497,7 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
     resize,
     dispose() {
       cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onVis);
       ro.disconnect();
       controls.dispose();
       wireGeo.forEach((g) => g?.dispose());

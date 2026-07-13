@@ -22,7 +22,7 @@
     unEnriched,
   } from "$lib/library.svelte";
   import Modal from "$lib/Modal.svelte";
-  import { setFrameRate, setPatternMode, settings } from "$lib/settings.svelte";
+  import { setFrameRate, setPatternMode, setScope, settings } from "$lib/settings.svelte";
   import { STANDALONE } from "$lib/standalone";
   import { pickFiles, pickFolder } from "$lib/standalone/intake";
   import { clearAll } from "$lib/standalone/store.svelte";
@@ -90,6 +90,17 @@
     <span class="setting-hint">
       Auto adapts to the device; smooth favours 60fps, battery caps at 30. Reduced-motion always
       uses the low rate.
+    </span>
+  </div>
+  <div class="setting">
+    <span class="setting-label">oscilloscope</span>
+    <div class="seg">
+      <button class:on={settings.scope} onclick={() => setScope(true)}>on</button>
+      <button class:on={!settings.scope} onclick={() => setScope(false)}>off</button>
+    </div>
+    <span class="setting-hint">
+      The master scope strip above the pattern grid. Turn off to skip its per-frame draw while
+      playing.
     </span>
   </div>
   {#if STANDALONE}
