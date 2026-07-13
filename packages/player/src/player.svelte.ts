@@ -228,6 +228,7 @@ transport.subscribe(() => {
   // when playing && !paused); cued / stopped / ended / error / empty = ▶.
   playback.playing = paused || s.matches("playing") || s.matches("loading");
   playback.paused = paused;
+  playback.ended = s.matches("ended");
 });
 transport.start();
 
@@ -587,6 +588,25 @@ export function stop() {
   resetBeat();
   transport.send({ type: "STOP" }); // → stopped; the subscription clears playing/paused
   syncNowPlaying();
+}
+
+/** Fully unload the current track: stop audio and clear the loaded module +
+ *  queue, so nothing is shown or replayable. Used when the app removes the
+ *  current track from its library (the bytes are about to vanish) — a plain
+ *  stop() keeps `current` for replay, which would leave a ghost mini-player over
+ *  a track that no longer exists. */
+export function eject() {
+  stop();
+  queue = [];
+  plannedNextIdx = null;
+  playback.current = null;
+  playback.song = null;
+  playback.samples = [];
+  playback.instruments = [];
+  playback.duration = 0;
+  playback.position = 0;
+  playback.queueIndex = -1;
+  playback.queueLength = 0;
 }
 
 export function setMuted(m: boolean) {

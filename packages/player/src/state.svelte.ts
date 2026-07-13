@@ -16,6 +16,10 @@ export const playback = $state({
   current: null as Track | null,
   playing: false,
   paused: false,
+  // The queue reached its natural end (last track finished, no auto-advance) —
+  // distinct from a user stop. Lets the app return to the list on finish. Cleared
+  // the moment anything loads/cues/plays again.
+  ended: false,
   position: 0,
   duration: 0,
   order: 0,

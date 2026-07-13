@@ -253,8 +253,9 @@ const httpApi = {
 };
 
 // The GitHub Pages build has no backend: the playable endpoints delegate to the
-// browser-local store (IndexedDB bytes + localStorage catalog/playlists), and the
-// backend-only ones (rename/delete/rescan/fetch-missing/dupes) keep their HTTP
+// browser-local store (IndexedDB bytes + localStorage catalog/playlists), plus
+// `rename` (edit group/artist/filename is a pure catalog edit here — no fs). The
+// remaining backend-only ones (delete/rescan/fetch-missing/dupes) keep their HTTP
 // form but are never reached — their UI is hidden when STANDALONE. Written as a
 // static branch on a build constant so the unused half + its imports are
 // tree-shaken out of the backend build.
@@ -276,6 +277,7 @@ export const api = STANDALONE
       putMeta: local.putMeta,
       setFavorite: local.setFavorite,
       play: local.recordPlay,
+      rename: async (req: RenameRequest) => local.rename(req),
       playlists: async () => local.playlists.list(),
       createPlaylist: async (name: string) => local.playlists.create(name),
       getPlaylist: async (id: string) => local.playlists.get(id),
