@@ -16,6 +16,7 @@ export { default as Equalizer } from "./Equalizer.svelte";
 export { default as GlowWave } from "./GlowWave.svelte";
 export { default as LedBars } from "./LedBars.svelte";
 export { default as NixieScene } from "./NixieScene.svelte";
+export { prefetchTubes } from "./prefetch";
 export { default as PatternView } from "./PatternView.svelte";
 export { default as SampleBrowser } from "./SampleBrowser.svelte";
 export { default as Plasma } from "./Plasma.svelte";

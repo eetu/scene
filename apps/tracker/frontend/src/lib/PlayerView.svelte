@@ -17,6 +17,7 @@
     PatternView,
     Plasma,
     playback,
+    prefetchTubes,
     SampleBrowser,
     Scope,
     seekToOrder,
@@ -113,6 +114,20 @@
       onToast("Couldn't copy link", "err");
     }
   }
+
+  // While the viz tab is open, warm the tubes (nixie) chunk in the background —
+  // it pulls three.js, and doing that fetch+parse inline when tubes is selected
+  // can glitch the audio on mobile. Only fires once the user is in the viz area
+  // (so an unused viz tab costs nothing), and only fetches the module — no scene
+  // is built until tubes is actually mounted.
+  let tubesWarmed = false;
+  $effect(() => {
+    if (pv.tab === "viz" && !tubesWarmed) {
+      tubesWarmed = true;
+      const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 200));
+      idle(() => void prefetchTubes());
+    }
+  });
 
   // Fullscreen the visualiser (the 'f' shortcut + surfaces it below). In
   // fullscreen the viz picker auto-hides (slides up like a top drawer) after a
