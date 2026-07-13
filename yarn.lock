@@ -277,31 +277,31 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@glowbox/led-grid@npm:^1.0.0-rc.2":
-  version: 1.0.0-rc.2
-  resolution: "@glowbox/led-grid@npm:1.0.0-rc.2"
-  checksum: 10/097d00b7ffb2ffda042b0801704ccf2e72cc7c18de54d546e8c0f1b53717da9b1e01f54d5ed8a58713da4e85978af265b2495b786809dec18b76e849b9c5de15
+"@glowbox/led-grid@npm:^1.0.0-rc.3":
+  version: 1.0.0-rc.3
+  resolution: "@glowbox/led-grid@npm:1.0.0-rc.3"
+  checksum: 10/c123c36410454a8ffd2ba198d1801c53f1c265c29c38056f9e7461c3b0a5f869708703b34e8cb54207191aac1503e435d8d90d37f95a409f050ee32700f4ca3a
   languageName: node
   linkType: hard
 
-"@glowbox/nixie@npm:^1.0.0-rc.2":
-  version: 1.0.0-rc.2
-  resolution: "@glowbox/nixie@npm:1.0.0-rc.2"
+"@glowbox/nixie@npm:^1.0.0-rc.3":
+  version: 1.0.0-rc.3
+  resolution: "@glowbox/nixie@npm:1.0.0-rc.3"
   dependencies:
-    "@glowbox/led-grid": "npm:^1.0.0-rc.2"
-  checksum: 10/bc505c721e4dc20d9824ea1f8830e5eb98c07bdb96ffacfcae25f946b03902881ffee57e6ccc8126a9a7ffea7a8b10d6ca0e13a514d4c772116dd0f19817c646
+    "@glowbox/led-grid": "npm:^1.0.0-rc.3"
+  checksum: 10/23d96a10ce1f67e520706f4a051cadfa7f6be26f1bcea858865a99e8d9688df037c593b88a8ec7bddf0ffbca7e4682f08cc01478b3640e3b680ccd5387cee490
   languageName: node
   linkType: hard
 
-"@glowbox/svelte@npm:^1.0.0-rc.2":
-  version: 1.0.0-rc.2
-  resolution: "@glowbox/svelte@npm:1.0.0-rc.2"
+"@glowbox/svelte@npm:^1.0.0-rc.3":
+  version: 1.0.0-rc.3
+  resolution: "@glowbox/svelte@npm:1.0.0-rc.3"
   dependencies:
-    "@glowbox/led-grid": "npm:^1.0.0-rc.2"
-    "@glowbox/nixie": "npm:^1.0.0-rc.2"
+    "@glowbox/led-grid": "npm:^1.0.0-rc.3"
+    "@glowbox/nixie": "npm:^1.0.0-rc.3"
   peerDependencies:
     svelte: ^5
-  checksum: 10/69d9379b7210e059a870b21bed525c7195df77169d42e0d7d3761a59bb71c58657b07149d6c507227397c25e1253f6935bf66adc1472a17d29098384a88130ff
+  checksum: 10/c97534cee510c0c05b5b8d50c3abc3150f1bac787c23949283cc50081931e6153195b944538f90a1f7ecb3ad7ba48f9d30b54400bd01a861576760f765a496fb
   languageName: node
   linkType: hard
 
@@ -591,8 +591,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@scene/player@workspace:packages/player"
   dependencies:
-    "@glowbox/nixie": "npm:^1.0.0-rc.2"
-    "@glowbox/svelte": "npm:^1.0.0-rc.2"
+    "@glowbox/nixie": "npm:^1.0.0-rc.3"
+    "@glowbox/svelte": "npm:^1.0.0-rc.3"
     "@scene/design": "workspace:*"
     "@sveltejs/vite-plugin-svelte": "npm:^7.1.4"
     "@types/three": "npm:^0.185.1"

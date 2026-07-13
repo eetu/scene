@@ -145,9 +145,9 @@
           value: L.colon ? ":" : "0",
           style: "tall",
           glow: 0.95,
-          mesh: false,
-          ghost: false,
-          background: [0.008, 0.008, 0.012],
+          bare: true, // transparent canvas, no 2D glass — the 3D cylinder is the glass
+          mesh: true, // honeycomb anode grille
+          ghost: true, // unlit cathode wire-stack behind → the nixie depth
         })!;
         tube.resize();
 
@@ -157,12 +157,9 @@
         geoms.push(planeGeo);
         const plane = new T.Mesh(
           planeGeo,
-          new T.MeshBasicMaterial({
-            map: tex,
-            transparent: true,
-            blending: T.AdditiveBlending,
-            depthWrite: false,
-          }),
+          // Bare nixie renders straight (un-premultiplied) alpha → normal blend,
+          // so the glowing numeral + ghost cathodes composite onto the glass.
+          new T.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
         );
         plane.position.set(x, yc, 0.001);
         group.add(plane);
