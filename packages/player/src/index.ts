@@ -14,6 +14,7 @@ export { default as CopperBars } from "./CopperBars.svelte";
 export { default as DiscoBall } from "./DiscoBall.svelte";
 export { default as Equalizer } from "./Equalizer.svelte";
 export { default as GlowWave } from "./GlowWave.svelte";
+export { default as HarmonyScope } from "./HarmonyScope.svelte";
 export { default as LedBars } from "./LedBars.svelte";
 export { default as NixieScene } from "./NixieScene.svelte";
 export { prefetchTubes } from "./prefetch";

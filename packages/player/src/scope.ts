@@ -33,6 +33,13 @@ export function readSpectrum(buf: Uint8Array<ArrayBuffer>): boolean {
   return true;
 }
 
+/** Output sample rate (Hz) of the analyser's context — needed to map a
+ *  frequency bin to a musical pitch (bin `i` ≈ `i * sampleRate / 2 / SPECTRUM_SIZE`
+ *  Hz). Falls back to the common 48 kHz until the audio graph exists. */
+export function spectrumSampleRate(): number {
+  return analyser ? analyser.context.sampleRate : 48000;
+}
+
 // Reused across sampleBands() calls so a per-frame viz doesn't allocate.
 const bandBuf = new Uint8Array(SPECTRUM_SIZE);
 

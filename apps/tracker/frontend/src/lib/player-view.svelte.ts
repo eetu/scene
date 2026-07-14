@@ -8,6 +8,7 @@ export type PvTab = "pattern" | "samples" | "viz";
 export type VizMode =
   | "vu"
   | "bars"
+  | "harmony"
   | "cube"
   | "wave"
   | "stars"
@@ -21,6 +22,7 @@ export type VizMode =
 export const VIZ: VizMode[] = [
   "vu",
   "bars",
+  "harmony",
   "cube",
   "wave",
   "stars",

@@ -139,6 +139,12 @@ function bootBackend() {
     enrichMachine.provide({
       actors: {
         run: fromPromise(async () => {
+          // The machine is already in `enriching` when this invoked run starts,
+          // but the subscribe below only mirrors that into `library.enriching` a
+          // microtask later — after enrichTracks' first `shouldContinue()` check,
+          // which would then read `false` and cancel the loop on iteration one
+          // (the button looked dead). Set it synchronously so the run survives.
+          library.enriching = true;
           const todo = library.tracks.filter((t) => !t.type_long);
           library.enrichTotal = todo.length;
           library.enrichDone = 0;

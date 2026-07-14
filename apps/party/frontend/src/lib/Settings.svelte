@@ -161,6 +161,22 @@
     flex-direction: column;
     gap: 10px;
   }
+  /* Fill the viewport on phones instead of a cramped centred card (safe-area
+     aware, scrolls if tall). */
+  @media (max-width: 640px) {
+    .modal-bg {
+      padding: 0;
+    }
+    .modal {
+      max-width: none;
+      height: 100%;
+      border: 0;
+      border-radius: 0;
+      overflow-y: auto;
+      padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+        calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+    }
+  }
   .modal h3 {
     margin: 0;
     font-size: 14px;

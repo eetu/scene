@@ -82,4 +82,21 @@
     border-color: var(--accent);
     color: var(--accent);
   }
+  /* On phones a centred 420px card wastes space and crowds its content — fill the
+     viewport instead (edge to edge, no radius), honouring the safe-area insets,
+     and scroll if the content is tall. */
+  @media (max-width: 640px) {
+    .modal-bg {
+      padding: 0;
+    }
+    .modal {
+      max-width: none;
+      height: 100%;
+      border: 0;
+      border-radius: 0;
+      overflow-y: auto;
+      padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+        calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+    }
+  }
 </style>

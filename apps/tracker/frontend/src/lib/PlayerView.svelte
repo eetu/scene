@@ -12,6 +12,7 @@
     DiscoBall,
     Equalizer,
     GlowWave,
+    HarmonyScope,
     LedBars,
     NixieScene,
     PatternView,
@@ -333,6 +334,8 @@
         <div class="vizbody">
           {#if pv.vizMode === "bars"}
             <Equalizer active={vizActive} />
+          {:else if pv.vizMode === "harmony"}
+            <HarmonyScope active={vizActive} />
           {:else if pv.vizMode === "cube"}
             <LedBars active={vizActive} />
           {:else if pv.vizMode === "wave"}
