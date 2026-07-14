@@ -7,7 +7,8 @@
       "format": "s3m",
       "filename": "2nd_pm.s3m",
       "url": "https://api.modarchive.org/downloads.php?moduleid=212083",
-      "md5": "66af9167fcf28a6ecb3e2e25fa11a833"
+      "md5": "66af9167fcf28a6ecb3e2e25fa11a833",
+      "artist": "Purple Motion"
     },
     {
       "title": "space_debris",
@@ -41,7 +42,8 @@
       "format": "mod",
       "filename": "ELYSIUM.MOD",
       "url": "https://api.modarchive.org/downloads.php?moduleid=40475",
-      "md5": "45b205dd41fe63c2de0e77ae749322de"
+      "md5": "45b205dd41fe63c2de0e77ae749322de",
+      "artist": "Jester"
     },
     {
       "title": "aryx",
@@ -66,7 +68,8 @@
       "format": "mod",
       "filename": "GSLINGER.MOD",
       "url": "https://api.modarchive.org/downloads.php?moduleid=42560",
-      "md5": "310761e5e500f5f8f7cbdf28b4f6522d"
+      "md5": "310761e5e500f5f8f7cbdf28b4f6522d",
+      "artist": "jogeir-liljedahl"
     },
     {
       "title": "radix_-_yuki_satellites",
@@ -100,7 +103,8 @@
       "format": "mod",
       "filename": "stardstm.mod",
       "url": "https://api.modarchive.org/downloads.php?moduleid=59344",
-      "md5": "3e2716df273cddc097b28d5f1ffceef8"
+      "md5": "3e2716df273cddc097b28d5f1ffceef8",
+      "artist": "Jester"
     },
     {
       "title": "celestial_fantasia",
@@ -116,7 +120,8 @@
       "format": "mod",
       "filename": "musiklinjen.mod",
       "url": "https://api.modarchive.org/downloads.php?moduleid=101789",
-      "md5": "dea0bca1cdf7f718067013c9f232aafb"
+      "md5": "dea0bca1cdf7f718067013c9f232aafb",
+      "artist": "firefox"
     },
     {
       "title": "sweetdre",
@@ -380,14 +385,16 @@
       "format": "mod",
       "filename": "creamof.mod",
       "url": "https://api.modarchive.org/downloads.php?moduleid=211324",
-      "md5": "3ea6662c43070194b1b46b64966afb4f"
+      "md5": "3ea6662c43070194b1b46b64966afb4f",
+      "artist": "romeoknight"
     },
     {
       "title": "12TH",
       "format": "mod",
       "filename": "12TH.MOD",
       "url": "https://api.modarchive.org/downloads.php?moduleid=59601",
-      "md5": "d62373ec1f75fa0a6b8bccfc3e3d5c3b"
+      "md5": "d62373ec1f75fa0a6b8bccfc3e3d5c3b",
+      "artist": "Dr. Awesome"
     },
     {
       "title": "surfonasinewave",
@@ -439,7 +446,8 @@
       "format": "it",
       "filename": "badapple.it",
       "url": "https://api.modarchive.org/downloads.php?moduleid=179366",
-      "md5": "c919f2791670ca108912d8f084afd266"
+      "md5": "c919f2791670ca108912d8f084afd266",
+      "artist": "Pigu"
     },
     {
       "title": "random_voice_-_monday",
@@ -536,7 +544,8 @@
       "format": "mod",
       "filename": "street_jungle.mod",
       "url": "https://api.modarchive.org/downloads.php?moduleid=211598",
-      "md5": "544d1a1c2689d5d244c874f9d2544516"
+      "md5": "544d1a1c2689d5d244c874f9d2544516",
+      "artist": "Heatbeat"
     },
     {
       "title": "bananasplit",
@@ -588,7 +597,8 @@
       "format": "xm",
       "filename": "dragonatlas.xm",
       "url": "https://api.modarchive.org/downloads.php?moduleid=174158",
-      "md5": "627442543cdad32f402a563f68957f88"
+      "md5": "627442543cdad32f402a563f68957f88",
+      "artist": "radix"
     },
     {
       "title": "class09",
@@ -640,7 +650,8 @@
       "format": "xm",
       "filename": "fap.xm",
       "url": "https://api.modarchive.org/downloads.php?moduleid=169152",
-      "md5": "0e2f8a0805af03dfe32f38ef375cdbde"
+      "md5": "0e2f8a0805af03dfe32f38ef375cdbde",
+      "artist": "michu"
     },
     {
       "title": "radix-imaginary_friend",
@@ -710,7 +721,8 @@
       "format": "mod",
       "filename": "OCC-SAN.MOD",
       "url": "https://api.modarchive.org/downloads.php?moduleid=49836",
-      "md5": "d5d610c9a8c63eac18b488cdc54db177"
+      "md5": "d5d610c9a8c63eac18b488cdc54db177",
+      "artist": "Uncle Tom"
     },
     {
       "title": "wire_-_tintin_on_the_moon",
@@ -780,7 +792,8 @@
       "format": "xm",
       "filename": "radix-weather_girl.xm",
       "url": "https://api.modarchive.org/downloads.php?moduleid=67573",
-      "md5": "d9f4a42b6a1e220665e1907967449079"
+      "md5": "d9f4a42b6a1e220665e1907967449079",
+      "artist": "radix"
     },
     {
       "title": "colours",
@@ -972,14 +985,16 @@
       "format": "s3m",
       "filename": "2nd_skav.s3m",
       "url": "https://api.modarchive.org/downloads.php?moduleid=212082",
-      "md5": "ed8577098332edabe6e9c5bb8d3f83a7"
+      "md5": "ed8577098332edabe6e9c5bb8d3f83a7",
+      "artist": "Skaven252"
     },
     {
       "title": "ZAK",
       "format": "s3m",
       "filename": "ZAK.S3M",
       "url": "https://api.modarchive.org/downloads.php?moduleid=63213",
-      "md5": "3843294e59348ee6a0adb172a817c491"
+      "md5": "3843294e59348ee6a0adb172a817c491",
+      "artist": "Purple Motion"
     },
     {
       "title": "rainbowdash",
@@ -1040,7 +1055,8 @@
       "format": "it",
       "filename": "alex_brandon_-_deus_ex_title_music.it",
       "url": "https://api.modarchive.org/downloads.php?moduleid=155905",
-      "md5": "5ea6224bb4069f8ed976c4e7d3bfca5c"
+      "md5": "5ea6224bb4069f8ed976c4e7d3bfca5c",
+      "artist": "alexanderbrandon"
     },
     {
       "title": "skyrider",
@@ -1092,21 +1108,24 @@
       "format": "xm",
       "filename": "sapphire_eyes.xm",
       "url": "https://api.modarchive.org/downloads.php?moduleid=185286",
-      "md5": "6099237a488221e8f70a71c6d843566b"
+      "md5": "6099237a488221e8f70a71c6d843566b",
+      "artist": "Xemogasa"
     },
     {
       "title": "inside_out",
       "format": "s3m",
       "filename": "inside_out.s3m",
       "url": "https://api.modarchive.org/downloads.php?moduleid=212701",
-      "md5": "10a3bad1053db408ccffc6089965553e"
+      "md5": "10a3bad1053db408ccffc6089965553e",
+      "artist": "Purple Motion"
     },
     {
       "title": "jmnerd_ijf_point_of_no_return",
       "format": "it",
       "filename": "jmnerd_ijf_point_of_no_return.it",
       "url": "https://api.modarchive.org/downloads.php?moduleid=182718",
-      "md5": "219fc1f2882b4cbd19c97320b7fd91a2"
+      "md5": "219fc1f2882b4cbd19c97320b7fd91a2",
+      "artist": "inactivee"
     },
     {
       "title": "118in64",
@@ -1185,7 +1204,8 @@
       "format": "mod",
       "filename": "knulla-kuk.mod",
       "url": "https://api.modarchive.org/downloads.php?moduleid=48107",
-      "md5": "188989fa606a1d19171106f60f6340a4"
+      "md5": "188989fa606a1d19171106f60f6340a4",
+      "artist": "Moby"
     },
     {
       "title": "AXELF",
@@ -1246,7 +1266,8 @@
       "format": "mod",
       "filename": "4mats-madness.mod",
       "url": "https://api.modarchive.org/downloads.php?moduleid=66036",
-      "md5": "67b2bcfab06172df027904d666df9c28"
+      "md5": "67b2bcfab06172df027904d666df9c28",
+      "artist": "4mat"
     },
     {
       "title": "radix_-_the_mission",
@@ -1278,7 +1299,8 @@
       "format": "xm",
       "filename": "the_snippet.xm",
       "url": "https://api.modarchive.org/downloads.php?moduleid=160476",
-      "md5": "9b44a9432ea3504e38da2f346ee4ee34"
+      "md5": "9b44a9432ea3504e38da2f346ee4ee34",
+      "artist": "nescio"
     },
     {
       "title": "popcorn_remix",
@@ -1303,7 +1325,8 @@
       "format": "xm",
       "filename": "ambrozia.xm",
       "url": "https://api.modarchive.org/downloads.php?moduleid=33432",
-      "md5": "5e7b850f78f8758b693a972bcb57929e"
+      "md5": "5e7b850f78f8758b693a972bcb57929e",
+      "artist": "jogeir-liljedahl"
     },
     {
       "title": "robocop3",
@@ -1418,7 +1441,8 @@
       "format": "mod",
       "filename": "ambpower.mod",
       "url": "https://api.modarchive.org/downloads.php?moduleid=33431",
-      "md5": "56e3978b03364726c84033055d86dc92"
+      "md5": "56e3978b03364726c84033055d86dc92",
+      "artist": "Vogue"
     },
     {
       "title": "blue_val",
@@ -1477,7 +1501,8 @@
       "format": "s3m",
       "filename": "overdriv.s3m",
       "url": "https://api.modarchive.org/downloads.php?moduleid=211654",
-      "md5": "e6044c025d2e2760a624656493247383"
+      "md5": "e6044c025d2e2760a624656493247383",
+      "artist": "Purple Motion"
     },
     {
       "title": "unk",
@@ -1529,7 +1554,8 @@
       "format": "s3m",
       "filename": "PANIC.S3M",
       "url": "https://api.modarchive.org/downloads.php?moduleid=52695",
-      "md5": "7864d163734c7e1c68a28c9f515709b9"
+      "md5": "7864d163734c7e1c68a28c9f515709b9",
+      "artist": "Purple Motion"
     },
     {
       "title": "zalza-g_te_g_r_p_tivoli",
@@ -1563,7 +1589,8 @@
       "format": "mod",
       "filename": "interference.mod",
       "url": "https://api.modarchive.org/downloads.php?moduleid=68804",
-      "md5": "ee6d76649670e424f6e771c51dc7bfab"
+      "md5": "ee6d76649670e424f6e771c51dc7bfab",
+      "artist": "Virgill"
     },
     {
       "title": "chubb1-1",
@@ -1615,7 +1642,8 @@
       "format": "it",
       "filename": "m5v-mars.it",
       "url": "https://api.modarchive.org/downloads.php?moduleid=48561",
-      "md5": "e9b6d4a9731d29aae4c85e6ba6e1c805"
+      "md5": "e9b6d4a9731d29aae4c85e6ba6e1c805",
+      "artist": "Necros"
     },
     {
       "title": "plastic_pop",
@@ -1658,7 +1686,8 @@
       "format": "s3m",
       "filename": "ENERGIA.S3M",
       "url": "https://api.modarchive.org/downloads.php?moduleid=40496",
-      "md5": "0ddeea1b5aef5a500f33efa6f5a7dc0f"
+      "md5": "0ddeea1b5aef5a500f33efa6f5a7dc0f",
+      "artist": "Necros"
     },
     {
       "title": "1989-a_number",
@@ -1771,7 +1800,8 @@
       "format": "mptm",
       "filename": "vince_kaichan_-_rollerdisco_rumble.mptm",
       "url": "https://api.modarchive.org/downloads.php?moduleid=178802",
-      "md5": "46409bfee4b032162f5e9c9b25e4239f"
+      "md5": "46409bfee4b032162f5e9c9b25e4239f",
+      "artist": "Vince Kaichan"
     },
     {
       "title": "autonom",
@@ -1805,7 +1835,8 @@
       "format": "xm",
       "filename": "068.xm",
       "url": "https://api.modarchive.org/downloads.php?moduleid=160971",
-      "md5": "79c74cc09b9c2dbb595506b78e1943c5"
+      "md5": "79c74cc09b9c2dbb595506b78e1943c5",
+      "artist": "michu"
     },
     {
       "title": "necros_-_gateway",
@@ -1866,7 +1897,8 @@
       "format": "xm",
       "filename": "lhs_rld9.xm",
       "url": "https://api.modarchive.org/downloads.php?moduleid=176145",
-      "md5": "30d245118ad5874270b39fe1ea20ede2"
+      "md5": "30d245118ad5874270b39fe1ea20ede2",
+      "artist": "LHS"
     },
     {
       "title": "onward",
@@ -1945,7 +1977,8 @@
       "format": "xm",
       "filename": "lhs_rld1.xm",
       "url": "https://api.modarchive.org/downloads.php?moduleid=173261",
-      "md5": "d0a04ea93287e7845b1e7dbda41507ce"
+      "md5": "d0a04ea93287e7845b1e7dbda41507ce",
+      "artist": "LHS"
     },
     {
       "title": "oro_incenso-orig",
@@ -2015,7 +2048,8 @@
       "format": "it",
       "filename": "siren_-_jazz_jackrabbit_3_castle_city.it",
       "url": "https://api.modarchive.org/downloads.php?moduleid=175740",
-      "md5": "0fec2554b9687678ef23fb41c984e8ea"
+      "md5": "0fec2554b9687678ef23fb41c984e8ea",
+      "artist": "Siren"
     },
     {
       "title": "loonie-biohazard",

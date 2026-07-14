@@ -143,21 +143,6 @@ fn is_public_v4(ip: Ipv4Addr) -> bool {
         || (a == 100 && (b & 0xc0) == 0x40)) // CGNAT / shared 100.64.0.0/10
 }
 
-/// A folder name derived from a URL's host (scheme + leading `api.`/`www.`
-/// stripped) — where a by-`url` download lands when its item carries no artist.
-pub fn host_group(url: &str) -> Option<String> {
-    let after = url.split("://").nth(1).unwrap_or(url);
-    let host = after.split('/').next().unwrap_or(after);
-    let host = host.strip_prefix("api.").unwrap_or(host);
-    let host = host.strip_prefix("www.").unwrap_or(host);
-    let host = host.trim();
-    if host.is_empty() {
-        None
-    } else {
-        Some(host.to_string())
-    }
-}
-
 /// Author = the second path segment of a Modland path (`Format/Author/.../file`).
 /// `None` for a path too shallow to carry one. Maps to the library **artist**.
 pub fn author_from_path(path: &str) -> Option<String> {
