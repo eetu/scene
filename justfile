@@ -19,7 +19,11 @@ install:
 # logs compose into one stream; backends hot-reload on src + .env changes.
 #
 # Dev a whole service: backend (bacon) + frontend (vite) + sidecars. e.g. just dev tracker
-dev app:
+# Add a `host` arg to expose the frontend on the LAN over HTTPS + print the
+# network URL/QR, so another device can connect (e.g. `just dev party host`);
+# HTTPS is needed for the emulators (secure-context SharedArrayBuffer). Off by
+# default (localhost/http).
+dev app host="":
     #!/usr/bin/env bash
     set -euo pipefail
     # Tear down every child (and its grandchildren — the backend binary under
@@ -37,7 +41,7 @@ dev app:
     trap cleanup INT TERM EXIT
     ( cd apps/{{app}}/backend && exec bacon --headless -j run ) &
     pids="$pids $!"
-    ( cd apps/{{app}}/frontend && exec {{yarn}} dev ) &
+    ( cd apps/{{app}}/frontend && DEV_HOST="{{host}}" exec {{yarn}} dev ) &
     pids="$pids $!"
     # Sidecars this service needs (loopback). Party fronts the ffmpeg transcoder.
     if [ "{{app}}" = "party" ]; then
