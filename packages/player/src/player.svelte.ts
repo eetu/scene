@@ -33,7 +33,14 @@ export { jamNote, jamStop, jamStopAll, setJamLevel } from "./jam";
 // package's public API — and in-package components importing from
 // "./player.svelte" — are unchanged.
 export { CELL, cellFieldText, FIELD, isRealNote, noteName, noteToJam, NUM_FIELDS } from "./notes";
-export { readScope, readSpectrum, sampleBands, SCOPE_SIZE, SPECTRUM_SIZE } from "./scope";
+export {
+  readScope,
+  readSpectrum,
+  sampleBands,
+  SCOPE_SIZE,
+  SPECTRUM_SIZE,
+  spectrumSampleRate,
+} from "./scope";
 export {
   clearCellAtCursor,
   handleEditKey,
