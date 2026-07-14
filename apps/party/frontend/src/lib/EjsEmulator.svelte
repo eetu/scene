@@ -361,6 +361,10 @@
     scriptEl = null;
     host?.replaceChildren();
     g.EJS_emulator = undefined;
+    // Drop fullscreen too — the iOS CSS-overlay (`pseudoFs`) would otherwise
+    // linger over the fresh Start-Game screen after a stop/relaunch.
+    if (document.fullscreenElement) void document.exitFullscreen?.();
+    pseudoFs = false;
   }
 
   function fullscreen() {

@@ -15,6 +15,10 @@ declare global {
     simulateKeyPress: (...keyCodes: number[]) => void;
     sendKeyEvent: (keyCode: number, pressed: boolean) => void;
     exit?: () => void;
+    /** Current framebuffer size (the DOS video mode). Polled to spot the demo
+     *  switching out of its text-mode SETUP into graphics. */
+    width?: () => number;
+    height?: () => number;
   }
   interface DosOptions {
     url: string;
