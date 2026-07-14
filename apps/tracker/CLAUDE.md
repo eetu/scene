@@ -220,7 +220,8 @@ Cargo workspace = `backend` + `integration`.
   and/or a Modland `path`, plus cached display metadata); `fetch-missing`
   downloads the items not present locally via the `modland.rs` client — by
   Modland `path` (placed at `<format>/<author>/<file>`) or a generic `url`
-  (placed under the url host) — sequential, throttled, capped at `FETCH_MAX`,
+  (placed at `_groupless/<artist>/<file>` from the item's curated artist, else
+  `_groupless/<file>`) — sequential, throttled, capped at `FETCH_MAX`,
   then rescans so they resolve as present. `MODLAND_BASE` is env-overridable so
   the e2e drives it against a wiremock stub. (An earlier plan to auto-sync The
   Mod Archive "Top Favourites" chart was dropped in favour of this curated

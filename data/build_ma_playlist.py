@@ -12,12 +12,28 @@ Usage: build_ma_playlist.py <ids.txt> <pages_dir> <allmods_md5.txt> <out.json> "
   ids.txt: one `<moduleid>#<filename>` per line (chart order).
   pages_dir: <moduleid>.html info pages (for the md5).
 """
+import html as htmllib
 import json
 import os
 import re
 import sys
 
 MD5_RE = re.compile(r"MD5:\s*([0-9a-fA-F]{32})")
+# Registered-artist block on a module's info page — scoped so the page's
+# *favourites* member links don't match (see enrich_ma_artists.py).
+ARTIST_BLOCK_RE = re.compile(r"Registered Artist\(s\):.*?<ul[^>]*>(.*?)</ul>", re.IGNORECASE | re.DOTALL)
+ARTIST_LINK_RE = re.compile(r'href="member\.php\?[^"]*"[^>]*>([^<]+)</a>', re.IGNORECASE)
+
+
+def parse_artist(page: str) -> str | None:
+    """The first registered-artist alias on a module info page, or None."""
+    block = ARTIST_BLOCK_RE.search(page)
+    if not block:
+        return None
+    link = ARTIST_LINK_RE.search(block.group(1))
+    if not link:
+        return None
+    return htmllib.unescape(link.group(1)).strip() or None
 
 
 def main() -> None:
@@ -37,12 +53,14 @@ def main() -> None:
         if "#" not in line:
             continue
         mid, filename = line.split("#", 1)
-        page = os.path.join(pages_dir, f"{mid}.html")
-        md5 = None
-        if os.path.exists(page):
-            m = MD5_RE.search(open(page, encoding="utf-8", errors="replace").read())
+        page_path = os.path.join(pages_dir, f"{mid}.html")
+        md5 = ma_artist = None
+        if os.path.exists(page_path):
+            page = open(page_path, encoding="utf-8", errors="replace").read()
+            m = MD5_RE.search(page)
             if m:
                 md5 = m.group(1).lower()
+            ma_artist = parse_artist(page)
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         item = {"title": filename.rsplit(".", 1)[0], "format": ext, "filename": filename}
         # Always carry the Mod Archive direct-download URL so the item stays
@@ -58,11 +76,16 @@ def main() -> None:
                 segs = path.split("/")
                 item["artist"] = segs[1] if len(segs) >= 3 else None
                 fetchable += 1
+        # No Modland author, but Mod Archive lists a registered artist → use it, so
+        # a url-only item files at `_groupless/<artist>/<file>` (not flat).
+        if not item.get("artist") and ma_artist:
+            item["artist"] = ma_artist
         items.append(item)
 
     doc = {"name": name, "source": source, "items": items}
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(doc, f, ensure_ascii=False, indent=2)
+        f.write("\n")  # trailing newline so the doc stays Prettier-clean
     print(f"wrote {len(items)} items ({with_md5} with md5, {fetchable} fetchable via Modland)")
 
 

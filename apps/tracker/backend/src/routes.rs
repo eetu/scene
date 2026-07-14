@@ -1274,28 +1274,7 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
             .await?
             .is_some();
         if !have {
-            // Place at the library convention `group/artist/file`. From a Modland
-            // path, group = format, artist = author, both straight from the path.
-            // From a url, group = the url host (provenance), artist = the item's
-            // cached artist (when curation supplied one), filename = its filename.
-            let (group, artist, filename) = match &m.path {
-                Some(p) => (
-                    crate::modland::format_from_path(p)
-                        .unwrap_or_else(|| DL_FALLBACK_GROUP.to_string()),
-                    crate::modland::author_from_path(p),
-                    p.rsplit('/').next().unwrap_or("module").to_string(),
-                ),
-                None => {
-                    let group = m
-                        .url
-                        .as_deref()
-                        .and_then(crate::modland::host_group)
-                        .unwrap_or_else(|| DL_FALLBACK_GROUP.to_string());
-                    let artist = m.artist.clone().filter(|a| !a.trim().is_empty());
-                    let filename = m.filename.clone().unwrap_or_else(|| "module".to_string());
-                    (group, artist, filename)
-                }
-            };
+            let (group, artist, filename) = place_download(m);
             if let Err(e) = write_module(
                 &state.cfg.root,
                 &group,
@@ -1337,6 +1316,30 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
         "fetch-missing complete"
     );
     Ok(())
+}
+
+/// Where a fetched module is filed: `(group, artist, filename)`, at the library's
+/// `group/artist/song` convention.
+///
+/// From a Modland `path` (`Format/Author/.../file`): group = format, artist =
+/// author, both straight from the path. From a `url` (no path — e.g. a Mod
+/// Archive item): the library's canonical no-group bucket, so group =
+/// [`GROUPLESS`](crate::scan::GROUPLESS) and artist = the item's curated artist
+/// when present — landing at `_groupless/<artist>/<file>` (or `_groupless/<file>`
+/// when unknown), never a phantom host-named group.
+fn place_download(m: &Missing) -> (String, Option<String>, String) {
+    match &m.path {
+        Some(p) => (
+            crate::modland::format_from_path(p).unwrap_or_else(|| DL_FALLBACK_GROUP.to_string()),
+            crate::modland::author_from_path(p),
+            p.rsplit('/').next().unwrap_or("module").to_string(),
+        ),
+        None => (
+            crate::scan::GROUPLESS.to_string(),
+            m.artist.clone().filter(|a| !a.trim().is_empty()),
+            m.filename.clone().unwrap_or_else(|| "module".to_string()),
+        ),
+    }
 }
 
 /// Write a downloaded module under `<group>/<artist>/<filename>` (the library's
@@ -1440,4 +1443,52 @@ async fn api_dupes(_auth: Auth, State(state): State<AppState>) -> AppResult<Json
         })
         .await?;
     Ok(Json(json!({ "exact": exact, "likely": likely })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn missing(path: Option<&str>, url: Option<&str>, artist: Option<&str>) -> Missing {
+        Missing {
+            item_id: 1,
+            path: path.map(str::to_string),
+            url: url.map(str::to_string),
+            filename: Some("newtune.mod".into()),
+            artist: artist.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn place_from_modland_path() {
+        // group = format, artist = author, filename = last segment.
+        let (g, a, f) = place_download(&missing(Some("Protracker/coma/newtune.mod"), None, None));
+        assert_eq!((g.as_str(), a.as_deref(), f.as_str()), ("Protracker", Some("coma"), "newtune.mod"));
+    }
+
+    #[test]
+    fn place_url_with_artist_goes_to_groupless() {
+        // A url item (no path) with a curated artist → _groupless/<artist>/<file>,
+        // never a host-derived group.
+        let (g, a, f) = place_download(&missing(
+            None,
+            Some("https://api.modarchive.org/downloads.php?moduleid=42"),
+            Some("4-mat"),
+        ));
+        assert_eq!((g.as_str(), a.as_deref(), f.as_str()), (crate::scan::GROUPLESS, Some("4-mat"), "newtune.mod"));
+    }
+
+    #[test]
+    fn place_url_without_artist_is_groupless_flat() {
+        // No usable artist (absent or blank) → _groupless with no artist subdir.
+        for artist in [None, Some("   ")] {
+            let (g, a, _) = place_download(&missing(
+                None,
+                Some("https://api.modarchive.org/downloads.php?moduleid=42"),
+                artist,
+            ));
+            assert_eq!(g, crate::scan::GROUPLESS);
+            assert_eq!(a, None);
+        }
+    }
 }
