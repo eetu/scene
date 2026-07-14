@@ -121,7 +121,10 @@
         // The command interface arrives here once the emulator is running,
         // so we can inject keys (ESC etc.) the kiosk UI no longer offers.
         onEvent: (event, commandInterface) => {
-          if (event === "ci-ready" && commandInterface) ci = commandInterface;
+          if (event === "ci-ready" && commandInterface) {
+            ci = commandInterface;
+            watchForDemoStart();
+          }
         },
       });
     } catch (e) {
@@ -187,9 +190,48 @@
     t.value = "";
   }
 
+  // Auto-hide the sound-card hint once the demo leaves its (text-mode) SETUP.
+  // The hint only helps while a demo asks you to pick a card; when the DOS video
+  // mode changes from what it was when the CI arrived, the demo proper is
+  // running. Poll width()/height() rather than the CI frame events, which the
+  // kiosk renderer owns. Give up after ~60s (single-mode demos never change).
+  let sizePoll: ReturnType<typeof setInterval> | null = null;
+  function stopSizePoll() {
+    if (sizePoll !== null) {
+      clearInterval(sizePoll);
+      sizePoll = null;
+    }
+  }
+  function watchForDemoStart() {
+    stopSizePoll();
+    let base = "";
+    let ticks = 0;
+    sizePoll = setInterval(() => {
+      if (!ci || ++ticks > 120) {
+        stopSizePoll();
+        return;
+      }
+      const w = ci.width?.() ?? 0;
+      const h = ci.height?.() ?? 0;
+      if (!w || !h) return; // not painting yet
+      const mode = `${w}x${h}`;
+      if (!base) {
+        base = mode; // first real mode = the SETUP screen
+      } else if (mode !== base) {
+        showSound = false; // switched modes → demo is running
+        stopSizePoll();
+      }
+    }, 500);
+  }
+
   // Hard stop: tear the emulator down and return to the launch state — the way
-  // out for demos that don't respond to ESC at all.
+  // out for demos that don't respond to ESC at all. Also drops fullscreen: the
+  // iOS CSS-overlay (`pseudoFs`) has no other exit once the toolbar unmounts, so
+  // leaving it set would strand the user on a black full-viewport overlay.
   function exitEmu() {
+    stopSizePoll();
+    if (document.fullscreenElement) void document.exitFullscreen?.();
+    pseudoFs = false;
     try {
       dosProps?.stop?.();
     } catch {
@@ -198,10 +240,12 @@
     dosProps = null;
     ci = null;
     started = false;
+    showSound = false;
     host?.replaceChildren();
   }
 
   onDestroy(() => {
+    stopSizePoll();
     try {
       dosProps?.stop?.();
     } catch {
