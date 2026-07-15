@@ -8,7 +8,7 @@
   import { playback, playInOrder, transportToggle } from "@scene/player";
   import { onMount } from "svelte";
 
-  import { api, type DupesReport } from "$lib/api";
+  import { api, type DupeFile, type DupesReport } from "$lib/api";
   import { library, removeTrackLocal } from "$lib/library.svelte";
   import Modal from "$lib/Modal.svelte";
 
@@ -87,13 +87,26 @@
   }
 </script>
 
-{#snippet fileRow(path: string, md5?: string)}
-  <li title={path} class:current={isPlaying(path)}>
+{#snippet fileRow(path: string, file?: DupeFile)}
+  {@const orphan = file && !file.favorite && file.play_count === 0 && file.playlists.length === 0}
+  <li title={path} class:current={isPlaying(path)} class:orphan>
     <button class="f" onclick={() => onFile(path)} title="play {nameOf(path)}">
       {#if dirOf(path)}<span class="dir">{dirOf(path)} / </span>{/if}<span class="name"
         >{nameOf(path)}</span
       >
-      {#if md5}<span class="md5">{md5.slice(0, 8)}</span>{/if}
+      {#if file}
+        <span class="md5">{file.md5.slice(0, 8)}</span>
+        {#if file.favorite}<span class="badge fav" title="favourite">★</span>{/if}
+        {#if file.play_count > 0}
+          <span class="badge" title="{file.play_count} plays">▶ {file.play_count}</span>
+        {/if}
+        {#each file.playlists as pl (pl)}
+          <span class="badge list" title="in playlist “{pl}”">{pl}</span>
+        {/each}
+        {#if orphan}<span class="badge unused" title="not favourited, played, or in any playlist"
+            >unused</span
+          >{/if}
+      {/if}
     </button>
     <button
       class="mini"
@@ -154,7 +167,7 @@
             <div class="setname">{g.filename}</div>
             <ul>
               {#each g.files as f (f.path)}
-                {@render fileRow(f.path, f.md5)}
+                {@render fileRow(f.path, f)}
               {/each}
             </ul>
           </div>
@@ -279,6 +292,34 @@
     font-size: 11px;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
+  }
+  /* Membership badges — show which copy is referenced so the orphan is obvious. */
+  .badge {
+    margin-left: 5px;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    background: var(--panel);
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .badge.fav {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  }
+  .badge.list {
+    color: var(--text);
+  }
+  .badge.unused {
+    color: var(--muted);
+    border-style: dashed;
+    opacity: 0.8;
+  }
+  /* The safe-to-remove copy: nothing references it. Faint left accent, no shout. */
+  li.orphan {
+    background: color-mix(in srgb, var(--halo-error) 6%, transparent);
   }
   .mini {
     flex: 0 0 auto;

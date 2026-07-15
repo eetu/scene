@@ -1,14 +1,193 @@
-# Modules playbook — scraping & cleaning the tracker collection
+# Modules playbook — adding to & curating the tracker collection
 
-How to grow and tidy the module archive that this app serves (`TRACKER_ROOT`,
-i.e. the `mods` NAS at `/Volumes/mods`). Counterpart to the party app's scrape:
+How to grow and tidy the module archive this app serves (`TRACKER_ROOT` = the
+`mods` SMB mount, now under the `scene` share — dev `/Volumes/scene/mods`).
+Counterpart to the party app's scrape:
 where that ingests demoparty archives from scene.org, this ingests **tracker
 modules** from the mod archives and de-messes old **CD-dump rips**.
 
-**Filesystem is the source of truth** (see `CLAUDE.md`): `group/artist/song.ext`.
-The whole job is getting the right bytes into the right `group/artist/` folder
-under a clean name, then `POST /api/rescan` (the DB is just a cache). Everything
-below is done with ordinary file tools; nothing here needs the backend running.
+## The model (read this first)
+
+Two layers, deliberately separate:
+
+- **The filesystem — one axis: the artist.** `TRACKER_ROOT/<artist>/<song.ext>`.
+  A tune has exactly one home, under its (canonical) author. Unknown author →
+  `_unknown/`. That's the whole on-disk structure — **no group level**.
+- **`library.json` at the mount root — the relational graph.** Everything that
+  isn't a single-artist fact: an artist's other handles (`aka`), the groups they
+  were in (`groups`), named `albums` (ordered sets of song md5s), and per-song
+  credits (`forGroup` / co-authors / `year`). **Group and album are facets built
+  from this file, never directories** — a tune can be in many groups/albums, and
+  a tree can't hold that; a graph can.
+
+Why the split: the filesystem is a tree, but artist↔group↔alias↔album is a graph.
+Encoding the graph in the path forced either duplicates (the md5 dupes we had) or
+a lie (pick one group). Identity is the **content hash** — `/api/file/{hash}`, and
+hash/md5-keyed `meta` / `stats` / playlists — so **moving files around is
+lossless**: favourites, play counts, enrichment and playlist membership all follow
+the bytes. Reorganising is a pure filing decision.
+
+**Durability rule:** anything you can't recompute from the bytes must live in
+`library.json` (aliases, groups, albums, credits). The SQLite DB is a cache — lose
+it, rescan. Lose `library.json` and you lose the graph, so it lives on the mount
+and is the thing to back up.
+
+## Adding a module (the 30-second version)
+
+1. Drop the file at `<artist>/<song.ext>` on the mount — clean name, keep a
+   recognised module extension; unknown author → `_unknown/`. The **dedup guard**
+   refuses a second copy of bytes already in the library.
+2. **Rescan** — `POST /api/rescan` (or the UI button). Indexes new/changed files;
+   an unchanged file reuses its cached hash (no re-read over SMB).
+3. **Annotate** (optional) in `library.json` — the artist's `aka`/`groups`, an
+   album, per-song credits — by hand or via the in-app editor, then
+   **`POST /api/library/reload`** (cheap; no rescan/hashing). Group/album/alias
+   views update immediately.
+
+Rescan = "new bytes on disk" (walks + hashes). Reload = "edited the graph"
+(re-reads one small JSON). They're independent — curating the graph never costs a
+NAS walk.
+
+## `library.json` format
+
+```json
+{
+  "artists": {
+    "4-Mat":         { "aka": ["Matt Simmonds"], "groups": ["Anarchy", "Rebels"] },
+    "Purple Motion": { "groups": ["Future Crew"] }
+  },
+  "albums": {
+    "second-reality-ost": { "title": "Second Reality — Soundtrack", "kind": "soundtrack",
+                            "songs": ["ab12..f9", "cd34..a1"] }
+  },
+  "songs": { "ab12..f9": { "forGroup": "Future Crew", "with": ["Skaven"], "year": 1993 } }
+}
+```
+
+- `artists` — key = the **canonical handle = the folder name**. `aka` folds
+  alias-named folders into this artist in the browse view; `groups` inverts to a
+  group→members facet. Handle lookups are case-insensitive.
+- `albums` — slug → `{title, kind, songs:[md5]}`, ordered (an album is directly
+  playable). `kind` is a free tag (`soundtrack`, `sfx`, `sid`, …).
+- `songs` — **sparse**: only annotated tunes, keyed by md5. This is what keeps one
+  file viable at thousands of modules. `md5` (not sha256) matches the playlist
+  items and The Mod Archive.
+
+## Curation surfaces
+
+- **Hand-edit** `library.json` on the mount → `POST /api/library/reload`.
+- **In-app editor** — artist `aka`/`groups`, per-track credits, album management;
+  writes the manifest for you and reloads.
+- **LLM** — produce or patch `library.json` directly (it's one legible file), or
+  drive the curation API. Handing an LLM an artist folder + that artist's slice of
+  the manifest is the clean way to say "dedupe this artist" / "check this
+  artist's top-100".
+
+## Playlists (separate from the filesystem)
+
+Playlists are **DB-only and independent of the tree** — created/curated by an LLM
+and imported through the API **one item at a time** (`POST /api/playlists` to
+create, then `POST /api/playlists/{id}/items` per md5), or in bulk via
+`POST /api/playlists/import`. They reference tunes by md5, so they survive moves.
+
+Albums (in `library.json`) are the **durable, ships-with-the-archive** counterpart;
+playlists are personal/ephemeral. Use an album for "belongs to the collection" (a
+demo soundtrack, an SFX pack, a SID set); a playlist for a listening queue.
+
+## Status / migration (2026-07)
+
+Landing incrementally (plan: `~/.claude/plans/tracker-library-manifest.md`).
+**Live now:** the manifest core (`library.json` load + `GET /api/manifest` +
+`POST /api/library/reload`), the **curation write API** (artist / album / song
+endpoints), the **manifest-driven facets** (browse by group / artist / album with
+alias folding), and the **offline seeder** (below). **Pending:** the in-app
+curation UI and the physical **tree migration** to `artist/song`.
+
+Until the migration runs, the mount is **still `group/artist/…`** and the backend
+runs in `TRACKER_LAYOUT` legacy mode; the manifest layers aliases / groups / albums
+on top either way — so you get manifest browsing *now*, on the legacy tree.
+
+### Seed `library.json` from a snapshot
+
+`tracker-migrate` reads an `md5<TAB>size<TAB>relpath` snapshot of the collection
+and writes a seeded `library.json` (+ `dupes.json` / `alias-candidates.json`)
+**without touching the mount** — safe to run while the archive is being edited:
+
+```
+cargo run -p tracker-backend --bin tracker-migrate -- <md5-manifest.tsv> [out-dir]
+```
+
+It infers each artist's `groups[]` from the group segments their files sit under,
+flags exact md5 duplicates (the dedup worklist) and **alias candidates** (identical
+bytes under two artist folders → same person, two handles — review, don't
+auto-merge). Apply by copying `library.seed.json` to `<TRACKER_ROOT>/library.json`
+and `POST /api/library/reload` — **no file moves, no rescan**. (First real run:
+8352 files → 608 artists / 480 groups, 67 multi-group artists, 22 exact-dupe sets,
+3 alias candidates, 0 unknown-author.)
+
+The physical `group/artist → artist` moves are the separate, gated step, run
+against a **fresh** snapshot once the gap-filling session is done — **do not
+hand-move the whole tree** meanwhile.
+
+## Enriching the manifest (filling metadata)
+
+Two kinds of metadata (per the durability rule): **derivable** (title / duration /
+format / tracker / channels) → the DB cache; **asserted** (artist `aka` + group
+memberships, per-song credits, albums) → `library.json`.
+
+### Derivable — one click
+Run **enrich-all** in the app (the "enrich N" button): it WASM-parses every
+un-enriched module and POSTs `/api/meta`, filling titles/durations/format/channels
+for the whole library. Do this first.
+
+### Asserted — the `tracker-enrich` pipeline (`extract → LLM triage → merge`)
+1. **Extract** the modules' own text — sample/instrument-name slots + messages,
+   where sceners signed their handle / group / greets / year:
+   ```
+   cargo run -p tracker-backend --bin tracker-enrich -- extract /Volumes/scene/mods ~/tmp/enrich-corpus.jsonl
+   ```
+   (MOD family read by fixed offset = clean; other formats a printable-strings sweep.)
+2. **Triage** (LLM, batched — a workflow over corpus chunks): read each artist's
+   aggregated text and propose `groups`/`aka` **only from genuine self-attribution**
+   ("X of GROUP", "X/GROUP", "members of GROUP"). **Drop greets** ("greetings to …"
+   name OTHER people's groups — the #1 trap), song titles, sampled bands, real names.
+   Verify each proposal. Emit `proposals.json` = `{artists:{name:{groups,aka}}}`.
+3. **Merge** — dry-run → review → apply (back up `library.json` first):
+   ```
+   cargo run -p tracker-backend --bin tracker-enrich -- merge ~/tmp/proposals.json /Volumes/scene/mods/library.json          # dry-run
+   cargo run -p tracker-backend --bin tracker-enrich -- merge ~/tmp/proposals.json /Volumes/scene/mods/library.json --write  # apply
+   ```
+   then `POST /api/library/reload` (no rescan). Merge is additive (unions
+   groups/aka, never clobbers).
+
+### External sources for the group-less tail
+- **Demozoo** — keyless JSON API (`demozoo.org/api/v1/releasers/?name=<handle>` →
+  detail `/releasers/<id>/` gives `member_of` groups + `nicks` aliases + years).
+  Match is by handle and **handle-reuse is rampant** — disambiguate: prefer the
+  candidate whose groups the module text corroborates, skip multi-candidate handles
+  with no corroboration, drop real names from `nicks`. Fetch throttled + sequential
+  (be a good API citizen).
+- **The Mod Archive** — richer (year/genre/rating) but the XML API is **key-gated**
+  and the keyless module page returns Cloudflare 503. Needs a modarchive.org API
+  key; a by-md5 pass would then cover the whole collection.
+
+### Done so far (2026-07)
+enrich-all (titles/durations); text-triage workflow → **68 artists**; Demozoo
+workflow → **100 artists** (+326 groups, +73 aka). Manifest ≈ 774 artists with
+entries. ~340 remain group-less (no own-signature + no confident Demozoo match).
+Per-song year/genre still unfilled (needs a TMA key). Backups + corpora +
+proposals live in `~/tmp` (`library.before-*.json`, `enrich-corpus.jsonl`,
+`proposals*.json`, `demozoo-candidates.jsonl`).
+
+## Sourcing & cleaning techniques (unchanged)
+
+Everything below is how to *find, disambiguate and clean* module bytes — still
+exactly right. Only the **filing target** changed: where these say "file under
+`<Group>/<Artist>/`", now file under **`<Artist>/`** and record the group in
+`library.json` (`artists.<name>.groups`). Workflow D (reading the group out of a
+module's sample text) is now how you fill `groups` / `aka`, not how you pick a
+directory. Consolidating an artist's aliases (Workflow B) becomes an `aka` list
+rather than a physical merge.
 
 ## Sources (in priority order)
 
@@ -41,7 +220,7 @@ below is done with ordinary file tools; nothing here needs the backend running.
 Prolific artists get split across many folders (by-format dirs + a top-level author
 dir + several group dirs) with duplicated/renamed rips.
 
-1. Find every location: `find /Volumes/mods -maxdepth 3 -type d -iname "<name>"`.
+1. Find every location: `find /Volumes/scene/mods -maxdepth 3 -type d -iname "<name>"`.
 2. Pick the home group — the biggest/most notable group the artist is actually in
    (ask the user; Jogeir→Fairlight, Lizardking→Razor 1911, Bruno→Anarchy).
 3. Pool all their files + their full Modland catalog; dedup by identity key
@@ -86,13 +265,20 @@ placed.
 Feed the extracted text to the LLM in batches; it reliably picks the own-group,
 flags multi-group (pick the primary/biggest), and separates soloists.
 
-## The `_groupless` bucket
+## The `_groupless` / `_unknown` bucket
 
-Ungrouped artists live in `/Volumes/mods/_groupless/<artist>/`. It's a **non-dot
-sentinel** on purpose: a `.`-prefixed name (`.groupless`) would be skipped by the
+A **non-dot sentinel** on purpose: a `.`-prefixed name would be skipped by the
 scanner (`scan.rs` `is_hidden_dir` drops any dir starting with `.`) and vanish from
-the library. `_groupless` is indexed like a normal group, sorts near the top, and
-the frontend renders it distinctly as "Ungrouped".
+the library. It's indexed like a normal folder, sorts near the top, and the
+frontend renders it distinctly.
+
+- **New (artist-primary) model:** unknown *author* → `_unknown/<song.ext>`. There
+  is no "ungrouped" bucket, because groups aren't directories — an artist simply
+  has no `groups` entry in `library.json`. (Game/soundtrack composers, solo/chip
+  artists: no `groups`, and that's correct, not missing data.)
+- **Legacy model (until migration):** ungrouped artists live in
+  `/Volumes/scene/mods/_groupless/<artist>/`, shown as "Ungrouped". The migration folds
+  `_groupless/<artist>/…` into `<artist>/…`.
 
 ## Identity disambiguation (critical)
 
@@ -127,7 +313,7 @@ trust an author dir by name alone:
 
 ## Gotchas (this environment)
 
-- **/Volumes/mods is a slow SMB mount.** Bulk hashing/copies/deletes exceed the
+- **/Volumes/scene/mods is a slow SMB mount.** Bulk hashing/copies/deletes exceed the
   2-min command budget — background them. `find | wc -l` is flaky; prefer `ls -1`.
   Case-insensitive (`orange` == `Orange`); rename case via a temp name.
 - **`._` AppleDouble junk is a tsunami** — the mount regenerates it on every write,

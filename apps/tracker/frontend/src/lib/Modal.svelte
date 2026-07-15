@@ -64,7 +64,8 @@
     font-size: 12px;
     color: var(--muted);
   }
-  .modal :global(input) {
+  .modal :global(input),
+  .modal :global(textarea) {
     padding: 8px 10px;
     background: var(--bg);
     border: 1px solid var(--border);

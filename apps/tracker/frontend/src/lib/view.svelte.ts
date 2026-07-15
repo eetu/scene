@@ -49,5 +49,8 @@ export function controlsActive(): boolean {
 
 /** What the buckets are called for the current group-by (count line + FacetBar). */
 export function bucketNoun(): string {
-  return view.groupBy === "ext" ? "formats" : view.groupBy === "artist" ? "artists" : "groups";
+  if (view.groupBy === "ext") return "formats";
+  if (view.groupBy === "artist") return "artists";
+  if (view.groupBy === "album") return "albums";
+  return "groups";
 }

@@ -21,6 +21,7 @@
       <select bind:value={view.groupBy} disabled={library.scanning}>
         <option value="group">group</option>
         <option value="artist">artist</option>
+        <option value="album">album</option>
         <option value="ext">format</option>
       </select>
     </label>

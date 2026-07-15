@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import type { Track } from "$lib/api";
+import type { Manifest, Track } from "$lib/api";
 import {
   buildRows,
   facetFormats,
@@ -9,10 +9,14 @@ import {
   GROUPLESS,
   groupTracks,
   keyOf,
+  keysOf,
   letterRowMap,
+  NO_ALBUM,
   railLetter,
+  rowKey,
   subLabel,
 } from "$lib/library";
+import { buildIndex } from "$lib/manifest";
 
 /** A Track with sensible defaults; override the fields a test cares about. */
 function track(p: Partial<Track>): Track {
@@ -172,5 +176,72 @@ describe("facets", () => {
   });
   test("trackers are unique, non-null, sorted", () => {
     expect(facetTrackers(base)).toEqual(["FT2", "PT"]);
+  });
+});
+
+describe("manifest-driven facets", () => {
+  const manifest: Manifest = {
+    artists: {
+      "Purple Motion": { aka: ["PM"], groups: ["Future Crew"] },
+      Skaven: { aka: ["Peter Hajba"], groups: ["Future Crew", "Epileptic Gängbang"] },
+    },
+    albums: {
+      "sr-ost": { title: "Second Reality — OST", songs: ["aaaa", "BBBB"] },
+      sfx: { title: "SFX", songs: ["aaaa"] },
+    },
+    songs: { aaaa: { forGroup: "Future Crew", year: 1993 } },
+  };
+  const idx = buildIndex(manifest);
+
+  test("alias resolves to canonical for group-by artist", () => {
+    // A track whose folder is the alias "PM" buckets under "Purple Motion".
+    expect(keysOf(track({ artist: "PM" }), "artist", idx)).toEqual(["Purple Motion"]);
+    // Case-insensitive.
+    expect(keyOf(track({ artist: "peter hajba" }), "artist", idx)).toBe("Skaven");
+  });
+
+  test("group-by group uses manifest membership (many-to-many)", () => {
+    // Skaven is in two groups → the track appears under both.
+    expect(keysOf(track({ artist: "Skaven" }), "group", idx)).toEqual([
+      "Future Crew",
+      "Epileptic Gängbang",
+    ]);
+    // No manifest artist → falls back to the path group.
+    expect(keysOf(track({ artist: null, group: "Legacy" }), "group", idx)).toEqual(["Legacy"]);
+  });
+
+  test("group-by album spreads a track across its albums; unfiled → sentinel", () => {
+    // md5 aaaa is in two albums (case-insensitive match).
+    expect(keysOf(track({ md5: "AAAA" }), "album", idx).sort()).toEqual([
+      "SFX",
+      "Second Reality — OST",
+    ]);
+    expect(keysOf(track({ md5: "zzzz" }), "album", idx)).toEqual([NO_ALBUM]);
+  });
+
+  test("a multi-bucket track gets a unique row key per bucket", () => {
+    const groups = groupTracks(
+      [track({ path: "p1", artist: "Skaven" })],
+      {
+        groupBy: "group",
+        trackSort: "name",
+        groupSort: "name",
+      },
+      idx,
+    );
+    const rows = buildRows(groups, () => true);
+    const keys = rows.filter((r) => r.kind === "track").map(rowKey);
+    expect(new Set(keys).size).toBe(keys.length); // all unique
+    expect(keys).toEqual(["t:Epileptic Gängbang:p1", "t:Future Crew:p1"]);
+  });
+
+  test("credit lookup is md5 case-insensitive", () => {
+    expect(idx.credit("AAAA")?.forGroup).toBe("Future Crew");
+    expect(idx.credit("nope")).toBeNull();
+  });
+
+  test("no index → path-derived grouping unchanged", () => {
+    expect(keysOf(track({ artist: "PM" }), "artist")).toEqual(["PM"]);
+    expect(keysOf(track({ group: "Acme" }), "group")).toEqual(["Acme"]);
   });
 });

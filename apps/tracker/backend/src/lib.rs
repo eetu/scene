@@ -1,7 +1,10 @@
 pub mod auth;
 pub mod config;
 pub mod db;
+pub mod enrich;
 pub mod error;
+pub mod manifest;
+pub mod migrate;
 pub mod modland;
 pub mod routes;
 pub mod scan;
@@ -84,6 +87,7 @@ fn inline_script_hashes(html: &str) -> Vec<String> {
 pub async fn run_scan(
     db: Db,
     root: PathBuf,
+    layout: config::Layout,
     progress: Arc<ScanProgress>,
 ) -> anyhow::Result<ScanResult> {
     // Own the `scanning` flag INSIDE the blocking task, not around the `.await`.
@@ -96,7 +100,7 @@ pub async fn run_scan(
         progress.scanning.store(true, Ordering::Relaxed);
         let _done = ScanFlagGuard(progress.clone());
         let mut conn = db.blocking_lock();
-        scan::scan_into(&mut conn, &root, &progress)
+        scan::scan_into(&mut conn, &root, layout, &progress)
     })
     .await?
 }
@@ -142,10 +146,11 @@ pub async fn run_server() -> anyhow::Result<()> {
     if track_count == 0 {
         let db = state.db.clone();
         let root = state.cfg.root.clone();
+        let layout = state.cfg.layout;
         let progress = state.scan.clone();
         tokio::spawn(async move {
             tracing::info!(root = %root.display(), "empty index — initial scan started");
-            match run_scan(db, root, progress).await {
+            match run_scan(db, root, layout, progress).await {
                 Ok(r) => tracing::info!(
                     indexed = r.indexed,
                     hashed = r.hashed,

@@ -113,7 +113,7 @@ Cargo workspace = `backend` + `integration`.
 ## Working on this repo
 
 - Backend `:3010` (`TRACKER_BIND`): `cd backend && cp .env.example .env`, set
-  `TRACKER_ROOT` (dev: `/Volumes/mods` NAS mount), then `cargo run`. Boot only
+  `TRACKER_ROOT` (dev: `/Volumes/scene/mods` NAS mount), then `cargo run`. Boot only
   scans when the cache is **empty** (first run); a normal restart serves the
   persisted index instantly without re-walking the NAS. `/api/rescan` (synchronous)
   picks up on-disk changes.

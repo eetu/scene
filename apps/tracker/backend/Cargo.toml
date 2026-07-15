@@ -2,10 +2,26 @@
 name = "tracker-backend"
 version.workspace = true
 edition.workspace = true
+# The crate ships two bins (the server + the offline `tracker-migrate` tool), so
+# a bare `cargo run` (what bacon's run job / `just dev tracker` use) is otherwise
+# ambiguous — pin the server as the default.
+default-run = "tracker-backend"
 
 [[bin]]
 name = "tracker-backend"
 path = "src/main.rs"
+
+# Offline migration planner: TSV snapshot → seeded library.json + dupe/alias
+# reports. Read-only over the collection.
+[[bin]]
+name = "tracker-migrate"
+path = "src/bin/migrate.rs"
+
+# Offline metadata enrichment: extract module text → corpus for LLM triage;
+# merge reviewed proposals into library.json.
+[[bin]]
+name = "tracker-enrich"
+path = "src/bin/enrich.rs"
 
 [lib]
 name = "tracker_backend"
@@ -19,6 +35,9 @@ tokio = { workspace = true }
 tower-http = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Order-preserving map for the library.json manifest — keeps human-edited key
+# order stable across save round-trips.
+indexmap = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }

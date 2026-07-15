@@ -7,6 +7,7 @@
 // grouping runs once per change rather than once per consumer.
 import { filterTracks, groupTracks } from "$lib/library";
 import { library } from "$lib/library.svelte";
+import { manifestIndex } from "$lib/manifest.svelte";
 import { view } from "$lib/view.svelte";
 
 class LibraryView {
@@ -25,11 +26,15 @@ class LibraryView {
   );
 
   groups = $derived(
-    groupTracks(this.filtered, {
-      groupBy: view.groupBy,
-      trackSort: view.trackSort,
-      groupSort: view.groupSort,
-    }),
+    groupTracks(
+      this.filtered,
+      {
+        groupBy: view.groupBy,
+        trackSort: view.trackSort,
+        groupSort: view.groupSort,
+      },
+      manifestIndex(),
+    ),
   );
 
   /** The visible order flattened — this is the play queue (next/prev/auto-advance

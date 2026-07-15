@@ -19,11 +19,14 @@
     GROUPLESS_LABEL,
     letterRowMap,
     type LibRow,
+    NO_ALBUM,
+    NO_ALBUM_LABEL,
     rowKey,
     subLabel,
   } from "$lib/library";
   import { library, rescanLibrary, toggleFavorite } from "$lib/library.svelte";
   import { lib } from "$lib/library-view.svelte";
+  import { manifestIndex } from "$lib/manifest.svelte";
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
   import { STANDALONE } from "$lib/standalone";
   import { remove as removeLocal } from "$lib/standalone/store.svelte";
@@ -271,21 +274,25 @@
           >
             {#if row?.kind === "header"}
               {@const isGroupless = row.name === GROUPLESS}
+              {@const isNoAlbum = row.name === NO_ALBUM}
+              {@const isSentinel = isGroupless || isNoAlbum}
               <button
                 class="card head"
                 class:closed={!row.open}
-                class:groupless={isGroupless}
+                class:groupless={isSentinel}
                 onclick={() => toggleGroup(row.name)}
                 aria-expanded={row.open}
               >
-                <span class="grp-name">{isGroupless ? GROUPLESS_LABEL : row.name}</span>
+                <span class="grp-name"
+                  >{isGroupless ? GROUPLESS_LABEL : isNoAlbum ? NO_ALBUM_LABEL : row.name}</span
+                >
                 {#if isGroupless}<span class="grp-tag">no group</span>{/if}
                 <span class="grp-count">{row.count}</span>
               </button>
             {:else if row?.kind === "track"}
               {@const t = row.track}
               {@const isCurrent = playback.current?.path === t.path}
-              {@const sub = subLabel(t, view.groupBy)}
+              {@const sub = subLabel(t, view.groupBy, manifestIndex())}
               <div class="card li" class:last={row.last} class:current={isCurrent}>
                 <button class="row" title={t.path} onclick={() => onOpen(t)}>
                   <!-- Title leads (the primary identifier), muted artist/group
