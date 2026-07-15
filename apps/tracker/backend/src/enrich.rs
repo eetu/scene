@@ -35,10 +35,57 @@ pub struct CorpusEntry {
     pub text: Vec<String>,
 }
 
-/// Printable-ASCII runs (>= 5 chars, containing a letter) in `bytes`, deduped
-/// case-insensitively and capped. This is where a scener's handle / group /
-/// greets / year live in a module.
-pub fn extract_text(bytes: &[u8]) -> Vec<String> {
+/// Extract the human text from a module. For the Protracker/MOD family the
+/// sample-name table sits at fixed offsets *before* the sample PCM, so it's read
+/// directly (clean — no 8-bit-PCM garbage). Everything else falls back to a
+/// printable-strings sweep (16-bit-sample formats leave far less printable junk).
+pub fn extract_text(bytes: &[u8], ext: &str) -> Vec<String> {
+    if matches!(ext, "mod" | "nst" | "m15" | "stk" | "wow") {
+        extract_mod_names(bytes)
+    } else {
+        strings_sweep(bytes)
+    }
+}
+
+/// A MOD's 20-byte title + 31 × 22-byte sample names (each in a 30-byte header
+/// starting at offset 20). PCM lives past the pattern data, so this table is
+/// clean; garbage from a shorter (15-sample) variant's out-of-range fields is
+/// dropped by the per-field filter.
+fn extract_mod_names(bytes: &[u8]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    field(bytes, 0, 20, &mut out, &mut seen);
+    for i in 0..31 {
+        field(bytes, 20 + i * 30, 22, &mut out, &mut seen);
+    }
+    out
+}
+
+/// A fixed-width, NUL-padded text field: printable ASCII up to the first NUL,
+/// trimmed, kept if it has a letter and isn't a dup.
+fn field(bytes: &[u8], start: usize, len: usize, out: &mut Vec<String>, seen: &mut HashSet<String>) {
+    let end = (start + len).min(bytes.len());
+    if start >= end {
+        return;
+    }
+    let s: String = bytes[start..end]
+        .iter()
+        .take_while(|&&b| b != 0)
+        .filter(|&&b| (0x20..=0x7e).contains(&b))
+        .map(|&b| b as char)
+        .collect();
+    let s = s.trim().to_string();
+    if s.chars().count() >= 2
+        && s.chars().any(|c| c.is_ascii_alphabetic())
+        && seen.insert(s.to_lowercase())
+    {
+        out.push(s);
+    }
+}
+
+/// Printable-ASCII runs (>= 5 chars, majority letters) in `bytes`, deduped and
+/// capped — the format-agnostic fallback for non-MOD modules.
+fn strings_sweep(bytes: &[u8]) -> Vec<String> {
     const MIN_LEN: usize = 5;
     const MAX_RUNS: usize = 80;
     let mut out: Vec<String> = Vec::new();
@@ -118,12 +165,13 @@ pub fn build_corpus(root: &Path) -> Vec<CorpusEntry> {
             None => String::new(),
         };
         let filename = entry.file_name().to_string_lossy().to_string();
+        let text = extract_text(&bytes, &ext);
         out.push(CorpusEntry {
             md5,
             artist,
             filename,
             path: rel,
-            text: extract_text(&bytes),
+            text,
         });
     }
     out
@@ -244,9 +292,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn extract_text_pulls_runs_dedup_and_filters() {
-        // A MOD-ish buffer: title + a sample-name signature, separated by NULs,
-        // with short/garbage runs that must be dropped.
+    fn strings_sweep_dedups_and_filters() {
+        // Non-MOD path: title + a signature, NUL-separated, with junk to drop.
         let mut bytes = Vec::new();
         bytes.extend_from_slice(b"the enigma variations");
         bytes.push(0);
@@ -258,8 +305,27 @@ mod tests {
         bytes.extend_from_slice(b"12345"); // no letters
         bytes.push(0);
         bytes.extend_from_slice(b"the enigma variations"); // dup (case-insensitive)
-        let runs = extract_text(&bytes);
+        let runs = extract_text(&bytes, "s3m");
         assert_eq!(runs, vec!["the enigma variations", "4-mat/anarchy 1993"]);
+    }
+
+    #[test]
+    fn mod_names_read_title_and_samples_skip_pcm() {
+        // Build a minimal MOD: 20-byte title, 31 × 30-byte sample headers (name in
+        // the first 22), then "PCM" bytes that must NOT leak in.
+        let mut b = vec![0u8; 20 + 31 * 30 + 64];
+        b[0..5].copy_from_slice(b"intro");
+        // sample 0 name at offset 20.
+        b[20..20 + 12].copy_from_slice(b"4mat/anarchy");
+        // trailing region = fake 8-bit PCM ramp (printable but must be ignored).
+        for (i, x) in b[20 + 31 * 30..].iter_mut().enumerate() {
+            *x = 0x20 + (i % 90) as u8;
+        }
+        let runs = extract_text(&b, "mod");
+        assert!(runs.contains(&"intro".to_string()));
+        assert!(runs.contains(&"4mat/anarchy".to_string()));
+        // The PCM ramp after the header table never appears.
+        assert!(!runs.iter().any(|r| r.contains("!\"#$")));
     }
 
     #[test]
@@ -267,14 +333,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
         std::fs::create_dir_all(root.join("4-Mat")).unwrap();
-        std::fs::write(root.join("4-Mat/enigma.mod"), b"hello from 4-mat of anarchy").unwrap();
-        std::fs::write(root.join("4-Mat/._enigma.mod"), b"junk").unwrap(); // skipped
+        // .xm → the strings-sweep path, so the whole signature is one run.
+        std::fs::write(root.join("4-Mat/enigma.xm"), b"hello from 4-mat of anarchy").unwrap();
+        std::fs::write(root.join("4-Mat/._enigma.xm"), b"junk").unwrap(); // skipped
         std::fs::write(root.join("4-Mat/readme.txt"), b"not a module").unwrap(); // skipped
 
         let corpus = build_corpus(root);
         assert_eq!(corpus.len(), 1);
         assert_eq!(corpus[0].artist, "4-Mat");
-        assert_eq!(corpus[0].filename, "enigma.mod");
+        assert_eq!(corpus[0].filename, "enigma.xm");
         assert!(corpus[0].text.iter().any(|t| t.contains("4-mat of anarchy")));
     }
 
