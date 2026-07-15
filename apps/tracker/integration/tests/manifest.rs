@@ -24,6 +24,30 @@ async fn manifest_starts_empty() {
 
 #[tokio::test]
 #[ignore]
+async fn rename_is_artist_layout_aware() {
+    // In artist layout the destination is artist/filename — no group directory.
+    let s = Stack::start_with_env(&[("TRACKER_LAYOUT", "artist")]).await.unwrap();
+    s.rescan().await;
+    let status = s.get_json("/status").await;
+    assert_eq!(status["layout"], "artist");
+
+    let res = s
+        .post_json(
+            "/api/rename",
+            json!({ "from": "Acme/Coder/song.mod", "group": "",
+                    "artist": "Purple Motion", "filename": "song.mod" }),
+        )
+        .await;
+    assert_eq!(res.status(), 200);
+    let body: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(body["path"], "Purple Motion/song.mod");
+    assert_eq!(body["artist"], "Purple Motion");
+    assert_eq!(body["group"], ""); // no path group in artist layout
+    assert!(s.root.join("Purple Motion/song.mod").is_file());
+}
+
+#[tokio::test]
+#[ignore]
 async fn artist_alias_and_groups_round_trip() {
     let s = Stack::start().await.unwrap();
 

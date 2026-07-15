@@ -134,6 +134,10 @@ async fn status(State(state): State<AppState>) -> Json<Value> {
         "db_healthy": scanning || track_count.is_some(),
         "track_count": track_count,
         "root": state.cfg.root.display().to_string(),
+        "layout": match state.cfg.layout {
+            crate::config::Layout::Artist => "artist",
+            crate::config::Layout::GroupArtist => "group-artist",
+        },
         "scanning": scanning,
         "scan_total": state.scan.total.load(Ordering::Relaxed),
         "scan_processed": state.scan.processed.load(Ordering::Relaxed),
@@ -373,10 +377,12 @@ struct RenameIn {
     filename: String,
 }
 
-/// A single safe path segment: non-empty, not `.`/`..`, no separators.
+/// A single safe path segment: non-empty, not `.`/`..`, and free of separators
+/// and Windows/SMB-illegal characters (so a name is portable across the share).
 fn clean_segment(s: &str) -> Option<String> {
     let t = s.trim();
-    if t.is_empty() || t == "." || t == ".." || t.contains(['/', '\\', '\0']) {
+    if t.is_empty() || t == "." || t == ".." || t.contains(['/', '\\', '\0', ':', '*', '?', '"', '<', '>', '|'])
+    {
         None
     } else {
         Some(t.to_string())
@@ -412,9 +418,23 @@ async fn api_rename(
         }
         None => None,
     };
-    let to_rel = match &artist {
-        Some(a) => format!("{group}/{a}/{filename}"),
-        None => format!("{group}/{filename}"),
+    let to_rel = match state.cfg.layout {
+        crate::config::Layout::GroupArtist => match &artist {
+            Some(a) => format!("{group}/{a}/{filename}"),
+            None => format!("{group}/{filename}"),
+        },
+        crate::config::Layout::Artist => {
+            // Artist-primary: the folder is the artist (falling back to the group
+            // field, else the _unknown bucket). No group directory.
+            let folder = artist.clone().unwrap_or_else(|| {
+                if group == crate::scan::GROUPLESS {
+                    crate::migrate::UNKNOWN_ARTIST.to_string()
+                } else {
+                    group.clone()
+                }
+            });
+            format!("{folder}/{filename}")
+        }
     };
     let from_rel = req.from.clone();
     if from_rel == to_rel {
