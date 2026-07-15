@@ -397,12 +397,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lucide/svelte@npm:^1.22.0":
-  version: 1.22.0
-  resolution: "@lucide/svelte@npm:1.22.0"
+"@lucide/svelte@npm:^1.23.0":
+  version: 1.23.0
+  resolution: "@lucide/svelte@npm:1.23.0"
   peerDependencies:
     svelte: ^5
-  checksum: 10/7db57225efdd89acc5d0b5f9e07c594314dfbe66410813a75ee84eca9c0746e9c1e2a2981511108cf2d1d94466c14eb36d177814c4300703191832e6cd17e043
+  checksum: 10/e35f2d7c1e20303d39e89ed5800283def2576169e49aaeda85af639f5661700974b738c1f8971dadc06c22a90e875111f7d942cb4ded33c3e73068b91df687e7
   languageName: node
   linkType: hard
 
@@ -592,7 +592,7 @@ __metadata:
     "@glowbox/nixie": "npm:^1.0.0"
     "@glowbox/svelte": "npm:^1.0.0"
     "@scene/design": "workspace:*"
-    "@sveltejs/vite-plugin-svelte": "npm:^7.1.4"
+    "@sveltejs/vite-plugin-svelte": "npm:^7.2.0"
     "@types/three": "npm:^0.185.1"
     "@vitest/browser-playwright": "npm:^4.1.10"
     playwright: "npm:^1.61.1"
@@ -600,7 +600,7 @@ __metadata:
     three: "npm:^0.185.1"
     vite: "npm:^8.1.3"
     vitest: "npm:^4.1.10"
-    vitest-browser-svelte: "npm:^2.2.0"
+    vitest-browser-svelte: "npm:^2.2.1"
     xstate: "npm:^5.32.4"
   peerDependencies:
     svelte: ^5
@@ -632,9 +632,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sveltejs/kit@npm:^2.68.0":
-  version: 2.68.0
-  resolution: "@sveltejs/kit@npm:2.68.0"
+"@sveltejs/kit@npm:^2.69.2":
+  version: 2.69.2
+  resolution: "@sveltejs/kit@npm:2.69.2"
   dependencies:
     "@standard-schema/spec": "npm:^1.0.0"
     "@sveltejs/acorn-typescript": "npm:^1.0.9"
@@ -661,7 +661,7 @@ __metadata:
       optional: true
   bin:
     svelte-kit: svelte-kit.js
-  checksum: 10/05f44390395b62f6b0b532a18661e69bef403f554dff949724211759cbd8233d9c916bf09391162f190fdb632afc06a058ed35588a26ae628325673e6f8852c4
+  checksum: 10/5d6739a879f254f335f66d691d837a934a2ea5c9814a5c763994a98721f889ac1be372c60b7d3d5b81be516e0421cce3300605de078d2fd1458caa850a81fc80
   languageName: node
   linkType: hard
 
@@ -672,9 +672,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sveltejs/vite-plugin-svelte@npm:^7.0.0":
-  version: 7.1.2
-  resolution: "@sveltejs/vite-plugin-svelte@npm:7.1.2"
+"@sveltejs/vite-plugin-svelte@npm:^7.2.0":
+  version: 7.2.0
+  resolution: "@sveltejs/vite-plugin-svelte@npm:7.2.0"
   dependencies:
     deepmerge: "npm:^4.3.1"
     magic-string: "npm:^0.30.21"
@@ -683,22 +683,7 @@ __metadata:
   peerDependencies:
     svelte: ^5.46.4
     vite: ^8.0.0-beta.7 || ^8.0.0
-  checksum: 10/07013fe8de02ac3b29774126c362d716a979dc6d779f53df0e7c378289be2a1e4dd0e056fb3c41e1b5bba4e71f10d058217ccb5b48c1db230d8624a39e57bc5b
-  languageName: node
-  linkType: hard
-
-"@sveltejs/vite-plugin-svelte@npm:^7.1.4":
-  version: 7.1.4
-  resolution: "@sveltejs/vite-plugin-svelte@npm:7.1.4"
-  dependencies:
-    deepmerge: "npm:^4.3.1"
-    magic-string: "npm:^0.30.21"
-    obug: "npm:^2.1.0"
-    vitefu: "npm:^1.1.2"
-  peerDependencies:
-    svelte: ^5.46.4
-    vite: ^8.0.0-beta.7 || ^8.0.0
-  checksum: 10/b5cbcf1139b5d218613e49e0415beb9ebbb129d888677c326f6017fda119f6a66f1cc821d0792089ba91f2939d6010df093d5bfb122a6ae6bd86645d66981dda
+  checksum: 10/13e73d83f2d49a2a251f2eac5713ec11c7d82b1522ffc06d49af16b58a0e4cd520c99fde363d046c31b1477e447b017227220a24509ebff50a9c02f7a3aaf29d
   languageName: node
   linkType: hard
 
@@ -2326,13 +2311,13 @@ __metadata:
   dependencies:
     "@anarkisti/eslint-config": "npm:^1.0.0"
     "@fontsource-variable/inter": "npm:^5.2.8"
-    "@lucide/svelte": "npm:^1.22.0"
+    "@lucide/svelte": "npm:^1.23.0"
     "@playwright/test": "npm:^1.61.1"
     "@scene/design": "workspace:*"
     "@scene/player": "workspace:*"
     "@sveltejs/adapter-static": "npm:^3.0.10"
-    "@sveltejs/kit": "npm:^2.68.0"
-    "@sveltejs/vite-plugin-svelte": "npm:^7.0.0"
+    "@sveltejs/kit": "npm:^2.69.2"
+    "@sveltejs/vite-plugin-svelte": "npm:^7.2.0"
     "@tanstack/svelte-virtual": "npm:^3.13.31"
     "@types/node": "npm:^26"
     "@vitejs/plugin-basic-ssl": "npm:^2.3.0"
@@ -2340,15 +2325,15 @@ __metadata:
     eslint: "npm:^10.6.0"
     js-dos: "npm:^8.4.0"
     playwright: "npm:^1.61.1"
-    prettier: "npm:^3.9.4"
+    prettier: "npm:^3.9.5"
     prettier-plugin-svelte: "npm:^4.0.1"
     svelte: "npm:^5.56.1"
-    svelte-check: "npm:^4.4.6"
+    svelte-check: "npm:^4.7.2"
     typescript: "npm:^6.0.2"
     vite: "npm:^8.1.3"
     vite-plugin-qrcode: "npm:^0.4.1"
     vitest: "npm:^4.1.10"
-    vitest-browser-svelte: "npm:^2.2.0"
+    vitest-browser-svelte: "npm:^2.2.1"
   languageName: unknown
   linkType: soft
 
@@ -2517,12 +2502,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier@npm:^3.9.4":
-  version: 3.9.4
-  resolution: "prettier@npm:3.9.4"
+"prettier@npm:^3.9.5":
+  version: 3.9.5
+  resolution: "prettier@npm:3.9.5"
   bin:
     prettier: bin/prettier.cjs
-  checksum: 10/4a0dc4389d442f5aca0beb12778c90b6ceb9831940b01a1df5eba9150b5ce96fa52eda9074a10a370e732adc03e2f645597dfd8b7e3f1e94dee28df01004a0fd
+  checksum: 10/b6587f1582ba653ce5207ee227aff646500e5098646931088f176d1ab090b1f47d5a333f1facd634e9aa7dcb15c45940e2cec13a5962534cf0200617517b67b6
   languageName: node
   linkType: hard
 
@@ -2714,7 +2699,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "scene@workspace:."
   dependencies:
-    prettier: "npm:^3.9.4"
+    prettier: "npm:^3.9.5"
     prettier-plugin-svelte: "npm:^4.0.1"
     svelte: "npm:^5.56.1"
   languageName: unknown
@@ -2798,9 +2783,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"svelte-check@npm:^4.4.6":
-  version: 4.7.1
-  resolution: "svelte-check@npm:4.7.1"
+"svelte-check@npm:^4.7.2":
+  version: 4.7.2
+  resolution: "svelte-check@npm:4.7.2"
   dependencies:
     "@jridgewell/trace-mapping": "npm:^0.3.25"
     "@sveltejs/load-config": "npm:^0.2.0"
@@ -2813,7 +2798,7 @@ __metadata:
     typescript: ">=5.0.0"
   bin:
     svelte-check: bin/svelte-check
-  checksum: 10/97ffb6abacf0fa569c9d86f405c0b6f462f58101c6e5b3b163f3cdb810f3e66b59e312a04a479953730fbeca12e0e225921e1886b6d3a4cf166b71d136932557
+  checksum: 10/62b3eefdf62232594188219f4935ed101b2da690c0b7269cc9b594272a55bf872bc014c606e96ba01953d1790b3a82f7da2bcb28accac7e6ebf9803abb0446c0
   languageName: node
   linkType: hard
 
@@ -2925,13 +2910,13 @@ __metadata:
   dependencies:
     "@anarkisti/eslint-config": "npm:^1.0.0"
     "@fontsource-variable/inter": "npm:^5.2.8"
-    "@lucide/svelte": "npm:^1.22.0"
+    "@lucide/svelte": "npm:^1.23.0"
     "@playwright/test": "npm:^1.61.1"
     "@scene/design": "workspace:*"
     "@scene/player": "workspace:*"
     "@sveltejs/adapter-static": "npm:^3.0.10"
-    "@sveltejs/kit": "npm:^2.68.0"
-    "@sveltejs/vite-plugin-svelte": "npm:^7.0.0"
+    "@sveltejs/kit": "npm:^2.69.2"
+    "@sveltejs/vite-plugin-svelte": "npm:^7.2.0"
     "@tanstack/svelte-virtual": "npm:^3.13.31"
     "@types/node": "npm:^26"
     "@vitejs/plugin-basic-ssl": "npm:^2.3.0"
@@ -2939,15 +2924,15 @@ __metadata:
     eslint: "npm:^10.6.0"
     fflate: "npm:^0.8.3"
     playwright: "npm:^1.61.1"
-    prettier: "npm:^3.9.4"
+    prettier: "npm:^3.9.5"
     prettier-plugin-svelte: "npm:^4.0.1"
     svelte: "npm:^5.56.1"
-    svelte-check: "npm:^4.4.6"
+    svelte-check: "npm:^4.7.2"
     typescript: "npm:^6.0.2"
     vite: "npm:^8.1.3"
     vite-plugin-qrcode: "npm:^0.4.1"
     vitest: "npm:^4.1.10"
-    vitest-browser-svelte: "npm:^2.2.0"
+    vitest-browser-svelte: "npm:^2.2.1"
   languageName: unknown
   linkType: soft
 
@@ -3144,15 +3129,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vitest-browser-svelte@npm:^2.2.0":
-  version: 2.2.0
-  resolution: "vitest-browser-svelte@npm:2.2.0"
+"vitest-browser-svelte@npm:^2.2.1":
+  version: 2.2.1
+  resolution: "vitest-browser-svelte@npm:2.2.1"
   dependencies:
     "@testing-library/svelte-core": "npm:^1.1.3"
   peerDependencies:
     svelte: ^3 || ^4 || ^5 || ^5.0.0-next.0
     vitest: ^4.0.0
-  checksum: 10/da0ae7a9ea3ba730c933d913404ee4902bf43c1116106d5b3ffa526adc499624d6403367007804b9a0e4689f2f78aae1e98ca07e2339d4d1630e1d0d3524e0d2
+  checksum: 10/676dcd6655924ddfbfa1a04dd94c7c1c03294898a63bc726e105162594a1204d8e70880b64c5fd89d9b349632fb1dae6756fb9f17bd04a5676fd727a0f29f88a
   languageName: node
   linkType: hard
 
