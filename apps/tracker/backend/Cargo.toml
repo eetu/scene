@@ -7,6 +7,12 @@ edition.workspace = true
 name = "tracker-backend"
 path = "src/main.rs"
 
+# Offline migration planner: TSV snapshot → seeded library.json + dupe/alias
+# reports. Read-only over the collection.
+[[bin]]
+name = "tracker-migrate"
+path = "src/bin/migrate.rs"
+
 [lib]
 name = "tracker_backend"
 path = "src/lib.rs"

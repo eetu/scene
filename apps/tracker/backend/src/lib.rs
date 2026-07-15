@@ -3,6 +3,7 @@ pub mod config;
 pub mod db;
 pub mod error;
 pub mod manifest;
+pub mod migrate;
 pub mod modland;
 pub mod routes;
 pub mod scan;

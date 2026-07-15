@@ -95,17 +95,38 @@ demo soundtrack, an SFX pack, a SID set); a playlist for a listening queue.
 
 ## Status / migration (2026-07)
 
-The go-forward model above is landing incrementally (plan:
-`~/.claude/plans/tracker-library-manifest.md`). **Live now:** the manifest core —
-`library.json` load + `GET /api/manifest` + `POST /api/library/reload`. **Pending:**
-the manifest-driven facets + curation UI, the md5 **dedup guard**, and the **tree
-migration** from the historical `group/artist/song` layout to `artist/song`.
+Landing incrementally (plan: `~/.claude/plans/tracker-library-manifest.md`).
+**Live now:** the manifest core (`library.json` load + `GET /api/manifest` +
+`POST /api/library/reload`), the **curation write API** (artist / album / song
+endpoints), the **manifest-driven facets** (browse by group / artist / album with
+alias folding), and the **offline seeder** (below). **Pending:** the in-app
+curation UI and the physical **tree migration** to `artist/song`.
 
 Until the migration runs, the mount is **still `group/artist/…`** and the backend
-runs in `TRACKER_LAYOUT` legacy mode; the manifest layers aliases/groups/albums on
-top either way. The migration is a **separate, gated, resumable job**
-(`tracker-migrate`, dry-run plan → gated apply) — **do not hand-move the whole
-tree** while a gap-filling session is live on the mount.
+runs in `TRACKER_LAYOUT` legacy mode; the manifest layers aliases / groups / albums
+on top either way — so you get manifest browsing *now*, on the legacy tree.
+
+### Seed `library.json` from a snapshot
+
+`tracker-migrate` reads an `md5<TAB>size<TAB>relpath` snapshot of the collection
+and writes a seeded `library.json` (+ `dupes.json` / `alias-candidates.json`)
+**without touching the mount** — safe to run while the archive is being edited:
+
+```
+cargo run -p tracker-backend --bin tracker-migrate -- <md5-manifest.tsv> [out-dir]
+```
+
+It infers each artist's `groups[]` from the group segments their files sit under,
+flags exact md5 duplicates (the dedup worklist) and **alias candidates** (identical
+bytes under two artist folders → same person, two handles — review, don't
+auto-merge). Apply by copying `library.seed.json` to `<TRACKER_ROOT>/library.json`
+and `POST /api/library/reload` — **no file moves, no rescan**. (First real run:
+8352 files → 608 artists / 480 groups, 67 multi-group artists, 22 exact-dupe sets,
+3 alias candidates, 0 unknown-author.)
+
+The physical `group/artist → artist` moves are the separate, gated step, run
+against a **fresh** snapshot once the gap-filling session is done — **do not
+hand-move the whole tree** meanwhile.
 
 ## Sourcing & cleaning techniques (unchanged)
 
