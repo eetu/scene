@@ -1,7 +1,8 @@
 # Modules playbook — adding to & curating the tracker collection
 
 How to grow and tidy the module archive this app serves (`TRACKER_ROOT` = the
-`mods` SMB mount, dev `/Volumes/mods`). Counterpart to the party app's scrape:
+`mods` SMB mount, now under the `scene` share — dev `/Volumes/scene/mods`).
+Counterpart to the party app's scrape:
 where that ingests demoparty archives from scene.org, this ingests **tracker
 modules** from the mod archives and de-messes old **CD-dump rips**.
 
@@ -169,7 +170,7 @@ rather than a physical merge.
 Prolific artists get split across many folders (by-format dirs + a top-level author
 dir + several group dirs) with duplicated/renamed rips.
 
-1. Find every location: `find /Volumes/mods -maxdepth 3 -type d -iname "<name>"`.
+1. Find every location: `find /Volumes/scene/mods -maxdepth 3 -type d -iname "<name>"`.
 2. Pick the home group — the biggest/most notable group the artist is actually in
    (ask the user; Jogeir→Fairlight, Lizardking→Razor 1911, Bruno→Anarchy).
 3. Pool all their files + their full Modland catalog; dedup by identity key
@@ -226,7 +227,7 @@ frontend renders it distinctly.
   has no `groups` entry in `library.json`. (Game/soundtrack composers, solo/chip
   artists: no `groups`, and that's correct, not missing data.)
 - **Legacy model (until migration):** ungrouped artists live in
-  `/Volumes/mods/_groupless/<artist>/`, shown as "Ungrouped". The migration folds
+  `/Volumes/scene/mods/_groupless/<artist>/`, shown as "Ungrouped". The migration folds
   `_groupless/<artist>/…` into `<artist>/…`.
 
 ## Identity disambiguation (critical)
@@ -262,7 +263,7 @@ trust an author dir by name alone:
 
 ## Gotchas (this environment)
 
-- **/Volumes/mods is a slow SMB mount.** Bulk hashing/copies/deletes exceed the
+- **/Volumes/scene/mods is a slow SMB mount.** Bulk hashing/copies/deletes exceed the
   2-min command budget — background them. `find | wc -l` is flaky; prefer `ls -1`.
   Case-insensitive (`orange` == `Orange`); rename case via a temp name.
 - **`._` AppleDouble junk is a tsunami** — the mount regenerates it on every write,
