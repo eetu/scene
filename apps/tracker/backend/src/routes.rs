@@ -451,7 +451,7 @@ async fn api_rename(
     })?;
 
     // Update the index row in place (hash unchanged → meta still matches).
-    let (grp, art, fname, ext) = crate::scan::derive_fields(&to_rel);
+    let (grp, art, fname, ext) = crate::scan::derive_fields(&to_rel, state.cfg.layout);
     let to_for_db = to_rel.clone();
     state
         .db
@@ -464,7 +464,7 @@ async fn api_rename(
         })
         .await?;
 
-    let (grp, art, fname, ext) = crate::scan::derive_fields(&to_rel);
+    let (grp, art, fname, ext) = crate::scan::derive_fields(&to_rel, state.cfg.layout);
     Ok(Json(json!({
         "path": to_rel,
         "group": grp,
@@ -524,9 +524,14 @@ async fn api_delete(
 }
 
 async fn api_rescan(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
-    let result = crate::run_scan(state.db.clone(), state.cfg.root.clone(), state.scan.clone())
-        .await
-        .map_err(AppError::Internal)?;
+    let result = crate::run_scan(
+        state.db.clone(),
+        state.cfg.root.clone(),
+        state.cfg.layout,
+        state.scan.clone(),
+    )
+    .await
+    .map_err(AppError::Internal)?;
     Ok(Json(json!({
         "indexed": result.indexed,
         "hashed": result.hashed,
@@ -1331,7 +1336,13 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
 
     // Index the new files so their md5s exist → playlist items resolve as present.
     if wrote_any {
-        crate::run_scan(state.db.clone(), state.cfg.root.clone(), state.scan.clone()).await?;
+        crate::run_scan(
+            state.db.clone(),
+            state.cfg.root.clone(),
+            state.cfg.layout,
+            state.scan.clone(),
+        )
+        .await?;
     }
     tracing::info!(
         fetched = state.fetch.fetched.load(Ordering::Relaxed),

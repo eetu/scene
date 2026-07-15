@@ -16,6 +16,7 @@ use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use walkdir::{DirEntry, WalkDir};
 
+use crate::config::Layout;
 use crate::state::ScanProgress;
 
 /// Module extensions libopenmpt can open. Generous on purpose — the collection
@@ -62,9 +63,13 @@ pub(crate) fn has_module_ext(name: &str) -> bool {
 }
 
 /// Derive (group, artist, filename, ext) from a forward-slash relative path.
-/// Shared by the scanner's reasoning and the rename endpoint.
-pub(crate) fn derive_fields(rel: &str) -> (String, Option<String>, String, String) {
-    let (grp, artist) = group_artist(rel);
+/// Shared by the scanner's reasoning and the rename endpoint. `layout` decides
+/// how the leading path segments map to group/artist.
+pub(crate) fn derive_fields(
+    rel: &str,
+    layout: Layout,
+) -> (String, Option<String>, String, String) {
+    let (grp, artist) = group_artist(rel, layout);
     let filename = rel.rsplit('/').next().unwrap_or(rel).to_string();
     let ext = Path::new(&filename)
         .extension()
@@ -126,21 +131,37 @@ pub fn hash_bytes(bytes: &[u8]) -> (String, String) {
 /// and the rename endpoint writes here when the group field is left blank.
 pub const GROUPLESS: &str = "_groupless";
 
-/// Split a relative path (forward-slash separated) into (group, artist).
-/// `group/artist/song.ext` → ("group", Some("artist")); `group/song.ext` →
-/// ("group", None). Deeper nesting keeps segment[0]/segment[1]. A file under
-/// `_groupless/` therefore parses with group == [`GROUPLESS`].
-fn group_artist(rel: &str) -> (String, Option<String>) {
+/// Split a relative path (forward-slash separated) into (group, artist) per the
+/// collection layout.
+///
+/// - [`Layout::GroupArtist`] (legacy `group/artist/song.ext`): segment[0] is the
+///   group, segment[1] the artist when there's a further segment (the file), so
+///   `group/song.ext` → ("group", None) and deeper nesting keeps seg[0]/seg[1]. A
+///   file under `_groupless/` parses with group == [`GROUPLESS`].
+/// - [`Layout::Artist`] (`artist/song.ext`): segment[0] is the artist and there
+///   is **no path-group** (groups live in the manifest), so group is empty. A
+///   file directly at the root (no artist dir) has artist `None`.
+fn group_artist(rel: &str, layout: Layout) -> (String, Option<String>) {
     let segs: Vec<&str> = rel.split('/').collect();
-    let group = segs.first().copied().unwrap_or("").to_string();
-    // Only treat segment[1] as artist if there's a further segment (the file),
-    // i.e. the file isn't directly inside the group dir.
-    let artist = if segs.len() >= 3 {
-        Some(segs[1].to_string())
-    } else {
-        None
-    };
-    (group, artist)
+    match layout {
+        Layout::GroupArtist => {
+            let group = segs.first().copied().unwrap_or("").to_string();
+            let artist = if segs.len() >= 3 {
+                Some(segs[1].to_string())
+            } else {
+                None
+            };
+            (group, artist)
+        }
+        Layout::Artist => {
+            let artist = if segs.len() >= 2 {
+                segs.first().map(|s| s.to_string())
+            } else {
+                None
+            };
+            (String::new(), artist)
+        }
+    }
 }
 
 /// Walk `root` and reconcile the `files` table. Blocking I/O — call from
@@ -148,6 +169,7 @@ fn group_artist(rel: &str) -> (String, Option<String>) {
 pub fn scan_into(
     conn: &mut Connection,
     root: &Path,
+    layout: Layout,
     progress: &ScanProgress,
 ) -> anyhow::Result<ScanResult> {
     progress.processed.store(0, Ordering::Relaxed);
@@ -267,7 +289,7 @@ pub fn scan_into(
                 },
             };
             progress.processed.fetch_add(1, Ordering::Relaxed);
-            let (grp, artist) = group_artist(rel_path);
+            let (grp, artist) = group_artist(rel_path, layout);
             Some(Resolved {
                 rel_path: rel_path.clone(),
                 grp,
@@ -326,25 +348,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn group_artist_layouts() {
+    fn group_artist_legacy_layout() {
+        let ga = |r| group_artist(r, Layout::GroupArtist);
+        assert_eq!(ga("Acme/Coder/song.mod"), ("Acme".into(), Some("Coder".into())));
+        assert_eq!(ga("Acme/song.mod"), ("Acme".into(), None));
         assert_eq!(
-            group_artist("Acme/Coder/song.mod"),
-            ("Acme".into(), Some("Coder".into()))
-        );
-        assert_eq!(group_artist("Acme/song.mod"), ("Acme".into(), None));
-        assert_eq!(
-            group_artist("Acme/Coder/sub/song.mod"),
+            ga("Acme/Coder/sub/song.mod"),
             ("Acme".into(), Some("Coder".into()))
         );
         // Groupless artists live under the canonical _groupless/ dir.
         assert_eq!(
-            group_artist("_groupless/Purple Motion/song.mod"),
+            ga("_groupless/Purple Motion/song.mod"),
             (GROUPLESS.into(), Some("Purple Motion".into()))
         );
-        assert_eq!(
-            group_artist("_groupless/song.mod"),
-            (GROUPLESS.into(), None)
-        );
+        assert_eq!(ga("_groupless/song.mod"), (GROUPLESS.into(), None));
+    }
+
+    #[test]
+    fn group_artist_artist_layout() {
+        let ga = |r| group_artist(r, Layout::Artist);
+        // seg0 is the artist; there is no path-group.
+        assert_eq!(ga("Purple Motion/sundance.xm"), (String::new(), Some("Purple Motion".into())));
+        // The unknown-author bucket is just another first segment.
+        assert_eq!(ga("_unknown/ripped.mod"), (String::new(), Some("_unknown".into())));
+        // Deeper nesting collapses to seg0 (like legacy took seg0 as group).
+        assert_eq!(ga("4-Mat/1993/enigma.mod"), (String::new(), Some("4-Mat".into())));
+        // A file at the root has no artist.
+        assert_eq!(ga("loose.mod"), (String::new(), None));
     }
 
     #[test]
@@ -376,7 +406,7 @@ mod tests {
         conn.execute_batch(crate::db::schema_sql()).unwrap();
         let progress = ScanProgress::default();
 
-        let r1 = scan_into(&mut conn, root, &progress).unwrap();
+        let r1 = scan_into(&mut conn, root, Layout::GroupArtist, &progress).unwrap();
         assert_eq!(r1.indexed, 1, "only the .mod is indexed");
         assert_eq!(r1.hashed, 1);
         // Both digests are computed and stored. MD5 of b"MODDATA".
@@ -396,14 +426,14 @@ mod tests {
 
         // Second scan with no changes reuses the cached hash; the previous
         // index size (1) is now the denominator.
-        let r2 = scan_into(&mut conn, root, &progress).unwrap();
+        let r2 = scan_into(&mut conn, root, Layout::GroupArtist, &progress).unwrap();
         assert_eq!(r2.indexed, 1);
         assert_eq!(r2.hashed, 0, "unchanged file is not re-hashed");
         assert_eq!(progress.total.load(Ordering::Relaxed), 1);
 
         // Deleting the file removes the row.
         fs::remove_file(root.join("Acme/Coder/song.mod")).unwrap();
-        let r3 = scan_into(&mut conn, root, &progress).unwrap();
+        let r3 = scan_into(&mut conn, root, Layout::GroupArtist, &progress).unwrap();
         assert_eq!(r3.indexed, 0);
         assert_eq!(r3.removed, 1);
     }
