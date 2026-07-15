@@ -61,7 +61,19 @@ pub fn extract_text(bytes: &[u8]) -> Vec<String> {
 
 fn take_run(run: &[u8], min_len: usize, out: &mut Vec<String>, seen: &mut HashSet<String>) {
     let s = String::from_utf8_lossy(run).trim().to_string();
-    if s.len() < min_len || !s.chars().any(|c| c.is_ascii_alphabetic()) {
+    let chars = s.chars().count();
+    if chars < min_len {
+        return;
+    }
+    // Reject raw sample-PCM that happens to land in printable ASCII: real names
+    // are mostly letters, and never carry these markers. Requiring a majority of
+    // alphabetic chars + no PCM-marker symbols drops the garbage while keeping
+    // handles, group tags, BBS ads and years.
+    let letters = s.chars().filter(|c| c.is_ascii_alphabetic()).count();
+    if letters * 2 < chars {
+        return;
+    }
+    if s.chars().any(|c| matches!(c, '\\' | '|' | '^' | '~' | '{' | '}' | '`')) {
         return;
     }
     if seen.insert(s.to_lowercase()) {
