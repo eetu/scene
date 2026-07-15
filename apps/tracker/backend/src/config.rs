@@ -1,11 +1,27 @@
 use std::env;
 use std::path::PathBuf;
 
+/// How the collection is laid out under `root`. The scanner derives an artist
+/// (and, for the legacy layout, a group) from a file's path per this.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Layout {
+    /// `group/artist/song.ext` — the original 2-CD-rip layout. seg0 is the
+    /// group, seg1 (when present) the artist. Default until the tree is migrated.
+    GroupArtist,
+    /// `artist/song.ext` — the artist-primary layout. seg0 is the artist; groups
+    /// come from the manifest, not the path.
+    Artist,
+}
+
 /// All durable state is the SQLite cache at `db_path` (a path index of the
 /// collection plus libopenmpt-parsed metadata keyed by content hash). The
 /// modules themselves live read-only under `root` (a NAS mount in prod). Auth
 /// is the edge's job (oauth2-proxy forward-auth headers) or `DEV_AUTH`; see
 /// [`crate::auth`].
+///
+/// The human-asserted relational graph (artist aliases + group memberships,
+/// albums, per-song credits) lives in `manifest_path` (`library.json` on the
+/// mount) — the source of truth for everything not recomputable from the bytes.
 #[derive(Debug, Clone)]
 pub struct Config {
     pub bind: String,
@@ -23,6 +39,12 @@ pub struct Config {
     /// Base for Modland — the md5→author index (`allmods.zip`) and by-md5 module
     /// downloads used to fetch a playlist's missing songs. Overridable for tests.
     pub modland_base: String,
+    /// The library manifest (`library.json`). Defaults to `<root>/library.json`,
+    /// overridable with `TRACKER_MANIFEST`.
+    pub manifest_path: PathBuf,
+    /// On-disk layout of the collection (`TRACKER_LAYOUT`: `artist` for the
+    /// artist-primary tree, else the legacy `group/artist` layout).
+    pub layout: Layout,
 }
 
 impl Config {
@@ -39,6 +61,15 @@ impl Config {
         if !root.is_dir() {
             anyhow::bail!("TRACKER_ROOT {} is not a directory", root.display());
         }
+        let manifest_path = env::var("TRACKER_MANIFEST")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| root.join("library.json"));
+        let layout = match env::var("TRACKER_LAYOUT").as_deref() {
+            Ok("artist") => Layout::Artist,
+            _ => Layout::GroupArtist,
+        };
         Ok(Self {
             dev_auth,
             bind: env::var("TRACKER_BIND").unwrap_or_else(|_| "0.0.0.0:3010".into()),
@@ -49,6 +80,8 @@ impl Config {
             static_dir: PathBuf::from(env::var("STATIC_DIR").unwrap_or_else(|_| "./dist".into())),
             modland_base: env::var("MODLAND_BASE")
                 .unwrap_or_else(|_| "https://ftp.modland.com".into()),
+            manifest_path,
+            layout,
         })
     }
 }

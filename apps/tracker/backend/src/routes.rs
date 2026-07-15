@@ -59,6 +59,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/fetch/status", get(api_fetch_status))
         // All local md5s (for external curation/diffing).
         .route("/api/library/md5", get(api_library_md5))
+        // The library manifest (aliases / group memberships / albums / credits)
+        // and a cheap reload after a hand-edit (no rescan / hashing).
+        .route("/api/manifest", get(api_manifest))
+        .route("/api/library/reload", post(api_reload_manifest))
         // Duplicate report (exact + likely).
         .route("/api/dupes", get(api_dupes))
         // SPA fallback — serve a real built asset, else index.html with 200 so
@@ -1126,6 +1130,25 @@ async fn api_library_md5(_auth: Auth, State(state): State<AppState>) -> AppResul
     Ok(Json(json!({ "md5": md5s })))
 }
 
+// ---------- library manifest ----------
+
+/// The library manifest (`library.json`): artist aliases + group memberships,
+/// albums (by md5), per-song credits. The frontend joins it against the track
+/// index client-side to build the group / artist / album facets.
+async fn api_manifest(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
+    let resolved = state.manifest.get();
+    Ok(Json(serde_json::to_value(resolved.manifest()).map_err(
+        |e| AppError::Internal(anyhow::anyhow!("serialise manifest: {e}")),
+    )?))
+}
+
+/// Re-read `library.json` from disk (cheap — no rescan / hashing) so a hand-edit
+/// on the mount takes effect without restarting or re-walking the collection.
+async fn api_reload_manifest(_auth: Auth, State(state): State<AppState>) -> AppResult<StatusCode> {
+    state.manifest.reload().await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // ---------- fetch missing (download by Modland path) ----------
 
 /// Fallback group for a fetched module whose Modland path carries no author.
@@ -1463,7 +1486,10 @@ mod tests {
     fn place_from_modland_path() {
         // group = format, artist = author, filename = last segment.
         let (g, a, f) = place_download(&missing(Some("Protracker/coma/newtune.mod"), None, None));
-        assert_eq!((g.as_str(), a.as_deref(), f.as_str()), ("Protracker", Some("coma"), "newtune.mod"));
+        assert_eq!(
+            (g.as_str(), a.as_deref(), f.as_str()),
+            ("Protracker", Some("coma"), "newtune.mod")
+        );
     }
 
     #[test]
@@ -1475,7 +1501,10 @@ mod tests {
             Some("https://api.modarchive.org/downloads.php?moduleid=42"),
             Some("4-mat"),
         ));
-        assert_eq!((g.as_str(), a.as_deref(), f.as_str()), (crate::scan::GROUPLESS, Some("4-mat"), "newtune.mod"));
+        assert_eq!(
+            (g.as_str(), a.as_deref(), f.as_str()),
+            (crate::scan::GROUPLESS, Some("4-mat"), "newtune.mod")
+        );
     }
 
     #[test]

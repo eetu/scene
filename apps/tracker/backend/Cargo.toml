@@ -19,6 +19,9 @@ tokio = { workspace = true }
 tower-http = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Order-preserving map for the library.json manifest — keeps human-edited key
+# order stable across save round-trips.
+indexmap = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }

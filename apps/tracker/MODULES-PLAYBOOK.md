@@ -1,14 +1,121 @@
-# Modules playbook — scraping & cleaning the tracker collection
+# Modules playbook — adding to & curating the tracker collection
 
-How to grow and tidy the module archive that this app serves (`TRACKER_ROOT`,
-i.e. the `mods` NAS at `/Volumes/mods`). Counterpart to the party app's scrape:
+How to grow and tidy the module archive this app serves (`TRACKER_ROOT` = the
+`mods` SMB mount, dev `/Volumes/mods`). Counterpart to the party app's scrape:
 where that ingests demoparty archives from scene.org, this ingests **tracker
 modules** from the mod archives and de-messes old **CD-dump rips**.
 
-**Filesystem is the source of truth** (see `CLAUDE.md`): `group/artist/song.ext`.
-The whole job is getting the right bytes into the right `group/artist/` folder
-under a clean name, then `POST /api/rescan` (the DB is just a cache). Everything
-below is done with ordinary file tools; nothing here needs the backend running.
+## The model (read this first)
+
+Two layers, deliberately separate:
+
+- **The filesystem — one axis: the artist.** `TRACKER_ROOT/<artist>/<song.ext>`.
+  A tune has exactly one home, under its (canonical) author. Unknown author →
+  `_unknown/`. That's the whole on-disk structure — **no group level**.
+- **`library.json` at the mount root — the relational graph.** Everything that
+  isn't a single-artist fact: an artist's other handles (`aka`), the groups they
+  were in (`groups`), named `albums` (ordered sets of song md5s), and per-song
+  credits (`forGroup` / co-authors / `year`). **Group and album are facets built
+  from this file, never directories** — a tune can be in many groups/albums, and
+  a tree can't hold that; a graph can.
+
+Why the split: the filesystem is a tree, but artist↔group↔alias↔album is a graph.
+Encoding the graph in the path forced either duplicates (the md5 dupes we had) or
+a lie (pick one group). Identity is the **content hash** — `/api/file/{hash}`, and
+hash/md5-keyed `meta` / `stats` / playlists — so **moving files around is
+lossless**: favourites, play counts, enrichment and playlist membership all follow
+the bytes. Reorganising is a pure filing decision.
+
+**Durability rule:** anything you can't recompute from the bytes must live in
+`library.json` (aliases, groups, albums, credits). The SQLite DB is a cache — lose
+it, rescan. Lose `library.json` and you lose the graph, so it lives on the mount
+and is the thing to back up.
+
+## Adding a module (the 30-second version)
+
+1. Drop the file at `<artist>/<song.ext>` on the mount — clean name, keep a
+   recognised module extension; unknown author → `_unknown/`. The **dedup guard**
+   refuses a second copy of bytes already in the library.
+2. **Rescan** — `POST /api/rescan` (or the UI button). Indexes new/changed files;
+   an unchanged file reuses its cached hash (no re-read over SMB).
+3. **Annotate** (optional) in `library.json` — the artist's `aka`/`groups`, an
+   album, per-song credits — by hand or via the in-app editor, then
+   **`POST /api/library/reload`** (cheap; no rescan/hashing). Group/album/alias
+   views update immediately.
+
+Rescan = "new bytes on disk" (walks + hashes). Reload = "edited the graph"
+(re-reads one small JSON). They're independent — curating the graph never costs a
+NAS walk.
+
+## `library.json` format
+
+```json
+{
+  "artists": {
+    "4-Mat":         { "aka": ["Matt Simmonds"], "groups": ["Anarchy", "Rebels"] },
+    "Purple Motion": { "groups": ["Future Crew"] }
+  },
+  "albums": {
+    "second-reality-ost": { "title": "Second Reality — Soundtrack", "kind": "soundtrack",
+                            "songs": ["ab12..f9", "cd34..a1"] }
+  },
+  "songs": { "ab12..f9": { "forGroup": "Future Crew", "with": ["Skaven"], "year": 1993 } }
+}
+```
+
+- `artists` — key = the **canonical handle = the folder name**. `aka` folds
+  alias-named folders into this artist in the browse view; `groups` inverts to a
+  group→members facet. Handle lookups are case-insensitive.
+- `albums` — slug → `{title, kind, songs:[md5]}`, ordered (an album is directly
+  playable). `kind` is a free tag (`soundtrack`, `sfx`, `sid`, …).
+- `songs` — **sparse**: only annotated tunes, keyed by md5. This is what keeps one
+  file viable at thousands of modules. `md5` (not sha256) matches the playlist
+  items and The Mod Archive.
+
+## Curation surfaces
+
+- **Hand-edit** `library.json` on the mount → `POST /api/library/reload`.
+- **In-app editor** — artist `aka`/`groups`, per-track credits, album management;
+  writes the manifest for you and reloads.
+- **LLM** — produce or patch `library.json` directly (it's one legible file), or
+  drive the curation API. Handing an LLM an artist folder + that artist's slice of
+  the manifest is the clean way to say "dedupe this artist" / "check this
+  artist's top-100".
+
+## Playlists (separate from the filesystem)
+
+Playlists are **DB-only and independent of the tree** — created/curated by an LLM
+and imported through the API **one item at a time** (`POST /api/playlists` to
+create, then `POST /api/playlists/{id}/items` per md5), or in bulk via
+`POST /api/playlists/import`. They reference tunes by md5, so they survive moves.
+
+Albums (in `library.json`) are the **durable, ships-with-the-archive** counterpart;
+playlists are personal/ephemeral. Use an album for "belongs to the collection" (a
+demo soundtrack, an SFX pack, a SID set); a playlist for a listening queue.
+
+## Status / migration (2026-07)
+
+The go-forward model above is landing incrementally (plan:
+`~/.claude/plans/tracker-library-manifest.md`). **Live now:** the manifest core —
+`library.json` load + `GET /api/manifest` + `POST /api/library/reload`. **Pending:**
+the manifest-driven facets + curation UI, the md5 **dedup guard**, and the **tree
+migration** from the historical `group/artist/song` layout to `artist/song`.
+
+Until the migration runs, the mount is **still `group/artist/…`** and the backend
+runs in `TRACKER_LAYOUT` legacy mode; the manifest layers aliases/groups/albums on
+top either way. The migration is a **separate, gated, resumable job**
+(`tracker-migrate`, dry-run plan → gated apply) — **do not hand-move the whole
+tree** while a gap-filling session is live on the mount.
+
+## Sourcing & cleaning techniques (unchanged)
+
+Everything below is how to *find, disambiguate and clean* module bytes — still
+exactly right. Only the **filing target** changed: where these say "file under
+`<Group>/<Artist>/`", now file under **`<Artist>/`** and record the group in
+`library.json` (`artists.<name>.groups`). Workflow D (reading the group out of a
+module's sample text) is now how you fill `groups` / `aka`, not how you pick a
+directory. Consolidating an artist's aliases (Workflow B) becomes an `aka` list
+rather than a physical merge.
 
 ## Sources (in priority order)
 
@@ -86,13 +193,20 @@ placed.
 Feed the extracted text to the LLM in batches; it reliably picks the own-group,
 flags multi-group (pick the primary/biggest), and separates soloists.
 
-## The `_groupless` bucket
+## The `_groupless` / `_unknown` bucket
 
-Ungrouped artists live in `/Volumes/mods/_groupless/<artist>/`. It's a **non-dot
-sentinel** on purpose: a `.`-prefixed name (`.groupless`) would be skipped by the
+A **non-dot sentinel** on purpose: a `.`-prefixed name would be skipped by the
 scanner (`scan.rs` `is_hidden_dir` drops any dir starting with `.`) and vanish from
-the library. `_groupless` is indexed like a normal group, sorts near the top, and
-the frontend renders it distinctly as "Ungrouped".
+the library. It's indexed like a normal folder, sorts near the top, and the
+frontend renders it distinctly.
+
+- **New (artist-primary) model:** unknown *author* → `_unknown/<song.ext>`. There
+  is no "ungrouped" bucket, because groups aren't directories — an artist simply
+  has no `groups` entry in `library.json`. (Game/soundtrack composers, solo/chip
+  artists: no `groups`, and that's correct, not missing data.)
+- **Legacy model (until migration):** ungrouped artists live in
+  `/Volumes/mods/_groupless/<artist>/`, shown as "Ungrouped". The migration folds
+  `_groupless/<artist>/…` into `<artist>/…`.
 
 ## Identity disambiguation (critical)
 

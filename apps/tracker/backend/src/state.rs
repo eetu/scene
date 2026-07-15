@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::config::Config;
 use crate::db::Db;
+use crate::manifest::ManifestStore;
 
 /// Live scan progress, updated by the scanner via lock-free atomics. It is
 /// deliberately *not* DB-backed: the scan holds the single SQLite connection
@@ -36,15 +37,21 @@ pub struct AppState {
     pub db: Db,
     pub scan: Arc<ScanProgress>,
     pub fetch: Arc<FetchProgress>,
+    /// The library manifest (`library.json`) — aliases, group memberships,
+    /// albums, per-song credits. Loaded at boot; swapped in place on reload /
+    /// curation edits.
+    pub manifest: Arc<ManifestStore>,
 }
 
 impl AppState {
     pub fn new(cfg: Config, db: Db) -> Self {
+        let manifest = Arc::new(ManifestStore::open(cfg.manifest_path.clone()));
         Self {
             cfg: Arc::new(cfg),
             db,
             scan: Arc::new(ScanProgress::default()),
             fetch: Arc::new(FetchProgress::default()),
+            manifest,
         }
     }
 }
