@@ -17,10 +17,10 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import AddToPlaylist from "$lib/AddToPlaylist.svelte";
-  import { api, ApiError, type Playlist, type Track } from "$lib/api";
+  import { api, type Playlist, type Track } from "$lib/api";
+  import CurateModal from "$lib/CurateModal.svelte";
   import DupesPanel from "$lib/DupesPanel.svelte";
   import FacetBar from "$lib/FacetBar.svelte";
-  import { GROUPLESS } from "$lib/library";
   import { library } from "$lib/library.svelte";
   import { lib } from "$lib/library-view.svelte";
   import LibraryList from "$lib/LibraryList.svelte";
@@ -316,58 +316,15 @@
   }
 
   // ---- rename / move (modal, so list rows keep a fixed height) ----
+  // The curate modal (rename/move + manifest graph) owns its own field state;
+  // here we just hold which track is open and apply the returned patch so the
+  // row re-groups without a full reload.
   let editingTrack = $state<Track | null>(null);
-  let dGroup = $state("");
-  let dArtist = $state("");
-  let dFilename = $state("");
-  let renameError = $state<string | null>(null);
-  let saving = $state(false);
-
   function startEdit(t: Track) {
     editingTrack = t;
-    // Show groupless tracks with a blank group field — and blank saves back to
-    // groupless (the backend maps an empty group to the _groupless/ dir).
-    dGroup = t.group === GROUPLESS ? "" : t.group;
-    dArtist = t.artist ?? "";
-    dFilename = t.filename;
-    renameError = null;
   }
   function cancelEdit() {
     editingTrack = null;
-    renameError = null;
-  }
-
-  async function saveEdit(t: Track) {
-    saving = true;
-    renameError = null;
-    try {
-      const res = await api.rename({
-        from: t.path,
-        group: dGroup,
-        artist: dArtist.trim() || null,
-        filename: dFilename,
-      });
-      // Mutate in place: $state proxies the array, so the row re-groups.
-      t.path = res.path;
-      t.group = res.group;
-      t.artist = res.artist;
-      t.filename = res.filename;
-      t.ext = res.ext;
-      editingTrack = null;
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 409)
-        renameError = "A file with that name already exists there.";
-      else if (e instanceof ApiError && e.status === 400)
-        renameError = "Invalid name — keep a module extension, no slashes.";
-      else renameError = e instanceof Error ? e.message : String(e);
-    } finally {
-      saving = false;
-    }
-  }
-
-  function onEditKey(e: KeyboardEvent, t: Track) {
-    if (e.key === "Enter") saveEdit(t);
-    else if (e.key === "Escape") cancelEdit();
   }
 
   // ---- playlists ----
@@ -505,33 +462,15 @@
 </div>
 
 {#if editingTrack}
-  {@const et = editingTrack}
-  <Modal label="rename or move" onClose={cancelEdit}>
-    <h3>rename / move <span class="fmt">{et.ext}</span></h3>
-    <label>
-      group
-      <input bind:value={dGroup} placeholder="group (blank = groupless)" />
-    </label>
-    <label>
-      artist
-      <input bind:value={dArtist} placeholder="artist (optional)" />
-    </label>
-    <label>
-      filename
-      <!-- svelte-ignore a11y_autofocus -->
-      <input
-        bind:value={dFilename}
-        placeholder="filename"
-        autofocus
-        onkeydown={(e) => onEditKey(e, et)}
-      />
-    </label>
-    {#if renameError}<p class="rename-err">{renameError}</p>{/if}
-    <div class="modal-actions">
-      <button onclick={cancelEdit} disabled={saving}>cancel</button>
-      <button class="ok" onclick={() => saveEdit(et)} disabled={saving}>save</button>
-    </div>
-  </Modal>
+  <CurateModal
+    track={editingTrack}
+    onClose={cancelEdit}
+    onSaved={(patch) => {
+      // Mutate in place: $state proxies the array, so the row re-groups.
+      if (editingTrack) Object.assign(editingTrack, patch);
+    }}
+    onToast={showToast}
+  />
 {/if}
 
 {#if showSettings}
@@ -707,13 +646,6 @@
     flex-direction: column;
   }
 
-  .rename-err {
-    color: var(--halo-error);
-    font-size: 12px;
-    margin: 0;
-  }
-
-  /* Rename / move modal (keeps list rows a fixed height for the virtualizer). */
   /* Modal chrome (.modal-bg/.modal-scrim/.modal + generic h3/label/input/
      .modal-actions) lives in Modal.svelte now; only panel-specific styles here. */
   .help-head {

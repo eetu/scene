@@ -36,6 +36,8 @@ export type StatusResponse = {
   db_healthy: boolean;
   track_count: number | null;
   root: string;
+  /** On-disk layout: "artist" (artist/song) or "group-artist" (legacy). */
+  layout: string;
   // Live scan progress (lock-free counters; safe to poll during a scan).
   scanning: boolean;
   scan_total: number;
@@ -176,6 +178,12 @@ export type Manifest = {
   songs: Record<string, ManifestSong>;
 };
 
+/** Curation write payloads (mirror the backend curation API). */
+export type ArtistIn = { aka: string[]; groups: string[] };
+export type AlbumIn = { id?: string; title?: string; kind?: string; songs?: string[] };
+export type AlbumPatch = { title?: string; kind?: string; songs?: string[] };
+export type SongIn = { forGroup?: string | null; with?: string[]; year?: number | null };
+
 /** A present playlist item carries every field a Track needs for playback. */
 export function itemToTrack(i: PlaylistItem): Track {
   return {
@@ -277,6 +285,32 @@ const httpApi = {
 
   // Library manifest (aliases / group memberships / albums / credits)
   manifest: () => request<Manifest>("/api/manifest"),
+
+  // Manifest curation (edit library.json; each write hot-swaps server-side, so
+  // callers re-fetch the manifest after).
+  setArtist: (name: string, body: ArtistIn) =>
+    request<void>(`/api/artist/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  setSong: (md5: string, body: SongIn) =>
+    request<void>(`/api/song/${md5}`, { method: "PUT", body: JSON.stringify(body) }),
+  createAlbum: (body: AlbumIn) =>
+    request<{ id: string }>("/api/albums", { method: "POST", body: JSON.stringify(body) }),
+  updateAlbum: (id: string, body: AlbumPatch) =>
+    request<void>(`/api/albums/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteAlbum: (id: string) =>
+    request<void>(`/api/albums/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  addAlbumSong: (id: string, md5: string) =>
+    request<void>(`/api/albums/${encodeURIComponent(id)}/songs`, {
+      method: "POST",
+      body: JSON.stringify({ md5 }),
+    }),
+  removeAlbumSong: (id: string, md5: string) =>
+    request<void>(`/api/albums/${encodeURIComponent(id)}/songs/${md5}`, { method: "DELETE" }),
 };
 
 // The GitHub Pages build has no backend: the playable endpoints delegate to the
@@ -295,6 +329,7 @@ export const api = STANDALONE
         db_healthy: true,
         track_count: local.tracks.length,
         root: "(browser)",
+        layout: "group-artist",
         scanning: false,
         scan_total: 0,
         scan_processed: 0,
@@ -325,8 +360,15 @@ export const api = STANDALONE
       }),
       dupes: async (): Promise<DupesReport> => ({ exact: [], likely: [] }),
       // The Pages build ships no manifest (no curation graph) — empty is fine;
-      // facets fall back to path-derived group/artist.
+      // facets fall back to path-derived group/artist. Curation is a no-op there.
       manifest: async (): Promise<Manifest> => ({ artists: {}, albums: {}, songs: {} }),
+      setArtist: async () => {},
+      setSong: async () => {},
+      createAlbum: async () => ({ id: "" }),
+      updateAlbum: async () => {},
+      deleteAlbum: async () => {},
+      addAlbumSong: async () => {},
+      removeAlbumSong: async () => {},
     }
   : httpApi;
 
