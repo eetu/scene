@@ -17,6 +17,12 @@ path = "src/main.rs"
 name = "tracker-migrate"
 path = "src/bin/migrate.rs"
 
+# Offline metadata enrichment: extract module text → corpus for LLM triage;
+# merge reviewed proposals into library.json.
+[[bin]]
+name = "tracker-enrich"
+path = "src/bin/enrich.rs"
+
 [lib]
 name = "tracker_backend"
 path = "src/lib.rs"
