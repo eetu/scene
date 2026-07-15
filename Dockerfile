@@ -56,9 +56,14 @@ COPY apps/party/backend/Cargo.toml apps/party/backend/Cargo.toml
 COPY services/transcoder/Cargo.toml services/transcoder/Cargo.toml
 # Stub sources so cargo can parse + warm the dep cache for every shipped crate.
 # integration is test-only (never built here) but its manifest must parse → stub lib.
-RUN mkdir -p apps/tracker/backend/src apps/tracker/integration/src apps/party/backend/src services/transcoder/src \
+# tracker-backend declares extra bins (tracker-migrate, tracker-enrich — offline
+# tools); their src files must exist for cargo to resolve the manifest even though
+# only the server bin ships.
+RUN mkdir -p apps/tracker/backend/src/bin apps/tracker/integration/src apps/party/backend/src services/transcoder/src \
     && printf 'fn main() {}\n' > apps/tracker/backend/src/main.rs \
     && : > apps/tracker/backend/src/lib.rs \
+    && printf 'fn main() {}\n' > apps/tracker/backend/src/bin/migrate.rs \
+    && printf 'fn main() {}\n' > apps/tracker/backend/src/bin/enrich.rs \
     && : > apps/tracker/integration/src/lib.rs \
     && printf 'fn main() {}\n' > apps/party/backend/src/main.rs \
     && : > apps/party/backend/src/lib.rs \
@@ -70,8 +75,9 @@ ARG TARGETPLATFORM
 COPY apps/tracker/backend/src ./apps/tracker/backend/src
 # `touch` so cargo notices the stub→real source swap (shared target dir → only
 # the changed package rebuilds).
+# Only the server bin ships; skip the offline tools (tracker-migrate/-enrich).
 RUN touch apps/tracker/backend/src/main.rs apps/tracker/backend/src/lib.rs \
-    && xx-cargo build --release -p tracker-backend \
+    && xx-cargo build --release -p tracker-backend --bin tracker-backend \
     && cp target/*/release/tracker-backend /tracker-backend
 
 FROM workspace-deps AS party-backend-build
