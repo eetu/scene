@@ -147,9 +147,20 @@ export type FetchStatus = {
   failed: number;
 };
 
+/** A file in a "likely" (same-name, different-bytes) dupe set, with its own
+ *  listener state so the UI shows which copy is referenced — delete the orphan. */
+export type DupeFile = {
+  path: string;
+  md5: string;
+  hash: string;
+  favorite: boolean;
+  play_count: number;
+  playlists: string[];
+};
+
 export type DupesReport = {
   exact: { md5: string; paths: string[] }[];
-  likely: { filename: string; files: { path: string; md5: string }[] }[];
+  likely: { filename: string; files: DupeFile[] }[];
 };
 
 /** The library manifest (`library.json`) — the relational graph the filesystem

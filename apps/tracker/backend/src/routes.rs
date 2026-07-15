@@ -1718,22 +1718,39 @@ async fn api_dupes(_auth: Auth, State(state): State<AppState>) -> AppResult<Json
                     by_md5.entry(r.get(0)?).or_default().push(r.get(1)?);
                 }
             }
-            // Likely: same filename, >1 distinct md5.
+            // Likely: same filename, >1 distinct md5. Each file carries its
+            // favourite / play-count / playlist membership (all keyed to its own
+            // bytes) so the UI can show which copy is referenced somewhere — you
+            // delete the orphan that's in no list.
             let mut by_name: BTreeMap<String, Vec<Value>> = BTreeMap::new();
             {
                 let mut s = c.prepare(
-                    "SELECT LOWER(filename) fn, rel_path, md5 FROM files
-                     WHERE md5 IS NOT NULL AND LOWER(filename) IN (
+                    "SELECT LOWER(f.filename) fn, f.rel_path, f.md5, f.content_hash,
+                            COALESCE(st.favorite, 0), COALESCE(st.play_count, 0),
+                            (SELECT GROUP_CONCAT(p.name, '||') FROM playlist_items pi
+                             JOIN playlists p ON p.id = pi.playlist_id WHERE pi.md5 = f.md5)
+                     FROM files f
+                     LEFT JOIN stats st ON st.content_hash = f.content_hash
+                     WHERE f.md5 IS NOT NULL AND LOWER(f.filename) IN (
                        SELECT LOWER(filename) FROM files WHERE md5 IS NOT NULL
                        GROUP BY LOWER(filename) HAVING COUNT(DISTINCT md5) > 1)
-                     ORDER BY fn, rel_path",
+                     ORDER BY fn, f.rel_path",
                 )?;
                 let mut rows = s.query([])?;
                 while let Some(r) = rows.next()? {
                     let fname: String = r.get(0)?;
+                    let playlists_raw: Option<String> = r.get(6)?;
+                    let playlists: Vec<&str> = playlists_raw
+                        .as_deref()
+                        .map(|s| s.split("||").collect())
+                        .unwrap_or_default();
                     by_name.entry(fname).or_default().push(json!({
                         "path": r.get::<_, String>(1)?,
                         "md5": r.get::<_, String>(2)?,
+                        "hash": r.get::<_, String>(3)?,
+                        "favorite": r.get::<_, i64>(4)? != 0,
+                        "play_count": r.get::<_, i64>(5)?,
+                        "playlists": playlists,
                     }));
                 }
             }
