@@ -10,7 +10,11 @@
   // the stock build the list still works and the panels degrade to a note.
   import JamKeyboard from "./JamKeyboard.svelte";
   import { exportSampleWav, playback, readSample, type SampleData } from "./player.svelte";
+  import ResizeHandle from "./ResizeHandle.svelte";
   import SampleWave from "./SampleWave.svelte";
+
+  // Width of the left list column — user-draggable via the divider, persisted.
+  let listW = $state(200);
 
   const instruments = $derived(playback.song?.instruments ?? []);
   const samples = $derived(playback.song?.samples ?? []);
@@ -86,7 +90,7 @@
 
 <div class="samples">
   <!-- Left: narrow list(s) — instruments (if any) + samples. -->
-  <div class="slist">
+  <div class="slist" style:--list-w="{listW}px">
     {#if hasInstruments}
       <h4>Instruments</h4>
       <ol>
@@ -127,6 +131,17 @@
         <li class="none">no samples</li>
       {/each}
     </ol>
+  </div>
+
+  <!-- Draggable divider (hidden on the mobile stacked layout). -->
+  <div class="rh-slot">
+    <ResizeHandle
+      bind:size={listW}
+      storageKey="scene:samples:list-w"
+      min={150}
+      max={520}
+      label="Resize sample list"
+    />
   </div>
 
   <!-- Right: detail pane for the selected sample. -->
@@ -206,12 +221,17 @@
     font-size: 15px;
   }
   .slist {
-    flex: 0 0 200px;
+    flex: 0 0 var(--list-w, 200px);
     min-width: 0;
     overflow: auto;
     padding: 4px 6px 64px;
     border-right: 1px solid var(--surface-line-2, var(--surface-line, var(--border)));
     -webkit-overflow-scrolling: touch;
+  }
+  /* The divider is a transparent wrapper so the handle stays a direct flex item
+     (align-self: stretch); collapsed away on the mobile stacked layout. */
+  .rh-slot {
+    display: contents;
   }
   .sdetail {
     flex: 1;
@@ -298,11 +318,15 @@
     .samples {
       flex-direction: column;
     }
+    /* Stacked layout: fixed proportional height, no horizontal resize. */
     .slist {
       flex: 0 0 30%;
       padding-bottom: 12px;
       border-right: none;
       border-bottom: 1px solid var(--surface-line-2, var(--surface-line, var(--border)));
+    }
+    .rh-slot {
+      display: none;
     }
     .props {
       font-size: 11px;
