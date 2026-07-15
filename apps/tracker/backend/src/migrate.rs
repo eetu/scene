@@ -19,9 +19,10 @@
 //! artist name + md5, so it stays correct as files are added.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 use indexmap::IndexMap;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::manifest::{Artist, Manifest};
 use crate::scan::GROUPLESS;
@@ -207,6 +208,258 @@ pub fn build_seed(entries: &[Entry]) -> Seed {
     }
 }
 
+// ---------- move plan (artist-primary relayout) ----------
+
+#[derive(Serialize, Deserialize)]
+pub struct Move {
+    pub from: String,
+    pub to: String,
+    pub md5: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Delete {
+    pub path: String,
+    pub md5: String,
+    /// The surviving copy these identical bytes fold into.
+    pub dup_of: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Collision {
+    /// The `artist/filename` two different tunes both wanted.
+    pub target: String,
+    /// The later source paths that got `~N`-suffixed to avoid clobbering.
+    pub suffixed: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct MoveStats {
+    pub moves: usize,
+    pub deletes: usize,
+    pub collisions: usize,
+    /// Bytes reclaimed by dropping redundant exact-duplicate copies.
+    pub bytes_reclaimed: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MovePlan {
+    pub moves: Vec<Move>,
+    pub deletes: Vec<Delete>,
+    pub collisions: Vec<Collision>,
+    pub stats: MoveStats,
+}
+
+fn split_ext(name: &str) -> (String, String) {
+    match name.rsplit_once('.') {
+        Some((stem, ext)) => (stem.to_string(), format!(".{ext}")),
+        None => (name.to_string(), String::new()),
+    }
+}
+
+/// Plan the `group/artist/song → artist/song` relayout, purely over the snapshot
+/// (no filesystem access — this is a dry run; the apply is separate and gated).
+///
+/// Exact duplicates collapse **per artist**: within one md5, each distinct artist
+/// keeps one copy (the shortest path) and the rest are deletes. So a tune filed
+/// under two *groups* by the same artist collapses to one, while the same bytes
+/// under two *different* artist folders (an alias candidate) keeps one per handle
+/// — both survive until you merge the handles (`aka`) and re-run dedup. Distinct
+/// tunes that would land on the same `artist/filename` get `~N`-suffixed.
+pub fn plan_moves(entries: &[Entry]) -> MovePlan {
+    let mut by_md5: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for (i, e) in entries.iter().enumerate() {
+        by_md5.entry(e.md5.as_str()).or_default().push(i);
+    }
+
+    // Pick one survivor per (md5, artist); the rest are redundant copies.
+    let mut survivors: Vec<usize> = Vec::new();
+    let mut deletes: Vec<Delete> = Vec::new();
+    let mut bytes_reclaimed = 0u64;
+    for (md5, idxs) in &by_md5 {
+        let mut by_artist: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for &i in idxs {
+            by_artist
+                .entry(derive_target(&entries[i].path).0)
+                .or_default()
+                .push(i);
+        }
+        for (_artist, mut group) in by_artist {
+            group.sort_by(|&a, &b| {
+                entries[a]
+                    .path
+                    .len()
+                    .cmp(&entries[b].path.len())
+                    .then_with(|| entries[a].path.cmp(&entries[b].path))
+            });
+            let canon = group[0];
+            survivors.push(canon);
+            for &i in &group[1..] {
+                bytes_reclaimed += entries[i].size;
+                deletes.push(Delete {
+                    path: entries[i].path.clone(),
+                    md5: (*md5).to_string(),
+                    dup_of: entries[canon].path.clone(),
+                });
+            }
+        }
+    }
+
+    // Assign destinations deterministically (by source path); suffix collisions so
+    // a move never clobbers another tune's destination.
+    survivors.sort_by(|&a, &b| entries[a].path.cmp(&entries[b].path));
+    let mut used: BTreeSet<String> = BTreeSet::new();
+    let mut moves: Vec<Move> = Vec::new();
+    let mut collisions: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for &i in &survivors {
+        let (artist, _group, filename) = derive_target(&entries[i].path);
+        let base = format!("{artist}/{filename}");
+        let mut to = base.clone();
+        if used.contains(&to) {
+            let (stem, ext) = split_ext(&filename);
+            let mut n = 2;
+            loop {
+                let cand = format!("{artist}/{stem}~{n}{ext}");
+                if !used.contains(&cand) {
+                    to = cand;
+                    break;
+                }
+                n += 1;
+            }
+            collisions
+                .entry(base)
+                .or_default()
+                .push(entries[i].path.clone());
+        }
+        used.insert(to.clone());
+        if to != entries[i].path {
+            moves.push(Move {
+                from: entries[i].path.clone(),
+                to,
+                md5: entries[i].md5.clone(),
+            });
+        }
+    }
+
+    let collisions: Vec<Collision> = collisions
+        .into_iter()
+        .map(|(target, suffixed)| Collision { target, suffixed })
+        .collect();
+    let stats = MoveStats {
+        moves: moves.len(),
+        deletes: deletes.len(),
+        collisions: collisions.len(),
+        bytes_reclaimed,
+    };
+    MovePlan {
+        moves,
+        deletes,
+        collisions,
+        stats,
+    }
+}
+
+// ---------- apply (the gated, destructive step) ----------
+
+#[derive(Default, Serialize)]
+pub struct ApplyReport {
+    pub moved: usize,
+    /// Source no longer on disk (already migrated / removed) — skipped.
+    pub move_skipped_missing: usize,
+    /// Destination already existed — skipped rather than clobbered.
+    pub move_conflicts: usize,
+    pub deleted: usize,
+    pub delete_skipped_missing: usize,
+    pub dirs_removed: usize,
+    pub errors: Vec<String>,
+}
+
+/// The ancestor directories of `rel` under `root`, deepest first (for empty-dir
+/// cleanup after files move out).
+fn ancestors_under(root: &Path, rel: &str) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    let mut cur = Path::new(rel).parent();
+    while let Some(p) = cur {
+        if p.as_os_str().is_empty() {
+            break;
+        }
+        out.push(root.join(p));
+        cur = p.parent();
+    }
+    out // shallow→deep; caller sorts by depth desc
+}
+
+/// Execute (or dry-run) a [`MovePlan`] against `root`. Defensive and idempotent:
+/// a missing source is skipped (already migrated), an existing destination is
+/// **never clobbered** (skipped + counted), and emptied source directories are
+/// removed. With `execute = false` nothing is touched — it just reports what the
+/// live tree would allow. The apply re-checks the disk itself, so a snapshot
+/// that's slightly stale can't cause a bad move.
+pub fn apply_plan(root: &Path, plan: &MovePlan, execute: bool) -> ApplyReport {
+    let mut r = ApplyReport::default();
+    let mut touched_dirs: BTreeSet<std::path::PathBuf> = BTreeSet::new();
+
+    for m in &plan.moves {
+        let src = root.join(&m.from);
+        let dst = root.join(&m.to);
+        if !src.is_file() {
+            r.move_skipped_missing += 1;
+            continue;
+        }
+        if dst.exists() {
+            r.move_conflicts += 1;
+            continue;
+        }
+        if execute {
+            if let Some(parent) = dst.parent() {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    r.errors.push(format!("mkdir {}: {e}", parent.display()));
+                    continue;
+                }
+            }
+            if let Err(e) = std::fs::rename(&src, &dst) {
+                r.errors.push(format!("mv {} -> {}: {e}", m.from, m.to));
+                continue;
+            }
+        }
+        for d in ancestors_under(root, &m.from) {
+            touched_dirs.insert(d);
+        }
+        r.moved += 1;
+    }
+
+    for d in &plan.deletes {
+        let path = root.join(&d.path);
+        if !path.is_file() {
+            r.delete_skipped_missing += 1;
+            continue;
+        }
+        if execute {
+            if let Err(e) = std::fs::remove_file(&path) {
+                r.errors.push(format!("rm {}: {e}", d.path));
+                continue;
+            }
+        }
+        for a in ancestors_under(root, &d.path) {
+            touched_dirs.insert(a);
+        }
+        r.deleted += 1;
+    }
+
+    // Remove now-empty source dirs, deepest first. `remove_dir` only succeeds on
+    // an empty directory, so this never deletes anything holding files.
+    if execute {
+        let mut dirs: Vec<_> = touched_dirs.into_iter().collect();
+        dirs.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
+        for d in dirs {
+            if std::fs::remove_dir(&d).is_ok() {
+                r.dirs_removed += 1;
+            }
+        }
+    }
+    r
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -286,5 +539,72 @@ mod tests {
         assert_eq!(seed.alias_candidates.len(), 1);
         assert_eq!(seed.alias_candidates[0].md5, "bbbb");
         assert_eq!(seed.alias_candidates[0].artists, vec!["PM", "Purple Motion"]);
+    }
+
+    #[test]
+    fn move_plan_collapses_same_artist_keeps_alias_and_suffixes_collisions() {
+        let entries = parse_tsv(
+            "md5\tsize\tpath\n\
+             aaaa\t100\tAnarchy/4-Mat/a.mod\n\
+             aaaa\t100\tRebels/4-Mat/a.mod\n\
+             bbbb\t50\tOrange/99/x.mod\n\
+             bbbb\t50\tdmn/löylynlyömä/x.mod\n\
+             cccc\t70\tAnarchy/4-Mat/other.mod\n\
+             dddd\t70\tRebels/4-Mat/other.mod\n",
+        );
+        let plan = plan_moves(&entries);
+
+        // aaaa: same artist (4-Mat) under two groups → collapse to one (100 bytes
+        // reclaimed); the survivor moves to 4-Mat/a.mod.
+        assert!(plan.moves.iter().any(|m| m.to == "4-Mat/a.mod"));
+        assert!(plan.deletes.iter().any(|d| d.md5 == "aaaa"));
+        assert_eq!(plan.stats.bytes_reclaimed, 100);
+        // bbbb: alias candidate (99 vs löylynlyömä) → both survive under their
+        // handles, nothing deleted for bbbb.
+        assert!(plan.moves.iter().any(|m| m.to == "99/x.mod"));
+        assert!(plan.moves.iter().any(|m| m.to == "löylynlyömä/x.mod"));
+        assert!(!plan.deletes.iter().any(|d| d.md5 == "bbbb"));
+        // cccc + dddd: distinct tunes both want 4-Mat/other.mod → one suffixed.
+        assert!(plan.moves.iter().any(|m| m.to == "4-Mat/other.mod"));
+        assert!(plan.moves.iter().any(|m| m.to == "4-Mat/other~2.mod"));
+        assert_eq!(plan.stats.collisions, 1);
+    }
+
+    #[test]
+    fn apply_moves_deletes_and_prunes_empty_dirs() {
+        use std::fs;
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("Anarchy/4-Mat")).unwrap();
+        fs::create_dir_all(root.join("Rebels/4-Mat")).unwrap();
+        fs::write(root.join("Anarchy/4-Mat/a.mod"), b"AAAA").unwrap();
+        fs::write(root.join("Rebels/4-Mat/a.mod"), b"AAAA").unwrap(); // exact dupe
+
+        let entries = parse_tsv(
+            "md5\tsize\tpath\n\
+             aaaa\t4\tAnarchy/4-Mat/a.mod\n\
+             aaaa\t4\tRebels/4-Mat/a.mod\n",
+        );
+        let plan = plan_moves(&entries);
+
+        // Dry run touches nothing but reports the intent.
+        let dry = apply_plan(root, &plan, false);
+        assert_eq!((dry.moved, dry.deleted), (1, 1));
+        assert!(root.join("Anarchy/4-Mat/a.mod").exists());
+
+        // Execute: the shorter-path copy (Rebels) is canonical → moves to
+        // 4-Mat/a.mod; the Anarchy dupe is deleted; both emptied group dirs prune.
+        let rep = apply_plan(root, &plan, true);
+        assert_eq!((rep.moved, rep.deleted), (1, 1));
+        assert!(rep.errors.is_empty());
+        assert!(root.join("4-Mat/a.mod").is_file());
+        assert!(!root.join("Anarchy").exists());
+        assert!(!root.join("Rebels").exists());
+
+        // Idempotent: a second apply is a clean no-op (sources gone).
+        let again = apply_plan(root, &plan, true);
+        assert_eq!((again.moved, again.deleted), (0, 0));
+        assert_eq!(again.move_skipped_missing, 1);
+        assert_eq!(again.delete_skipped_missing, 1);
     }
 }
