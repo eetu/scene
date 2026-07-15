@@ -129,6 +129,56 @@ The physical `group/artist → artist` moves are the separate, gated step, run
 against a **fresh** snapshot once the gap-filling session is done — **do not
 hand-move the whole tree** meanwhile.
 
+## Enriching the manifest (filling metadata)
+
+Two kinds of metadata (per the durability rule): **derivable** (title / duration /
+format / tracker / channels) → the DB cache; **asserted** (artist `aka` + group
+memberships, per-song credits, albums) → `library.json`.
+
+### Derivable — one click
+Run **enrich-all** in the app (the "enrich N" button): it WASM-parses every
+un-enriched module and POSTs `/api/meta`, filling titles/durations/format/channels
+for the whole library. Do this first.
+
+### Asserted — the `tracker-enrich` pipeline (`extract → LLM triage → merge`)
+1. **Extract** the modules' own text — sample/instrument-name slots + messages,
+   where sceners signed their handle / group / greets / year:
+   ```
+   cargo run -p tracker-backend --bin tracker-enrich -- extract /Volumes/scene/mods ~/tmp/enrich-corpus.jsonl
+   ```
+   (MOD family read by fixed offset = clean; other formats a printable-strings sweep.)
+2. **Triage** (LLM, batched — a workflow over corpus chunks): read each artist's
+   aggregated text and propose `groups`/`aka` **only from genuine self-attribution**
+   ("X of GROUP", "X/GROUP", "members of GROUP"). **Drop greets** ("greetings to …"
+   name OTHER people's groups — the #1 trap), song titles, sampled bands, real names.
+   Verify each proposal. Emit `proposals.json` = `{artists:{name:{groups,aka}}}`.
+3. **Merge** — dry-run → review → apply (back up `library.json` first):
+   ```
+   cargo run -p tracker-backend --bin tracker-enrich -- merge ~/tmp/proposals.json /Volumes/scene/mods/library.json          # dry-run
+   cargo run -p tracker-backend --bin tracker-enrich -- merge ~/tmp/proposals.json /Volumes/scene/mods/library.json --write  # apply
+   ```
+   then `POST /api/library/reload` (no rescan). Merge is additive (unions
+   groups/aka, never clobbers).
+
+### External sources for the group-less tail
+- **Demozoo** — keyless JSON API (`demozoo.org/api/v1/releasers/?name=<handle>` →
+  detail `/releasers/<id>/` gives `member_of` groups + `nicks` aliases + years).
+  Match is by handle and **handle-reuse is rampant** — disambiguate: prefer the
+  candidate whose groups the module text corroborates, skip multi-candidate handles
+  with no corroboration, drop real names from `nicks`. Fetch throttled + sequential
+  (be a good API citizen).
+- **The Mod Archive** — richer (year/genre/rating) but the XML API is **key-gated**
+  and the keyless module page returns Cloudflare 503. Needs a modarchive.org API
+  key; a by-md5 pass would then cover the whole collection.
+
+### Done so far (2026-07)
+enrich-all (titles/durations); text-triage workflow → **68 artists**; Demozoo
+workflow → **100 artists** (+326 groups, +73 aka). Manifest ≈ 774 artists with
+entries. ~340 remain group-less (no own-signature + no confident Demozoo match).
+Per-song year/genre still unfilled (needs a TMA key). Backups + corpora +
+proposals live in `~/tmp` (`library.before-*.json`, `enrich-corpus.jsonl`,
+`proposals*.json`, `demozoo-candidates.jsonl`).
+
 ## Sourcing & cleaning techniques (unchanged)
 
 Everything below is how to *find, disambiguate and clean* module bytes — still
