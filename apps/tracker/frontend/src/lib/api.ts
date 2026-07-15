@@ -152,6 +152,19 @@ export type DupesReport = {
   likely: { filename: string; files: { path: string; md5: string }[] }[];
 };
 
+/** The library manifest (`library.json`) — the relational graph the filesystem
+ *  tree can't hold. Mirrors the backend `Manifest` (see manifest.rs). The
+ *  frontend joins it against the track index to build the group / artist /
+ *  album facets. */
+export type ManifestArtist = { aka?: string[]; groups?: string[] };
+export type ManifestAlbum = { title?: string | null; kind?: string | null; songs?: string[] };
+export type ManifestSong = { forGroup?: string | null; with?: string[]; year?: number | null };
+export type Manifest = {
+  artists: Record<string, ManifestArtist>;
+  albums: Record<string, ManifestAlbum>;
+  songs: Record<string, ManifestSong>;
+};
+
 /** A present playlist item carries every field a Track needs for playback. */
 export function itemToTrack(i: PlaylistItem): Track {
   return {
@@ -250,6 +263,9 @@ const httpApi = {
 
   // Duplicate report
   dupes: () => request<DupesReport>("/api/dupes"),
+
+  // Library manifest (aliases / group memberships / albums / credits)
+  manifest: () => request<Manifest>("/api/manifest"),
 };
 
 // The GitHub Pages build has no backend: the playable endpoints delegate to the
@@ -297,6 +313,9 @@ export const api = STANDALONE
         failed: 0,
       }),
       dupes: async (): Promise<DupesReport> => ({ exact: [], likely: [] }),
+      // The Pages build ships no manifest (no curation graph) — empty is fine;
+      // facets fall back to path-derived group/artist.
+      manifest: async (): Promise<Manifest> => ({ artists: {}, albums: {}, songs: {} }),
     }
   : httpApi;
 
