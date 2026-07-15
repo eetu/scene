@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering;
 use axum::extract::{Path, State};
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
@@ -63,6 +63,17 @@ pub fn router(state: AppState) -> Router {
         // and a cheap reload after a hand-edit (no rescan / hashing).
         .route("/api/manifest", get(api_manifest))
         .route("/api/library/reload", post(api_reload_manifest))
+        // Curation: edit the manifest from the UI / an LLM (all write library.json
+        // atomically then hot-swap — no rescan).
+        .route("/api/artist/{name}", put(api_set_artist))
+        .route("/api/albums", post(api_create_album))
+        .route(
+            "/api/albums/{id}",
+            put(api_update_album).delete(api_delete_album),
+        )
+        .route("/api/albums/{id}/songs", post(api_add_album_song))
+        .route("/api/albums/{id}/songs/{md5}", delete(api_remove_album_song))
+        .route("/api/song/{md5}", put(api_set_song))
         // Duplicate report (exact + likely).
         .route("/api/dupes", get(api_dupes))
         // SPA fallback — serve a real built asset, else index.html with 200 so
@@ -818,10 +829,7 @@ struct ItemIn {
 impl ItemIn {
     /// Normalised md5 (lowercased, blanked if not a 32-hex string).
     fn norm_md5(&self) -> Option<String> {
-        self.md5
-            .as_deref()
-            .map(|m| m.trim().to_lowercase())
-            .filter(|m| m.len() == 32 && m.bytes().all(|b| b.is_ascii_hexdigit()))
+        self.md5.as_deref().and_then(normalize_md5)
     }
     fn norm_path(&self) -> Option<String> {
         self.path
@@ -1151,6 +1159,270 @@ async fn api_manifest(_auth: Auth, State(state): State<AppState>) -> AppResult<J
 /// on the mount takes effect without restarting or re-walking the collection.
 async fn api_reload_manifest(_auth: Auth, State(state): State<AppState>) -> AppResult<StatusCode> {
     state.manifest.reload().await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ---------- library manifest curation ----------
+
+/// Normalise an md5: lowercased, only if it's a 32-hex string.
+fn normalize_md5(raw: &str) -> Option<String> {
+    let m = raw.trim().to_lowercase();
+    (m.len() == 32 && m.bytes().all(|b| b.is_ascii_hexdigit())).then_some(m)
+}
+
+/// Trim + drop-empty + de-dup a list of free-text values (groups, co-authors),
+/// preserving first-seen order.
+fn clean_str_list(items: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for it in items {
+        let t = it.trim();
+        if !t.is_empty() && !out.iter().any(|x| x == t) {
+            out.push(t.to_string());
+        }
+    }
+    out
+}
+
+/// Normalise + de-dup a list of md5s (dropping any that aren't 32-hex).
+fn clean_md5_list(items: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for it in items {
+        if let Some(m) = normalize_md5(it) {
+            if !out.contains(&m) {
+                out.push(m);
+            }
+        }
+    }
+    out
+}
+
+#[derive(Deserialize)]
+struct ArtistIn {
+    #[serde(default)]
+    aka: Vec<String>,
+    #[serde(default)]
+    groups: Vec<String>,
+}
+
+/// Set an artist's alternate handles + group memberships (upsert by canonical
+/// name = the folder name). Clearing both removes the entry — an undeclared
+/// artist still browses (it resolves to itself). `aka` values must be folder-safe
+/// handles; `groups` is free text.
+async fn api_set_artist(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    Json(req): Json<ArtistIn>,
+) -> AppResult<StatusCode> {
+    let name =
+        clean_segment(&name).ok_or_else(|| AppError::BadRequest("invalid artist name".into()))?;
+    let mut aka: Vec<String> = Vec::new();
+    for a in &req.aka {
+        if a.trim().is_empty() {
+            continue;
+        }
+        let c = clean_segment(a).ok_or_else(|| AppError::BadRequest("invalid aka handle".into()))?;
+        if c != name && !aka.contains(&c) {
+            aka.push(c);
+        }
+    }
+    let groups = clean_str_list(&req.groups);
+    state
+        .manifest
+        .update(move |m| {
+            if aka.is_empty() && groups.is_empty() {
+                m.artists.shift_remove(&name);
+            } else {
+                m.artists
+                    .insert(name, crate::manifest::Artist { aka, groups });
+            }
+            true
+        })
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct AlbumIn {
+    id: Option<String>,
+    title: Option<String>,
+    kind: Option<String>,
+    #[serde(default)]
+    songs: Vec<String>,
+}
+
+/// Create an album (an ordered set of song md5s — a durable, ships-with-the-
+/// archive collection). The id is the given slug, else derived from the title;
+/// a collision is a 409 (pick another id).
+async fn api_create_album(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Json(req): Json<AlbumIn>,
+) -> AppResult<Json<Value>> {
+    let id = match req.id.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(raw) => slug(raw),
+        None => slug(req.title.as_deref().unwrap_or("album")),
+    };
+    let album = crate::manifest::Album {
+        title: req.title.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()),
+        kind: req.kind.map(|k| k.trim().to_string()).filter(|k| !k.is_empty()),
+        songs: clean_md5_list(&req.songs),
+    };
+    let id_for_db = id.clone();
+    let created = state
+        .manifest
+        .update(move |m| {
+            if m.albums.contains_key(&id_for_db) {
+                return false;
+            }
+            m.albums.insert(id_for_db, album);
+            true
+        })
+        .await?;
+    if !created {
+        return Err(AppError::Conflict("an album with that id already exists".into()));
+    }
+    Ok(Json(json!({ "id": id })))
+}
+
+#[derive(Deserialize)]
+struct AlbumPatch {
+    title: Option<String>,
+    kind: Option<String>,
+    /// When present, replaces the song list (normalised + de-duped).
+    songs: Option<Vec<String>>,
+}
+
+/// Update an album's title / kind / songs. Fields absent from the body are left
+/// unchanged; an empty `title`/`kind` string clears it. 404 if the id is unknown.
+async fn api_update_album(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(req): Json<AlbumPatch>,
+) -> AppResult<StatusCode> {
+    let songs = req.songs.as_ref().map(|s| clean_md5_list(s));
+    let ok = state
+        .manifest
+        .update(move |m| {
+            let Some(a) = m.albums.get_mut(&id) else {
+                return false;
+            };
+            if let Some(t) = req.title {
+                let t = t.trim();
+                a.title = (!t.is_empty()).then(|| t.to_string());
+            }
+            if let Some(k) = req.kind {
+                let k = k.trim();
+                a.kind = (!k.is_empty()).then(|| k.to_string());
+            }
+            if let Some(s) = songs {
+                a.songs = s;
+            }
+            true
+        })
+        .await?;
+    ok.then_some(StatusCode::NO_CONTENT).ok_or(AppError::NotFound)
+}
+
+async fn api_delete_album(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> AppResult<StatusCode> {
+    let ok = state
+        .manifest
+        .update(move |m| m.albums.shift_remove(&id).is_some())
+        .await?;
+    ok.then_some(StatusCode::NO_CONTENT).ok_or(AppError::NotFound)
+}
+
+#[derive(Deserialize)]
+struct AlbumSongIn {
+    md5: String,
+}
+
+/// Append a song (by md5) to an album, idempotently (a repeat is a no-op).
+async fn api_add_album_song(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(req): Json<AlbumSongIn>,
+) -> AppResult<StatusCode> {
+    let md5 = normalize_md5(&req.md5).ok_or_else(|| AppError::BadRequest("invalid md5".into()))?;
+    let ok = state
+        .manifest
+        .update(move |m| {
+            let Some(a) = m.albums.get_mut(&id) else {
+                return false;
+            };
+            if !a.songs.iter().any(|s| normalize_md5(s).as_deref() == Some(md5.as_str())) {
+                a.songs.push(md5);
+            }
+            true
+        })
+        .await?;
+    ok.then_some(StatusCode::NO_CONTENT).ok_or(AppError::NotFound)
+}
+
+async fn api_remove_album_song(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path((id, md5)): Path<(String, String)>,
+) -> AppResult<StatusCode> {
+    let md5 = normalize_md5(&md5).ok_or_else(|| AppError::BadRequest("invalid md5".into()))?;
+    let ok = state
+        .manifest
+        .update(move |m| {
+            let Some(a) = m.albums.get_mut(&id) else {
+                return false;
+            };
+            a.songs.retain(|s| normalize_md5(s).as_deref() != Some(md5.as_str()));
+            true
+        })
+        .await?;
+    ok.then_some(StatusCode::NO_CONTENT).ok_or(AppError::NotFound)
+}
+
+#[derive(Deserialize)]
+struct SongIn {
+    #[serde(rename = "forGroup")]
+    for_group: Option<String>,
+    #[serde(default)]
+    with: Vec<String>,
+    year: Option<i64>,
+}
+
+/// Set a song's non-derivable credit (forGroup / co-authors / year), keyed by
+/// md5 so it follows the file across moves. Clearing every field removes the
+/// entry (keeps the sparse `songs` map tidy).
+async fn api_set_song(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(md5): Path<String>,
+    Json(req): Json<SongIn>,
+) -> AppResult<StatusCode> {
+    let md5 = normalize_md5(&md5).ok_or_else(|| AppError::BadRequest("invalid md5".into()))?;
+    let credit = crate::manifest::SongCredit {
+        for_group: req
+            .for_group
+            .map(|g| g.trim().to_string())
+            .filter(|g| !g.is_empty()),
+        with: clean_str_list(&req.with),
+        year: req.year,
+    };
+    let empty = credit.for_group.is_none() && credit.with.is_empty() && credit.year.is_none();
+    state
+        .manifest
+        .update(move |m| {
+            if empty {
+                m.songs.shift_remove(&md5);
+            } else {
+                m.songs.insert(md5, credit);
+            }
+            true
+        })
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

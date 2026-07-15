@@ -284,16 +284,22 @@ impl ManifestStore {
     }
 
     /// Read-modify-write the manifest: apply `mutate` to a copy of the current
-    /// manifest, persist it atomically, then swap in the rebuilt resolution. The
-    /// async mutex serialises concurrent curation edits. Used by the curation API.
-    pub async fn update(&self, mutate: impl FnOnce(&mut Manifest)) -> anyhow::Result<()> {
+    /// manifest, and — only if it returns `true` — persist atomically and swap in
+    /// the rebuilt resolution. Returning `false` aborts without writing (e.g. the
+    /// edit targeted an album that doesn't exist), and is surfaced as the return
+    /// value so the caller can 404. The async mutex serialises concurrent edits;
+    /// the check-and-mutate runs inside it, so an existence test can't race a
+    /// concurrent write.
+    pub async fn update(&self, mutate: impl FnOnce(&mut Manifest) -> bool) -> anyhow::Result<bool> {
         let _guard = self.write.lock().await;
         let mut manifest = self.get().manifest.clone();
-        mutate(&mut manifest);
+        if !mutate(&mut manifest) {
+            return Ok(false);
+        }
         save(&self.path, &manifest)?;
         *self.current.write().expect("manifest lock poisoned") =
             Arc::new(Resolved::build(manifest));
-        Ok(())
+        Ok(true)
     }
 }
 
@@ -376,7 +382,7 @@ mod tests {
         let store = ManifestStore::open(path.clone());
         assert!(store.get().manifest().artists.is_empty());
 
-        store
+        let committed = store
             .update(|m| {
                 m.artists.insert(
                     "Skaven".to_string(),
@@ -385,14 +391,27 @@ mod tests {
                         groups: vec!["Future Crew".into()],
                     },
                 );
+                true
             })
             .await
             .unwrap();
+        assert!(committed);
 
         // Reflected in the live snapshot…
         assert_eq!(store.get().canonical("Peter Hajba"), "Skaven");
         // …and persisted (a fresh store reads it back).
-        let store2 = ManifestStore::open(path);
+        let store2 = ManifestStore::open(path.clone());
         assert_eq!(store2.get().group_members("Future Crew"), vec!["Skaven"]);
+    }
+
+    #[tokio::test]
+    async fn update_abort_does_not_write() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("library.json");
+        let store = ManifestStore::open(path.clone());
+        // A closure returning false aborts — nothing persisted, no file created.
+        let committed = store.update(|_m| false).await.unwrap();
+        assert!(!committed);
+        assert!(!path.exists());
     }
 }
