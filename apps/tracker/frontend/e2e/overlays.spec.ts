@@ -43,10 +43,12 @@ test("add-to-playlist overlay opens from a track row", async ({ context, page })
   await expect(page.getByRole("dialog", { name: "add to playlist" })).toBeVisible();
 });
 
-test("rename overlay opens from a track row", async ({ context, page }) => {
+test("curate (rename / move) overlay opens from a track row", async ({ context, page }) => {
   await mockLibrary(context);
   await page.goto("/");
   await page.locator("button.row").first().hover();
+  // The row's rename/move action opens the curate modal (#147 folded rename into
+  // the wider curation editor); assert the curate dialog it now renders.
   await page.getByRole("button", { name: "rename / move" }).first().click();
-  await expect(page.getByRole("dialog", { name: "rename or move" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "curate" })).toBeVisible();
 });
