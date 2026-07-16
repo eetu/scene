@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { CircleHelp, FolderPlus, Settings, X } from "@lucide/svelte";
+  import { CircleHelp, FolderPlus, Settings, SlidersHorizontal, X } from "@lucide/svelte";
   import {
     cueInOrder,
     playback,
@@ -33,7 +33,7 @@
   import StandaloneIntake from "$lib/StandaloneIntake.svelte";
   import Toasts from "$lib/Toasts.svelte";
   import { parsePos } from "$lib/url-state";
-  import { bucketNoun, setTab, view } from "$lib/view.svelte";
+  import { bucketNoun, controlsActive, setTab, view } from "$lib/view.svelte";
 
   // View/filter state (tab, group-by, sorts, facets, query) lives in the shared
   // view store; the derived grouped list (filtered/groups/flatTracks + favView/
@@ -48,6 +48,9 @@
   let showSettings = $state(false);
   let showDupes = $state(false);
   let showHelp = $state(false);
+  // Narrow screens hide the FacetBar (group/sort/format) by default to reclaim
+  // vertical space; a topbar toggle reveals it. Desktop always shows it.
+  let facetsOpen = $state(false);
   // The full-screen player overlay + its fullscreen/viz plumbing live in
   // PlayerView; its tab + visualizer are the shared `pv` store (read by the key
   // handler below too). +page owns only whether it's open (showPattern).
@@ -397,6 +400,22 @@
       {bucketNoun()}
     {/if}
   </div>
+  {#if lib.listView}
+    <!-- Mobile-only (CSS): reveal the FacetBar that's hidden by default there.
+         Accent dot when a filter/sort is active, so a hidden filter is
+         discoverable. -->
+    <button
+      class="icon-btn filters"
+      class:on={facetsOpen}
+      class:active-filter={controlsActive()}
+      onclick={() => (facetsOpen = !facetsOpen)}
+      title="filters & sorting"
+      aria-label="filters and sorting"
+      aria-pressed={facetsOpen}
+    >
+      <SlidersHorizontal size={16} />
+    </button>
+  {/if}
   {#if STANDALONE}
     <button class="icon-btn" onclick={pickFiles} title="add modules" aria-label="add modules">
       <FolderPlus size={16} />
@@ -429,7 +448,9 @@
 </nav>
 
 {#if lib.listView}
-  <FacetBar />
+  <div class="facetwrap" class:open={facetsOpen}>
+    <FacetBar />
+  </div>
 {/if}
 
 {#if scanning}
@@ -590,6 +611,30 @@
     color: var(--muted);
     font-variant-numeric: tabular-nums;
   }
+  /* Facet toggle: desktop always shows the FacetBar, so this control only
+     appears on narrow screens (see the media query). Relative for the dot. */
+  .filters {
+    display: none;
+    position: relative;
+  }
+  .filters.on {
+    color: var(--accent);
+  }
+  /* Accent dot when a filter/sort is active while the bar is collapsed. */
+  .filters.active-filter::after {
+    content: "";
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  /* Wrapper so the FacetBar can be toggled on mobile; transparent on desktop. */
+  .facetwrap {
+    display: contents;
+  }
 
   /* View switcher: a thin segmented row under the toolbar. `main` is the only
 	   scroll container, so this (a body-level sibling) stays pinned for free. */
@@ -713,17 +758,27 @@
     .bar {
       flex-wrap: wrap;
       gap: 8px;
-      padding: 8px 10px;
+      /* Keep the safe-area top inset (iOS status bar / notch under
+         viewport-fit=cover); the flat override here used to drop it, hiding the
+         first header row under the clock. */
+      padding: calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 8px
+        calc(10px + env(safe-area-inset-left));
     }
-    /* Row 1 is always [brand … gear]; everything else wraps below. */
+    /* Row 1 is always [brand … icon buttons]; everything else wraps below. */
     .bar > * {
       order: 2;
     }
     .brand {
       order: 0;
     }
-    .bar .gear {
+    /* Keep ALL top-right icon buttons (help "?", settings, +add) clustered on
+       row 1 next to the brand — previously only .gear was pinned here, so the
+       "?" kept the default order and wrapped onto its own row. margin-left:auto
+       on the first button pushes the whole cluster to the right edge. */
+    .bar > button {
       order: 1;
+    }
+    .bar > button:first-of-type {
       margin-left: auto;
     }
     /* Search is the primary action: first wrapped row (under brand+gear),
@@ -733,10 +788,16 @@
       max-width: none;
       flex-basis: 100%;
     }
+    /* Reclaim vertical space: the track/group counts and the FacetBar are hidden
+       by default; the topbar filters toggle reveals the facets on demand. */
     .count {
-      order: 4;
-      flex-basis: 100%;
-      margin-left: 0;
+      display: none;
+    }
+    .filters {
+      display: inline-flex;
+    }
+    .facetwrap:not(.open) {
+      display: none;
     }
     .tabs button {
       flex: 1;

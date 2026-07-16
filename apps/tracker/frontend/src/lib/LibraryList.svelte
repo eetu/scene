@@ -95,8 +95,9 @@
   // thousands of <li> never hit the DOM at once. (buildRows/rowKey in $lib/library.)
   const rows = $derived<LibRow[]>(buildRows(lib.groups, isOpen));
 
-  // ≤640px: track rows go two-line (title, then format/plays/duration), so long
-  // module names aren't ellipsised against the metadata columns.
+  // ≤640px: track rows stay ONE line (title/artist + duration), a touch taller
+  // for a comfortable tap target; playcount is dropped and the name ellipsises
+  // before it can overlap the duration (see the mobile CSS block).
   let isMobile = $state(false);
   $effect(() => {
     const mq = window.matchMedia("(max-width: 640px)");
@@ -111,7 +112,7 @@
   // measureElement) keeps offsets above the viewport stable, so opening a group
   // never reflows/jumps the rows already on screen. The inline rename editor
   // lives in a modal precisely so every row stays a fixed height.
-  const ROW_H = $derived(isMobile ? 52 : 34);
+  const ROW_H = $derived(isMobile ? 40 : 34);
   const HEAD_H = 40;
   const CARD_GAP = 8;
   function rowSize(i: number): number {
@@ -652,16 +653,12 @@
     .li {
       gap: 8px;
     }
-    /* Two-row: the song title takes the full first row; format/plays/duration
-       wrap to a second row (row height bumped for this via --row-h). So long
-       module names show in full instead of ellipsising against the meta. */
-    .li .row {
-      flex-wrap: wrap;
-      align-content: center;
-      row-gap: 2px;
-    }
-    .li .name {
-      flex-basis: 100%;
+    /* One line: title/artist + duration on a single row. Playcount is dropped
+       (secondary on a phone); the name keeps its base ellipsis so it truncates
+       before overlapping the fixed-width duration, instead of wrapping to a
+       cramped second row of padded metadata. */
+    .li .plays {
+      display: none;
     }
     /* Declutter narrow rows: fav + rename move to the player-view header
        (tap a track to open it). The whole row stays a play target. */
