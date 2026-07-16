@@ -9,7 +9,7 @@ import { createActor, fromPromise } from "xstate";
 
 import {
   attachBackground,
-  pauseMediaElement,
+  holdMediaElement,
   routeAudioToElement,
   setupMediaElementRoute,
   wakeAudio,
@@ -353,6 +353,36 @@ function ensurePlayer(): Promise<void> {
       resolve(d.meta ?? null);
     }
   });
+  // --- Wake-from-freeze resync -------------------------------------------
+  // Song timing is purely output-paced (the worklet drains PCM, the worker
+  // refills on ack) — nothing tracks wall time. After the OS sleeps (or a very
+  // long suspend) the audio hardware freezes; on wake the pipeline can race to
+  // catch up, so patterns fly by with only squeaks and only a reload recovers.
+  // Detect the freeze by the audio clock (context.currentTime) falling far
+  // behind wall-clock, then flush + reseek to the pre-freeze position (setPos
+  // bumps the generation → the worklet drops its stale queue, the worker
+  // reseeks) so playback restarts clean. A normal second-to-second tick never
+  // trips it (the two clocks stay in step, including while merely paused or
+  // backgrounded-but-playing); only a real freeze makes the audio clock stall.
+  let lastWall = performance.now();
+  let lastCtx = player.context.currentTime;
+  let lastPos = 0;
+  setInterval(() => {
+    const wall = performance.now();
+    const ctx = player.context.currentTime;
+    const stalled = wall - lastWall - (ctx - lastCtx) * 1000; // ms the audio clock fell behind
+    lastWall = wall;
+    lastCtx = ctx;
+    if (stalled > 3000 && playback.current && (playback.playing || playback.paused)) {
+      try {
+        player.setPos(lastPos); // discard the racing/stale pipeline; restart clean
+      } catch {
+        /* engine gone */
+      }
+    }
+    lastPos = playback.position;
+  }, 1000);
+
   wirePlatformIntegration({
     toggle: transportToggle,
     togglePause,
@@ -568,13 +598,13 @@ export function togglePause() {
   player.togglePause();
   transport.send({ type: "TOGGLE" }); // playing ⇄ paused; the subscription flips playback.paused
   if (playback.paused) {
-    // Pause the routed <audio> too. Once output is moved to it, that element is
-    // the only sink — the worklet going silent doesn't pause the element, so it
-    // keeps streaming silence and its own `paused` state stays false. The OS /
-    // hardware transport then reads it as still playing and keeps sending "pause"
-    // (never "play"), so playback pauses but can't be resumed. Pausing it keeps
-    // the element's state coherent with ours.
-    pauseMediaElement();
+    // KEEP the routed <audio> element playing (it streams the paused worklet's
+    // silence) so iOS doesn't suspend the AudioContext during the pause — the
+    // element is its only sink once routed, and an idle context iOS kills left a
+    // long pause unrecoverable without a reload. The OS transport stays coherent
+    // via mediaSession.playbackState = "paused" (syncNowPlaying below), not by
+    // pausing the element.
+    holdMediaElement();
   } else {
     // Unpausing: iOS may have suspended the context and stalled the background
     // <audio> element during the pause; nudge both back to life inside this tap.
