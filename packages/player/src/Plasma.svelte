@@ -75,12 +75,17 @@
         // purple via the magenta side (never green) — on-style dark orange ↔ purple.
         const tri = (1 - Math.cos((i / 256) * Math.PI * 2)) / 2;
         const hue = (((baseHue - 110 * tri) % 360) + 360) % 360;
-        // Dark→bright range with a modest hot peak — kept well below white so the
-        // magenta reads rich and deep, not a washed-out near-white wash. (The
-        // plasma value distribution clusters at the palette's bright middle, so a
-        // high peak lightness floods the whole field.)
-        const l = 16 + 34 * tri + 6 * Math.pow(tri, 6);
-        const [r, g, b] = hslToRgb(hue, 82, l);
+        // Kept below the washed-out original. The plasma value distribution
+        // clusters at the palette's middle (tri≈1), so THAT band fills most of
+        // the field — too high a peak lightness there floods the screen and
+        // reads overexposed on both themes (worst on green/mint accents). Land
+        // the dominant band at a rich mid ~45% L (down from the old ~56%, not as
+        // dark as it briefly was), with only a faint hot specular at the very
+        // centre, and desaturate it a touch so it reads rich, not neon; the rare
+        // dark blobs (tri→0) stay fully saturated and near-black.
+        const l = 12 + 30 * tri + 3 * Math.pow(tri, 6);
+        const s = 82 - 12 * tri;
+        const [r, g, b] = hslToRgb(hue, s, l);
         palette[i * 3] = r;
         palette[i * 3 + 1] = g;
         palette[i * 3 + 2] = b;
@@ -105,6 +110,7 @@
     }
 
     let t = 0;
+    let rot = 0; // palette-cycle phase (index units) — the classic plasma colour rotation
     const stopFrames = driveFrames(
       () => {
         // Repaint on either theme OR accent change (both alter --accent's hue).
@@ -115,6 +121,11 @@
         }
         const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
         t += 0.02 + (active ? energy * 0.06 : 0.003);
+        // Rotate the palette itself (not just drift the field) — the hypnotic
+        // plasma colour-cycle. The palette wraps dark→bright→dark, so the offset
+        // sweeps seamlessly; speed rides the music energy like the field does.
+        rot += 0.5 + (active ? energy * 1.5 : 0.1);
+        const rotOff = Math.floor(rot);
 
         // Two drifting hot-spots + higher-frequency sine layers give the field
         // moving interference detail and depth, not a couple of static soft blobs.
@@ -136,8 +147,7 @@
               Math.sin((x + y) * 0.07 + t * 0.6) +
               Math.sin(Math.sqrt(dx1 * dx1 + dy1 * dy1) * 0.11 - t * 1.3) +
               Math.sin(Math.sqrt(dx2 * dx2 + dy2 * dy2) * 0.14 + t * 0.9);
-            const idx = (((v + 5) / 10) * 255) & 255;
-            const c = idx * 3;
+            const c = ((((v + 5) / 10) * 255 + rotOff) & 255) * 3;
             data[p++] = palette[c];
             data[p++] = palette[c + 1];
             data[p++] = palette[c + 2];
