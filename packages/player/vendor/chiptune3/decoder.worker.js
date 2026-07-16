@@ -21,7 +21,9 @@ const OPENMPT_MODULE_RENDER_STEREOSEPARATION_PERCENT = 2;
 const OPENMPT_MODULE_RENDER_INTERPOLATIONFILTER_LENGTH = 3;
 
 const CHUNK = 1024; // frames per chunk (~21ms @48k) — fine-grained for pattern/VU sync
-const TARGET = 6; // chunks kept in flight (~128ms jitter buffer)
+const TARGET = 24; // chunks kept in flight (~512ms jitter buffer) — deep enough to ride
+// through the background-worker throttling (macOS App Nap etc.) that hits on a desktop/app
+// switch, which briefly starves decode and would otherwise underrun the audio thread.
 
 let lib = null;
 let sampleRate = 48000;
