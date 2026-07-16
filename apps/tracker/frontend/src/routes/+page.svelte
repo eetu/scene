@@ -713,17 +713,27 @@
     .bar {
       flex-wrap: wrap;
       gap: 8px;
-      padding: 8px 10px;
+      /* Keep the safe-area top inset (iOS status bar / notch under
+         viewport-fit=cover); the flat override here used to drop it, hiding the
+         first header row under the clock. */
+      padding: calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 8px
+        calc(10px + env(safe-area-inset-left));
     }
-    /* Row 1 is always [brand … gear]; everything else wraps below. */
+    /* Row 1 is always [brand … icon buttons]; everything else wraps below. */
     .bar > * {
       order: 2;
     }
     .brand {
       order: 0;
     }
-    .bar .gear {
+    /* Keep ALL top-right icon buttons (help "?", settings, +add) clustered on
+       row 1 next to the brand — previously only .gear was pinned here, so the
+       "?" kept the default order and wrapped onto its own row. margin-left:auto
+       on the first button pushes the whole cluster to the right edge. */
+    .bar > button {
       order: 1;
+    }
+    .bar > button:first-of-type {
       margin-left: auto;
     }
     /* Search is the primary action: first wrapped row (under brand+gear),
