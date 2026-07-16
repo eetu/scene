@@ -43,12 +43,17 @@ export function setupMediaElementRoute() {
   }
 }
 
-/** Pause the routed <audio> element when the transport pauses. Once output is
- *  moved to it, that element is the only sink — the worklet going silent doesn't
- *  pause it, so its own `paused` state stays false and the OS transport keeps
- *  reading it as playing; pausing it keeps that state coherent with ours. */
-export function pauseMediaElement() {
-  mediaEl?.pause();
+/** Keep the routed <audio> element PLAYING through a transport pause, so iOS
+ *  doesn't suspend the AudioContext during the pause. Once output is moved to it
+ *  that element is the context's only sink, and iOS kills an idle context after
+ *  a few seconds — which left a paused track unrecoverable (unpause couldn't
+ *  revive the dead context; only a reload did). The paused worklet fills zeros,
+ *  so the element just streams silence, holding the context alive; the OS
+ *  transport stays coherent via mediaSession.playbackState = "paused" (set by
+ *  syncNowPlaying), not by pausing the element. Re-issues play() defensively in
+ *  case iOS had already stalled it. */
+export function holdMediaElement() {
+  if (routedToElement && mediaEl) void mediaEl.play().catch(() => {});
 }
 
 /** Move audible output onto the media element so playback survives the page
