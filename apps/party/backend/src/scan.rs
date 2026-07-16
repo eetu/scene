@@ -162,6 +162,20 @@ fn looks_textual(path: &Path) -> bool {
     suspicious * 100 / n < 5
 }
 
+/// First 4 bytes of an Amiga Hunk executable (`HUNK_HEADER`, 0x0000_03F3). Amiga
+/// binaries and DOS `.exe`s share the `.exe`/`.run` extension at the parties, so
+/// the extension alone can't tell them apart — only the content can. Detecting
+/// this keeps an Amiga binary from ever routing to js-dos (DOSBox).
+const AMIGA_HUNK_MAGIC: [u8; 4] = [0x00, 0x00, 0x03, 0xF3];
+
+fn is_amiga_hunk(path: &Path) -> bool {
+    let Ok(mut f) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut buf = [0u8; 4];
+    f.read_exact(&mut buf).is_ok() && buf == AMIGA_HUNK_MAGIC
+}
+
 fn is_junk(name: &str) -> bool {
     name == crate::party::CONFIG_FILE // .party.json — config, not a browsable file
         || name == ".DS_Store"
@@ -241,6 +255,7 @@ fn intern_kind(k: &str) -> &'static str {
         "image" => "image",
         "video" => "video",
         "exe" => "exe",
+        "amiga_exe" => "amiga_exe",
         "diskimage" => "diskimage",
         "text" => "text",
         "archive" => "archive",
@@ -349,7 +364,7 @@ fn medium_from_kind(kind: &str) -> &'static str {
         "music" => "music",
         "image" => "graphics",
         "video" => "animation",
-        "exe" | "diskimage" => "demo",
+        "exe" | "amiga_exe" | "diskimage" => "demo",
         _ => "info",
     }
 }
@@ -562,6 +577,12 @@ pub fn scan_into(
                     None if looks_textual(path) => "text",
                     None => "data",
                 },
+                // An Amiga Hunk binary and a DOS `.exe` share the extension, so the
+                // cheap classify can't tell them apart — sniff the magic. Done every
+                // scan (not cached like the data→text sniff) so the split applies to
+                // already-indexed files on the next rescan, not just new ones; it's
+                // a 4-byte read on the exe minority, parallelised with the rest here.
+                "exe" if is_amiga_hunk(path) => "amiga_exe",
                 k => k,
             };
 
@@ -688,24 +709,47 @@ pub fn scan_into(
                 let cfg = configs.for_dir(&acc.party_dir);
                 let cat_cfg = cfg.category(&acc.category);
                 let medium_hint = cat_cfg.map(|c| c.medium.as_str());
+                // An Amiga disk image (adf/hdf) in the folder means the prod is Amiga
+                // even in an unconfigured/mixed folder (misc/, info/, a combined
+                // compo) — steer primary selection to the Amiga groups so a packaged
+                // `.support/*.hdf` wins over a loose `.exe`. Guarded off media compos
+                // (a graphics/music entry that merely bundles a disk image keeps its
+                // image/module primary).
+                let is_media_compo = matches!(medium_hint, Some("music" | "graphics" | "animation"));
+                let has_amiga_image = acc
+                    .files
+                    .iter()
+                    .any(|(_, _, e, _)| matches!(e.as_str(), "adf" | "hdf" | "adz"));
+                let amiga_image_signal = has_amiga_image && !is_media_compo;
                 // Provisional platform (config or folder heuristic) just to steer
                 // primary-file selection; refined below from the primary's ext.
-                let provisional = cat_cfg
-                    .map(|c| c.platform.as_str())
-                    .unwrap_or_else(|| platform_heuristic(&acc.category))
-                    .to_string();
+                let provisional = if amiga_image_signal {
+                    "amiga".to_string()
+                } else {
+                    cat_cfg
+                        .map(|c| c.platform.as_str())
+                        .unwrap_or_else(|| platform_heuristic(&acc.category))
+                        .to_string()
+                };
                 let primary = pick_primary(&acc.files, &provisional, medium_hint);
                 let (primary_rel, primary_kind, primary_ext) = match primary {
                     Some((rel, kind, ext, _)) => (Some(rel.clone()), Some(*kind), Some(ext.clone())),
                     None => (None, None, None),
                 };
-                // Final platform: explicit config wins; else the primary file's
-                // extension (a .d64 is C64 even when it sits under info/); else the
-                // folder heuristic.
-                let platform = cat_cfg
-                    .map(|c| c.platform.clone())
-                    .or_else(|| primary_ext.as_deref().and_then(platform_from_ext).map(str::to_string))
-                    .unwrap_or(provisional);
+                // Final platform: an Amiga signal is authoritative — a Hunk-binary
+                // primary or an Amiga disk image means the prod is Amiga even when its
+                // category is declared/derived `pc` (a combined PC+Amiga intro compo,
+                // or a misc/ extra), so it never routes to js-dos. Else explicit config
+                // wins; else the primary file's extension (a .d64 is C64 even when it
+                // sits under info/); else the folder heuristic.
+                let platform = if amiga_image_signal || primary_kind == Some("amiga_exe") {
+                    "amiga".to_string()
+                } else {
+                    cat_cfg
+                        .map(|c| c.platform.clone())
+                        .or_else(|| primary_ext.as_deref().and_then(platform_from_ext).map(str::to_string))
+                        .unwrap_or(provisional)
+                };
                 let medium = match medium_hint {
                     Some(m) => m.to_string(),
                     None => medium_from_kind(primary_kind.unwrap_or("data")).to_string(),
@@ -899,6 +943,23 @@ mod tests {
         let bin = dir.path().join("DEMO.DAT");
         std::fs::write(&bin, [0u8, 1, 2, 0, 255, 7, 0, 9]).unwrap();
         assert!(!looks_textual(&bin));
+    }
+
+    #[test]
+    fn detects_amiga_hunk_exe() {
+        let dir = tempfile::tempdir().unwrap();
+        // Amiga Hunk executable: HUNK_HEADER magic 0x000003F3 leads the file.
+        let hunk = dir.path().join("DEMO.EXE");
+        std::fs::write(&hunk, [0x00u8, 0x00, 0x03, 0xF3, 0x00, 0x00, 0x00, 0x00]).unwrap();
+        assert!(is_amiga_hunk(&hunk));
+        // DOS executable: same `.exe` extension, but an MZ header.
+        let dos = dir.path().join("GAME.EXE");
+        std::fs::write(&dos, b"MZ\x90\x00\x03\x00\x00\x00").unwrap();
+        assert!(!is_amiga_hunk(&dos));
+        // Too short to carry a magic → not Hunk (no panic).
+        let tiny = dir.path().join("stub");
+        std::fs::write(&tiny, [0x00u8, 0x00]).unwrap();
+        assert!(!is_amiga_hunk(&tiny));
     }
 
     #[test]

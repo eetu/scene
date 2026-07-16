@@ -15,6 +15,7 @@
     storeRom,
     userRomUrl,
   } from "./amigaRoms";
+  import { autohideControls } from "./autohideControls";
 
   let {
     core,
@@ -105,7 +106,22 @@
   // iOS Safari has no Fullscreen API on a <div>, so the real button no-ops; fall
   // back to a CSS "pseudo fullscreen" (fixed overlay), as the DOS surface does.
   let pseudoFs = $state(false);
+  // In (pseudo-)fullscreen the toolbar auto-hides after inactivity and reappears
+  // on any pointer/touch/key activity — driven by this flag (see autohideControls).
+  let controlsHidden = $state(false);
   let scriptEl: HTMLScriptElement | null = null;
+
+  // --- Boot watchdog ------------------------------------------------------
+  // EmulatorJS builds its (disabled) virtual-gamepad overlay in the SAME
+  // constructor step that, on a degraded load, can throw before the Launch
+  // button is ever created — stranding the user on a dead controller overlay
+  // with no way to start (seen after toggling between the DOS and Amiga cores).
+  // We treat EmulatorJS's own "ready" event (fired right after the Launch button
+  // is built) as the success signal; if it never arrives, we tear the half-built
+  // UI down and offer a manual Reload instead of leaving the overlay.
+  let booting = false;
+  let bootFailed = $state(false);
+  let bootTimer: ReturnType<typeof setTimeout> | null = null;
 
   const w = () => window as unknown as Record<string, unknown>;
 
@@ -135,9 +151,54 @@
     }
   }
 
+  function clearBootTimer() {
+    if (bootTimer !== null) {
+      clearTimeout(bootTimer);
+      bootTimer = null;
+    }
+  }
+  // EmulatorJS's "ready" fires right after the Launch button exists → boot OK.
+  function handleReady() {
+    booting = false;
+    bootFailed = false;
+    clearBootTimer();
+    preserveNipple(); // window.nipplejs is definitely present now — stash a copy
+  }
+  function startBootWatchdog() {
+    clearBootTimer();
+    booting = true;
+    bootFailed = false;
+    // Local assets only (the core downloads on the Launch click, not now), so a
+    // healthy boot reaches "ready" in ~1–2s; 10s is generous headroom.
+    bootTimer = setTimeout(() => {
+      bootTimer = null;
+      if (!booting) return; // ready already fired
+      booting = false;
+      bootFailed = true;
+      teardown(); // clear the half-built overlay; retry() relaunches
+    }, 10000);
+  }
+  // EmulatorJS bundles nipplejs and attaches it to `window` as a ONE-TIME side
+  // effect of importing emulator.min.js; setVirtualGamepad then reads the bare
+  // `nipplejs` global on EVERY construction. Since loader.js import()s the core
+  // module once and caches it, a later relaunch that finds `window.nipplejs`
+  // cleared throws "nipplejs is not defined" mid-construction (before the Launch
+  // button) — the dead-overlay symptom. Keep a backup of the global once we've
+  // seen it, and restore it before each launch so a relaunch can't be stranded.
+  function preserveNipple() {
+    const g = w();
+    if (g.nipplejs) g.__partyNipplejs = g.nipplejs;
+    else if (g.__partyNipplejs) g.nipplejs = g.__partyNipplejs;
+  }
+  function retry() {
+    bootFailed = false;
+    void launch();
+  }
+
   async function launch() {
     if (!host) return;
     error = null;
+    bootFailed = false;
     // Wait for Svelte to commit the keyed #ejs-player node before the loader's
     // querySelector('#ejs-player') runs — when this component is (re)mounted
     // inside the file browser, the loader can otherwise race the DOM.
@@ -166,6 +227,7 @@
     g.EJS_startOnLoaded = false; // its Start Game click is the audio gesture
     g.EJS_startButtonName = "Launch"; // override the default "Start Game"
     g.EJS_language = "en"; // vendored locales don't include fi
+    g.EJS_ready = handleReady; // success signal for the boot watchdog
     // Worker-thread core ONLY for Amiga (PUAE) — it needs the worker to hold
     // ~50fps for cycle-exact AGA. VICE (C64) is light and runs on the main
     // thread, which is also where EmulatorJS's volume slider applies gain (it
@@ -266,8 +328,14 @@
     scriptEl = document.createElement("script");
     scriptEl.type = "module";
     scriptEl.src = `/vendor/emulatorjs/loader.js?n=${Date.now()}`;
-    scriptEl.onerror = () => (error = "failed to load emulator");
+    scriptEl.onerror = () => {
+      error = "failed to load emulator";
+      booting = false;
+      clearBootTimer();
+    };
+    preserveNipple(); // ensure the nipplejs global survives this (re)launch
     document.body.appendChild(scriptEl);
+    startBootWatchdog();
   }
 
   // Let the visitor supply the Kickstart the server doesn't ship. Validated by
@@ -328,6 +396,8 @@
   }
 
   function teardown() {
+    clearBootTimer();
+    booting = false;
     const g = w();
     const emu = g.EJS_emulator as
       | {
@@ -432,10 +502,24 @@
   onDestroy(() => teardown());
 </script>
 
-<div class="emu" class:fs={pseudoFs}>
+<div
+  class="emu"
+  class:fs={pseudoFs}
+  class:controls-hidden={controlsHidden}
+  use:autohideControls={{ pseudo: pseudoFs, onVisibility: (h) => (controlsHidden = h) }}
+>
   {#if error}<p class="err">{error}</p>{/if}
   {#if romError}<p class="err">{romError}</p>{/if}
   {#if romWarn}<p class="warn">{romWarn}</p>{/if}
+  {#if bootFailed}
+    <div class="boot-failed" role="alert">
+      <p>
+        The emulator didn't start — usually the browser ran low on memory after another demo. Reload
+        to try again.
+      </p>
+      <button onclick={retry}>Reload emulator</button>
+    </div>
+  {/if}
   <div class="bar">
     <!-- settings toggles (left): pressed = on -->
     <div class="grp">
@@ -545,11 +629,51 @@
     color: var(--accent, #f78f08);
     font-size: 12px;
   }
+  /* Degraded-boot fallback: a clear "reload" affordance instead of leaving the
+     user on EmulatorJS's half-built, dead controller overlay. */
+  .boot-failed {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-left: 3px solid #ff4136;
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 13px;
+  }
+  .boot-failed p {
+    margin: 0;
+  }
+  .boot-failed button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 12px;
+    cursor: pointer;
+  }
   .bar {
     display: flex;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 6px;
+    transition: opacity 0.2s ease;
+  }
+  /* Immersive idle: fade the toolbar out and hide the cursor; any activity
+     re-reveals them (autohideControls). Only reached in pseudo-fullscreen. */
+  .emu.controls-hidden {
+    cursor: none;
+  }
+  .emu.controls-hidden .bar {
+    opacity: 0;
+    pointer-events: none;
   }
   .grp {
     display: flex;

@@ -26,7 +26,7 @@ export type Production = {
   title: string | null;
   points: number | null;
   primary_hash: string | null;
-  primary_kind: string | null; // music | image | video | exe | diskimage | text | …
+  primary_kind: string | null; // music | image | video | exe | amiga_exe | diskimage | text | …
   primary_filename: string | null;
   n_files: number;
   order: number | null; // position of this prod's category in the party JSON; sorts compos

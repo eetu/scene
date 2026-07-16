@@ -134,7 +134,10 @@
     collapsed[path] = !collapsed[path];
   }
 
-  // Runnable in-browser: a PC executable (DOS) or a C64/Amiga disk image.
+  // Runnable in-browser: a PC executable (DOS) or a C64/Amiga disk image. An
+  // Amiga Hunk binary (kind "amiga_exe") is never DOS-runnable — it needs a
+  // packaged disk image to run, so it falls through to the "package an *(AGA).hdf"
+  // hint rather than ever reaching js-dos.
   function runnable(f: ProductionFile): boolean {
     if (f.kind === "exe") return platform === "pc";
     if (f.kind === "diskimage") return platform === "c64" || platform === "amiga";
@@ -217,7 +220,7 @@
     if (f.mime.startsWith("image/")) return ImageIcon;
     if (f.mime.startsWith("video/")) return Film;
     if (f.mime.startsWith("audio/") || f.kind === "music") return Music;
-    if (f.kind === "exe" || f.kind === "diskimage") return Monitor;
+    if (f.kind === "exe" || f.kind === "amiga_exe" || f.kind === "diskimage") return Monitor;
     return File;
   }
 
@@ -375,7 +378,7 @@
         <div class="ph">
           <Icon size={26} />
           <p>{selected.filename} · {fmtBytes(selected.size)} · {selected.mime}</p>
-          {#if selected.kind === "exe" && platform === "amiga"}
+          {#if (selected.kind === "amiga_exe" || selected.kind === "exe") && platform === "amiga"}
             <p class="hint">
               No Amiga disk image yet — package an *(AGA).hdf into this folder to run it.
             </p>
