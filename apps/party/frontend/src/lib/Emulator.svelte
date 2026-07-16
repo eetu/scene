@@ -5,6 +5,8 @@
   import { Keyboard, Maximize, Play, Power, Volume2, X } from "@lucide/svelte";
   import { onDestroy } from "svelte";
 
+  import { autohideControls } from "./autohideControls";
+
   let {
     bundleUrl,
     label = "Launch",
@@ -55,6 +57,7 @@
     return KBD_PUNCT[ch] ?? null;
   }
 
+  let wrap = $state<HTMLDivElement | null>(null);
   let host = $state<HTMLDivElement | null>(null);
   let started = $state(false);
   let loading = $state(false);
@@ -68,6 +71,9 @@
   // one — so on coarse pointers we focus a hidden input to raise the soft
   // keyboard and forward its keys into DOSBox.
   let pseudoFs = $state(false);
+  // In fullscreen the toolbar auto-hides after inactivity (see autohideControls)
+  // and reappears on any pointer/touch/key activity — driven by this flag.
+  let controlsHidden = $state(false);
   // Sound-card cheat-sheet snackbar. Many DOS demos run their own SETUP that
   // ignores the BLASTER/ULTRASND env we bake in and asks you to pick a card by
   // hand — so we surface the values (GUS first) on launch, dismissible, and
@@ -140,10 +146,15 @@
       void document.exitFullscreen?.();
       return;
     }
+    // Fullscreen the WHOLE emu (toolbar + screen), not just the screen — in
+    // kiosk mode the toolbar's Fullscreen/Exit button is the only way out, and
+    // js-dos grabs the keyboard (Chromium's Keyboard Lock API, absent on
+    // Safari), so a bare Escape won't exit fullscreen there. Keeping the toolbar
+    // visible gives a reliable, keyboard-independent exit on every browser.
     // Real Fullscreen API where it exists (desktop); CSS overlay fallback on
     // iOS Safari, where requestFullscreen is absent on non-video elements.
-    if (host?.requestFullscreen) {
-      host.requestFullscreen().catch(() => (pseudoFs = true));
+    if (wrap?.requestFullscreen) {
+      wrap.requestFullscreen().catch(() => (pseudoFs = true));
     } else {
       pseudoFs = !pseudoFs;
     }
@@ -228,10 +239,16 @@
   // out for demos that don't respond to ESC at all. Also drops fullscreen: the
   // iOS CSS-overlay (`pseudoFs`) has no other exit once the toolbar unmounts, so
   // leaving it set would strand the user on a black full-viewport overlay.
-  function exitEmu() {
+  // Fully release the js-dos core. Its stop() only tells the guest to exit —
+  // which is what throws the async "Aborted(RuntimeError: unreachable)" trap —
+  // and this build runs DOSBox on the MAIN thread (no worker to terminate), so
+  // its multi-hundred-MB WASM heap is reclaimed only once every reference to the
+  // Emscripten Module is dropped. Null our handles and clear the host DOM so the
+  // GC can collect it before the next (possibly heavier) core allocates, rather
+  // than stranding it — otherwise a stranded heap can starve a subsequent
+  // emulator launch (the party player toggles between the DOS and Amiga cores).
+  function releaseDos() {
     stopSizePoll();
-    if (document.fullscreenElement) void document.exitFullscreen?.();
-    pseudoFs = false;
     try {
       dosProps?.stop?.();
     } catch {
@@ -239,22 +256,31 @@
     }
     dosProps = null;
     ci = null;
-    started = false;
-    showSound = false;
     host?.replaceChildren();
   }
 
+  function exitEmu() {
+    if (document.fullscreenElement) void document.exitFullscreen?.();
+    pseudoFs = false;
+    releaseDos();
+    started = false;
+    showSound = false;
+  }
+
   onDestroy(() => {
-    stopSizePoll();
-    try {
-      dosProps?.stop?.();
-    } catch {
-      /* nothing to tear down */
-    }
+    // Don't strand the page in fullscreen when unmounted mid-session.
+    if (document.fullscreenElement) void document.exitFullscreen?.();
+    releaseDos();
   });
 </script>
 
-<div class="emu" class:fs={pseudoFs}>
+<div
+  class="emu"
+  class:fs={pseudoFs}
+  class:controls-hidden={controlsHidden}
+  bind:this={wrap}
+  use:autohideControls={{ pseudo: pseudoFs, onVisibility: (h) => (controlsHidden = h) }}
+>
   {#if !started}
     <button class="launch" onclick={launch}>
       <Play size={20} />
@@ -348,6 +374,22 @@
     background: #000;
     padding: 8px;
   }
+  /* Real fullscreen (desktop) fills the screen via the UA stylesheet; give it
+     the same backdrop + inset so the toolbar sits over black, not a stretched
+     transparent box. */
+  .emu:fullscreen {
+    background: #000;
+    padding: 8px;
+  }
+  /* Immersive idle: fade the toolbar out and hide the cursor; any activity
+     re-reveals them (autohideControls). Only reached in fullscreen. */
+  .emu.controls-hidden {
+    cursor: none;
+  }
+  .emu.controls-hidden .bar {
+    opacity: 0;
+    pointer-events: none;
+  }
   /* Off-screen, invisible — exists only to host the mobile soft keyboard. */
   .kbd-capture {
     position: absolute;
@@ -381,6 +423,7 @@
     align-self: flex-end;
     display: flex;
     gap: 6px;
+    transition: opacity 0.2s ease;
   }
   .bar button {
     display: inline-flex;
