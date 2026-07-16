@@ -9,7 +9,7 @@ import { createActor, fromPromise } from "xstate";
 
 import {
   attachBackground,
-  holdMediaElement,
+  pauseMediaElement,
   routeAudioToElement,
   setupMediaElementRoute,
   wakeAudio,
@@ -598,13 +598,13 @@ export function togglePause() {
   player.togglePause();
   transport.send({ type: "TOGGLE" }); // playing ⇄ paused; the subscription flips playback.paused
   if (playback.paused) {
-    // KEEP the routed <audio> element playing (it streams the paused worklet's
-    // silence) so iOS doesn't suspend the AudioContext during the pause — the
-    // element is its only sink once routed, and an idle context iOS kills left a
-    // long pause unrecoverable without a reload. The OS transport stays coherent
-    // via mediaSession.playbackState = "paused" (syncNowPlaying below), not by
-    // pausing the element.
-    holdMediaElement();
+    // Pause the routed <audio> too. Once output is moved to it, that element is
+    // the only sink — the worklet going silent doesn't pause the element, so it
+    // keeps streaming silence and its own `paused` state stays false. The OS /
+    // hardware transport then reads it as still playing and keeps sending "pause"
+    // (never "play"), so playback pauses but can't be resumed. Pausing it keeps
+    // the element's state coherent with ours.
+    pauseMediaElement();
   } else {
     // Unpausing: iOS may have suspended the context and stalled the background
     // <audio> element during the pause; nudge both back to life inside this tap.
