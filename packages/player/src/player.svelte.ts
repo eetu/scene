@@ -10,6 +10,7 @@ import { createActor, fromPromise } from "xstate";
 import {
   attachBackground,
   pauseMediaElement,
+  resetBackgroundRoute,
   routeAudioToElement,
   setupMediaElementRoute,
   wakeAudio,
@@ -137,6 +138,26 @@ export type ParsedMeta = {
 let player: any = null;
 let ready: Promise<void> | null = null;
 let parseId = 0;
+
+// --- iOS: recreate the AudioContext on a stalled-but-"running" render -----
+// After an iOS interruption (backgrounding, a call, AirPods handing the audio
+// route to another app) the AudioContext can report state="running" while its
+// audio unit is actually dead: the pattern freezes (onProgress stops arriving)
+// and resume() is a no-op. The only cure is a brand-new context. We track when a
+// frame last arrived; if the user taps play/pause while "playing" but no frame
+// has landed for >2s, the render is stalled — so we rebuild the engine on a
+// fresh AudioContext inside the tap gesture, reloading the current track at its
+// position (resumeSeek). Verified on-device (iOS PWA + AirPods).
+let lastProgressAt = 0;
+let resumeSeek: number | null = null;
+let recreating = false;
+// One-time global timers (must survive an engine recreate, so they're registered
+// once, not per engine). Watchdog baselines are module-level so a recreate can
+// reset them for the fresh context's clock.
+let globalsWired = false;
+let wdLastWall = 0;
+let wdLastCtx = 0;
+let wdLastPos = 0;
 // Play-count gating: only count a tune once it's actually been listened to past
 // a threshold (so fast skips don't inflate counts). Reset per track start.
 let playCounted = false;
@@ -239,11 +260,95 @@ transport.subscribe(() => {
 });
 transport.start();
 
+// One-time global timer — registered once and left alone across an engine
+// recreate (recreateEngine nulls `player` and re-runs ensurePlayer, which
+// re-binds the per-engine handlers but must NOT re-add this).
+function wireGlobalsOnce(): void {
+  if (globalsWired) return;
+  globalsWired = true;
+  // --- Wake-from-freeze resync (laptop sleep / long suspend) --------------
+  // Song timing is purely output-paced; nothing tracks wall time. If the audio
+  // clock (currentTime) falls far behind wall-clock while playing, the pipeline
+  // froze — reseek so it restarts clean instead of racing. (Distinct from the
+  // iOS stalled-unit case, which needs a full recreate — see recreateEngine.)
+  // Baselines are module-level so recreateEngine can reset them to the fresh
+  // context's clock.
+  wdLastWall = performance.now();
+  wdLastCtx = player.context.currentTime;
+  setInterval(() => {
+    if (recreating || !player) return;
+    const wall = performance.now();
+    const ctx = player.context.currentTime;
+    const stalled = wall - wdLastWall - (ctx - wdLastCtx) * 1000;
+    wdLastWall = wall;
+    wdLastCtx = ctx;
+    if (stalled > 3000 && playback.current && (playback.playing || playback.paused)) {
+      try {
+        player.setPos(wdLastPos);
+      } catch {
+        /* engine gone */
+      }
+    }
+    wdLastPos = playback.position;
+  }, 1000);
+}
+
+// Recreate the whole engine on a fresh AudioContext (the only cure for iOS
+// leaving a context state="running" but its audio unit dead — resume()/setPos
+// are no-ops on it). Runs inside a play gesture so iOS allows the new context;
+// reloads the current track at its position. See lastProgressAt / the tap hooks.
+async function recreateEngine(): Promise<void> {
+  const cur = playback.current;
+  const pos = playback.position;
+  const old = player;
+  recreating = true;
+  player = null;
+  ready = null;
+  resetBackgroundRoute(); // drop the stale <audio>/stream so the new graph rebuilds it
+  try {
+    old?.stop?.();
+    void old?.context?.close?.(); // fire-and-forget: awaiting would leave the gesture
+  } catch {
+    /* already gone */
+  }
+  resumeSeek = pos > 1 ? Math.floor(pos) : null;
+  lastProgressAt = performance.now();
+  try {
+    if (cur) await playTrack(cur); // ensurePlayer → new AudioContext (synchronously, in-gesture)
+  } finally {
+    // Re-baseline the wake-from-freeze watchdog for the new context's clock.
+    if (player) {
+      wdLastWall = performance.now();
+      wdLastCtx = player.context.currentTime;
+      wdLastPos = 0;
+    }
+    recreating = false;
+  }
+}
+
+// Would tapping play/pause hit a stalled-but-"running" context? (Shows playing,
+// pattern frozen, no frames for >2s.) If so, recreate instead of the normal
+// toggle — the tap is the gesture the new context needs.
+function tapRecreatesStalled(): boolean {
+  if (
+    player &&
+    playback.playing &&
+    !playback.paused &&
+    lastProgressAt > 0 &&
+    performance.now() - lastProgressAt > 2000
+  ) {
+    void recreateEngine();
+    return true;
+  }
+  return false;
+}
+
 function ensurePlayer(): Promise<void> {
   if (player) return ready as Promise<void>;
   // Synchronous `new AudioContext()` keeps us inside the click gesture.
   player = createEngine({ repeatCount: 0 });
   attachBackground(player); // wire background routing + wakeAudio to this engine
+  wireGlobalsOnce(); // one-time timers (survive an engine recreate)
   attachJam(player, wakeAudio); // wire the Web Audio sampler to this engine
   attachEditor(player); // wire the pattern editor + sequencer to this engine
   // Tap the output for the scope. The gain node exists immediately (the
@@ -293,6 +398,7 @@ function ensurePlayer(): Promise<void> {
     });
   player.onProgress((d: ProgressMsg) => {
     consecutiveErrors = 0; // a frame arrived → this track plays; clear the skip guard
+    lastProgressAt = performance.now(); // a frame landed → the render is alive (stall detector)
     // First frame confirms audio is actually running (loading → playing).
     if (transport.getSnapshot().matches("loading")) transport.send({ type: "PROGRESS" });
     playback.position = d.pos ?? 0;
@@ -308,6 +414,16 @@ function ensurePlayer(): Promise<void> {
   player.onMetadata((meta: Meta) => {
     player.setRepeatCount(playback.repeat ? -1 : 0);
     applyMeta(meta); // song/duration/mutes + save + OS Now Playing
+    // After a recreate-on-stall reload, seek back to where playback stalled.
+    if (resumeSeek != null) {
+      const s = resumeSeek;
+      resumeSeek = null;
+      try {
+        player.setPos(s);
+      } catch {
+        /* seek failed — start from the top */
+      }
+    }
   });
   player.onEnded(() => {
     // (With repeat on, the module loops and onEnded never fires.) Auto-advance
@@ -353,36 +469,6 @@ function ensurePlayer(): Promise<void> {
       resolve(d.meta ?? null);
     }
   });
-  // --- Wake-from-freeze resync -------------------------------------------
-  // Song timing is purely output-paced (the worklet drains PCM, the worker
-  // refills on ack) — nothing tracks wall time. After the OS sleeps (or a very
-  // long suspend) the audio hardware freezes; on wake the pipeline can race to
-  // catch up, so patterns fly by with only squeaks and only a reload recovers.
-  // Detect the freeze by the audio clock (context.currentTime) falling far
-  // behind wall-clock, then flush + reseek to the pre-freeze position (setPos
-  // bumps the generation → the worklet drops its stale queue, the worker
-  // reseeks) so playback restarts clean. A normal second-to-second tick never
-  // trips it (the two clocks stay in step, including while merely paused or
-  // backgrounded-but-playing); only a real freeze makes the audio clock stall.
-  let lastWall = performance.now();
-  let lastCtx = player.context.currentTime;
-  let lastPos = 0;
-  setInterval(() => {
-    const wall = performance.now();
-    const ctx = player.context.currentTime;
-    const stalled = wall - lastWall - (ctx - lastCtx) * 1000; // ms the audio clock fell behind
-    lastWall = wall;
-    lastCtx = ctx;
-    if (stalled > 3000 && playback.current && (playback.playing || playback.paused)) {
-      try {
-        player.setPos(lastPos); // discard the racing/stale pipeline; restart clean
-      } catch {
-        /* engine gone */
-      }
-    }
-    lastPos = playback.position;
-  }, 1000);
-
   wirePlatformIntegration({
     toggle: transportToggle,
     togglePause,
@@ -595,6 +681,10 @@ export function togglePause() {
     return;
   }
   if (!player || !playback.current || !playback.playing) return;
+  // If it "shows playing" but the render has been frozen >2s, the iOS audio unit
+  // is dead behind a state="running" context — a toggle here does nothing, so
+  // rebuild the engine on this gesture instead.
+  if (tapRecreatesStalled()) return;
   player.togglePause();
   transport.send({ type: "TOGGLE" }); // playing ⇄ paused; the subscription flips playback.paused
   if (playback.paused) {
