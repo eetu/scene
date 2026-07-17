@@ -63,7 +63,13 @@ fn extract_mod_names(bytes: &[u8]) -> Vec<String> {
 
 /// A fixed-width, NUL-padded text field: printable ASCII up to the first NUL,
 /// trimmed, kept if it has a letter and isn't a dup.
-fn field(bytes: &[u8], start: usize, len: usize, out: &mut Vec<String>, seen: &mut HashSet<String>) {
+fn field(
+    bytes: &[u8],
+    start: usize,
+    len: usize,
+    out: &mut Vec<String>,
+    seen: &mut HashSet<String>,
+) {
     let end = (start + len).min(bytes.len());
     if start >= end {
         return;
@@ -120,7 +126,9 @@ fn take_run(run: &[u8], min_len: usize, out: &mut Vec<String>, seen: &mut HashSe
     if letters * 2 < chars {
         return;
     }
-    if s.chars().any(|c| matches!(c, '\\' | '|' | '^' | '~' | '{' | '}' | '`')) {
+    if s.chars()
+        .any(|c| matches!(c, '\\' | '|' | '^' | '~' | '{' | '}' | '`'))
+    {
         return;
     }
     if seen.insert(s.to_lowercase()) {
@@ -265,7 +273,12 @@ pub fn merge(manifest: &mut Manifest, proposals: &Proposals) -> MergeStats {
             .as_deref()
             .map(str::trim)
             .filter(|s| !s.is_empty());
-        let with: Vec<&str> = p.with.iter().map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+        let with: Vec<&str> = p
+            .with
+            .iter()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
         if for_group.is_none() && p.year.is_none() && with.is_empty() {
             continue;
         }
@@ -342,15 +355,17 @@ mod tests {
         assert_eq!(corpus.len(), 1);
         assert_eq!(corpus[0].artist, "4-Mat");
         assert_eq!(corpus[0].filename, "enigma.xm");
-        assert!(corpus[0].text.iter().any(|t| t.contains("4-mat of anarchy")));
+        assert!(corpus[0]
+            .text
+            .iter()
+            .any(|t| t.contains("4-mat of anarchy")));
     }
 
     #[test]
     fn merge_is_additive_and_skips_empty() {
-        let mut m: Manifest = serde_json::from_str(
-            r#"{ "artists": { "4-Mat": { "groups": ["Anarchy"] } } }"#,
-        )
-        .unwrap();
+        let mut m: Manifest =
+            serde_json::from_str(r#"{ "artists": { "4-Mat": { "groups": ["Anarchy"] } } }"#)
+                .unwrap();
         let proposals: Proposals = serde_json::from_str(
             r#"{
               "artists": {

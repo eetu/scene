@@ -43,7 +43,10 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
-async fn serve_spa(State(state): State<AppState>, uri: axum::http::Uri) -> axum::response::Response {
+async fn serve_spa(
+    State(state): State<AppState>,
+    uri: axum::http::Uri,
+) -> axum::response::Response {
     use axum::response::Html;
 
     let base = &state.cfg.static_dir;
@@ -271,12 +274,8 @@ async fn api_productions(
         let order = cfg.category_order(cat).map(|i| i as i64);
         for (i, row) in c.results.iter().enumerate() {
             let has = match (row.title.as_deref(), row.group.as_deref()) {
-                (Some(t), _) if !t.is_empty() => {
-                    present_titles.contains(&(cat.clone(), norm(t)))
-                }
-                (_, Some(g)) if !g.is_empty() => {
-                    present_groups.contains(&(cat.clone(), norm(g)))
-                }
+                (Some(t), _) if !t.is_empty() => present_titles.contains(&(cat.clone(), norm(t))),
+                (_, Some(g)) if !g.is_empty() => present_groups.contains(&(cat.clone(), norm(g))),
                 _ => true, // nothing to match on → don't synthesize
             };
             if has {
@@ -288,7 +287,11 @@ async fn api_productions(
             // would collide on `missing-{cat}-{rank}-{title}` and the SPA's
             // keyed {#each} would throw, leaving the whole compo unopenable.
             missing.push(ProductionOut {
-                id: format!("missing-{cat}-{}-{i}-{}", row.rank, norm(row.title.as_deref().or(row.group.as_deref()).unwrap_or(""))),
+                id: format!(
+                    "missing-{cat}-{}-{i}-{}",
+                    row.rank,
+                    norm(row.title.as_deref().or(row.group.as_deref()).unwrap_or(""))
+                ),
                 category: cat.clone(),
                 compo: c.compo.clone(),
                 platform: c.platform.clone(),
@@ -331,8 +334,10 @@ async fn api_productions(
         let exists: bool = state
             .db
             .with(move |c| {
-                c.query_row("SELECT 1 FROM parties WHERE slug = ?1", [&slug], |_| Ok(true))
-                    .or(Ok(false))
+                c.query_row("SELECT 1 FROM parties WHERE slug = ?1", [&slug], |_| {
+                    Ok(true)
+                })
+                .or(Ok(false))
             })
             .await?;
         if !exists {
@@ -552,7 +557,10 @@ async fn api_text(
     let text = crate::cp437::decode(&bytes);
     Ok((
         [
-            (header::CONTENT_TYPE, "text/plain; charset=utf-8".to_string()),
+            (
+                header::CONTENT_TYPE,
+                "text/plain; charset=utf-8".to_string(),
+            ),
             (header::CACHE_CONTROL, "private, max-age=3600".to_string()),
         ],
         text,
@@ -820,7 +828,10 @@ async fn api_bundle(
     Path(file): Path<String>,
     axum::extract::Query(q): axum::extract::Query<BundleQuery>,
 ) -> AppResult<impl IntoResponse> {
-    let prod_id = file.strip_suffix(".jsdos").ok_or(AppError::NotFound)?.to_string();
+    let prod_id = file
+        .strip_suffix(".jsdos")
+        .ok_or(AppError::NotFound)?
+        .to_string();
 
     let primary_rel: Option<String> = state
         .db

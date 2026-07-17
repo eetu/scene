@@ -214,7 +214,9 @@ mod tests {
         let db = Db::open_in_memory().unwrap();
         db.with(|c| {
             Db::migrate(c).unwrap();
-            c.query_row("SELECT COUNT(*) FROM productions", [], |r| r.get::<_, i64>(0))
+            c.query_row("SELECT COUNT(*) FROM productions", [], |r| {
+                r.get::<_, i64>(0)
+            })
         })
         .await
         .unwrap();

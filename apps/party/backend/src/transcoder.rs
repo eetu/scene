@@ -74,7 +74,9 @@ impl<'a> TranscoderClient<'a> {
         use reqwest::StatusCode;
         if matches!(
             status,
-            StatusCode::UNPROCESSABLE_ENTITY | StatusCode::BAD_REQUEST | StatusCode::PAYLOAD_TOO_LARGE
+            StatusCode::UNPROCESSABLE_ENTITY
+                | StatusCode::BAD_REQUEST
+                | StatusCode::PAYLOAD_TOO_LARGE
         ) {
             return Err(AppError::Unprocessable(format!(
                 "transcoder rejected the source ({kind}, .{ext}): {status}"

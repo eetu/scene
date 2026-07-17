@@ -328,11 +328,20 @@ mod tests {
     #[test]
     fn artist_from_path_derivation() {
         // seg0 is the artist; there is no path-group.
-        assert_eq!(artist_from_path("Purple Motion/sundance.xm"), Some("Purple Motion".into()));
+        assert_eq!(
+            artist_from_path("Purple Motion/sundance.xm"),
+            Some("Purple Motion".into())
+        );
         // The unknown-author bucket is just another first segment.
-        assert_eq!(artist_from_path("_unknown/ripped.mod"), Some("_unknown".into()));
+        assert_eq!(
+            artist_from_path("_unknown/ripped.mod"),
+            Some("_unknown".into())
+        );
         // Deeper nesting collapses to seg0.
-        assert_eq!(artist_from_path("4-Mat/1993/enigma.mod"), Some("4-Mat".into()));
+        assert_eq!(
+            artist_from_path("4-Mat/1993/enigma.mod"),
+            Some("4-Mat".into())
+        );
         // A file at the root has no artist.
         assert_eq!(artist_from_path("loose.mod"), None);
     }
