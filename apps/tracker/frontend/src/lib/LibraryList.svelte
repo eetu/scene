@@ -5,7 +5,7 @@
   // grouped list); the parent owns the overlays, so track actions come in as
   // callbacks (open the player view / add to playlist / rename), plus the
   // playlists tab's data (that tab's own state lives in +page for now).
-  import { ListPlus, Pencil, Play, Star, Trash2 } from "@lucide/svelte";
+  import { ChevronRight, ListPlus, Pencil, Play, Star, Trash2 } from "@lucide/svelte";
   import { BoingBall, playback } from "@scene/player";
   import { createVirtualizer } from "@tanstack/svelte-virtual";
   import { tick, untrack } from "svelte";
@@ -284,6 +284,7 @@
                 onclick={() => toggleGroup(row.name)}
                 aria-expanded={row.open}
               >
+                <span class="chev" aria-hidden="true"><ChevronRight size={16} /></span>
                 <span class="grp-name"
                   >{isGroupless ? GROUPLESS_LABEL : isNoAlbum ? NO_ALBUM_LABEL : row.name}</span
                 >
@@ -309,7 +310,9 @@
                     class="plays"
                     title={t.play_count > 0 ? `${t.play_count} plays` : undefined}
                   >
-                    {#if t.play_count > 0}<Play size={9} fill="currentColor" />{t.play_count}{/if}
+                    {#if t.play_count > 0}<span class="chip"
+                        ><Play size={8} fill="currentColor" />{t.play_count}</span
+                      >{/if}
                   </span>
                   <span class="dur">{t.duration ? fmtTime(t.duration) : ""}</span>
                 </button>
@@ -489,17 +492,40 @@
     width: 100%;
     height: 40px;
     padding: 0 12px;
+    /* Recessed shelf: dimmer than --panel so the brighter track rows read as
+       the content plane. --panel-sunk is derived per-theme (see +layout) — a
+       darker band in dark, a soft-grey band in light. This overrides .card's
+       --panel: .head is defined after .card, equal specificity, so it wins. */
+    background: var(--panel-sunk);
     border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
     border-radius: 6px 6px 0 0;
     cursor: pointer;
     text-align: left;
   }
+  /* It's a collapse toggle — highlight on hover with the same off-bg the track
+     rows use, so a hovered header reads as interactive (and consistent). */
+  .head:hover {
+    background: var(--panel-hi);
+  }
   .head.closed {
     border-radius: 6px;
   }
+  /* Disclosure chevron: right when closed, rotates down when open (calm 150ms). */
+  .chev {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    color: var(--muted);
+    transition: transform var(--halo-d-fast) ease;
+  }
+  .head:not(.closed) .chev {
+    transform: rotate(90deg);
+  }
   .grp-name {
     font-weight: 600;
+    /* Slight tracking so the name reads as a section label, not a title. */
+    letter-spacing: 0.02em;
   }
   .grp-count {
     margin-left: auto;
@@ -559,17 +585,28 @@
      keeps the edge from going ragged). */
   .plays {
     flex: 0 0 auto;
-    width: 38px;
+    width: 50px;
     display: inline-flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 3px;
-    color: var(--muted);
     font-size: 12px;
     font-variant-numeric: tabular-nums;
   }
+  /* Playcount as one fused badge: the play glyph + count read as a single
+     "plays" token (a subtle pill), not an icon floating beside a number. The
+     translucent-ink fill keeps the pill visible on both the row and its hover
+     (--panel-hi) background, instead of merging into a hovered row. */
+  .plays .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px 1px 5px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--text) 14%, transparent);
+    color: var(--text);
+  }
   .plays :global(svg) {
-    opacity: 0.75;
+    opacity: 0.9;
   }
   .dur {
     flex: 0 0 auto;
