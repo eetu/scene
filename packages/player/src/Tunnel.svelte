@@ -9,7 +9,15 @@
   // seeded per track), evaluated per-depth inside the shader. Rings + rails form
   // the neon grid; walls flash/breathe on each musical beat; brightness + flight
   // speed track the music's energy. CSP-safe (GLSL compiles on the GPU, not eval).
-  import { beatBpm, beatPhase, playback, sampleBands } from "./player.svelte";
+  import {
+    beatBpm,
+    beatPhase,
+    playback,
+    readSpectrum,
+    sampleBands,
+    SPECTRUM_SIZE,
+    spectrumSampleRate,
+  } from "./player.svelte";
   import { driveFrames } from "./raf";
 
   let { active = true }: { active?: boolean } = $props();
@@ -64,6 +72,8 @@
     uniform float uK;      // theme crossfade 0→1 (A→B)
     uniform float uSteps;  // adaptive raymarch step cap (perf)
     uniform float uBurst;  // drop flash 0..1 (big energy jump)
+    uniform sampler2D uBands; // 24-bin output spectrum (Voxel theme → per-column bars)
+    uniform float uLoop;   // front-to-back somersault: view pitch offset 0→TAU (a full loop)
 
     const float R = 1.0;          // tube radius (world units)
     const float FAR = 62.0;       // max march distance (deep enough to hide the void)
@@ -219,14 +229,17 @@
       return vec3(0.01, 0.02, 0.06) + star * line * streak * on * nearFade * 2.3;
     }
     // Purple voxel tunnel: blocky cells (per-cell purple shade) with dark grout
-    // borders, so the wall reads as extruded voxels.
+    // borders, so the wall reads as extruded voxels. Each of the 24 columns around
+    // the ring maps to one frequency band (uBands): loud bands glow hot magenta and
+    // push their blocks inward (see the raymarch), so the tube reads as an equalizer.
     vec3 themeVoxel(float z, float a, float t) {
       float cz = z * 2.0, ca = a * 24.0; // 24 cells around, integer → seamless
       float r = fract(sin(floor(cz) * 12.9 + floor(ca) * 78.2 + uSeed) * 43758.5);
       vec3 body = mix(vec3(0.18, 0.04, 0.3), vec3(0.65, 0.25, 0.95), r);
       vec2 f = abs(fract(vec2(cz, ca)) - 0.5) * 2.0; // 0 at cell centre → 1 at border
       float lit = 1.0 - smoothstep(0.7, 1.0, max(f.x, f.y)) * 0.85;
-      return body * lit;
+      float band = texture2D(uBands, vec2((floor(ca) + 0.5) / 24.0, 0.5)).r; // column level
+      return body * lit + vec3(0.95, 0.4, 1.0) * band * band * lit * 0.9; // hot glow on loud columns
     }
     // Spaceship corridor: brushed-metal panels with recessed seams and recurring
     // raised bulkhead frames, lit by twin cyan strips with power pulsing down the
@@ -466,8 +479,10 @@
       // screen theme label can't drift from what's drawn) and fed in as uniforms.
       float idA = uIdA, idB = uIdB, k = uK;
       float shapeA = shapeOf(idA), shapeB = shapeOf(idB);
-      // Voxel theme (id 9): how much it's showing → displace the wall per cell so
-      // some blocks rise inward toward the viewer and others recede.
+      // Voxel theme (id 8): its crossfade weight → how much the per-column audio
+      // displacement shows. Each of the 24 angular cells rides one frequency band
+      // (uBands), so loud bands push that column of blocks inward toward the viewer —
+      // the tube reads as a cylindrical equalizer (plus a little static jitter).
       float voxAmp = ((idA > 7.5 && idA < 8.5) ? (1.0 - k) : 0.0) +
                      ((idB > 7.5 && idB < 8.5) ? k : 0.0);
       voxAmp *= 0.22;
@@ -477,13 +492,15 @@
       // is covered fast and we creep as we near the wall. uFov punches in on beats.
       vec3 rd = normalize(vec3(uv, uFov));
       // ...and pitch over hills from the vertical drift ahead: climbing tilts the
-      // view up, cresting tilts it down so the far side drops out of sight.
-      float pitch = clamp(center(3.0).y * 0.34, -0.55, 0.55);
+      // view up, cresting tilts it down so the far side drops out of sight. uLoop
+      // adds a full front-to-back somersault (0→TAU) — the tube exists behind the
+      // camera too, so the ray keeps hitting the wall as the view tumbles over.
+      float pitch = clamp(center(3.0).y * 0.34, -0.55, 0.55) + uLoop;
       float cp = cos(pitch), sp = sin(pitch);
       rd = vec3(rd.x, rd.y * cp + rd.z * sp, -rd.y * sp + rd.z * cp);
       float t = 0.0;
       bool hit = false;
-      float hitZ = 0.0, hitAng = 0.0;
+      float hitZ = 0.0, hitAng = 0.0, hitDist = 0.0;
       for (int i = 0; i < 104; i++) {
         if (float(i) >= uSteps) break; // adaptive step cap (perf)
         vec3 pos = rd * t;
@@ -492,14 +509,17 @@
         if (voxAmp > 0.0) {
           float a01 = atan(rel.y, rel.x) * 0.15915494 + 0.5;
           float cz = mod(floor((uCamZ + pos.z) * 2.0), 1024.0);
-          float h = rnd1(cz * 31.0 + floor(a01 * 24.0) * 7.0) - 0.5; // −0.5..0.5 per cell
-          wallR -= h * 2.0 * voxAmp; // raise (inward) / lower (outward) blocks
+          float cellA = floor(a01 * 24.0);
+          float h = rnd1(cz * 31.0 + cellA * 7.0) - 0.5; // −0.5..0.5 static per-cell jitter
+          float band = texture2D(uBands, vec2((cellA + 0.5) / 24.0, 0.5)).r; // this column's level
+          wallR -= voxAmp * (h * 0.7 + band * 1.5); // subtle static texture + audio bars, inward
         }
         float slack = wallR - mix(shapeRadius(rel, shapeA), shapeRadius(rel, shapeB), k); // >0 inside
         if (slack < 0.003) {
           hit = true;
           hitZ = pos.z;
           hitAng = atan(rel.y, rel.x);
+          hitDist = t;
           break;
         }
         t += max(slack * 0.85, 0.02);
@@ -514,6 +534,7 @@
         vec2 rel = pos.xy - center(pos.z);
         hitZ = pos.z;
         hitAng = atan(rel.y, rel.x);
+        hitDist = t;
         hit = true;
       }
 
@@ -546,7 +567,7 @@
         vec3 outer = (wall2(idA, idB, kz, oz - 0.6, a - ab) + wall2(idA, idB, kz, oz, a) +
                       wall2(idA, idB, kz, oz + 0.6, a + ab)) / 3.0;
         col += outer * gap * mix(0.3, 1.0, hyperAmt);
-        float fog = exp(-hitZ * 0.055); // gentle: the tube recedes into depth, not a void
+        float fog = exp(-hitDist * 0.055); // by true ray distance (works looking backward mid-loop)
         col *= fog * (0.55 + uGlow * 0.9);
         col += col * uPulse * 0.5; // beat bloom kick (theme-agnostic)
 
@@ -672,6 +693,38 @@
     const uK = gl.getUniformLocation(prog, "uK");
     const uSteps = gl.getUniformLocation(prog, "uSteps");
     const uBurst = gl.getUniformLocation(prog, "uBurst");
+    const uBands = gl.getUniformLocation(prog, "uBands");
+    const uLoop = gl.getUniformLocation(prog, "uLoop");
+
+    // Output spectrum → a 24×1 luminance texture, one texel per angular column. The
+    // Voxel theme samples it so each column of blocks rides a frequency band (a
+    // cylindrical equalizer). NPOT is fine here: NEAREST + CLAMP_TO_EDGE, no mipmap.
+    const BANDS = 24;
+    const F_MIN = 40;
+    const F_MAX = 12000; // log-spaced band range (Hz)
+    const bandTex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, bandTex);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.LUMINANCE,
+      BANDS,
+      1,
+      0,
+      gl.LUMINANCE,
+      gl.UNSIGNED_BYTE,
+      new Uint8Array(BANDS),
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.uniform1i(uBands, 0);
+    const specBuf = new Uint8Array(SPECTRUM_SIZE);
+    const bandVals = new Float32Array(BANDS); // eased per-band levels 0..1
+    const bandBytes = new Uint8Array(BANDS);
 
     // Cap the backing resolution at 1.5× rather than full 2× retina: the tunnel
     // is smooth gradients, so 1.5× looks identical for ~44% fewer fragment-shader
@@ -755,6 +808,17 @@
     let prevEnergy = 0;
     let lastDrop = -1e9;
     let burst = 0; // drop flash, decays
+    // Front-to-back turns: each event flips the view a half-turn (180°) about the
+    // pitch axis (uLoop), kicked off by a musical drop or, failing that, on a timer,
+    // eased over LOOP_DUR. So the view alternates forward → backward (flying in
+    // reverse, watching where you've been) → forward, and two turns add up to a full
+    // somersault. Skipped under prefers-reduced-motion. loopBase is the resting angle
+    // (0 or π), loopPhase −1 = idle, else 0..1 through the current turn.
+    let loopPhase = -1;
+    let loopBase = 0;
+    let lastLoop = -1;
+    const LOOP_DUR = 3.6; // seconds for one 180° turn
+    const allowLoop = motion >= 1; // no turns under reduced-motion
     const smooth01 = (e0: number, e1: number, x: number) => {
       const s = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
       return s * s * (3 - 2 * s);
@@ -797,6 +861,7 @@
         // burst (screen flash) synced to musical drops. It no longer switches the
         // wall theme — a theme changing on its own just read as confusing.
         energyBase += ((active ? energy : 0) - energyBase) * 0.02;
+        let droppedNow = false;
         if (
           active &&
           energy > energyBase + 0.3 &&
@@ -805,6 +870,7 @@
         ) {
           lastDrop = now;
           burst = 1;
+          droppedNow = true;
         }
         prevEnergy = energy;
         burst *= Math.exp(-dt / 0.45);
@@ -839,6 +905,35 @@
         camZ += speed * (1 + punch * 0.4) * dt;
         spin = (spin + dt * (0.05 + glow * 0.15) * motion) % TAU;
 
+        // Front-to-back turn, timed to the music: kick off a 180° flip on a drop (or
+        // every ~25s as a fallback), at most one every 6s, then ease it over LOOP_DUR
+        // with zero velocity at both ends so it starts/lands smooth.
+        if (lastLoop < 0) lastLoop = now; // defer the first timer turn to +25s from open
+        if (
+          allowLoop &&
+          loopPhase < 0 &&
+          active &&
+          now - lastLoop > 6000 &&
+          (droppedNow || now - lastLoop > 25000)
+        ) {
+          loopPhase = 0;
+          lastLoop = now;
+        }
+        if (loopPhase >= 0) {
+          loopPhase += dt / LOOP_DUR;
+          if (loopPhase >= 1) {
+            loopBase = (loopBase + Math.PI) % TAU; // land on the new resting angle
+            loopPhase = -1;
+          }
+        }
+        // Ease the current half-turn: base + (p − sin(2πp)/2π)·π → +180° with zero
+        // velocity at both ends. At rest (idle) it holds loopBase (0 = forward, π =
+        // looking back). Each turn advances the same direction, so turns accumulate.
+        const loopAngle =
+          loopPhase < 0
+            ? loopBase
+            : loopBase + (loopPhase - Math.sin(loopPhase * TAU) / TAU) * Math.PI;
+
         if (lastBeat < 0)
           lastBeat = playback.beat; // first frame: adopt, don't flash/punch
         else if (playback.beat !== lastBeat) {
@@ -848,6 +943,43 @@
         }
         pulse *= Math.exp(-dt / 0.22);
         punch *= Math.exp(-dt / 0.4); // slow decay → smooth push, not a jolt
+
+        // Voxel spectrum bars: while the Voxel theme is on screen, push the 24-bin
+        // output spectrum into the wall-displacement texture — each column of blocks
+        // rides one band (attack fast, release slow so bars pop then ease down).
+        if (idA === 8 || idB === 8) {
+          if (active && readSpectrum(specBuf)) {
+            const hzPerBin = spectrumSampleRate() / 2 / SPECTRUM_SIZE;
+            for (let bi = 0; bi < BANDS; bi++) {
+              const f0 = F_MIN * Math.pow(F_MAX / F_MIN, bi / BANDS);
+              const f1 = F_MIN * Math.pow(F_MAX / F_MIN, (bi + 1) / BANDS);
+              const lo = Math.max(1, Math.floor(f0 / hzPerBin));
+              const hi = Math.min(SPECTRUM_SIZE, Math.max(lo + 1, Math.ceil(f1 / hzPerBin)));
+              let sum = 0;
+              for (let i = lo; i < hi; i++) sum += specBuf[i];
+              const v = Math.pow(sum / (hi - lo) / 255, 0.7); // lift quiet bins so bars read
+              bandVals[bi] += (v - bandVals[bi]) * (v > bandVals[bi] ? 0.6 : 0.15);
+              bandBytes[bi] = Math.min(255, Math.round(bandVals[bi] * 255));
+            }
+          } else {
+            for (let bi = 0; bi < BANDS; bi++) {
+              bandVals[bi] *= 0.9; // idle: let the bars settle
+              bandBytes[bi] = Math.round(bandVals[bi] * 255);
+            }
+          }
+          gl.bindTexture(gl.TEXTURE_2D, bandTex);
+          gl.texSubImage2D(
+            gl.TEXTURE_2D,
+            0,
+            0,
+            0,
+            BANDS,
+            1,
+            gl.LUMINANCE,
+            gl.UNSIGNED_BYTE,
+            bandBytes,
+          );
+        }
 
         gl.uniform2f(uRes, el.width, el.height);
         gl.uniform1f(uCamZ, camZ);
@@ -867,6 +999,7 @@
         gl.uniform1f(uK, kk);
         gl.uniform1f(uSteps, steps);
         gl.uniform1f(uBurst, burst);
+        gl.uniform1f(uLoop, loopAngle);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       },
       // Idle down to 30fps while paused — the tunnel only coasts then, with no
@@ -883,6 +1016,7 @@
       gl.deleteShader(vs);
       gl.deleteShader(fs);
       gl.deleteBuffer(buf);
+      gl.deleteTexture(bandTex);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
   });
