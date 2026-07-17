@@ -57,7 +57,6 @@ mod tests {
             static_dir: PathBuf::new(),
             modland_base: String::new(),
             manifest_path: PathBuf::new(),
-            layout: crate::config::Layout::GroupArtist,
         };
         AppState::new(cfg, Db::open_in_memory().unwrap())
     }

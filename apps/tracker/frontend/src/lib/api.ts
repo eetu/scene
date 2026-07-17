@@ -36,8 +36,6 @@ export type StatusResponse = {
   db_healthy: boolean;
   track_count: number | null;
   root: string;
-  /** On-disk layout: "artist" (artist/song) or "group-artist" (legacy). */
-  layout: string;
   // Live scan progress (lock-free counters; safe to poll during a scan).
   scanning: boolean;
   scan_total: number;
@@ -329,7 +327,6 @@ export const api = STANDALONE
         db_healthy: true,
         track_count: local.tracks.length,
         root: "(browser)",
-        layout: "group-artist",
         scanning: false,
         scan_total: 0,
         scan_processed: 0,

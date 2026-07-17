@@ -154,14 +154,6 @@ pub fn author_from_path(path: &str) -> Option<String> {
     }
 }
 
-/// Format = the first path segment of a Modland path (e.g. `Fasttracker 2`).
-/// Maps to the library **group** so a fetched module lands at the convention's
-/// `group/artist/file` — not `author/file` (which would file the author *as* a
-/// group). `None` for an empty path.
-pub fn format_from_path(path: &str) -> Option<String> {
-    path.split('/').find(|s| !s.is_empty()).map(str::to_string)
-}
-
 const HEX: &[u8; 16] = b"0123456789ABCDEF";
 
 /// Percent-encode a raw path for a URL, keeping `/` and the unreserved set.

@@ -18,10 +18,13 @@ Cargo workspace = `backend` + `integration`.
 
 ## Conventions
 
-- **Filesystem is the source of truth.** `TRACKER_ROOT/group/artist/song.ext`.
-  The first path segment is the group, the second (when present) the artist —
-  files directly under a group dir have no artist. No sidecar metadata files;
-  files can be freely moved with ordinary tools and a rescan reconciles. The
+- **Filesystem is the source of truth, artist-primary.**
+  `TRACKER_ROOT/artist/song.ext`. The first path segment is the artist (a file at
+  the root has none); there is **no path-group** — groups/aliases/albums come from
+  `library.json` (the manifest), joined onto the artist in the frontend. This is
+  unconditional; there is no layout switch (the legacy `group/artist` mode was
+  removed). No sidecar metadata files; files can be freely moved with ordinary
+  tools and a rescan reconciles. The
   list view also renames/moves files in place (`/api/rename`) — handy for
   cleaning up names from old CD rips. **This means the collection mount must be
   read-write**, not the `:ro` the original deploy plan assumed — the raspi
