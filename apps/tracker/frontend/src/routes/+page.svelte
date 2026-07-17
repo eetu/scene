@@ -396,8 +396,9 @@
     {:else if status}
       {lib.filtered.length}{#if !lib.favView}
         / {tracks.length}{/if}
-      {lib.favView ? "favourites" : "modules"} · {lib.groups.length}
-      {bucketNoun()}
+      {lib.favView ? "favourites" : "modules"}{#if !lib.favView}
+        · {lib.groups.length}
+        {bucketNoun()}{/if}
     {/if}
   </div>
   {#if lib.listView}

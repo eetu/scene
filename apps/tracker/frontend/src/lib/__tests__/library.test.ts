@@ -5,7 +5,9 @@ import {
   buildRows,
   facetFormats,
   facetTrackers,
+  favSubLabel,
   filterTracks,
+  flatRows,
   GROUPLESS,
   groupTracks,
   keyOf,
@@ -14,6 +16,7 @@ import {
   NO_ALBUM,
   railLetter,
   rowKey,
+  sortFlatTracks,
   subLabel,
 } from "$lib/library";
 import { buildIndex } from "$lib/manifest";
@@ -243,5 +246,72 @@ describe("manifest-driven facets", () => {
   test("no index → path-derived grouping unchanged", () => {
     expect(keysOf(track({ artist: "PM" }), "artist")).toEqual(["PM"]);
     expect(keysOf(track({ group: "Acme" }), "group")).toEqual(["Acme"]);
+  });
+
+  test("favSubLabel uses manifest membership for the group (first bucket)", () => {
+    // Skaven is in two groups → the flat favourites row shows the first.
+    expect(favSubLabel(track({ artist: "Skaven" }), idx)).toBe("Skaven · Future Crew");
+    // Alias resolves to the canonical artist.
+    expect(favSubLabel(track({ artist: "PM" }), idx)).toBe("Purple Motion · Future Crew");
+  });
+});
+
+describe("flat favourites view", () => {
+  test("sortFlatTracks name orders by song title A-Z (case-insensitive)", () => {
+    const s = sortFlatTracks(
+      [
+        track({ path: "1", title: "Zap" }),
+        track({ path: "2", title: "amber" }),
+        track({ path: "3", title: "Mono" }),
+      ],
+      "name",
+    );
+    expect(s.map((t) => t.title)).toEqual(["amber", "Mono", "Zap"]);
+  });
+
+  test("sortFlatTracks name falls back to filename when title is null", () => {
+    const s = sortFlatTracks(
+      [track({ path: "1", title: null, filename: "b.mod" }), track({ path: "2", title: "a" })],
+      "name",
+    );
+    expect(s.map((t) => t.title ?? t.filename)).toEqual(["a", "b.mod"]);
+  });
+
+  test("sortFlatTracks plays/duration order high-to-low", () => {
+    const plays = sortFlatTracks(
+      [
+        track({ path: "1", play_count: 2 }),
+        track({ path: "2", play_count: 9 }),
+        track({ path: "3", play_count: 5 }),
+      ],
+      "plays",
+    );
+    expect(plays.map((t) => t.play_count)).toEqual([9, 5, 2]);
+    const dur = sortFlatTracks(
+      [track({ path: "1", duration: 60 }), track({ path: "2", duration: 200 })],
+      "duration",
+    );
+    expect(dur.map((t) => t.duration)).toEqual([200, 60]);
+  });
+
+  test("sortFlatTracks does not mutate the input array", () => {
+    const input = [track({ path: "1", title: "b" }), track({ path: "2", title: "a" })];
+    sortFlatTracks(input, "name");
+    expect(input.map((t) => t.title)).toEqual(["b", "a"]);
+  });
+
+  test("flatRows emits track rows only (no headers), last flag on the final row", () => {
+    const rows = flatRows([track({ path: "a" }), track({ path: "b" }), track({ path: "c" })]);
+    expect(rows.every((r) => r.kind === "track")).toBe(true);
+    expect(rows.map((r) => (r.kind === "track" ? r.last : null))).toEqual([false, false, true]);
+    const keys = rows.map(rowKey);
+    expect(new Set(keys).size).toBe(keys.length); // stable, unique keys
+  });
+
+  test("favSubLabel shows artist · group, hiding the groupless sentinel", () => {
+    expect(favSubLabel(track({ artist: "Coder", group: "Acme" }))).toBe("Coder · Acme");
+    expect(favSubLabel(track({ artist: "Coder", group: GROUPLESS }))).toBe("Coder");
+    expect(favSubLabel(track({ artist: null, group: "Acme" }))).toBe("Acme");
+    expect(favSubLabel(track({ artist: null, group: GROUPLESS }))).toBe("—");
   });
 });

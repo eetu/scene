@@ -15,6 +15,8 @@
   import type { Playlist, Track } from "$lib/api";
   import {
     buildRows,
+    favSubLabel,
+    flatRows,
     GROUPLESS,
     GROUPLESS_LABEL,
     letterRowMap,
@@ -93,7 +95,12 @@
   // Flatten the grouped tree into one row stream (a header row per group, plus
   // the track rows of open groups) and virtualize it with TanStack Virtual, so
   // thousands of <li> never hit the DOM at once. (buildRows/rowKey in $lib/library.)
-  const rows = $derived<LibRow[]>(buildRows(lib.groups, isOpen));
+  // Favourites: a flat, deduped song list (no headers). Everywhere else: the
+  // grouped header+track stream. (lib.flatTracks is the single favourites bucket
+  // flattened when favView, so it's already deduped + track-sorted.)
+  const rows = $derived<LibRow[]>(
+    lib.favView ? flatRows(lib.flatTracks) : buildRows(lib.groups, isOpen),
+  );
 
   // ≤640px: track rows stay ONE line (title/artist + duration), a touch taller
   // for a comfortable tap target; playcount is dropped and the name ellipsises
@@ -115,10 +122,21 @@
   const ROW_H = $derived(isMobile ? 40 : 34);
   const HEAD_H = 40;
   const CARD_GAP = 8;
+  // rowSize/keyAt guard against a STALE virtualizer index: the count-sync effect
+  // below runs after the template reads getVirtualItems, so on a tab switch that
+  // shrinks the list (the 775-group library → the short favourites list) the
+  // virtualizer can briefly ask for an index past the new, shorter `rows`.
+  // Reading rows[i].kind on the resulting `undefined` crashed the whole component
+  // (which broke e.g. playlists → favourites); fall back instead.
   function rowSize(i: number): number {
     const r = rows[i];
+    if (!r) return ROW_H;
     if (r.kind === "header") return HEAD_H + (r.first ? 0 : CARD_GAP);
     return ROW_H;
+  }
+  function keyAt(i: number): string | number {
+    const r = rows[i];
+    return r ? rowKey(r) : `#${i}`;
   }
 
   let scrollEl = $state<HTMLElement | undefined>(undefined);
@@ -127,7 +145,7 @@
     getScrollElement: () => scrollEl ?? null,
     estimateSize: rowSize,
     overscan: 8,
-    getItemKey: (i) => rowKey(rows[i]),
+    getItemKey: keyAt,
   });
   // Keep count / sizing / keys in sync with the (reactive) row list and
   // re-measure once the scroll element mounts. `untrack` stops the setOptions/
@@ -141,7 +159,7 @@
         ...$virtualizer.options,
         count: n,
         estimateSize: rowSize,
-        getItemKey: (i: number) => rowKey(rows[i]),
+        getItemKey: keyAt,
       });
       $virtualizer.measure();
     });
@@ -225,7 +243,12 @@
 </script>
 
 <div class="listwrap">
-  <main bind:this={scrollEl} class:has-rail={showRail} style:--row-h="{ROW_H}px">
+  <main
+    bind:this={scrollEl}
+    class:has-rail={showRail}
+    class:flat={lib.favView}
+    style:--row-h="{ROW_H}px"
+  >
     {#if view.tab === "playlists"}
       <PlaylistsTab {playlists} onRefresh={onRefreshPlaylists} onPlay={onPlayList} {onToast} />
     {:else if library.scanning && library.tracks.length === 0}
@@ -294,8 +317,15 @@
             {:else if row?.kind === "track"}
               {@const t = row.track}
               {@const isCurrent = playback.current?.path === t.path}
-              {@const sub = subLabel(t, view.groupBy, manifestIndex())}
-              <div class="card li" class:last={row.last} class:current={isCurrent}>
+              {@const sub = lib.favView
+                ? favSubLabel(t, manifestIndex())
+                : subLabel(t, view.groupBy, manifestIndex())}
+              <div
+                class="card li"
+                class:first={v.index === 0}
+                class:last={row.last}
+                class:current={isCurrent}
+              >
                 <button class="row" title={t.path} onclick={() => onOpen(t)}>
                   <!-- Title leads (the primary identifier), muted artist/group
                        context trails — mirrors the transport's title-over-meta
@@ -583,6 +613,23 @@
   .li.last {
     border-bottom: 1px solid var(--panel-hi);
     border-radius: 0 0 6px 6px;
+  }
+  /* Favourites flat list: rows sit in one plain card — quiet --border sides, no
+     open-group outline or accent edge. The first row rounds the top, the last
+     the bottom; the current-playing row keeps its accent bar + tint. */
+  main.flat .li {
+    border-left-color: var(--border);
+    border-right-color: var(--border);
+  }
+  main.flat .li:not(.current) {
+    box-shadow: none;
+  }
+  main.flat .li.first {
+    border-top: 1px solid var(--border);
+    border-radius: 6px 6px 0 0;
+  }
+  main.flat .li.last {
+    border-bottom-color: var(--border);
   }
   .li:hover:not(.current) {
     background: var(--panel-hi);

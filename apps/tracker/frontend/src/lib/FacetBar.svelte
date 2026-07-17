@@ -14,30 +14,33 @@
 </script>
 
 <div class="controls" aria-label="library controls">
-  <!-- Cluster 1 — how the list is organised: bucket dimension + bucket order. -->
-  <div class="cgroup">
-    <label class="groupby">
-      group by
-      <select bind:value={view.groupBy} disabled={library.scanning}>
-        <option value="group">group</option>
-        <option value="artist">artist</option>
-        <option value="album">album</option>
-        <option value="ext">format</option>
-      </select>
-    </label>
-    <label class="groupby opt">
-      {bucketNoun()}
-      <select
-        bind:value={view.groupSort}
-        disabled={library.scanning}
-        aria-label="order {bucketNoun()}"
-      >
-        <option value="name">A-Z</option>
-        <option value="plays">play count</option>
-        <option value="size">size</option>
-      </select>
-    </label>
-  </div>
+  <!-- Cluster 1 — how the list is organised: bucket dimension + bucket order.
+       Hidden on favourites, which render as one flat song list (no buckets). -->
+  {#if !favView}
+    <div class="cgroup">
+      <label class="groupby">
+        group by
+        <select bind:value={view.groupBy} disabled={library.scanning}>
+          <option value="group">group</option>
+          <option value="artist">artist</option>
+          <option value="album">album</option>
+          <option value="ext">format</option>
+        </select>
+      </label>
+      <label class="groupby opt">
+        {bucketNoun()}
+        <select
+          bind:value={view.groupSort}
+          disabled={library.scanning}
+          aria-label="order {bucketNoun()}"
+        >
+          <option value="name">A-Z</option>
+          <option value="plays">play count</option>
+          <option value="size">size</option>
+        </select>
+      </label>
+    </div>
+  {/if}
   <!-- Cluster 2 — how tracks are ordered within each bucket. -->
   <div class="cgroup">
     <label class="groupby">
