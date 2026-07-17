@@ -397,12 +397,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lucide/svelte@npm:^1.23.0":
-  version: 1.23.0
-  resolution: "@lucide/svelte@npm:1.23.0"
+"@lucide/svelte@npm:^1.24.0":
+  version: 1.24.0
+  resolution: "@lucide/svelte@npm:1.24.0"
   peerDependencies:
     svelte: ^5
-  checksum: 10/e35f2d7c1e20303d39e89ed5800283def2576169e49aaeda85af639f5661700974b738c1f8971dadc06c22a90e875111f7d942cb4ded33c3e73068b91df687e7
+  checksum: 10/b8c70e30b4f22d3c83ae6d31a130d284daa12a40a4b95e28c5db01635124f8d006c36ae35234ff34f0acba9b035d2eb2d7c78fe83f5fa163883912421f8eee6e
   languageName: node
   linkType: hard
 
@@ -2427,7 +2427,7 @@ __metadata:
   dependencies:
     "@anarkisti/eslint-config": "npm:^1.0.0"
     "@fontsource-variable/inter": "npm:^5.2.8"
-    "@lucide/svelte": "npm:^1.23.0"
+    "@lucide/svelte": "npm:^1.24.0"
     "@playwright/test": "npm:^1.61.1"
     "@scene/design": "workspace:*"
     "@scene/player": "workspace:*"
@@ -3084,7 +3084,7 @@ __metadata:
   dependencies:
     "@anarkisti/eslint-config": "npm:^1.0.0"
     "@fontsource-variable/inter": "npm:^5.2.8"
-    "@lucide/svelte": "npm:^1.23.0"
+    "@lucide/svelte": "npm:^1.24.0"
     "@playwright/test": "npm:^1.61.1"
     "@scene/design": "workspace:*"
     "@scene/player": "workspace:*"
