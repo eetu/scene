@@ -54,6 +54,22 @@ export function pauseMediaElement() {
   mediaEl?.pause();
 }
 
+/** Drop the media-element route so a freshly-recreated engine rebuilds it from
+ *  scratch (used when the AudioContext is torn down + replaced — see the
+ *  recreate-on-stall path). Removes the stale <audio> and clears the route flags
+ *  so setupMediaElementRoute()/routeAudioToElement() run again on the new graph. */
+export function resetBackgroundRoute() {
+  try {
+    mediaEl?.pause();
+    mediaEl?.remove();
+  } catch {
+    /* already gone */
+  }
+  mediaEl = null;
+  streamDest = null;
+  routedToElement = false;
+}
+
 /** Move audible output onto the media element so playback survives the page
  *  being backgrounded. Call inside the play gesture; no-op once routed or if
  *  the element can't play (we then stay on context.destination). */
@@ -73,61 +89,26 @@ export async function routeAudioToElement() {
 }
 
 /** Revive the audio path on a user gesture (play / unpause / return-to-foreground).
- *  iOS suspends an idle/interrupted AudioContext after a while — and once output
- *  has been routed to the <audio> element (context.destination disconnected),
- *  that element is the worklet's ONLY sink. resume() + play() alone often can't
- *  revive a context/element iOS has torn down, which left a long pause dead until
- *  a reload. So: resume the context; and if it HAD been suspended (the iOS case)
- *  rebuild the media-element route from scratch inside this gesture — a fresh
- *  MediaStreamDestination + <audio>, since the old element/stream is usually
- *  dead. When the context was already running (a quick desktop unpause) just
- *  replay the element. Safe to call on every gesture. */
+ *  iOS suspends an idle or interrupted AudioContext AND pauses an idle media
+ *  element after a while — and once output has been routed to the element, that
+ *  element is the worklet's ONLY sink (we disconnected context.destination). This
+ *  resumes the context and re-plays the element; play() on an already-playing
+ *  element resolves immediately, so it's safe to call on every gesture.
+ *  NOTE: a context iOS left dead behind a state="running" lie can't be revived
+ *  here (resume() is a no-op) — that's handled by a full engine recreate on the
+ *  next play tap (see player.svelte's recreateEngine). */
 export async function wakeAudio() {
   if (!engine) return;
-  const wasSuspended = engine.context.state !== "running";
   try {
-    if (wasSuspended) await engine.context.resume();
+    if (engine.context.state !== "running") await engine.context.resume();
   } catch {
     /* resume blocked/unsupported — recovers on the next gesture */
   }
-  if (!routedToElement || !mediaEl) return;
-  if (wasSuspended) {
-    // iOS almost certainly tore down the element + its MediaStream alongside the
-    // suspended context; a plain play() won't revive them, so rebuild the route.
-    await rebuildMediaElementRoute();
-  } else {
+  if (routedToElement && mediaEl) {
     try {
       await mediaEl.play();
     } catch {
-      /* running but the element stalled — rebuild as a fallback */
-      await rebuildMediaElementRoute();
+      /* element won't replay — audible again after another gesture */
     }
-  }
-}
-
-/** Tear down and recreate the <audio> route (fresh MediaStreamDestination +
- *  element), reconnecting the graph and playing inside the current gesture. iOS
- *  can leave the routed element and its stream dead after a suspend, where
- *  play()/resume() won't bring them back — only a fresh route does. No-op when we
- *  never routed to an element (desktop stays on context.destination). */
-async function rebuildMediaElementRoute() {
-  if (!engine || !routedToElement) return;
-  try {
-    if (streamDest) {
-      try {
-        engine.monoNode.disconnect(streamDest);
-      } catch {
-        /* already disconnected */
-      }
-    }
-    mediaEl?.pause();
-    mediaEl?.remove();
-    mediaEl = null;
-    streamDest = null;
-    routedToElement = false; // let setup + route run fresh
-    setupMediaElementRoute(); // new streamDest + <audio>
-    await routeAudioToElement(); // play() + re-disconnect context.destination
-  } catch {
-    /* rebuild failed — a later gesture retries */
   }
 }
