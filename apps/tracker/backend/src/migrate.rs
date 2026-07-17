@@ -538,7 +538,10 @@ mod tests {
         assert_eq!(seed.stats.redundant_copies, 2);
         assert_eq!(seed.alias_candidates.len(), 1);
         assert_eq!(seed.alias_candidates[0].md5, "bbbb");
-        assert_eq!(seed.alias_candidates[0].artists, vec!["PM", "Purple Motion"]);
+        assert_eq!(
+            seed.alias_candidates[0].artists,
+            vec!["PM", "Purple Motion"]
+        );
     }
 
     #[test]

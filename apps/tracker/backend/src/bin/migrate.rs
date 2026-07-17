@@ -33,10 +33,10 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn plan_cmd(args: &[String]) -> anyhow::Result<()> {
-    let tsv_path = PathBuf::from(
-        args.first()
-            .ok_or_else(|| anyhow::anyhow!("usage: tracker-migrate <md5-manifest.tsv> [out-dir]"))?,
-    );
+    let tsv_path =
+        PathBuf::from(args.first().ok_or_else(|| {
+            anyhow::anyhow!("usage: tracker-migrate <md5-manifest.tsv> [out-dir]")
+        })?);
     let out_dir = args.get(1).map(PathBuf::from).unwrap_or_else(|| {
         tsv_path
             .parent()
@@ -53,7 +53,10 @@ fn plan_cmd(args: &[String]) -> anyhow::Result<()> {
     let dupes_path = out_dir.join("dupes.json");
     std::fs::write(&dupes_path, serde_json::to_vec_pretty(&seed.exact_dupes)?)?;
     let alias_path = out_dir.join("alias-candidates.json");
-    std::fs::write(&alias_path, serde_json::to_vec_pretty(&seed.alias_candidates)?)?;
+    std::fs::write(
+        &alias_path,
+        serde_json::to_vec_pretty(&seed.alias_candidates)?,
+    )?;
     let plan_path = out_dir.join("migration-plan.json");
     std::fs::write(&plan_path, serde_json::to_vec_pretty(&plan)?)?;
 
@@ -96,7 +99,10 @@ fn apply_cmd(args: &[String]) -> anyhow::Result<()> {
     let plan: MovePlan = serde_json::from_slice(&std::fs::read(plan_path)?)?;
     let report = apply_plan(Path::new(root), &plan, execute);
 
-    println!("── apply {} ──", if execute { "(LIVE)" } else { "(dry run)" });
+    println!(
+        "── apply {} ──",
+        if execute { "(LIVE)" } else { "(dry run)" }
+    );
     println!("  moved              {}", report.moved);
     println!("  move skipped (gone) {}", report.move_skipped_missing);
     println!("  move conflicts     {}", report.move_conflicts);

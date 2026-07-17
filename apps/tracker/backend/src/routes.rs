@@ -72,7 +72,10 @@ pub fn router(state: AppState) -> Router {
             put(api_update_album).delete(api_delete_album),
         )
         .route("/api/albums/{id}/songs", post(api_add_album_song))
-        .route("/api/albums/{id}/songs/{md5}", delete(api_remove_album_song))
+        .route(
+            "/api/albums/{id}/songs/{md5}",
+            delete(api_remove_album_song),
+        )
         .route("/api/song/{md5}", put(api_set_song))
         // Duplicate report (exact + likely).
         .route("/api/dupes", get(api_dupes))
@@ -377,7 +380,10 @@ struct RenameIn {
 /// and Windows/SMB-illegal characters (so a name is portable across the share).
 fn clean_segment(s: &str) -> Option<String> {
     let t = s.trim();
-    if t.is_empty() || t == "." || t == ".." || t.contains(['/', '\\', '\0', ':', '*', '?', '"', '<', '>', '|'])
+    if t.is_empty()
+        || t == "."
+        || t == ".."
+        || t.contains(['/', '\\', '\0', ':', '*', '?', '"', '<', '>', '|'])
     {
         None
     } else {
@@ -544,13 +550,9 @@ async fn api_delete(
 }
 
 async fn api_rescan(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
-    let result = crate::run_scan(
-        state.db.clone(),
-        state.cfg.root.clone(),
-        state.scan.clone(),
-    )
-    .await
-    .map_err(AppError::Internal)?;
+    let result = crate::run_scan(state.db.clone(), state.cfg.root.clone(), state.scan.clone())
+        .await
+        .map_err(AppError::Internal)?;
     Ok(Json(json!({
         "indexed": result.indexed,
         "hashed": result.hashed,
@@ -1229,7 +1231,8 @@ async fn api_set_artist(
         if a.trim().is_empty() {
             continue;
         }
-        let c = clean_segment(a).ok_or_else(|| AppError::BadRequest("invalid aka handle".into()))?;
+        let c =
+            clean_segment(a).ok_or_else(|| AppError::BadRequest("invalid aka handle".into()))?;
         if c != name && !aka.contains(&c) {
             aka.push(c);
         }
@@ -1272,8 +1275,14 @@ async fn api_create_album(
         None => slug(req.title.as_deref().unwrap_or("album")),
     };
     let album = crate::manifest::Album {
-        title: req.title.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()),
-        kind: req.kind.map(|k| k.trim().to_string()).filter(|k| !k.is_empty()),
+        title: req
+            .title
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty()),
+        kind: req
+            .kind
+            .map(|k| k.trim().to_string())
+            .filter(|k| !k.is_empty()),
         songs: clean_md5_list(&req.songs),
     };
     let id_for_db = id.clone();
@@ -1288,7 +1297,9 @@ async fn api_create_album(
         })
         .await?;
     if !created {
-        return Err(AppError::Conflict("an album with that id already exists".into()));
+        return Err(AppError::Conflict(
+            "an album with that id already exists".into(),
+        ));
     }
     Ok(Json(json!({ "id": id })))
 }
@@ -1330,7 +1341,8 @@ async fn api_update_album(
             true
         })
         .await?;
-    ok.then_some(StatusCode::NO_CONTENT).ok_or(AppError::NotFound)
+    ok.then_some(StatusCode::NO_CONTENT)
+        .ok_or(AppError::NotFound)
 }
 
 async fn api_delete_album(
@@ -1342,7 +1354,8 @@ async fn api_delete_album(
         .manifest
         .update(move |m| m.albums.shift_remove(&id).is_some())
         .await?;
-    ok.then_some(StatusCode::NO_CONTENT).ok_or(AppError::NotFound)
+    ok.then_some(StatusCode::NO_CONTENT)
+        .ok_or(AppError::NotFound)
 }
 
 #[derive(Deserialize)]
@@ -1364,13 +1377,18 @@ async fn api_add_album_song(
             let Some(a) = m.albums.get_mut(&id) else {
                 return false;
             };
-            if !a.songs.iter().any(|s| normalize_md5(s).as_deref() == Some(md5.as_str())) {
+            if !a
+                .songs
+                .iter()
+                .any(|s| normalize_md5(s).as_deref() == Some(md5.as_str()))
+            {
                 a.songs.push(md5);
             }
             true
         })
         .await?;
-    ok.then_some(StatusCode::NO_CONTENT).ok_or(AppError::NotFound)
+    ok.then_some(StatusCode::NO_CONTENT)
+        .ok_or(AppError::NotFound)
 }
 
 async fn api_remove_album_song(
@@ -1385,11 +1403,13 @@ async fn api_remove_album_song(
             let Some(a) = m.albums.get_mut(&id) else {
                 return false;
             };
-            a.songs.retain(|s| normalize_md5(s).as_deref() != Some(md5.as_str()));
+            a.songs
+                .retain(|s| normalize_md5(s).as_deref() != Some(md5.as_str()));
             true
         })
         .await?;
-    ok.then_some(StatusCode::NO_CONTENT).ok_or(AppError::NotFound)
+    ok.then_some(StatusCode::NO_CONTENT)
+        .ok_or(AppError::NotFound)
 }
 
 #[derive(Deserialize)]
@@ -1582,13 +1602,8 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
             .is_some();
         if !have {
             let (artist, filename) = place_download(m);
-            if let Err(e) = write_module(
-                &state.cfg.root,
-                artist.as_deref(),
-                &filename,
-                &bytes,
-            )
-            .await
+            if let Err(e) =
+                write_module(&state.cfg.root, artist.as_deref(), &filename, &bytes).await
             {
                 tracing::warn!(file = %filename, error = %e, "write failed");
                 state.fetch.failed.fetch_add(1, Ordering::Relaxed);
@@ -1614,12 +1629,7 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
 
     // Index the new files so their md5s exist → playlist items resolve as present.
     if wrote_any {
-        crate::run_scan(
-            state.db.clone(),
-            state.cfg.root.clone(),
-            state.scan.clone(),
-        )
-        .await?;
+        crate::run_scan(state.db.clone(), state.cfg.root.clone(), state.scan.clone()).await?;
     }
     tracing::info!(
         fetched = state.fetch.fetched.load(Ordering::Relaxed),

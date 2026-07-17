@@ -61,7 +61,10 @@ async fn artist_alias_and_groups_round_trip() {
     let m = s.get_json("/api/manifest").await;
     assert_eq!(m["artists"]["Purple Motion"]["aka"], json!(["PM"]));
     // Blank aka dropped, duplicate group collapsed.
-    assert_eq!(m["artists"]["Purple Motion"]["groups"], json!(["Future Crew"]));
+    assert_eq!(
+        m["artists"]["Purple Motion"]["groups"],
+        json!(["Future Crew"])
+    );
 
     // A bad aka handle (contains a slash) is rejected.
     let bad = s
@@ -71,7 +74,10 @@ async fn artist_alias_and_groups_round_trip() {
 
     // Clearing both fields removes the entry.
     let cleared = s
-        .put_json("/api/artist/Purple%20Motion", json!({ "aka": [], "groups": [] }))
+        .put_json(
+            "/api/artist/Purple%20Motion",
+            json!({ "aka": [], "groups": [] }),
+        )
         .await;
     assert_eq!(cleared.status(), 204);
     let m = s.get_json("/api/manifest").await;
@@ -99,7 +105,10 @@ async fn album_lifecycle() {
 
     // A colliding id is a 409.
     let dup = s
-        .post_json("/api/albums", json!({ "id": "second-reality", "title": "x" }))
+        .post_json(
+            "/api/albums",
+            json!({ "id": "second-reality", "title": "x" }),
+        )
         .await;
     assert_eq!(dup.status(), 409);
 
@@ -111,9 +120,12 @@ async fn album_lifecycle() {
         204
     );
     assert_eq!(
-        s.post_json(&format!("/api/albums/{id}/songs"), json!({ "md5": MD5_B.to_uppercase() }))
-            .await
-            .status(),
+        s.post_json(
+            &format!("/api/albums/{id}/songs"),
+            json!({ "md5": MD5_B.to_uppercase() })
+        )
+        .await
+        .status(),
         204
     );
     let m = s.get_json("/api/manifest").await;
@@ -122,7 +134,9 @@ async fn album_lifecycle() {
 
     // Remove a song.
     assert_eq!(
-        s.delete(&format!("/api/albums/{id}/songs/{MD5_A}")).await.status(),
+        s.delete(&format!("/api/albums/{id}/songs/{MD5_A}"))
+            .await
+            .status(),
         204
     );
     let m = s.get_json("/api/manifest").await;
@@ -130,9 +144,12 @@ async fn album_lifecycle() {
 
     // Patch the title (kind + songs left alone).
     assert_eq!(
-        s.put_json(&format!("/api/albums/{id}"), json!({ "title": "Second Reality — OST" }))
-            .await
-            .status(),
+        s.put_json(
+            &format!("/api/albums/{id}"),
+            json!({ "title": "Second Reality — OST" })
+        )
+        .await
+        .status(),
         204
     );
     let m = s.get_json("/api/manifest").await;
@@ -140,9 +157,16 @@ async fn album_lifecycle() {
     assert_eq!(m["albums"][&id]["songs"], json!([MD5_B]));
 
     // Editing / adding to a missing album is a 404.
-    assert_eq!(s.put_json("/api/albums/nope", json!({ "title": "x" })).await.status(), 404);
     assert_eq!(
-        s.post_json("/api/albums/nope/songs", json!({ "md5": MD5_A })).await.status(),
+        s.put_json("/api/albums/nope", json!({ "title": "x" }))
+            .await
+            .status(),
+        404
+    );
+    assert_eq!(
+        s.post_json("/api/albums/nope/songs", json!({ "md5": MD5_A }))
+            .await
+            .status(),
         404
     );
 
@@ -171,10 +195,20 @@ async fn song_credit_and_reload() {
     assert_eq!(m["songs"][MD5_A]["year"], 1993);
 
     // A bad md5 is a 400.
-    assert_eq!(s.put_json("/api/song/notanmd5", json!({ "year": 2000 })).await.status(), 400);
+    assert_eq!(
+        s.put_json("/api/song/notanmd5", json!({ "year": 2000 }))
+            .await
+            .status(),
+        400
+    );
 
     // Clearing every field removes the entry.
-    assert_eq!(s.put_json(&format!("/api/song/{MD5_A}"), json!({})).await.status(), 204);
+    assert_eq!(
+        s.put_json(&format!("/api/song/{MD5_A}"), json!({}))
+            .await
+            .status(),
+        204
+    );
     let m = s.get_json("/api/manifest").await;
     assert!(m["songs"].get(MD5_A).is_none());
 

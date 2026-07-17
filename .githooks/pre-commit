@@ -44,6 +44,7 @@ if [ "$run_eslint" = 1 ]; then
 fi
 
 if [ "$run_rust" = 1 ]; then
-	echo "pre-commit: backends + transcoder (clippy, whole workspace)"
+	echo "pre-commit: backends + transcoder (clippy + fmt, whole workspace)"
 	cargo clippy --workspace --all-targets -- -D warnings
+	cargo fmt --all -- --check
 fi

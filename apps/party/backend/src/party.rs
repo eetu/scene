@@ -157,7 +157,9 @@ impl PartyConfigs {
                     Ok(cfg) => {
                         by_slug.insert(slug, cfg);
                     }
-                    Err(e) => tracing::warn!(path = %path.display(), error = %e, "skipping bad party config"),
+                    Err(e) => {
+                        tracing::warn!(path = %path.display(), error = %e, "skipping bad party config")
+                    }
                 }
             }
         }

@@ -63,10 +63,22 @@ impl IntoResponse for Error {
             Error::BadExt => (StatusCode::BAD_REQUEST, "bad ext".to_string()),
             Error::Empty => (StatusCode::BAD_REQUEST, "empty body".to_string()),
             Error::TooLarge => (StatusCode::PAYLOAD_TOO_LARGE, "input too large".to_string()),
-            Error::Timeout => (StatusCode::GATEWAY_TIMEOUT, "transcode timed out".to_string()),
-            Error::ToolMissing => (StatusCode::INTERNAL_SERVER_ERROR, "ffmpeg not installed".to_string()),
-            Error::Failed(m) => (StatusCode::UNPROCESSABLE_ENTITY, format!("transcode failed: {m}")),
-            Error::Internal => (StatusCode::INTERNAL_SERVER_ERROR, "internal error".to_string()),
+            Error::Timeout => (
+                StatusCode::GATEWAY_TIMEOUT,
+                "transcode timed out".to_string(),
+            ),
+            Error::ToolMissing => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "ffmpeg not installed".to_string(),
+            ),
+            Error::Failed(m) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                format!("transcode failed: {m}"),
+            ),
+            Error::Internal => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal error".to_string(),
+            ),
         };
         (code, Json(json!({ "error": msg }))).into_response()
     }
@@ -77,14 +89,17 @@ async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
-    let token = std::env::var("PARTY_TRANSCODER_TOKEN").ok().filter(|t| !t.is_empty());
+    let token = std::env::var("PARTY_TRANSCODER_TOKEN")
+        .ok()
+        .filter(|t| !t.is_empty());
     if token.is_none() {
-        tracing::warn!("PARTY_TRANSCODER_TOKEN unset — no bearer auth; relying on the loopback bind alone");
+        tracing::warn!(
+            "PARTY_TRANSCODER_TOKEN unset — no bearer auth; relying on the loopback bind alone"
+        );
     }
     let ffmpeg = std::env::var("PARTY_TRANSCODER_FFMPEG").unwrap_or_else(|_| "ffmpeg".into());
     let host = std::env::var("PARTY_TRANSCODER_HOST").unwrap_or_else(|_| "127.0.0.1".into());
@@ -121,7 +136,10 @@ async fn require_token(
                 .headers()
                 .get(header::AUTHORIZATION)
                 .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.strip_prefix("Bearer ").or_else(|| s.strip_prefix("bearer ")))
+                .and_then(|s| {
+                    s.strip_prefix("Bearer ")
+                        .or_else(|| s.strip_prefix("bearer "))
+                })
                 .unwrap_or("")
                 .trim();
             if !ct_eq(presented.as_bytes(), token.as_bytes()) {
@@ -195,7 +213,15 @@ async fn run_ffmpeg(ffmpeg: &str, args: &[&str], timeout_s: u64) -> Result<(), E
         Ok(Ok(out)) if out.status.success() => Ok(()),
         Ok(Ok(out)) => {
             let stderr = String::from_utf8_lossy(&out.stderr);
-            let tail: String = stderr.trim().chars().rev().take(400).collect::<Vec<_>>().into_iter().rev().collect();
+            let tail: String = stderr
+                .trim()
+                .chars()
+                .rev()
+                .take(400)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect();
             tracing::warn!(error = %tail, "transcode failed");
             Err(Error::Failed(tail))
         }
@@ -213,7 +239,9 @@ async fn transcode(
     let dir = tempfile::tempdir().map_err(|_| Error::Internal)?;
     let src = dir.path().join(format!("in.{ext}"));
     let out = dir.path().join(out_name);
-    tokio::fs::write(&src, &body).await.map_err(|_| Error::Internal)?;
+    tokio::fs::write(&src, &body)
+        .await
+        .map_err(|_| Error::Internal)?;
     let (src_s, out_s) = (
         src.to_str().ok_or(Error::Internal)?,
         out.to_str().ok_or(Error::Internal)?,
@@ -239,12 +267,19 @@ async fn image(
         "out.png",
         |src, out| {
             [
-                "-y", "-loglevel", "error", "-i", src, "-frames:v", "1",
+                "-y",
+                "-loglevel",
+                "error",
+                "-i",
+                src,
+                "-frames:v",
+                "1",
                 // Bake the source sample aspect into square pixels, so Amiga
                 // non-square-pixel graphics (e.g. an ILBM tagged 5:6 via CAMG)
                 // display at their intended proportions instead of stretched.
                 // No-op for square-pixel sources (sar 1:1 / undefined → 1).
-                "-vf", "scale=iw*sar:ih,setsar=1",
+                "-vf",
+                "scale=iw*sar:ih,setsar=1",
                 out,
             ]
             .map(String::from)
@@ -270,11 +305,25 @@ async fn video(
         "out.mp4",
         |src, out| {
             [
-                "-y", "-loglevel", "error", "-i", src,
-                "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+                "-y",
+                "-loglevel",
+                "error",
+                "-i",
+                src,
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-pix_fmt",
+                "yuv420p",
                 // Even dimensions are required by yuv420p/H.264.
-                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-                "-c:a", "aac", "-movflags", "+faststart", out,
+                "-vf",
+                "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                "-c:a",
+                "aac",
+                "-movflags",
+                "+faststart",
+                out,
             ]
             .map(String::from)
             .to_vec()

@@ -186,7 +186,11 @@ pub async fn run_server() -> anyhow::Result<()> {
         let root = state.cfg.root.clone();
         let parties = state.parties();
         let progress = state.scan.clone();
-        let reason = if file_count == 0 { "empty index" } else { "kiosk startup" };
+        let reason = if file_count == 0 {
+            "empty index"
+        } else {
+            "kiosk startup"
+        };
         tokio::spawn(async move {
             tracing::info!(root = %root.display(), %reason, "scan started");
             match run_scan(db, root, parties, progress).await {
@@ -201,7 +205,10 @@ pub async fn run_server() -> anyhow::Result<()> {
             }
         });
     } else {
-        tracing::info!(file_count, "serving cached index; POST /api/rescan to refresh");
+        tracing::info!(
+            file_count,
+            "serving cached index; POST /api/rescan to refresh"
+        );
     }
 
     let index_path = state.cfg.static_dir.join("index.html");

@@ -24,17 +24,19 @@ use crate::state::ScanProgress;
 
 /// Module extensions libopenmpt can open (from tracker). Lowercase.
 pub const MODULE_EXTS: &[&str] = &[
-    "mod", "xm", "s3m", "it", "mptm", "stm", "nst", "m15", "stk", "wow", "ult", "669", "mtm", "med",
-    "far", "amf", "ams", "dbm", "digi", "dmf", "dsm", "dtm", "fmt", "imf", "j2b", "mdl", "mo3",
-    "mt2", "okt", "okta", "plm", "psm", "pt36", "ptm", "sfx", "sfx2", "st26", "stp", "umx", "gdm",
-    "gmc", "ice", "itp", "mms", "oct", "tcb", "ftm", "rtm", "c67", "symmod",
+    "mod", "xm", "s3m", "it", "mptm", "stm", "nst", "m15", "stk", "wow", "ult", "669", "mtm",
+    "med", "far", "amf", "ams", "dbm", "digi", "dmf", "dsm", "dtm", "fmt", "imf", "j2b", "mdl",
+    "mo3", "mt2", "okt", "okta", "plm", "psm", "pt36", "ptm", "sfx", "sfx2", "st26", "stp", "umx",
+    "gdm", "gmc", "ice", "itp", "mms", "oct", "tcb", "ftm", "rtm", "c67", "symmod",
 ];
 
 const IMAGE_EXTS: &[&str] = &[
     "lbm", "iff", "ilbm", "ham", "pic", "pcx", "tif", "tiff", "gif", "jpg", "jpeg", "png", "tga",
     "bmp",
 ];
-const VIDEO_EXTS: &[&str] = &["mpg", "mpeg", "avi", "fli", "flc", "mp4", "mov", "webm", "m2v"];
+const VIDEO_EXTS: &[&str] = &[
+    "mpg", "mpeg", "avi", "fli", "flc", "mp4", "mov", "webm", "m2v",
+];
 const EXE_EXTS: &[&str] = &["exe", "com", "run", "bat"];
 const DISKIMAGE_EXTS: &[&str] = &["d64", "t64", "g64", "prg", "adf", "hdf", "dms"];
 const TEXT_EXTS: &[&str] = &[
@@ -312,11 +314,7 @@ pub fn parse_entry(name: &str, strip_ext: bool) -> (Option<i64>, Option<String>,
     }
     // Split remaining on " - " → group + title (title keeps any further " - ").
     match rest.split_once(" - ") {
-        Some((g, t)) => (
-            rank,
-            Some(g.trim().to_string()),
-            Some(t.trim().to_string()),
-        ),
+        Some((g, t)) => (rank, Some(g.trim().to_string()), Some(t.trim().to_string())),
         None => (rank, None, Some(rest.to_string())),
     }
 }
@@ -386,8 +384,19 @@ fn is_dos_helper(rel: &str) -> bool {
         .to_ascii_lowercase();
     matches!(
         stem.as_str(),
-        "dos4gw" | "dos32a" | "dos4g" | "4gwpro" | "cwsdpmi" | "pmodew" | "pmode"
-            | "wdosx" | "rtm" | "dpmi16bi" | "dpmi32vm" | "x32" | "x32vm"
+        "dos4gw"
+            | "dos32a"
+            | "dos4g"
+            | "4gwpro"
+            | "cwsdpmi"
+            | "pmodew"
+            | "pmode"
+            | "wdosx"
+            | "rtm"
+            | "dpmi16bi"
+            | "dpmi32vm"
+            | "x32"
+            | "x32vm"
     )
 }
 
@@ -552,7 +561,9 @@ pub fn scan_into(
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0);
 
-            let cached = cache.get(rel_path).filter(|c| c.size == size && c.mtime == mtime);
+            let cached = cache
+                .get(rel_path)
+                .filter(|c| c.size == size && c.mtime == mtime);
             let hash = match cached {
                 Some(c) => c.hash.clone(),
                 None => match hash_file(path) {
@@ -715,7 +726,8 @@ pub fn scan_into(
                 // `.support/*.hdf` wins over a loose `.exe`. Guarded off media compos
                 // (a graphics/music entry that merely bundles a disk image keeps its
                 // image/module primary).
-                let is_media_compo = matches!(medium_hint, Some("music" | "graphics" | "animation"));
+                let is_media_compo =
+                    matches!(medium_hint, Some("music" | "graphics" | "animation"));
                 let has_amiga_image = acc
                     .files
                     .iter()
@@ -733,7 +745,9 @@ pub fn scan_into(
                 };
                 let primary = pick_primary(&acc.files, &provisional, medium_hint);
                 let (primary_rel, primary_kind, primary_ext) = match primary {
-                    Some((rel, kind, ext, _)) => (Some(rel.clone()), Some(*kind), Some(ext.clone())),
+                    Some((rel, kind, ext, _)) => {
+                        (Some(rel.clone()), Some(*kind), Some(ext.clone()))
+                    }
                     None => (None, None, None),
                 };
                 // Final platform: an Amiga signal is authoritative — a Hunk-binary
@@ -747,7 +761,12 @@ pub fn scan_into(
                 } else {
                     cat_cfg
                         .map(|c| c.platform.clone())
-                        .or_else(|| primary_ext.as_deref().and_then(platform_from_ext).map(str::to_string))
+                        .or_else(|| {
+                            primary_ext
+                                .as_deref()
+                                .and_then(platform_from_ext)
+                                .map(str::to_string)
+                        })
                         .unwrap_or(provisional)
                 };
                 let medium = match medium_hint {
@@ -975,7 +994,10 @@ mod tests {
         assert_eq!(classify("BOOTY.DAT", "dat"), "data");
         // Amiga prefix naming: `mod.<name>` / `MED.<name>` (ext is the trailing
         // junk, so the prefix is what identifies the module).
-        assert_eq!(classify("mod.full of bloody shit", "full of bloody shit"), "music");
+        assert_eq!(
+            classify("mod.full of bloody shit", "full of bloody shit"),
+            "music"
+        );
         assert_eq!(classify("MED.intro", "intro"), "music");
         // …but a leading word that merely looks module-ish with a real ext wins
         // on the ext, and an unrelated prefix stays data.
@@ -987,7 +1009,11 @@ mod tests {
     fn parse_entry_layouts() {
         assert_eq!(
             parse_entry("01 - Nooon - Stars - Wonders of the world", false),
-            (Some(1), Some("Nooon".into()), Some("Stars - Wonders of the world".into()))
+            (
+                Some(1),
+                Some("Nooon".into()),
+                Some("Stars - Wonders of the world".into())
+            )
         );
         assert_eq!(
             parse_entry("09 - Bit", false),
@@ -1023,22 +1049,30 @@ mod tests {
         );
 
         // PC demo, file inside ranked entry folder + subfolder.
-        let (cat, dir, name, is_file) =
-            decompose("Assembly95", &["demo", "01 - Nooon - Stars", "stars", "STARS.EXE"], &cfg);
+        let (cat, dir, name, is_file) = decompose(
+            "Assembly95",
+            &["demo", "01 - Nooon - Stars", "stars", "STARS.EXE"],
+            &cfg,
+        );
         assert_eq!(cat, "demo");
         assert_eq!(dir.as_deref(), Some("Assembly95/demo/01 - Nooon - Stars"));
         assert_eq!(name.as_deref(), Some("01 - Nooon - Stars"));
         assert!(!is_file);
 
         // Two-level category (amiga/demo).
-        let (cat, dir, _, _) =
-            decompose("Assembly95", &["amiga", "demo", "01 - Parallax - ZIF", "x.run"], &cfg);
+        let (cat, dir, _, _) = decompose(
+            "Assembly95",
+            &["amiga", "demo", "01 - Parallax - ZIF", "x.run"],
+            &cfg,
+        );
         assert_eq!(cat, "amiga/demo");
-        assert_eq!(dir.as_deref(), Some("Assembly95/amiga/demo/01 - Parallax - ZIF"));
+        assert_eq!(
+            dir.as_deref(),
+            Some("Assembly95/amiga/demo/01 - Parallax - ZIF")
+        );
 
         // rest/ entry (single file).
-        let (_, dir, name, is_file) =
-            decompose("Assembly95", &["mmul", "rest", "tune.s3m"], &cfg);
+        let (_, dir, name, is_file) = decompose("Assembly95", &["mmul", "rest", "tune.s3m"], &cfg);
         assert_eq!(dir.as_deref(), Some("Assembly95/mmul/rest/tune.s3m"));
         assert_eq!(name.as_deref(), Some("tune.s3m"));
         assert!(is_file);
@@ -1047,11 +1081,20 @@ mod tests {
         // production (so it becomes the primary), not a separate entry.
         let (cat, dir, name, _) = decompose(
             "Assembly95",
-            &["amiga", "demo", "01 - Parallax - ZIF", ".support", "ZIF (AGA).hdf"],
+            &[
+                "amiga",
+                "demo",
+                "01 - Parallax - ZIF",
+                ".support",
+                "ZIF (AGA).hdf",
+            ],
             &cfg,
         );
         assert_eq!(cat, "amiga/demo");
-        assert_eq!(dir.as_deref(), Some("Assembly95/amiga/demo/01 - Parallax - ZIF"));
+        assert_eq!(
+            dir.as_deref(),
+            Some("Assembly95/amiga/demo/01 - Parallax - ZIF")
+        );
         assert_eq!(name.as_deref(), Some("01 - Parallax - ZIF"));
     }
 }
