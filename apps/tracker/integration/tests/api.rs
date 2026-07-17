@@ -16,7 +16,7 @@ async fn status_is_unauthenticated_and_healthy() {
 
 #[tokio::test]
 #[ignore]
-async fn rescan_indexes_modules_and_derives_group_artist() {
+async fn rescan_indexes_modules_and_derives_artist() {
     let s = Stack::start().await.unwrap();
     let counts = s.rescan().await;
     // 3 modules; junk + non-module files skipped.
@@ -27,18 +27,19 @@ async fn rescan_indexes_modules_and_derives_group_artist() {
 
     let song = tracks
         .iter()
-        .find(|t| t["path"] == "Acme/Coder/song.mod")
+        .find(|t| t["path"] == "Coder/song.mod")
         .expect("song.mod indexed");
-    assert_eq!(song["group"], "Acme");
+    // Artist-primary: seg0 is the artist; there is no path-group.
+    assert_eq!(song["group"], "");
     assert_eq!(song["artist"], "Coder");
     assert_eq!(song["ext"], "mod");
 
-    // group/song.ext layout → artist is null.
+    // A module at the root (no artist dir) → artist is null.
     let intro = tracks
         .iter()
-        .find(|t| t["path"] == "Demo/intro.s3m")
+        .find(|t| t["path"] == "intro.s3m")
         .expect("intro.s3m indexed");
-    assert_eq!(intro["group"], "Demo");
+    assert_eq!(intro["group"], "");
     assert!(intro["artist"].is_null());
 }
 
@@ -50,7 +51,7 @@ async fn file_by_hash_returns_bytes() {
     let tracks = s.tracks().await;
     let song = tracks
         .iter()
-        .find(|t| t["path"] == "Acme/Coder/song.mod")
+        .find(|t| t["path"] == "Coder/song.mod")
         .unwrap();
     let hash = song["hash"].as_str().unwrap();
 
@@ -70,7 +71,7 @@ async fn metadata_survives_a_file_move() {
         let tracks = s.tracks().await;
         tracks
             .iter()
-            .find(|t| t["path"] == "Acme/Coder/song.mod")
+            .find(|t| t["path"] == "Coder/song.mod")
             .unwrap()["hash"]
             .as_str()
             .unwrap()
@@ -86,11 +87,11 @@ async fn metadata_survives_a_file_move() {
         .await;
     assert!(r.status().is_success());
 
-    // Move the file to a different group/artist; bytes (hash) unchanged.
-    std::fs::create_dir_all(s.root.join("NewGroup/NewArtist")).unwrap();
+    // Move the file to a different artist; bytes (hash) unchanged.
+    std::fs::create_dir_all(s.root.join("NewArtist")).unwrap();
     std::fs::rename(
-        s.root.join("Acme/Coder/song.mod"),
-        s.root.join("NewGroup/NewArtist/renamed.mod"),
+        s.root.join("Coder/song.mod"),
+        s.root.join("NewArtist/renamed.mod"),
     )
     .unwrap();
     s.rescan().await;
@@ -98,11 +99,11 @@ async fn metadata_survives_a_file_move() {
     let tracks = s.tracks().await;
     let moved = tracks
         .iter()
-        .find(|t| t["path"] == "NewGroup/NewArtist/renamed.mod")
+        .find(|t| t["path"] == "NewArtist/renamed.mod")
         .expect("moved file re-indexed at new path");
     assert_eq!(moved["hash"].as_str().unwrap(), hash, "hash unchanged");
     assert_eq!(moved["title"], "Cool Song", "enrichment followed the bytes");
-    assert_eq!(moved["group"], "NewGroup");
+    assert_eq!(moved["group"], "");
     assert_eq!(moved["artist"], "NewArtist");
 }
 
@@ -116,7 +117,7 @@ async fn rename_moves_file_keeps_hash_and_metadata() {
         let tracks = s.tracks().await;
         tracks
             .iter()
-            .find(|t| t["path"] == "Acme/Coder/song.mod")
+            .find(|t| t["path"] == "Coder/song.mod")
             .unwrap()["hash"]
             .as_str()
             .unwrap()
@@ -128,13 +129,13 @@ async fn rename_moves_file_keeps_hash_and_metadata() {
     )
     .await;
 
-    // Rename + move to a new group/artist with a tidy filename.
+    // Rename + move to a new artist with a tidy filename.
     let r = s
         .post_json(
             "/api/rename",
             serde_json::json!({
-                "from": "Acme/Coder/song.mod",
-                "group": "Acme",
+                "from": "Coder/song.mod",
+                "group": "",
                 "artist": "Coder",
                 "filename": "Proper Title.mod"
             }),
@@ -142,18 +143,18 @@ async fn rename_moves_file_keeps_hash_and_metadata() {
         .await;
     assert!(r.status().is_success(), "rename failed: {}", r.status());
     let body: serde_json::Value = r.json().await.unwrap();
-    assert_eq!(body["path"], "Acme/Coder/Proper Title.mod");
+    assert_eq!(body["path"], "Coder/Proper Title.mod");
 
     // The file is on disk at the new path, gone from the old, and the index +
     // metadata followed it (no rescan needed for the in-place update).
-    assert!(s.root.join("Acme/Coder/Proper Title.mod").is_file());
-    assert!(!s.root.join("Acme/Coder/song.mod").exists());
+    assert!(s.root.join("Coder/Proper Title.mod").is_file());
+    assert!(!s.root.join("Coder/song.mod").exists());
 
     let tracks = s.tracks().await;
-    assert!(tracks.iter().all(|t| t["path"] != "Acme/Coder/song.mod"));
+    assert!(tracks.iter().all(|t| t["path"] != "Coder/song.mod"));
     let moved = tracks
         .iter()
-        .find(|t| t["path"] == "Acme/Coder/Proper Title.mod")
+        .find(|t| t["path"] == "Coder/Proper Title.mod")
         .expect("renamed file in index");
     assert_eq!(moved["hash"].as_str().unwrap(), hash, "hash unchanged");
     assert_eq!(moved["title"], "Cleaned Up", "metadata preserved");
@@ -171,8 +172,8 @@ async fn rename_refuses_overwrite_and_bad_names() {
         .post_json(
             "/api/rename",
             serde_json::json!({
-                "from": "Acme/Coder/song.mod",
-                "group": "Acme",
+                "from": "Coder/song.mod",
+                "group": "",
                 "artist": "Coder",
                 "filename": "tune.xm"
             }),
@@ -185,8 +186,8 @@ async fn rename_refuses_overwrite_and_bad_names() {
         .post_json(
             "/api/rename",
             serde_json::json!({
-                "from": "Acme/Coder/song.mod",
-                "group": "Acme",
+                "from": "Coder/song.mod",
+                "group": "",
                 "artist": "Coder",
                 "filename": "song"
             }),
@@ -194,14 +195,14 @@ async fn rename_refuses_overwrite_and_bad_names() {
         .await;
     assert_eq!(bad_ext.status().as_u16(), 400);
 
-    // Path-escape attempt in a segment → 400.
+    // Path-escape attempt in the artist segment → 400.
     let escape = s
         .post_json(
             "/api/rename",
             serde_json::json!({
-                "from": "Acme/Coder/song.mod",
-                "group": "../../etc",
-                "artist": null,
+                "from": "Coder/song.mod",
+                "group": "",
+                "artist": "../../etc",
                 "filename": "song.mod"
             }),
         )
@@ -209,7 +210,7 @@ async fn rename_refuses_overwrite_and_bad_names() {
     assert_eq!(escape.status().as_u16(), 400);
 
     // The original file is untouched after all the rejected attempts.
-    assert!(s.root.join("Acme/Coder/song.mod").is_file());
+    assert!(s.root.join("Coder/song.mod").is_file());
 }
 
 #[tokio::test]
@@ -226,8 +227,9 @@ async fn api_requires_auth_header_without_dev_auth() {
 #[ignore]
 async fn delete_removes_file_and_clears_the_dupe_report() {
     let s = Stack::start().await.unwrap();
-    // Add an exact copy of song.mod at a second path (same bytes → same md5).
-    std::fs::write(s.root.join("Demo/song.mod"), b"fixture-mod-aaa").unwrap();
+    // Add an exact copy of song.mod under a second artist (same bytes → same md5).
+    std::fs::create_dir_all(s.root.join("Ripper")).unwrap();
+    std::fs::write(s.root.join("Ripper/song.mod"), b"fixture-mod-aaa").unwrap();
     s.rescan().await;
     assert_eq!(s.tracks().await.len(), 4);
 
@@ -241,13 +243,13 @@ async fn delete_removes_file_and_clears_the_dupe_report() {
         .iter()
         .map(|p| p.as_str().unwrap())
         .collect();
-    assert!(paths.contains(&"Acme/Coder/song.mod") && paths.contains(&"Demo/song.mod"));
+    assert!(paths.contains(&"Coder/song.mod") && paths.contains(&"Ripper/song.mod"));
 
     // Delete one copy.
     let r = s
         .post_json(
             "/api/delete",
-            serde_json::json!({ "path": "Demo/song.mod" }),
+            serde_json::json!({ "path": "Ripper/song.mod" }),
         )
         .await;
     assert!(r.status().is_success(), "delete failed: {}", r.status());
@@ -255,11 +257,11 @@ async fn delete_removes_file_and_clears_the_dupe_report() {
     assert_eq!(body["removed"], 1);
 
     // Gone from disk + index; the other copy is untouched; no longer a dupe.
-    assert!(!s.root.join("Demo/song.mod").exists());
-    assert!(s.root.join("Acme/Coder/song.mod").is_file());
+    assert!(!s.root.join("Ripper/song.mod").exists());
+    assert!(s.root.join("Coder/song.mod").is_file());
     let tracks = s.tracks().await;
     assert_eq!(tracks.len(), 3);
-    assert!(tracks.iter().all(|t| t["path"] != "Demo/song.mod"));
+    assert!(tracks.iter().all(|t| t["path"] != "Ripper/song.mod"));
     let dupes = s.get_json("/api/dupes").await;
     assert!(
         dupes["exact"].as_array().unwrap().is_empty(),
@@ -286,12 +288,12 @@ async fn delete_rejects_path_escape_and_unknown() {
     let missing = s
         .post_json(
             "/api/delete",
-            serde_json::json!({ "path": "Acme/Coder/nope.mod" }),
+            serde_json::json!({ "path": "Coder/nope.mod" }),
         )
         .await;
     assert_eq!(missing.status().as_u16(), 404);
 
     // Nothing was touched.
-    assert!(s.root.join("Acme/Coder/song.mod").is_file());
+    assert!(s.root.join("Coder/song.mod").is_file());
     assert_eq!(s.tracks().await.len(), 3);
 }

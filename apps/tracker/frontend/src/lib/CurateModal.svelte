@@ -5,7 +5,6 @@
   // hits /api/rename (moves the file); the rest write library.json via the
   // curation API, then the manifest store re-fetches so the library re-groups.
   import { api, type Track } from "$lib/api";
-  import { library } from "$lib/library.svelte";
   import { manifestIndex, manifestStore, reloadManifest } from "$lib/manifest.svelte";
   import Modal from "$lib/Modal.svelte";
 
@@ -21,7 +20,6 @@
     onToast: (msg: string, kind?: "ok" | "err") => void;
   } = $props();
 
-  const artistLayout = $derived((library.status?.layout ?? "group-artist") === "artist");
   const idx = $derived(manifestIndex());
   // The artist whose graph this edits — the track's canonical handle.
   const canonical = $derived(track.artist ? idx.canonical(track.artist) : "");
@@ -39,7 +37,6 @@
 
   // ---- move (rename) ---- (all fields seeded by the $effect below, which also
   // re-seeds if the modal is reused for a different track)
-  let dGroup = $state("");
   let dFolder = $state("");
   let dFilename = $state("");
 
@@ -65,7 +62,6 @@
     const key = `${track.path}|${canonical}|${track.md5 ?? ""}`;
     if (key === seededFor) return;
     seededFor = key;
-    dGroup = track.group;
     dFolder = track.artist ?? "";
     dFilename = track.filename;
     dAka = (artistEntry?.aka ?? []).join("\n");
@@ -84,14 +80,13 @@
     err = null;
     const patch: Partial<Track> = {};
     try {
-      // 1) Rename / move (only if a path segment actually changed).
-      const folderChanged = artistLayout
-        ? dFolder.trim() !== (track.artist ?? "")
-        : dGroup.trim() !== track.group || dFolder.trim() !== (track.artist ?? "");
+      // 1) Rename / move (only if a path segment actually changed). Artist-
+      // primary: the folder is the artist; there is no path-group to edit.
+      const folderChanged = dFolder.trim() !== (track.artist ?? "");
       if (folderChanged || dFilename.trim() !== track.filename) {
         const res = await api.rename({
           from: track.path,
-          group: artistLayout ? "" : dGroup,
+          group: "",
           artist: dFolder.trim() || null,
           filename: dFilename.trim(),
         });
@@ -163,11 +158,8 @@
 
   <section>
     <div class="sec">move</div>
-    {#if !artistLayout}
-      <label>group <input bind:value={dGroup} placeholder="group (blank = groupless)" /></label>
-    {/if}
     <label>
-      {artistLayout ? "artist (folder)" : "artist"}
+      artist (folder)
       <input bind:value={dFolder} placeholder="artist" />
     </label>
     <label>filename <input bind:value={dFilename} placeholder="filename" /></label>

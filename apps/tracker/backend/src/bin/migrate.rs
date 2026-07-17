@@ -16,7 +16,8 @@
 //! with `--go`; without it, it's a dry run that reports what the *live* tree
 //! would allow. Idempotent + defensive: missing sources are skipped, existing
 //! destinations are never clobbered, emptied group dirs are pruned. After a real
-//! apply, set `TRACKER_LAYOUT=artist` and rescan.
+//! apply, rescan so the index re-derives the artist-primary paths. (This is a
+//! historical one-shot tool: the backend is now artist-primary unconditionally.)
 
 use std::path::{Path, PathBuf};
 

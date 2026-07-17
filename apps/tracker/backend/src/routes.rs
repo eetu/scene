@@ -134,10 +134,6 @@ async fn status(State(state): State<AppState>) -> Json<Value> {
         "db_healthy": scanning || track_count.is_some(),
         "track_count": track_count,
         "root": state.cfg.root.display().to_string(),
-        "layout": match state.cfg.layout {
-            crate::config::Layout::Artist => "artist",
-            crate::config::Layout::GroupArtist => "group-artist",
-        },
         "scanning": scanning,
         "scan_total": state.scan.total.load(Ordering::Relaxed),
         "scan_processed": state.scan.processed.load(Ordering::Relaxed),
@@ -418,24 +414,17 @@ async fn api_rename(
         }
         None => None,
     };
-    let to_rel = match state.cfg.layout {
-        crate::config::Layout::GroupArtist => match &artist {
-            Some(a) => format!("{group}/{a}/{filename}"),
-            None => format!("{group}/{filename}"),
-        },
-        crate::config::Layout::Artist => {
-            // Artist-primary: the folder is the artist (falling back to the group
-            // field, else the _unknown bucket). No group directory.
-            let folder = artist.clone().unwrap_or_else(|| {
-                if group == crate::scan::GROUPLESS {
-                    crate::migrate::UNKNOWN_ARTIST.to_string()
-                } else {
-                    group.clone()
-                }
-            });
-            format!("{folder}/{filename}")
+    // Artist-primary: the folder is the artist, falling back to the group field
+    // (for a caller that only knows a group), else the _unknown bucket. No group
+    // directory — groups live in the manifest.
+    let folder = artist.clone().unwrap_or_else(|| {
+        if group == crate::scan::GROUPLESS {
+            crate::migrate::UNKNOWN_ARTIST.to_string()
+        } else {
+            group.clone()
         }
-    };
+    });
+    let to_rel = format!("{folder}/{filename}");
     let from_rel = req.from.clone();
     if from_rel == to_rel {
         return Err(AppError::BadRequest(
@@ -482,7 +471,7 @@ async fn api_rename(
     })?;
 
     // Update the index row in place (hash unchanged → meta still matches).
-    let (grp, art, fname, ext) = crate::scan::derive_fields(&to_rel, state.cfg.layout);
+    let (grp, art, fname, ext) = crate::scan::derive_fields(&to_rel);
     let to_for_db = to_rel.clone();
     state
         .db
@@ -495,7 +484,7 @@ async fn api_rename(
         })
         .await?;
 
-    let (grp, art, fname, ext) = crate::scan::derive_fields(&to_rel, state.cfg.layout);
+    let (grp, art, fname, ext) = crate::scan::derive_fields(&to_rel);
     Ok(Json(json!({
         "path": to_rel,
         "group": grp,
@@ -558,7 +547,6 @@ async fn api_rescan(_auth: Auth, State(state): State<AppState>) -> AppResult<Jso
     let result = crate::run_scan(
         state.db.clone(),
         state.cfg.root.clone(),
-        state.cfg.layout,
         state.scan.clone(),
     )
     .await
@@ -1449,7 +1437,6 @@ async fn api_set_song(
 // ---------- fetch missing (download by Modland path) ----------
 
 /// Fallback group for a fetched module whose Modland path carries no author.
-const DL_FALLBACK_GROUP: &str = "Modland";
 /// Safety cap on downloads per fetch run (be kind to a volunteer-run service).
 const FETCH_MAX: usize = 500;
 
@@ -1594,10 +1581,9 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
             .await?
             .is_some();
         if !have {
-            let (group, artist, filename) = place_download(m);
+            let (artist, filename) = place_download(m);
             if let Err(e) = write_module(
                 &state.cfg.root,
-                &group,
                 artist.as_deref(),
                 &filename,
                 &bytes,
@@ -1631,7 +1617,6 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
         crate::run_scan(
             state.db.clone(),
             state.cfg.root.clone(),
-            state.cfg.layout,
             state.scan.clone(),
         )
         .await?;
@@ -1644,49 +1629,44 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Where a fetched module is filed: `(group, artist, filename)`, at the library's
-/// `group/artist/song` convention.
+/// Where a fetched module is filed: `(artist, filename)`, artist-primary.
 ///
-/// From a Modland `path` (`Format/Author/.../file`): group = format, artist =
-/// author, both straight from the path. From a `url` (no path — e.g. a Mod
-/// Archive item): the library's canonical no-group bucket, so group =
-/// [`GROUPLESS`](crate::scan::GROUPLESS) and artist = the item's curated artist
-/// when present — landing at `_groupless/<artist>/<file>` (or `_groupless/<file>`
-/// when unknown), never a phantom host-named group.
-fn place_download(m: &Missing) -> (String, Option<String>, String) {
-    match &m.path {
-        Some(p) => (
-            crate::modland::format_from_path(p).unwrap_or_else(|| DL_FALLBACK_GROUP.to_string()),
-            crate::modland::author_from_path(p),
-            p.rsplit('/').next().unwrap_or("module").to_string(),
-        ),
-        None => (
-            crate::scan::GROUPLESS.to_string(),
-            m.artist.clone().filter(|a| !a.trim().is_empty()),
-            m.filename.clone().unwrap_or_else(|| "module".to_string()),
-        ),
-    }
+/// From a Modland `path` (`Format/Author/.../file`): artist = the author segment
+/// (the format is a facet, not a directory). From a `url` (no path — e.g. a Mod
+/// Archive item): artist = the item's curated artist when present. Either way the
+/// module lands at `<artist>/<file>`, or the `_unknown/` bucket when no artist is
+/// known (see [`write_module`]).
+fn place_download(m: &Missing) -> (Option<String>, String) {
+    let filename = match &m.path {
+        Some(p) => p.rsplit('/').next().unwrap_or("module").to_string(),
+        None => m.filename.clone().unwrap_or_else(|| "module".to_string()),
+    };
+    let artist = m
+        .path
+        .as_deref()
+        .and_then(crate::modland::author_from_path)
+        .or_else(|| m.artist.clone())
+        .filter(|a| !a.trim().is_empty());
+    (artist, filename)
 }
 
-/// Write a downloaded module under `<group>/<artist>/<filename>` (the library's
-/// `group/artist/song` convention), or `<group>/<filename>` when no artist is
-/// known. Suffixes the filename (`name~2.ext`) on collision so a fetch never
-/// overwrites an existing file.
+/// Write a downloaded module under `<artist>/<filename>` (artist-primary), or the
+/// canonical `_unknown/<filename>` bucket when no artist is known. Suffixes the
+/// filename (`name~2.ext`) on collision so a fetch never overwrites an existing
+/// file.
 async fn write_module(
     root: &std::path::Path,
-    group: &str,
     artist: Option<&str>,
     filename: &str,
     bytes: &[u8],
 ) -> anyhow::Result<()> {
-    let g = clean_segment(group).unwrap_or_else(|| DL_FALLBACK_GROUP.to_string());
     let name = clean_segment(filename)
         .filter(|n| crate::scan::has_module_ext(n))
         .ok_or_else(|| anyhow::anyhow!("unsafe or non-module filename: {filename}"))?;
-    let dir = match artist.and_then(clean_segment) {
-        Some(a) => root.join(&g).join(a),
-        None => root.join(&g),
-    };
+    let folder = artist
+        .and_then(clean_segment)
+        .unwrap_or_else(|| crate::migrate::UNKNOWN_ARTIST.to_string());
+    let dir = root.join(folder);
     tokio::fs::create_dir_all(&dir).await?;
     let dest = unique_dest(&dir, &name);
     tokio::fs::write(&dest, bytes).await?;
@@ -1804,39 +1784,33 @@ mod tests {
 
     #[test]
     fn place_from_modland_path() {
-        // group = format, artist = author, filename = last segment.
-        let (g, a, f) = place_download(&missing(Some("Protracker/coma/newtune.mod"), None, None));
-        assert_eq!(
-            (g.as_str(), a.as_deref(), f.as_str()),
-            ("Protracker", Some("coma"), "newtune.mod")
-        );
+        // artist = the author segment (the format is a facet, not a directory);
+        // filename = last segment.
+        let (a, f) = place_download(&missing(Some("Protracker/coma/newtune.mod"), None, None));
+        assert_eq!((a.as_deref(), f.as_str()), (Some("coma"), "newtune.mod"));
     }
 
     #[test]
-    fn place_url_with_artist_goes_to_groupless() {
-        // A url item (no path) with a curated artist → _groupless/<artist>/<file>,
-        // never a host-derived group.
-        let (g, a, f) = place_download(&missing(
+    fn place_url_with_artist() {
+        // A url item (no path) with a curated artist → <artist>/<file>.
+        let (a, f) = place_download(&missing(
             None,
             Some("https://api.modarchive.org/downloads.php?moduleid=42"),
             Some("4-mat"),
         ));
-        assert_eq!(
-            (g.as_str(), a.as_deref(), f.as_str()),
-            (crate::scan::GROUPLESS, Some("4-mat"), "newtune.mod")
-        );
+        assert_eq!((a.as_deref(), f.as_str()), (Some("4-mat"), "newtune.mod"));
     }
 
     #[test]
-    fn place_url_without_artist_is_groupless_flat() {
-        // No usable artist (absent or blank) → _groupless with no artist subdir.
+    fn place_url_without_artist_is_unknown() {
+        // No usable artist (absent or blank) → None; write_module files it under
+        // the canonical _unknown bucket.
         for artist in [None, Some("   ")] {
-            let (g, a, _) = place_download(&missing(
+            let (a, _) = place_download(&missing(
                 None,
                 Some("https://api.modarchive.org/downloads.php?moduleid=42"),
                 artist,
             ));
-            assert_eq!(g, crate::scan::GROUPLESS);
             assert_eq!(a, None);
         }
     }

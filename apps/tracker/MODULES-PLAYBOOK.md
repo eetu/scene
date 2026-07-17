@@ -100,12 +100,13 @@ Landing incrementally (plan: `~/.claude/plans/tracker-library-manifest.md`).
 **Live now:** the manifest core (`library.json` load + `GET /api/manifest` +
 `POST /api/library/reload`), the **curation write API** (artist / album / song
 endpoints), the **manifest-driven facets** (browse by group / artist / album with
-alias folding), and the **offline seeder** (below). **Pending:** the in-app
-curation UI and the physical **tree migration** to `artist/song`.
+alias folding), the in-app **curation UI** (`CurateModal`), and the **offline
+seeder** (below).
 
-Until the migration runs, the mount is **still `group/artist/…`** and the backend
-runs in `TRACKER_LAYOUT` legacy mode; the manifest layers aliases / groups / albums
-on top either way — so you get manifest browsing *now*, on the legacy tree.
+The physical **tree migration** to `artist/song` has run: the mount is
+`<artist>/song.ext` and the backend is **artist-primary unconditionally** (no
+layout switch). Groups / aliases / albums come from `library.json`, joined onto
+the path-derived artist in the frontend.
 
 ### Seed `library.json` from a snapshot
 

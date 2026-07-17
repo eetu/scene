@@ -112,7 +112,8 @@ async fn fetch_missing_downloads_and_resolves_item() {
     s.rescan().await;
 
     // Import a curated list whose one item is missing locally but carries a
-    // Modland path → group=format, artist=author, filename from the path.
+    // Modland path → artist=author (the format is a facet, not a directory),
+    // filename from the path.
     let pl: serde_json::Value = s
         .post_json(
             "/api/playlists/import",
@@ -152,13 +153,13 @@ async fn fetch_missing_downloads_and_resolves_item() {
     assert!(done, "fetch did not complete");
 
     // The module landed at the library convention and indexed.
-    assert!(s.root.join("Protracker/coma/newtune.mod").is_file());
+    assert!(s.root.join("coma/newtune.mod").is_file());
     let tracks = s.tracks().await;
     let fetched = tracks
         .iter()
-        .find(|t| t["path"] == "Protracker/coma/newtune.mod")
+        .find(|t| t["path"] == "coma/newtune.mod")
         .expect("downloaded module indexed");
-    assert_eq!(fetched["group"], "Protracker");
+    assert_eq!(fetched["group"], "");
     assert_eq!(fetched["artist"], "coma");
 
     // The playlist item now resolves as present.

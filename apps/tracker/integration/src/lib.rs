@@ -162,17 +162,17 @@ impl Drop for Stack {
     }
 }
 
-/// `group/artist/song.ext` and `group/song.ext` fixtures across formats.
+/// Artist-primary `artist/song.ext` fixtures across formats, plus a root-level
+/// module (no artist dir → artist `None`) and macOS junk that must be skipped.
 fn seed_fixture(root: &std::path::Path) -> anyhow::Result<()> {
-    std::fs::create_dir_all(root.join("Acme/Coder"))?;
-    std::fs::create_dir_all(root.join("Demo"))?;
-    std::fs::write(root.join("Acme/Coder/song.mod"), b"fixture-mod-aaa")?;
-    std::fs::write(root.join("Acme/Coder/tune.xm"), b"fixture-xm-bbb")?;
-    std::fs::write(root.join("Demo/intro.s3m"), b"fixture-s3m-ccc")?;
+    std::fs::create_dir_all(root.join("Coder"))?;
+    std::fs::write(root.join("Coder/song.mod"), b"fixture-mod-aaa")?;
+    std::fs::write(root.join("Coder/tune.xm"), b"fixture-xm-bbb")?;
+    std::fs::write(root.join("intro.s3m"), b"fixture-s3m-ccc")?;
     // macOS junk that must be skipped.
-    std::fs::write(root.join("Acme/Coder/._song.mod"), b"junk")?;
-    std::fs::write(root.join("Demo/.DS_Store"), b"junk")?;
-    std::fs::write(root.join("Demo/readme.txt"), b"not a module")?;
+    std::fs::write(root.join("Coder/._song.mod"), b"junk")?;
+    std::fs::write(root.join(".DS_Store"), b"junk")?;
+    std::fs::write(root.join("readme.txt"), b"not a module")?;
     Ok(())
 }
 
