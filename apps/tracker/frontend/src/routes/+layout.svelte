@@ -69,6 +69,12 @@
     --bg: var(--halo-body);
     --panel: var(--halo-bg-main);
     --panel-hi: var(--halo-off-bg);
+    /* Recessed shelf behind group headers — a touch dimmer than --panel so the
+       track rows read as the content plane. Derived per-theme (this is the dark
+       default; the light override is below) because the panel-vs-neighbour
+       contrast differs: in dark, recess toward the body void; in light the body
+       is nearly the white panel, so recess toward the grey border instead. */
+    --panel-sunk: color-mix(in srgb, var(--halo-bg-main), var(--halo-body) 55%);
     --border: var(--halo-border);
     --text: var(--halo-text-main);
     --muted: var(--halo-text-muted);
@@ -91,6 +97,14 @@
     --font-retro: "TopazPlus", ui-monospace, monospace;
     --font-mono-retro: "TopazPlus", ui-monospace, monospace;
     font-family: var(--halo-font-body);
+  }
+
+  /* Light theme: the body colour is nearly the white panel, so the dark
+     recipe (recess toward body) is invisible. Recess toward the grey border
+     for a soft-but-legible header shelf instead. (The only token whose
+     derivation must differ by theme — everything else just flips via --halo-*.) */
+  :global(:root[data-theme="light"]) {
+    --panel-sunk: color-mix(in srgb, var(--halo-bg-main), var(--halo-border) 55%);
   }
 
   :global(*) {
