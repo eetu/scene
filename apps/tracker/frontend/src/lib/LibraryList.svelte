@@ -511,16 +511,32 @@
   .head.closed {
     border-radius: 6px;
   }
+  /* Open group = an outlined, accent-marked card. A brighter --panel-hi outline
+     (vs the quiet --border of closed bars) delineates where the group starts and
+     ends; an accent left edge runs down the whole open group to mark it as the
+     expanded/active one. The header's bottom stays a subtle inner divider from
+     its rows — only the outer edges get the brighter outline. */
+  .head:not(.closed) {
+    border-top-color: var(--panel-hi);
+    border-left-color: var(--panel-hi);
+    border-right-color: var(--panel-hi);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
   /* Disclosure chevron: right when closed, rotates down when open (calm 150ms). */
   .chev {
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     color: var(--muted);
-    transition: transform var(--halo-d-fast) ease;
+    transition:
+      transform var(--halo-d-fast) ease,
+      color var(--halo-d-fast) ease;
   }
+  /* Open groups: the chevron rotates down AND turns accent — a scannable
+     "this one is expanded" marker to pair with the outlined card below. */
   .head:not(.closed) .chev {
     transform: rotate(90deg);
+    color: var(--accent);
   }
   .grp-name {
     font-weight: 600;
@@ -556,10 +572,16 @@
        height), so the CSS and the virtualizer sizing can never desync. */
     height: var(--row-h, 34px);
     padding: 0 12px;
+    /* Every track row belongs to an open group, so rows carry the open card's
+       outline (brighter --panel-hi sides) and its accent left edge; the bottom
+       stays a subtle inner divider between tracks. */
     border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    border-left-color: var(--panel-hi);
+    border-right-color: var(--panel-hi);
+    box-shadow: inset 3px 0 0 var(--accent);
   }
   .li.last {
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--panel-hi);
     border-radius: 0 0 6px 6px;
   }
   .li:hover:not(.current) {
