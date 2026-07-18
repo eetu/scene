@@ -9,6 +9,10 @@
   // seeded per track), evaluated per-depth inside the shader. Rings + rails form
   // the neon grid; walls flash/breathe on each musical beat; brightness + flight
   // speed track the music's energy. CSP-safe (GLSL compiles on the GPU, not eval).
+  //
+  // Intentionally dark: this is a self-lit neon-on-black scene, not a themed panel,
+  // so it does NOT follow the app's light/dark theme (its "themes" are internal wall
+  // styles, unrelated to the app theme).
   import {
     beatBpm,
     beatPhase,

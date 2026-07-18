@@ -6,6 +6,10 @@
   // This component just feeds it: the smooth clock (advanced by frame dt, re-synced
   // to playback.position on a seek), the theme accent as the glow colour, and bass
   // energy as a pulse that throbs the glow + bloom.
+  //
+  // Intentionally dark: glowing tubes read only in the dark (nixie-scene even clamps
+  // the backdrop brightness), so this does NOT follow the app's light/dark theme —
+  // it only tracks --accent for the glow colour.
   import { onMount } from "svelte";
 
   import type { NixieScene } from "./nixie-scene";
