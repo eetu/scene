@@ -4,6 +4,9 @@
   // energy and easing to a near-stop when it stops. Periodically the whole field
   // barrel-rolls about the centre for a bit of demoscene flair. (A 3D ship model
   // will be brought in later from ../maquette.) Backdrop is the shared nebula asset.
+  //
+  // Intentionally dark: a deep-space scene, not a themed panel — it does NOT follow
+  // the app's light/dark theme (it only reads --accent to tint a couple of stars).
   import { playback } from "./player.svelte";
   import { driveFrames } from "./raf";
   import bgUrl from "./assets/starfield-bg.jpg";

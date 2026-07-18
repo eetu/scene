@@ -5,6 +5,9 @@
   // on the walls/floor, so as the ball spins the spots sweep around the room and
   // the ball itself sparkles. Spin speed, spot brightness and colour react to the
   // music (beat kick, energy, bass/treble, drops). CSP-safe (GLSL on the GPU).
+  //
+  // Intentionally dark: a self-lit neon room, not a themed panel — it does NOT
+  // follow the app's light/dark theme.
   import { beatBpm, playback, sampleBands } from "./player.svelte";
   import { driveFrames } from "./raf";
 

@@ -2,7 +2,8 @@
   // Amiga copper/raster bars: stacked glossy horizontal bars that sine-bounce
   // vertically, their travel and shimmer driven by the music energy. Each bar is
   // a vertical gradient (dark→bright→dark) for the rounded metallic sheen, hues
-  // cycling through a warm→cool sweep. Dark panel in both themes.
+  // cycling through a warm→cool sweep. The panel follows the app theme (a dark panel
+  // in dark, a pale one in light); the glossy bars themselves stay the same.
   import { playback } from "./player.svelte";
   import { driveFrames } from "./raf";
 

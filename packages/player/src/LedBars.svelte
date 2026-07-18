@@ -12,6 +12,7 @@
   // import @scene/player. So the value (LedGrid) is lazy-imported in onMount (also
   // keeps it out of the main bundle); only the type is imported statically.
   import type { LedDisplay } from "@glowbox/svelte";
+  import { theme } from "@scene/design";
   import { onMount } from "svelte";
 
   import { vizFps } from "./perf.svelte";
@@ -23,6 +24,16 @@
   let LedGrid = $state<LedGridComponent | null>(null);
   onMount(async () => {
     LedGrid = (await import("@glowbox/svelte")).LedGrid;
+  });
+
+  // The cube's background follows the app theme like the other panel viz: read the
+  // resolved --scope-bg token off :root, re-reading whenever the theme flips. (The
+  // LED heat colours themselves stay theme-independent — LEDs are LEDs.)
+  let bg = $state("#04050a");
+  $effect(() => {
+    theme.mode; // re-read on a theme flip
+    const v = getComputedStyle(document.documentElement).getPropertyValue("--scope-bg").trim();
+    if (v) bg = v;
   });
 
   const N = 8; // bars per side → N×N = 64 bars
@@ -139,7 +150,7 @@
     size={[NX, NY, NZ]}
     {draw}
     led={{ style: "comic", shape: "square", size: 0.9, outline: 0.28 }}
-    color={{ background: "#04050a", gain: 1.0 }}
+    color={{ background: bg, gain: 1.0 }}
     camera={{
       autoOrbit: true,
       orbitSpeed: 0.2,
