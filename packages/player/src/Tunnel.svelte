@@ -201,11 +201,12 @@
       return col;
     }
     // Rainbow: soft pastel spectrum spiralling around + down the tube (hue is
-    // cyclic, so a*1.0 = one seamless spectrum around). Low saturation + a lift
-    // toward white keeps it pastel; no brightness bands, so no dark spiral line.
+    // cyclic, so a*1.0 = one seamless spectrum around). Low saturation + a value
+    // held below 1 (+ a small white lift) keeps it a soft, non-glaring pastel; no
+    // brightness bands, so no dark spiral line.
     vec3 themeRainbow(float z, float a, float t) {
       float hue = fract(a * 1.0 + z * 0.06 - t * 0.08);
-      return mix(hsv2rgb(vec3(hue, 0.5, 1.0)), vec3(1.0), 0.15);
+      return mix(hsv2rgb(vec3(hue, 0.48, 0.82)), vec3(1.0), 0.12);
     }
     // Black & white CRT: monochrome phosphor grid over faded TV static — fine,
     // fast-flickering white noise in the background (dead-channel look) with the
@@ -265,14 +266,22 @@
     // ribs down the trench, dense static per-cell tone variation (greebles), and a
     // sparse scatter of steady warm/cool running lights. Wears the square shape.
     vec3 themeDeathstar(float z, float a, float t) {
-      float panels = max(neon(z * 2.5, 0.02), neon(a * 40.0, 0.02));
-      float ribs = neon(z * 0.5, 0.05);
+      float panels = max(neon(z * 2.5, 0.02), neon(a * 40.0, 0.02)); // fine panel seams
+      float ribs   = neon(z * 0.5, 0.05);                            // big structural ribs
+      // Large rectangular plates (a coarse grid) under the fine greebles — the busy,
+      // blocky paneling that makes it read as trench, not smooth metal. Integer
+      // angular cell count (12) → wraps seamlessly around the ring.
+      float plate  = fract(sin(floor(z * 1.6) * 21.3 + floor(a * 12.0) * 47.1 + uSeed) * 24634.6);
       float ga = floor(a * 64.0);
-      float g = fract(sin(floor(z * 8.0) * 12.9 + ga * 78.2 + uSeed) * 43758.5);
-      vec3 metal = mix(vec3(0.1, 0.11, 0.12), vec3(0.24, 0.25, 0.27), g * 0.7);
-      vec3 col = metal * (1.0 - 0.45 * panels) + vec3(0.06) * ribs;
-      float lit = step(0.94, g); // ~6% of cells are running lights
-      return col + mix(vec3(1.0, 0.8, 0.5), vec3(0.6, 0.85, 1.0), fract(ga * 0.37)) * lit * 0.7;
+      float g  = fract(sin(floor(z * 8.0) * 12.9 + ga * 78.2 + uSeed) * 43758.5); // fine greebles
+      // Neutral cool grey: the plate sets each panel's base tone, greebles add fine
+      // per-cell variation on top → busy industrial grey rather than flat metal.
+      vec3 metal = mix(vec3(0.115, 0.12, 0.13), vec3(0.31, 0.315, 0.325), plate * 0.65 + g * 0.28);
+      vec3 col = metal * (1.0 - 0.6 * panels);                       // deeper recessed seams
+      col *= 1.0 - 0.3 * neon(a * 12.0, 0.03);                       // vertical plate borders
+      col += vec3(0.05) * ribs;                                      // faint rib catch-light
+      float lit = step(0.965, g); // sparser running lights (~3.5% of cells)
+      return col + mix(vec3(0.85, 0.72, 0.5), vec3(0.55, 0.72, 0.92), fract(ga * 0.37)) * lit * 0.5;
     }
     // Ice cave: near-black cold-blue walls with turbulent glacial cracks + bright
     // white-blue caustics swirling around the tube — an icy whirlpool.
