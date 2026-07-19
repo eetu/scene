@@ -44,7 +44,7 @@ export function driveFrames(
   // costs real canvas/compositing CPU (≈10% for a full-screen 2D effect); frozen
   // it costs nothing. Loops with no `active` predicate (fps-only) never freeze.
   let idleSince = 0;
-  const SETTLE_MS = 800;
+  const SETTLE_MS = 1500;
   const WATCH_MS = 250;
 
   function startRaf() {
@@ -64,13 +64,19 @@ export function driveFrames(
 
   function tick(now: number) {
     raf = requestAnimationFrame(tick);
+    let settling = false;
     if (activeFn && !activeFn()) {
       if (!idleSince) idleSince = now;
       if (now - idleSince > SETTLE_MS) return freeze();
+      settling = true;
     } else {
       idleSince = 0;
     }
-    const fps = targetFps();
+    // Paint the settle window at the ACTIVE cap (not the idle cap): when pause is
+    // hit, damped motion winding down to rest — particle fall, spin/pulse/glow
+    // decay — keeps rendering smoothly right up to the resting frame instead of
+    // stuttering at ~12fps the instant it goes idle. Then it freezes.
+    const fps = settling ? vizFps(true) : targetFps();
     const elapsed = now - last;
     // −1ms slack so two 8.33ms (120Hz) ticks clear the 60fps gate cleanly.
     if (elapsed < 1000 / fps - 1) return; // too soon — skip this tick
