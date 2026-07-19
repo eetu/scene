@@ -3,9 +3,11 @@
   // AnalyserNode) as a luminous ribbon: a short history of recent waveforms is
   // kept and redrawn oldest→newest with an alpha/width ramp, and the strokes are
   // blended additively ('lighter') so overlaps bloom into a soft neon glow — the
-  // layered, feathered "strands" look. In dark theme it's accent-coloured on the
-  // themed scope panel; in light theme the panel stays dark (neon glow only reads
-  // on a dark field) and the wave goes neon purple — the inspiration's look.
+  // layered, feathered "strands" look. The wave is a fixed neon purple in both
+  // themes. Dark theme blends the strands additively ('lighter') over the themed
+  // scope panel so overlaps bloom into glow; light theme uses a pale lavender panel
+  // + normal compositing (additive would wash out to white on a light field), so the
+  // purple still reads.
   import { readScope, SCOPE_SIZE } from "./player.svelte";
   import { driveFrames } from "./raf";
 
@@ -25,7 +27,7 @@
 
     let w = 0;
     let h = 0;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // shadowBlur is costly — don't also pay full retina
     const ro = new ResizeObserver(() => {
       const r = el.getBoundingClientRect();
       w = r.width;
@@ -112,8 +114,11 @@
             const age = t / (TRAILS - 1);
             g2.globalAlpha = (light ? 0.7 : 0.5) * (1 - age) ** 1.6 + 0.04;
             g2.lineWidth = 2.2 * (1 - age) + 0.5;
+            // Glow halo only on the newest few strands: canvas shadowBlur is very
+            // expensive (×TRAILS/frame otherwise), and the faint old trails barely
+            // contribute a halo at their low alpha anyway.
             g2.shadowColor = cWave;
-            g2.shadowBlur = t === 0 ? 16 : 6 * (1 - age);
+            g2.shadowBlur = t === 0 ? 16 : t < 3 ? 6 * (1 - age) : 0;
             g2.beginPath();
             for (let i = 0; i < POINTS; i++) {
               const x = i * xStep;
