@@ -226,10 +226,12 @@
       float r = fract(sin(lane * 12.9898 + uSeed) * 43758.5453);
       float on = step(0.32, r);                             // most lanes lit → dense wall
       float line = exp(-sub * sub * (150.0 + 120.0 * r));   // very thin streak
-      float d = z - uCamZ;                                  // depth ahead of the camera
+      float d = z - uCamZ;                                  // signed depth (negative = behind)
       float head = mod(d * 0.14 + t * (3.2 + r * 3.5) + r * 20.0, 5.0); // fast heads
       float streak = exp(-head * 1.2);                      // long stretched tail (smear)
-      float nearFade = smoothstep(1.0, 9.0, d);
+      // Gate on distance in BOTH directions (abs) so the streaks fill the backward
+      // view during a 180° turn too — only fade right at the camera, not behind it.
+      float nearFade = smoothstep(1.0, 9.0, abs(d));
       vec3 star = mix(vec3(0.65, 0.82, 1.0), vec3(1.0), r * r); // blue-white
       return vec3(0.01, 0.02, 0.06) + star * line * streak * on * nearFade * 2.3;
     }
@@ -523,9 +525,13 @@
           float a01 = atan(rel.y, rel.x) * 0.15915494 + 0.5;
           float cz = mod(floor((uCamZ + pos.z) * 2.0), 1024.0);
           float cellA = floor(a01 * 24.0);
-          float h = rnd1(cz * 31.0 + cellA * 7.0) - 0.5; // −0.5..0.5 static per-cell jitter
-          float band = texture2D(uBands, vec2((cellA + 0.5) / 24.0, 0.5)).r; // this column's level
-          wallR -= voxAmp * (h * 0.7 + band * 1.5); // subtle static texture + audio bars, inward
+          float cellRnd = rnd1(cz * 31.0 + cellA * 7.0); // 0..1, unique per voxel cell
+          float band = texture2D(uBands, vec2((cellA + 0.5) / 24.0, 0.5)).r; // this column's freq level
+          // Give each cell its own share of the column's energy so blocks jut to
+          // different heights (individual voxels), not one continuous raised ridge;
+          // the (cellRnd−0.5) term keeps a little static relief at rest.
+          float rise = band * (0.3 + 1.6 * cellRnd) + (cellRnd - 0.5) * 0.5;
+          wallR -= voxAmp * rise; // per-cell audio height + static relief, inward
         }
         float slack = wallR - mix(shapeRadius(rel, shapeA), shapeRadius(rel, shapeB), k); // >0 inside
         if (slack < 0.003) {
