@@ -28,6 +28,7 @@
     setEditOctave,
     setEditStep,
     setFollowPlay,
+    SpeakerPaint,
     Starfield,
     Tunnel,
     VuMeters,
@@ -352,6 +353,8 @@
             <Tunnel active={vizActive} />
           {:else if pv.vizMode === "disco"}
             <DiscoBall active={vizActive} />
+          {:else if pv.vizMode === "paint"}
+            <SpeakerPaint active={vizActive} />
           {:else if pv.vizMode === "tubes"}
             <NixieScene active={vizActive} />
           {:else}

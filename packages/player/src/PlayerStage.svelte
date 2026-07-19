@@ -10,6 +10,7 @@
     | "plasma"
     | "tunnel"
     | "disco"
+    | "paint"
     | "tubes"
     | "ball";
   const VIZ: VizMode[] = [
@@ -22,6 +23,7 @@
     "plasma",
     "tunnel",
     "disco",
+    "paint",
     "tubes",
     "ball",
   ];
@@ -53,6 +55,7 @@
   import Plasma from "./Plasma.svelte";
   import SampleBrowser from "./SampleBrowser.svelte";
   import Scope from "./Scope.svelte";
+  import SpeakerPaint from "./SpeakerPaint.svelte";
   import Starfield from "./Starfield.svelte";
   import Tunnel from "./Tunnel.svelte";
   import VuMeters from "./VuMeters.svelte";
@@ -160,6 +163,8 @@
             <Tunnel active={playing} />
           {:else if vizMode === "disco"}
             <DiscoBall active={playing} />
+          {:else if vizMode === "paint"}
+            <SpeakerPaint active={playing} />
           {:else if vizMode === "tubes"}
             <NixieScene active={playing} />
           {:else}
