@@ -22,6 +22,7 @@ export { default as PatternView } from "./PatternView.svelte";
 export { default as SampleBrowser } from "./SampleBrowser.svelte";
 export { default as Plasma } from "./Plasma.svelte";
 export { default as Starfield } from "./Starfield.svelte";
+export { default as SpeakerPaint } from "./SpeakerPaint.svelte";
 export { default as Tunnel } from "./Tunnel.svelte";
 export { default as VuMeters } from "./VuMeters.svelte";
 export { default as PlayerStage } from "./PlayerStage.svelte";

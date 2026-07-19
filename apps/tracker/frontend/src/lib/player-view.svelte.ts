@@ -16,6 +16,7 @@ export type VizMode =
   | "plasma"
   | "tunnel"
   | "disco"
+  | "paint"
   | "tubes"
   | "ball";
 
@@ -30,6 +31,7 @@ export const VIZ: VizMode[] = [
   "plasma",
   "tunnel",
   "disco",
+  "paint",
   "tubes",
   "ball",
 ];
