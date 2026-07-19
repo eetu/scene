@@ -180,7 +180,7 @@ export function createPaintScene(container: HTMLElement): PaintScene {
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0.5 : 1.0;
 
   // Drag to look around (like the nixie scene); it auto-orbits slowly when idle.
-  camera.position.set(0, 1.7, 5.0);
+  camera.position.set(0, 2.0, 5.4);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
@@ -188,7 +188,7 @@ export function createPaintScene(container: HTMLElement): PaintScene {
   controls.minDistance = 3;
   controls.maxDistance = 9;
   controls.maxPolarAngle = Math.PI * 0.49; // stay above the pool
-  controls.target.set(0, 0.4, 0);
+  controls.target.set(0, 0.6, 0); // a bit higher so the tall central spike is framed
   controls.autoRotate = motion >= 1;
   controls.autoRotateSpeed = 0.6;
   controls.update();
@@ -216,8 +216,18 @@ export function createPaintScene(container: HTMLElement): PaintScene {
       const f = dt * 60; // normalise impulse magnitude to a 60fps step
       // Sustained central push from the sub-bass → a tall central column that rises
       // with the low end (the height clamp caps it), plus a sharp punch on each beat.
-      if (levels[0] > 0.08) impulse(0, 0, levels[0] * levels[0] * 3.0 * motion * f, 3);
-      if (kick) impulse(0, 0, 4.0 * motion * f, 4);
+      if (levels[0] > 0.08) {
+        // A small jittered cluster (not one dead-centre point) so the central column
+        // erupts rough + churning rather than as a smooth symmetric "lipstick".
+        const amp = levels[0] * levels[0] * 2.3 * motion * f;
+        for (let n = 0; n < 3; n++) {
+          const jr = Math.random() * 0.16;
+          const ja = Math.random() * TAU;
+          impulse(Math.cos(ja) * jr, Math.sin(ja) * jr, amp, 2);
+        }
+      }
+      if (kick)
+        impulse((Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.12, 3.8 * motion * f, 3);
       for (let bnd = 0; bnd < NBAND; bnd++) {
         const lvl = levels[bnd] * motion;
         if (lvl < 0.03) continue;
@@ -298,7 +308,22 @@ export function createPaintScene(container: HTMLElement): PaintScene {
 
     controls.update(); // damping + slow auto-orbit + any user drag
     step(dt);
+
+    // Bass punch-in + a quick beat shake, applied ONLY for this frame's render (then
+    // restored) so the OrbitControls state isn't disturbed. The dolly nudges toward
+    // the target on heavy low end; the shake is a short jolt on each beat.
+    const bx = camera.position.x;
+    const by = camera.position.y;
+    const bz = camera.position.z;
+    const zoom = levels[0] * 0.09 * motion;
+    camera.position.x += (controls.target.x - bx) * zoom;
+    camera.position.y += (controls.target.y - by) * zoom;
+    camera.position.z += (controls.target.z - bz) * zoom;
+    const sh = beatPulse * beatPulse * 0.055 * motion;
+    camera.position.x += (Math.random() - 0.5) * sh;
+    camera.position.y += (Math.random() - 0.5) * sh;
     composer.render();
+    camera.position.set(bx, by, bz);
     if (sceneActive) reportFrame(elapsed, 1000 / cap);
   }
 
