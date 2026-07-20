@@ -21,7 +21,7 @@ import { createEngine } from "./engine";
 import { host, type Track } from "./host";
 import { attachJam, resetJam } from "./jam";
 import { syncNowPlaying, syncPosition, wirePlatformIntegration } from "./platform";
-import { plannedNext } from "./queue";
+import { plannedNext, plannedPrev, shuffledOrder } from "./queue";
 import { SCOPE_SIZE, setScopeSource } from "./scope";
 import { playback } from "./state.svelte";
 import { transportMachine } from "./transport-machine";
@@ -202,9 +202,30 @@ export function beatBpm(): number {
 // unchanged.
 
 let queue: Track[] = [];
+// Deterministic shuffle: a seeded permutation of the queue (see queue.ts). The
+// seed is persisted so random mode + its exact order survive a reload; a fresh
+// seed is rolled each time shuffle is switched on. Rebuilt lazily in rollNext when
+// the queue length changes (or forced via shuffleOrder = []).
+let shuffleSeed = loadShuffleSeed();
+let shuffleOrder: number[] = [];
+function newShuffleSeed(): number {
+  const s = (Math.floor(Math.random() * 0xffffffff) || 1) >>> 0;
+  if (typeof localStorage !== "undefined") localStorage.setItem("player:shuffleSeed", String(s));
+  return s;
+}
+function loadShuffleSeed(): number {
+  if (typeof localStorage !== "undefined") {
+    const s = Number(localStorage.getItem("player:shuffleSeed"));
+    if (Number.isInteger(s) && s > 0) return s >>> 0;
+  }
+  return newShuffleSeed();
+}
+function buildShuffleOrder() {
+  shuffleOrder = queue.length ? shuffledOrder(queue.length, shuffleSeed) : [];
+}
 // Pre-rolled next queue index: chosen when a track *starts*, so the next song is
 // deterministic (and thus prefetchable) rather than picked at the moment of
-// advancing. Sequential = +1; shuffle = a random pick ≠ current, rolled now.
+// advancing. Sequential = +1; shuffle = the next entry in the seeded order.
 let plannedNextIdx: number | null = null;
 // Debounced next-track byte prefetch — warms the browser HTTP cache so a switch
 // skips the network. Debounced so mashing next doesn't spam fetches (and never
@@ -606,7 +627,8 @@ export function cueInOrder(list: Track[], track: Track) {
  *  a random pick ≠ current, chosen NOW so the next song is fixed ahead of the
  *  transition (deterministic, prefetchable) instead of at the moment we advance. */
 function rollNext() {
-  plannedNextIdx = plannedNext(queue.length, playback.queueIndex, playback.shuffle);
+  if (playback.shuffle && shuffleOrder.length !== queue.length) buildShuffleOrder();
+  plannedNextIdx = plannedNext(queue.length, playback.queueIndex, playback.shuffle, shuffleOrder);
 }
 
 /** Warm the browser HTTP cache with the pre-rolled next track's bytes, so the
@@ -642,16 +664,27 @@ export function playNext() {
 const PREV_RESTART_SEC = 10;
 
 export function playPrev() {
-  // Past the threshold (or already on the first track): restart from the top.
-  if (playback.position > PREV_RESTART_SEC || playback.queueIndex <= 0) {
+  const prev = plannedPrev(queue.length, playback.queueIndex, playback.shuffle, shuffleOrder);
+  // Past the threshold, or nowhere to step back to → restart the current track.
+  // (Shuffle wraps, so prev is null only at the start of a sequential queue.)
+  if (playback.position > PREV_RESTART_SEC || prev == null) {
     seekSeconds(0);
     return;
   }
-  void playInOrder(queue, queue[playback.queueIndex - 1]);
+  void playInOrder(queue, queue[prev]);
 }
 
 export function toggleShuffle() {
   playback.shuffle = !playback.shuffle;
+  if (typeof localStorage !== "undefined") {
+    localStorage.setItem("player:shuffle", playback.shuffle ? "1" : "0");
+  }
+  // Fresh seeded order each time shuffle is switched on (persisted, so a reload
+  // resumes the same order).
+  if (playback.shuffle) {
+    shuffleSeed = newShuffleSeed();
+    buildShuffleOrder();
+  }
   // Re-roll the (now differently-chosen) next track + re-warm the cache.
   rollNext();
   schedulePrefetch();
