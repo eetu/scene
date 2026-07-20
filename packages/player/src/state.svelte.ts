@@ -54,7 +54,9 @@ export const playback = $state({
   // Downmix output to mono (accessibility). Persisted; applied once the engine
   // is ready. Read at startup so the choice survives reloads.
   mono: typeof localStorage !== "undefined" && localStorage.getItem("player:mono") === "1",
-  shuffle: false,
+  // Persisted so random mode survives a reload (the seeded order lives in
+  // player.svelte.ts, keyed by player:shuffleSeed).
+  shuffle: typeof localStorage !== "undefined" && localStorage.getItem("player:shuffle") === "1",
   repeat: false, // loop the current module forever (libopenmpt repeat_count = -1)
   // Position in the play queue (the ordered list the current track was opened
   // from), so next/prev and auto-advance work. -1 = no queue.
