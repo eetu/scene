@@ -20,7 +20,7 @@
     "@glowbox/svelte": "^1.0.0",
     "@scene/design": "workspace:*",
     "three": "^0.185.1",
-    "xstate": "^5.32.4"
+    "xstate": "^5.32.5"
   },
   "peerDependencies": {
     "svelte": "^5"
