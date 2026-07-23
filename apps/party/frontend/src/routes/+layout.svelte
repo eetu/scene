@@ -26,24 +26,6 @@
       return () => mq.removeEventListener("change", apply);
     }
   });
-
-  // iOS standalone caches a stale value for the CSS viewport units (100dvh/100vh)
-  // at launch — the shell shows a band until the first viewport change (a manual
-  // rotate fixes it). window.innerHeight stays reliable, so mirror it into a CSS
-  // var and keep it current; the shell then fills the screen without a rotate.
-  $effect(() => {
-    const setH = () =>
-      document.documentElement.style.setProperty("--app-height", `${window.innerHeight}px`);
-    setH();
-    const raf = requestAnimationFrame(setH);
-    window.addEventListener("resize", setH);
-    window.addEventListener("orientationchange", setH);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", setH);
-      window.removeEventListener("orientationchange", setH);
-    };
-  });
 </script>
 
 {@render children()}
@@ -110,15 +92,12 @@
 	   itself never scrolls — no phantom page scrollbar behind the player overlay. */
   :global(html),
   :global(body) {
-    /* Fill the real screen in an iOS standalone app, where height:100% resolves
-       to the *safe-area* box and anchors content at the top (header under the
-       status bar, dead band at the bottom). --app-height is set from
-       window.innerHeight by the layout — reliable even when iOS caches stale
-       100dvh/100vh at launch; 100dvh/100% are the pre-JS + no-dvh fallbacks. The
-       env() insets then pad content off the notch + home indicator. */
-    height: 100%;
+    /* Fill the real screen. In an installed PWA there's no dynamic browser
+       chrome, so 100dvh == the full viewport and is stable at launch (the old
+       iOS<16.4 dvh-stale bug is gone). The env() insets pad content off the
+       notch + home indicator. */
+    height: 100svh; /* fallback for any pre-dvh engine */
     height: 100dvh;
-    height: var(--app-height, 100dvh);
   }
   :global(body) {
     margin: 0;
