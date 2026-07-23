@@ -20,7 +20,7 @@
     "@glowbox/svelte": "^1.0.0",
     "@scene/design": "workspace:*",
     "three": "^0.185.1",
-    "xstate": "^5.32.4"
+    "xstate": "^5.32.5"
   },
   "peerDependencies": {
     "svelte": "^5"
@@ -30,8 +30,8 @@
     "@types/three": "^0.185.1",
     "@vitest/browser-playwright": "^4.1.10",
     "playwright": "^1.61.1",
-    "svelte": "^5.56.4",
-    "vite": "^8.1.4",
+    "svelte": "^5.56.6",
+    "vite": "^8.1.5",
     "vitest": "^4.1.10",
     "vitest-browser-svelte": "^2.2.1"
   }
