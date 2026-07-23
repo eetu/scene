@@ -71,7 +71,7 @@ Cargo workspace = `backend` + `integration`.
   `src/lib/styles/halo.css` (dark-first, flipped by `data-theme`, no Google CDN),
   with `+layout.svelte` mapping the app tokens (`--bg/--panel/--accent/--surface-*`)
   onto them. Light/dark/auto via `data-theme` (`src/lib/theme.svelte.ts`). See the
-  `tracker-design` skill. Consume tokens, never hard-coded hex.
+  monorepo-root `scene-design` skill. Consume tokens, never hard-coded hex.
 - **Player control model** (`player.svelte.ts` is a small state machine —
   stopped/playing/paused over one loaded `current` module): tapping a track opens
   the player (pattern) view and plays it; the already-loaded track just reopens
@@ -198,7 +198,8 @@ Cargo workspace = `backend` + `integration`.
 - **Tooling (done):** `install-hooks.sh` + `.githooks/pre-commit` (mode 755 —
   run `./install-hooks.sh` once; routes staged paths to vendored-yarn
   lint/format vs `cargo clippy --workspace`), `SECURITY.md`, and the
-  `.claude/skills/tracker-design` skill. CI/dockerimage/automerge/cve-scan +
+  monorepo-root `.claude/skills/scene-design` skill (shared across the scene
+  apps). CI/dockerimage/automerge/cve-scan +
   dependabot already in `.github/`.
 - **Next:** FT2 pixel font/chrome polish.
 - **Favourites + play counts (done):** hash-keyed `stats` table (`favorite`,
