@@ -7,6 +7,7 @@
 
   import { api, assetUrl, fileUrl, type Party, type StatusResponse } from "$lib/api";
   import { listKeys } from "$lib/listkeys";
+  import PartyBackground from "$lib/PartyBackground.svelte";
   import Settings from "$lib/Settings.svelte";
 
   let parties = $state<Party[]>([]);
@@ -82,78 +83,97 @@
   });
 </script>
 
-<header>
-  <h1>party</h1>
-  <span class="sub">demoparty archive player</span>
-  <!-- Stable spacer so the right group (Rescan?, gear) stays right-aligned even
+<!-- Whisper-subtle generative plasma behind the landing only; the content below
+     sits above it in a z-index:1 layer. Never mounted on the catalog route. -->
+<PartyBackground />
+
+<div class="page">
+  <header>
+    <h1>party</h1>
+    <span class="sub">demoparty archive player</span>
+    <!-- Stable spacer so the right group (Rescan?, gear) stays right-aligned even
        when the button is absent (kiosk) or the tagline is hidden (mobile). -->
-  <span class="spacer"></span>
-  <!-- Rescan now lives in the Settings modal (available inside a party view too);
+    <span class="spacer"></span>
+    <!-- Rescan now lives in the Settings modal (available inside a party view too);
        reload the list when a scan finishes. -->
-  <Settings onRescanned={load} />
-</header>
+    <Settings onRescanned={load} />
+  </header>
 
-<main>
-  {#if error}
-    <p class="error">{error}</p>
-  {:else if status?.scanning}
-    <p class="muted">
-      scanning… {status.scan_processed} files{status.scan_total ? ` / ${status.scan_total}` : ""} ({status.scan_hashed}
-      hashed)
-    </p>
-    {#if scanStalled}
+  <main>
+    {#if error}
+      <p class="error">{error}</p>
+    {:else if status?.scanning}
       <p class="muted">
-        No new files for a while — the scan may be stuck on a large file, or it finished without
-        notifying. <button class="link" onclick={() => location.reload()}>Reload</button> to re-check.
+        scanning… {status.scan_processed} files{status.scan_total ? ` / ${status.scan_total}` : ""} ({status.scan_hashed}
+        hashed)
       </p>
-    {/if}
-  {:else if parties.length === 0}
-    <p class="muted">no parties found under the archive root.</p>
-  {:else}
-    <div class="grid" use:listKeys>
-      {#each parties as p (p.slug)}
-        <a class="card" href={`/${p.slug}`}>
-          <div class="bg">
-            {#if p.logo_hash && p.logo_mime?.startsWith("image/")}
-              <img
-                src={NATIVE_IMG.has(p.logo_mime)
-                  ? fileUrl(p.logo_hash)
-                  : assetUrl(p.logo_hash, "png")}
-                alt=""
-              />
-            {:else}
-              <span class="glyph">{glyph(p)}</span>
-            {/if}
-          </div>
-          <!-- Name + facts sit over the logo on a bottom scrim (+ text-shadow) so
-               they stay readable regardless of the artwork behind them. -->
-          <div class="overlay">
-            <h2>{p.name}</h2>
-            <div class="facts">
-              {#if p.year}<span><CalendarDays size={13} /> {p.year}</span>{/if}
-              {#if p.location}<span><MapPin size={13} /> {p.location}</span>{/if}
+      {#if scanStalled}
+        <p class="muted">
+          No new files for a while — the scan may be stuck on a large file, or it finished without
+          notifying. <button class="link" onclick={() => location.reload()}>Reload</button> to re-check.
+        </p>
+      {/if}
+    {:else if parties.length === 0}
+      <p class="muted">no parties found under the archive root.</p>
+    {:else}
+      <div class="grid" use:listKeys>
+        {#each parties as p (p.slug)}
+          <a class="card" href={`/${p.slug}`}>
+            <div class="bg">
+              {#if p.logo_hash && p.logo_mime?.startsWith("image/")}
+                <img
+                  src={NATIVE_IMG.has(p.logo_mime)
+                    ? fileUrl(p.logo_hash)
+                    : assetUrl(p.logo_hash, "png")}
+                  alt=""
+                />
+              {:else}
+                <span class="glyph">{glyph(p)}</span>
+              {/if}
             </div>
-          </div>
-        </a>
-      {/each}
-    </div>
-  {/if}
-</main>
+            <!-- Name + facts sit over the logo on a bottom scrim (+ text-shadow) so
+               they stay readable regardless of the artwork behind them. -->
+            <div class="overlay">
+              <h2>{p.name}</h2>
+              <div class="facts">
+                {#if p.year}<span><CalendarDays size={13} /> {p.year}</span>{/if}
+                {#if p.location}<span><MapPin size={13} /> {p.location}</span>{/if}
+              </div>
+            </div>
+          </a>
+        {/each}
+      </div>
+    {/if}
+  </main>
 
-<!-- Archive disclaimer — shown to everyone, kiosk included. Productions belong to
+  <!-- Archive disclaimer — shown to everyone, kiosk included. Productions belong to
      their authors; this is a non-commercial preservation mirror, with a removal
      path via the repo's issues. -->
-<footer class="legal">
-  A non-commercial archive for demoscene preservation. Productions are © their respective authors
-  &amp; groups, mirrored from
-  <a href="https://scene.org" target="_blank" rel="noreferrer">scene.org</a>. Not affiliated with
-  scene.org or the parties' organizers. Source &amp; removal requests:
-  <a href="https://github.com/eetu/scene/issues" target="_blank" rel="noreferrer"
-    >github.com/eetu/scene/issues</a
-  >.
-</footer>
+  <footer class="legal">
+    A non-commercial archive for demoscene preservation. Productions are © their respective authors
+    &amp; groups, mirrored from
+    <a href="https://scene.org" target="_blank" rel="noreferrer">scene.org</a>. Not affiliated with
+    scene.org or the parties' organizers. Source &amp; removal requests:
+    <a href="https://github.com/eetu/scene/issues" target="_blank" rel="noreferrer"
+      >github.com/eetu/scene/issues</a
+    >.
+  </footer>
+</div>
 
 <style>
+  /* Content layer: lifts the header/grid/footer above the fixed z-index:0
+     PartyBackground, and re-establishes the body's column flex so <main> still
+     grows and scrolls. The cards themselves are opaque, so the backdrop only
+     shows through the gutters — text legibility is unaffected. */
+  .page {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
   header {
     display: flex;
     align-items: baseline;

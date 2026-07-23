@@ -30,6 +30,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@anarkisti/igyb@npm:^0.5.0":
+  version: 0.5.0
+  resolution: "@anarkisti/igyb@npm:0.5.0"
+  peerDependencies:
+    svelte: ^5
+  peerDependenciesMeta:
+    svelte:
+      optional: true
+  checksum: 10/f3db38acfe33ac4d43a076a5ddc1a409abeedcd0e0ddcc1f01be50be65c6d129dda6f013e3d156bc39a7fa48b11120fe73af5054b276a9dcb941375efe1f266c
+  languageName: node
+  linkType: hard
+
 "@babel/runtime@npm:^7.12.1, @babel/runtime@npm:^7.9.2":
   version: 7.29.7
   resolution: "@babel/runtime@npm:7.29.7"
@@ -2426,6 +2438,7 @@ __metadata:
   resolution: "party-frontend@workspace:apps/party/frontend"
   dependencies:
     "@anarkisti/eslint-config": "npm:^1.0.0"
+    "@anarkisti/igyb": "npm:^0.5.0"
     "@fontsource-variable/inter": "npm:^5.2.8"
     "@lucide/svelte": "npm:^1.24.0"
     "@playwright/test": "npm:^1.61.1"
