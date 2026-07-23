@@ -183,6 +183,7 @@
     padding: calc(16px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 16px
       calc(20px + env(safe-area-inset-left));
     border-bottom: 1px solid var(--border);
+    background-color: var(--surface);
   }
   h1 {
     margin: 0;
@@ -210,6 +211,7 @@
     color: var(--muted);
     font-size: 11px;
     line-height: 1.5;
+    background-color: var(--surface);
   }
   .legal a {
     color: var(--muted);

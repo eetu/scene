@@ -1,10 +1,9 @@
 <script lang="ts">
   // A whisper-subtle generative backdrop for the landing page — flowing `waveLines`
-  // (from @anarkisti/igyb) in the theme accent, with a faint CRT scanline overlay
-  // composed on top (the VGA/CRT nod). Chosen over `plasma` because a geometric
-  // line field still reads as an intentional texture when frozen — so respecting
-  // `prefers-reduced-motion` (a static frame) loses nothing. Colours are read live
-  // from the halo tokens via `paletteFromCSS`, so it tracks the light/dark theme.
+  // (from @anarkisti/igyb) with a faint CRT scanline overlay composed on top (the
+  // VGA/CRT nod). Chosen over `plasma` because a geometric line field still reads as
+  // an intentional texture when frozen — so respecting `prefers-reduced-motion` (a
+  // static frame) loses nothing. Uses a fixed `mono` palette (theme-independent greys).
   //
   // Scope: the LANDING route only. The per-party catalog (file lists, the tracker
   // PatternView grid, NFO/DIZ ASCII art, the scope) needs a flat, opaque surface
@@ -12,56 +11,35 @@
   // NOT the root layout. On the landing page itself the card grid sits in a
   // `z-index: 1` layer of opaque cards above this `z-index: 0` backdrop, so it
   // only ever shows through the gutters and margins; text legibility is untouched.
-  import {
-    type Background,
-    layers,
-    type Palette,
-    paletteFromCSS,
-    scanlines,
-    waveLines,
-  } from "@anarkisti/igyb/core";
-  import { theme } from "@scene/design";
-  import { tick } from "svelte";
+  import { type Background, layers, scanlines, waveLines } from "@anarkisti/igyb/core";
 
-  // The subtlety knobs, kept together. waveLines paints its own `--halo-body` fill,
-  // so the layer opacity is "how much of the accent lines show over the body
-  // colour" — 0.35 reads as a gentle line texture that, on the real landing, only
-  // peeks through the card gutters/margins. Scanlines stay a hair fainter — a CRT
-  // texture, never a legible pattern.
+  // The subtlety knobs, kept together. waveLines paints its own bg fill, so the layer
+  // opacity is "how much of the accent lines show over the body colour" — 0.35 reads
+  // as a gentle line texture that, on the real landing, only peeks through the card
+  // gutters/margins. Scanlines stay a hair fainter — a CRT texture, never legible.
   const WAVE_OPACITY = 0.35;
   const SCANLINE_OPACITY = 0.05;
 
   let el: HTMLDivElement;
-
-  // Palette read live from the halo tokens (on <html>, where `data-theme` flips
-  // them light/dark). Passed to the stack as a *thunk* so `refresh()` can
-  // re-invoke it on a theme flip and re-read the tokens in place, rather than
-  // tearing the background down. Two accents give the lines a themed two-tone:
-  // the brand orange alternating with the muted grey.
-  function palette(): Palette {
-    return paletteFromCSS({
-      bg: "--halo-body",
-      fg: "--halo-text-main",
-      accents: ["--halo-accent", "--halo-text-muted"],
-    });
-  }
-
   let bg: Background | undefined;
 
-  // Build the composed background once. A light/dark flip re-themes it in place
-  // (next effect) instead of recreating it. `autoPause` + `reducedMotion` are
-  // igyb defaults, set explicitly: the loop idles while the tab/section is hidden,
-  // and freezes to a static frame when the user prefers reduced motion.
+  // Build the composed background once. `autoPause` + `reducedMotion` are igyb
+  // defaults, set explicitly: the loop idles while the tab is hidden, and freezes to
+  // a static frame under prefers-reduced-motion (the line texture still reads static).
   $effect(() => {
     bg = layers(
       [
-        { pattern: waveLines, options: { spacing: 40, amplitude: 1 }, opacity: WAVE_OPACITY },
+        { pattern: waveLines, options: { spacing: 20, amplitude: 1 }, opacity: WAVE_OPACITY },
         { pattern: scanlines, options: { spacing: 3, intensity: 0.5 }, opacity: SCANLINE_OPACITY },
       ],
       {
-        theme: palette, // thunk: refresh() re-invokes it to re-read the tokens
-        speed: 0.4, // gentle drift when motion is allowed
-        themeTransition: 0.3, // crossfade the palette on a light/dark flip
+        theme: "mono", // fixed monochrome greys, independent of the app's light/dark
+        speed: 0.4, // gentle ambient drift
+        // The lines bulge toward the pointer — a subtle "push the curtain" reaction.
+        // pointerSource:'window' because this layer is pointer-events:none behind the
+        // cards, so it must track the mouse globally (the dice-background trick).
+        interactive: true,
+        pointerSource: "window",
         autoPause: true,
         reducedMotion: "respect",
       },
@@ -71,20 +49,6 @@
       bg?.destroy();
       bg = undefined;
     };
-  });
-
-  // Re-theme in place on a light/dark flip. The root layout writes `data-theme`
-  // on <html> from `theme.mode` (and from OS changes while in `auto`); this
-  // re-reads the live --halo-* tokens. tick() defers the refresh until after that
-  // write lands, so paletteFromCSS reads the new theme's colours, not the previous.
-  $effect(() => {
-    theme.mode;
-    theme.accent;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onFlip = () => void tick().then(() => bg?.refresh());
-    mq.addEventListener("change", onFlip); // OS flip while in `auto`
-    void tick().then(() => bg?.refresh());
-    return () => mq.removeEventListener("change", onFlip);
   });
 </script>
 
