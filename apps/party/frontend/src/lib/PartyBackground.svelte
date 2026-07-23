@@ -22,10 +22,12 @@
   import { theme } from "@scene/design";
   import { tick } from "svelte";
 
-  // The subtlety knobs, kept together and deliberately low. The plasma is a
-  // barely-there tint; the scanlines a hair fainter still — enough for a CRT
-  // texture in the margins, never a legible pattern.
-  const PLASMA_OPACITY = 0.08;
+  // The subtlety knobs, kept together. `plasma` paints its own `--halo-body`
+  // fill, so a layer opacity is really "how much of the plasma's modulation
+  // shows over the same body colour" — 0.08 was invisible; 0.3 reads as a gentle
+  // wash that, on the real landing, only peeks through the card gutters/margins.
+  // Scanlines stay a hair fainter — a CRT texture, never a legible pattern.
+  const PLASMA_OPACITY = 0.3;
   const SCANLINE_OPACITY = 0.05;
 
   let el: HTMLDivElement;
