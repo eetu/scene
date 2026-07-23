@@ -1,9 +1,10 @@
 <script lang="ts">
-  // A whisper-subtle generative backdrop for the landing page — the demoscene's
-  // signature `plasma` (WebGL, from @anarkisti/igyb) at a very low opacity,
-  // drifting slowly, with a faint CRT scanline overlay composed on top (the
-  // VGA/CRT nod). Colours are read live from the halo tokens via `paletteFromCSS`,
-  // so the field tracks the light/dark theme.
+  // A whisper-subtle generative backdrop for the landing page — flowing `waveLines`
+  // (from @anarkisti/igyb) in the theme accent, with a faint CRT scanline overlay
+  // composed on top (the VGA/CRT nod). Chosen over `plasma` because a geometric
+  // line field still reads as an intentional texture when frozen — so respecting
+  // `prefers-reduced-motion` (a static frame) loses nothing. Colours are read live
+  // from the halo tokens via `paletteFromCSS`, so it tracks the light/dark theme.
   //
   // Scope: the LANDING route only. The per-party catalog (file lists, the tracker
   // PatternView grid, NFO/DIZ ASCII art, the scope) needs a flat, opaque surface
@@ -16,18 +17,18 @@
     layers,
     type Palette,
     paletteFromCSS,
-    plasma,
     scanlines,
+    waveLines,
   } from "@anarkisti/igyb/core";
   import { theme } from "@scene/design";
   import { tick } from "svelte";
 
-  // The subtlety knobs, kept together. `plasma` paints its own `--halo-body`
-  // fill, so a layer opacity is really "how much of the plasma's modulation
-  // shows over the same body colour" — 0.08 was invisible; 0.3 reads as a gentle
-  // wash that, on the real landing, only peeks through the card gutters/margins.
-  // Scanlines stay a hair fainter — a CRT texture, never a legible pattern.
-  const PLASMA_OPACITY = 0.3;
+  // The subtlety knobs, kept together. waveLines paints its own `--halo-body` fill,
+  // so the layer opacity is "how much of the accent lines show over the body
+  // colour" — 0.35 reads as a gentle line texture that, on the real landing, only
+  // peeks through the card gutters/margins. Scanlines stay a hair fainter — a CRT
+  // texture, never a legible pattern.
+  const WAVE_OPACITY = 0.35;
   const SCANLINE_OPACITY = 0.05;
 
   let el: HTMLDivElement;
@@ -35,8 +36,8 @@
   // Palette read live from the halo tokens (on <html>, where `data-theme` flips
   // them light/dark). Passed to the stack as a *thunk* so `refresh()` can
   // re-invoke it on a theme flip and re-read the tokens in place, rather than
-  // tearing the background down. Two accents give the plasma a themed two-tone
-  // ramp: the brand orange easing through the muted grey.
+  // tearing the background down. Two accents give the lines a themed two-tone:
+  // the brand orange alternating with the muted grey.
   function palette(): Palette {
     return paletteFromCSS({
       bg: "--halo-body",
@@ -54,12 +55,12 @@
   $effect(() => {
     bg = layers(
       [
-        { pattern: plasma, options: { scale: 2.8 }, opacity: PLASMA_OPACITY },
+        { pattern: waveLines, options: { spacing: 40, amplitude: 1 }, opacity: WAVE_OPACITY },
         { pattern: scanlines, options: { spacing: 3, intensity: 0.5 }, opacity: SCANLINE_OPACITY },
       ],
       {
         theme: palette, // thunk: refresh() re-invokes it to re-read the tokens
-        speed: 0.25, // slow, ambient drift
+        speed: 0.4, // gentle drift when motion is allowed
         themeTransition: 0.3, // crossfade the palette on a light/dark flip
         autoPause: true,
         reducedMotion: "respect",
