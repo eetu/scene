@@ -31,6 +31,22 @@
   $effect(() => {
     document.documentElement.dataset.accent = theme.accent;
   });
+
+  // Flag standalone (installed) mode so the height CSS can switch dvh→vh. iOS
+  // leaves 100dvh (and window.innerHeight) stale at cold start in a standalone
+  // PWA — the shell shows a blank band until the first geometry change (a manual
+  // rotate). 100vh resolves against the *static* viewport, which is computed at
+  // layout time, so it's correct from launch; and in standalone there's no
+  // browser chrome, so 100vh == the full screen (no toolbar to overshoot). A
+  // normal browser tab keeps 100dvh (where 100vh would hide content behind the
+  // collapsing toolbar). navigator.standalone is the iOS-reliable signal; the
+  // display-mode query covers installed PWAs elsewhere.
+  $effect(() => {
+    const nav = window.navigator as Navigator & { standalone?: boolean };
+    const standalone =
+      nav.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+    document.documentElement.classList.toggle("standalone", standalone);
+  });
 </script>
 
 {@render children()}
@@ -98,12 +114,18 @@
 	   itself never scrolls — no phantom page scrollbar behind the player overlay. */
   :global(html),
   :global(body) {
-    /* Fill the real screen. In an installed PWA there's no dynamic browser
-       chrome, so 100dvh == the full viewport and is stable at launch (the old
-       iOS<16.4 dvh-stale bug is gone). The env() insets pad content off the
-       notch + home indicator. */
+    /* Browser tab: the dynamic viewport tracks the collapsing address bar. */
     height: 100svh; /* fallback for any pre-dvh engine */
     height: 100dvh;
+  }
+  /* Installed PWA: iOS leaves 100dvh stale at cold start (a blank band at the
+     bottom until a rotate). 100vh resolves against the static viewport — correct
+     from launch — and in standalone there's no chrome, so it == the full screen.
+     The fixed transport dock then lands flush at the true bottom edge. Flagged by
+     the .standalone class set in +layout's effect. */
+  :global(html.standalone),
+  :global(html.standalone body) {
+    height: 100vh;
   }
   :global(body) {
     margin: 0;
