@@ -151,6 +151,14 @@ let parseId = 0;
 let lastProgressAt = 0;
 let resumeSeek: number | null = null;
 let recreating = false;
+// The app was backgrounded while PAUSED. iOS suspends the AudioContext when
+// hidden; while playing, tapRecreatesStalled() catches the resulting dead-but-
+// "running" context on the next tap (via the frozen render), but while paused
+// nothing renders so there's no stall to detect. Instead we note the hidden-
+// while-paused transition and rebuild the engine on the unpause tap — a fresh
+// context inside that gesture is the only reliable revival on iOS. Cleared the
+// moment a frame lands again (onProgress), i.e. once the context is proven alive.
+let hiddenWhilePaused = false;
 // One-time global timers (must survive an engine recreate, so they're registered
 // once, not per engine). Watchdog baselines are module-level so a recreate can
 // reset them for the fresh context's clock.
@@ -287,6 +295,15 @@ transport.start();
 function wireGlobalsOnce(): void {
   if (globalsWired) return;
   globalsWired = true;
+  // iOS suspends the AudioContext when the app is backgrounded. If that happens
+  // while PAUSED, the context is left dead behind a state="running" lie that
+  // resume() can't fix and no stall detector can see (paused → no frames) — so
+  // flag it here; the unpause tap rebuilds the engine (see togglePause).
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible" && playback.paused) hiddenWhilePaused = true;
+    });
+  }
   // --- Wake-from-freeze resync (laptop sleep / long suspend) --------------
   // Song timing is purely output-paced; nothing tracks wall time. If the audio
   // clock (currentTime) falls far behind wall-clock while playing, the pipeline
@@ -420,6 +437,7 @@ function ensurePlayer(): Promise<void> {
   player.onProgress((d: ProgressMsg) => {
     consecutiveErrors = 0; // a frame arrived → this track plays; clear the skip guard
     lastProgressAt = performance.now(); // a frame landed → the render is alive (stall detector)
+    hiddenWhilePaused = false; // …so the context is proven alive — clear the suspect flag
     // First frame confirms audio is actually running (loading → playing).
     if (transport.getSnapshot().matches("loading")) transport.send({ type: "PROGRESS" });
     playback.position = d.pos ?? 0;
@@ -718,6 +736,16 @@ export function togglePause() {
   // is dead behind a state="running" context — a toggle here does nothing, so
   // rebuild the engine on this gesture instead.
   if (tapRecreatesStalled()) return;
+  // Resuming from pause after the app was backgrounded: iOS suspended the idle
+  // context (dead behind a state="running" lie that resume() can't revive), and
+  // there was no render to stall-detect. Rebuild on a fresh context inside this
+  // tap — same cure as the stalled-playing case — rather than a no-op worklet
+  // unpause. recreateEngine reloads the current track at its position and plays.
+  if (playback.paused && hiddenWhilePaused) {
+    hiddenWhilePaused = false;
+    void recreateEngine();
+    return;
+  }
   player.togglePause();
   transport.send({ type: "TOGGLE" }); // playing ⇄ paused; the subscription flips playback.paused
   if (playback.paused) {
