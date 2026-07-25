@@ -6,6 +6,59 @@
   "organizer": "Assembly Organizing",
   "folder_name": "rank-group-title",
   "logo": "grfx/01 - Made-Bomb Software/BABYLONA.LBM",
+  "files": {
+    "anim/01 - Vaapukka - Amis 5000/amis5000.mpg": {
+      "fps": 24
+    },
+    "anim/02 - Timo Kinnunen - In and out/INOUT.MPG": {
+      "audio": "anim/02 - Timo Kinnunen - In and out/SOUNDTR.WAV"
+    },
+    "anim/03 - Paskasoft - Giant bunghole in outer s./GBIOS.MPG": {
+      "audio": "anim/03 - Paskasoft - Giant bunghole in outer s./GBIOS.WAV"
+    },
+    "anim/05 - Innocent-Abaddon - Green Peace/GREEN.MPG": {
+      "audio": "anim/05 - Innocent-Abaddon - Green Peace/GREEN.SND",
+      "audio_format": "u8",
+      "audio_rate": 12288,
+      "audio_channels": 1
+    },
+    "anim/06 - Slimy Devil-TDC - Visitor/VISITOR.MPG": {
+      "audio": "anim/06 - Slimy Devil-TDC - Visitor/VISITOR.SND",
+      "audio_format": "u8",
+      "audio_rate": 12288,
+      "audio_channels": 1
+    },
+    "anim/07 - Inside - Jolly Day/JOLLYDAY.MPG": {
+      "audio": "anim/07 - Inside - Jolly Day/JOLLYDAY.SND",
+      "audio_format": "u8",
+      "audio_rate": 12288,
+      "audio_channels": 1
+    },
+    "anim/08 - Grunt - Overall/OVERALL.MPG": {
+      "audio": "anim/08 - Grunt - Overall/OVERALL.SND",
+      "audio_format": "u8",
+      "audio_rate": 12288,
+      "audio_channels": 1
+    },
+    "anim/09 - Delmar/DELMAR.MPG": {
+      "audio": "anim/09 - Delmar/DELMAR.SND",
+      "audio_format": "u8",
+      "audio_rate": 12288,
+      "audio_channels": 1
+    },
+    "anim/10 - ADM&JTP - Bad Dream/DREAM.MPG": {
+      "audio": "anim/10 - ADM&JTP - Bad Dream/DREAM.SND",
+      "audio_format": "u8",
+      "audio_rate": 12288,
+      "audio_channels": 1
+    },
+    "anim/11 - Cascada - Dragon Eye/DRAGNEYE.MPG": {
+      "audio": "anim/11 - Cascada - Dragon Eye/DRAGNEYE.SND",
+      "audio_format": "u8",
+      "audio_rate": 12288,
+      "audio_channels": 1
+    }
+  },
   "categories": {
     "in4k": {
       "compo": "PC 4K intro",
@@ -1979,6 +2032,7 @@
       "compo": "Animation",
       "platform": "video",
       "medium": "animation",
+      "video_fps": 12.5,
       "results": [
         {
           "rank": 1,

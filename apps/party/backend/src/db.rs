@@ -190,11 +190,14 @@ CREATE TABLE IF NOT EXISTS meta (
   updated_at   TEXT NOT NULL
 );
 
--- Transcoded-asset ledger, keyed by (source content hash, target format). The
+-- Transcoded-asset ledger, keyed by (source content hash, output recipe). The
 -- bytes live at cache_dir/<rel_cache>; this row records that they exist.
 CREATE TABLE IF NOT EXISTS derived (
   content_hash TEXT NOT NULL,
-  target       TEXT NOT NULL,          -- png|mp4
+  -- png|mp4, or mp4+<v> when party config alters the output (an fps override or a
+  -- sidecar audio track — see routes::video_overrides). <v> hashes those inputs, so
+  -- editing them yields a new row rather than serving the previous mux.
+  target       TEXT NOT NULL,
   rel_cache    TEXT NOT NULL,
   status       TEXT NOT NULL,          -- ok|failed
   width        INTEGER,

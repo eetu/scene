@@ -8,7 +8,9 @@ name = "scene-transcoder"
 path = "src/main.rs"
 
 [dependencies]
-axum = { workspace = true }
+# `multipart` for POST /video, which takes the source plus an optional sidecar
+# audio track as separate parts.
+axum = { workspace = true, features = ["multipart"] }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }

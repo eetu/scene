@@ -6,6 +6,35 @@
   "organizer": "Assembly Organizing",
   "folder_name": "rank-group-title",
   "logo": "grfx/01 - Visualize-Jamm - Fiction/Fictin.lbm",
+  "files": {
+    "anim/01 - Jaco - Flow/flow.mpg": {
+      "audio": "anim/01 - Jaco - Flow/flow.snd",
+      "audio_format": "u8",
+      "audio_rate": 12288,
+      "audio_channels": 1
+    },
+    "anim/02 - RRRR & Bang - Pulp/asm_pulp_divx.avi": {
+      "native_fps": true
+    },
+    "anim/03 - Cubic Team - Space 01/space01.avi": {
+      "native_fps": true
+    },
+    "anim/04 - Slimy Devil - Chestmaster 2001/chess.mpg": {
+      "audio": "anim/04 - Slimy Devil - Chestmaster 2001/chess.snd",
+      "audio_format": "u8",
+      "audio_rate": 12288,
+      "audio_channels": 1
+    },
+    "anim/07 - Artifex - Dawn/dawn.mpg": {
+      "audio": "anim/07 - Artifex - Dawn/dawn.snd",
+      "audio_format": "u8",
+      "audio_rate": 12288,
+      "audio_channels": 1
+    },
+    "anim/rest/matter/MATTER.FLI": {
+      "native_fps": true
+    }
+  },
   "categories": {
     "in4k": {
       "compo": "PC 4K intro",
@@ -2526,6 +2555,7 @@
       "compo": "Animation",
       "platform": "video",
       "medium": "animation",
+      "video_fps": 12.5,
       "results": [
         {
           "rank": 1,
