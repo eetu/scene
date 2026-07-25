@@ -344,7 +344,8 @@ Each party folder carries its own config as **`.party.json`** at its root
 and `package-party-data` bakes it into the image automatically; the scanner skips
 it, so it never shows as a browsable file. Keep an editable copy under
 `apps/party/parties/<slug>.json` in the repo and copy it into the folder. Fields
-(structs: `PartyCfg` / `CategoryCfg` / `ResultRow` in `backend/src/party.rs`):
+(structs: `PartyCfg` / `CategoryCfg` / `FileCfg` / `ResultRow` in
+`backend/src/party.rs`):
 
 ```jsonc
 {
@@ -355,11 +356,18 @@ it, so it never shows as a browsable file. Keep an editable copy under
   "organizer": "Assembly Organizing",
   "logo": "info/logo.lbm",          // optional: rel path to a key image (transcoded on demand)
   "folder_name": "rank-group-title",
+  "files": {                        // optional: per-file playback overrides, see below
+    "anim/01 - Jaco - Flow/flow.mpg": {
+      "audio": "anim/01 - Jaco - Flow/flow.snd",
+      "audio_format": "u8", "audio_rate": 12288, "audio_channels": 1
+    }
+  },
   "categories": {
     "demo": {
       "compo": "PC demo",                 // human label
       "platform": "pc",                   // pc | amiga | c64 | video | na
       "medium": "demo",                   // demo | intro | music | graphics | animation | info
+      "video_fps": 12.5,                  // optional: authored rate for this compo's videos
       "results": [
         { "rank": 1, "points": 3646, "group": "Nooon", "title": "Stars : Wonders of the world" },
         { "rank": 2, "points": 1482, "group": "Juice", "title": "Psychic link" }
@@ -417,6 +425,53 @@ Key rules:
   When the title matches a ranked entry but the **files differ**, it's a mislabel:
   fix the name (don't delete). A quick script comparing every `unranked` title to
   the compo's `results` titles is the cheapest way to flag both cases at once.
+- **Sidecar soundtracks + a lying frame rate** — the `files` map and `video_fps`.
+  The Assembly '95/'96 animation compos are **video-only MPEG-1 elementary streams**
+  with the soundtrack in a separate file next to the picture, played back by the
+  party's own DOS player (`ASMPEG.EXE`, in `Assembly95/anim/rest/` and
+  `Assembly96/anim/04 - Heroes/`). Without config they play silent *and* at double
+  speed. Twelve entries across the two parties need it. The recipe:
+  **unsigned 8-bit mono PCM at 12288 Hz, picture at 12.5 fps.** Not guessed —
+  `Assembly96/anim/06 …/VISITOR.TXT` states it (*"soundtrack: visitor.raw (12288kHz,
+  raw, unsigned, 8bit)"*, *"The playback rate of the animation is 12.5 frames"*), and
+  `GBIOS.WAV` is `GBIOS.SND` plus a 44-byte WAV header declaring `pcm_u8 / 12288 / 1`.
+  - `video_fps` on the category is the default for every video in that compo (the
+    whole `anim` folder shares one pipeline); `FileCfg.fps` overrides it per file.
+    `Assembly96/anim/01 - Vaapukka - Amis 5000` opts out with `"fps": 24` — it's the
+    one entry that already ships an `mp2` track at its real rate.
+  - **A category default needs an opt-out for anything in the folder that isn't a
+    raw stream** — use `"native_fps": true`. An fps override is applied as an ffmpeg
+    *input* option, which rewrites timestamps as constant-rate; that's exactly right
+    for an elementary stream (which has none) and wrong for a real container, whose
+    timestamps are authoritative and may be **variable**. asm95's `anim` holds two
+    later DivX/mpeg4 re-encodes with audio already muxed: `asm_pulp_divx.avi` runs at
+    a variable ~10 fps and drifts ~9 s out from its own soundtrack if forced to 12.5.
+    `MATTER.FLI` (a bonus under `rest/`, not a compo entry) also opts out — its FLIC
+    speed field is 0, so ffmpeg's own fallback is as good as it gets. Audit the whole
+    folder before setting `video_fps`: `ffprobe -show_entries stream=codec_type,
+    avg_frame_rate,duration` over every video in it will show which ones already
+    carry audio or a non-25 rate, and those are the ones that need an entry.
+  - **Prefer a container'd sidecar when one exists.** `GBIOS.WAV` and `SOUNDTR.WAV`
+    need only `"audio"` — ffmpeg reads rate/format/channels from the header, so
+    there's nothing to author and nothing to get wrong. Only reach for
+    `audio_format`/`audio_rate`/`audio_channels` for a headerless dump (`.snd`).
+  - **Keys are party-relative and case-sensitive** — `anim/…/GBIOS.MPG`, not `.mpg`.
+  - **To confirm a rate, compare durations rather than trusting the header**: the raw
+    ES has no timestamps, so use `frames ÷ fps` for the picture
+    (`ffprobe -count_frames -select_streams v:0 -show_entries stream=nb_read_frames`)
+    against `bytes ÷ rate` for the sound. An intact pair lands within a few percent,
+    the sound running slightly long. Note that halving both fps and rate fits the
+    ratio equally well, so a ratio alone can't pick between 12288/12.5 and 25000/25 —
+    which is why the two documented sources above are what settles it.
+  - Two sources in this archive are **truncated**, which the drift check exposes:
+    `Assembly95/anim/07 - Artifex - Dawn/dawn.snd` is ~17 s of audio for a 153 s
+    animation and ends mid-transient at full scale, and `Assembly96/anim/09 -
+    Delmar/DELMAR.MPG` is only 302 frames (24 s) against 51 s of sound. Both are
+    configured anyway — worth re-sourcing, harmless meanwhile (no `-shortest`, so
+    neither stream truncates the other).
+  - Editing any of these values yields a **new** cache entry rather than the previous
+    mux (the recipe is hashed into the `derived` ledger key), so retuning is just
+    edit → `POST /api/rescan` → reload.
 - Copy `assembly95.json` / `assembly96.json` as a starting template.
 
 ## Step 6 — Amiga AGA disk images (optional but recommended)

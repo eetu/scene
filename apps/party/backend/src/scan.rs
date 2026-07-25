@@ -1043,6 +1043,7 @@ mod tests {
                 compo: "Amiga demo".into(),
                 platform: "amiga".into(),
                 medium: "demo".into(),
+                video_fps: None,
                 results: Vec::new(),
                 unranked: Default::default(),
             },

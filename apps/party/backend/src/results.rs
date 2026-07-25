@@ -93,6 +93,7 @@ mod tests {
                 compo: "PC 4k".into(),
                 platform: "pc".into(),
                 medium: "intro".into(),
+                video_fps: None,
                 results,
                 unranked: Default::default(),
             },
@@ -106,6 +107,7 @@ mod tests {
             logo: None,
             folder_name: "rank-group-title".into(),
             categories,
+            files: Default::default(),
         }
     }
 

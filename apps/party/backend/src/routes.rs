@@ -7,6 +7,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::Digest;
 
 use crate::auth::Auth;
 use crate::error::{AppError, AppResult};
@@ -465,6 +466,22 @@ async fn api_production(
 }
 
 /// Resolve a content hash to an on-disk path inside the root (canonicalised).
+/// Join a root-relative path onto `PARTY_ROOT` and confirm it really is a file
+/// inside the tree — a `..` segment or a symlink out is a 404. Every path we serve
+/// goes through here, including ones that came from a party config rather than
+/// from the scan.
+fn resolve_in_root(state: &AppState, rel: &str) -> AppResult<std::path::PathBuf> {
+    let full = state.cfg.root.join(rel);
+    let (canon, canon_root) = match (full.canonicalize(), state.cfg.root.canonicalize()) {
+        (Ok(a), Ok(b)) => (a, b),
+        _ => return Err(AppError::NotFound),
+    };
+    if !canon.starts_with(&canon_root) || !canon.is_file() {
+        return Err(AppError::NotFound);
+    }
+    Ok(canon)
+}
+
 async fn resolve_file(state: &AppState, hash: &str) -> AppResult<std::path::PathBuf> {
     let rel_path: String = state
         .db
@@ -481,15 +498,7 @@ async fn resolve_file(state: &AppState, hash: &str) -> AppResult<std::path::Path
         .await
         .map_err(|_| AppError::NotFound)?;
 
-    let full = state.cfg.root.join(&rel_path);
-    let (canon, canon_root) = match (full.canonicalize(), state.cfg.root.canonicalize()) {
-        (Ok(a), Ok(b)) => (a, b),
-        _ => return Err(AppError::NotFound),
-    };
-    if !canon.starts_with(&canon_root) || !canon.is_file() {
-        return Err(AppError::NotFound);
-    }
-    Ok(canon)
+    resolve_in_root(state, &rel_path)
 }
 
 async fn api_file(
@@ -577,6 +586,83 @@ fn asset_response(content_type: &'static str, bytes: Vec<u8>) -> impl IntoRespon
     )
 }
 
+/// A sidecar soundtrack named by a party config: located and described, but not
+/// read. Reading is deferred to the cache-miss path so a cached hit stays cheap.
+struct AudioPlan {
+    /// Root-relative path (party folder included).
+    rel: String,
+    format: Option<String>,
+    rate: Option<u32>,
+    channels: Option<u32>,
+}
+
+/// Per-file video overrides from the party's `.party.json`, as
+/// `(fps, sidecar audio, cache-key seed)`.
+///
+/// The seed names everything that changes the output — the frame rate, and the
+/// sidecar's *content hash* plus its format parameters. That's what makes retuning
+/// a rate in config produce a fresh mp4 instead of serving the previous mux, which
+/// matters because getting a headerless PCM rate right takes a couple of tries.
+/// Empty seed = no overrides = the plain single-input recipe.
+async fn video_overrides(
+    state: &AppState,
+    party_dir: &str,
+    party_rel: &str,
+    category: &str,
+) -> AppResult<(Option<f64>, Option<AudioPlan>, String)> {
+    let cfg = state.parties().for_dir(party_dir);
+    let fps = cfg.video_fps(party_rel, category);
+    let mut seed = String::new();
+    if let Some(fps) = fps {
+        seed.push_str(&format!("fps={fps};"));
+    }
+
+    let Some(file) = cfg.file(party_rel) else {
+        return Ok((fps, None, seed));
+    };
+    let Some(audio) = &file.audio else {
+        return Ok((fps, None, seed));
+    };
+
+    let rel = format!("{party_dir}/{audio}");
+    // Confirm it exists and is inside the tree now, so a typo in config surfaces as
+    // a 404 rather than a confusing transcode failure later.
+    resolve_in_root(state, &rel)?;
+    // The scan already hashed every file in the tree; reuse that rather than
+    // re-reading the sidecar on a request that may well be a cache hit.
+    let content_hash: String = state
+        .db
+        .with({
+            let rel = rel.clone();
+            move |c| {
+                c.query_row(
+                    "SELECT content_hash FROM files WHERE rel_path = ?1",
+                    [&rel],
+                    |r| r.get(0),
+                )
+            }
+        })
+        .await
+        .map_err(|_| AppError::NotFound)?;
+
+    seed.push_str(&format!(
+        "audio={content_hash};af={};ar={};ac={};",
+        file.audio_format.as_deref().unwrap_or(""),
+        file.audio_rate.unwrap_or(0),
+        file.audio_channels.unwrap_or(0),
+    ));
+    Ok((
+        fps,
+        Some(AudioPlan {
+            rel,
+            format: file.audio_format.clone(),
+            rate: file.audio_rate,
+            channels: file.audio_channels,
+        }),
+        seed,
+    ))
+}
+
 /// Derived asset by `<hash>.<target>` (png|mp4). Served from the on-disk cache;
 /// on a miss, the source bytes are sent to the transcoder sidecar, the result
 /// cached (write-to-`.partial`-then-rename), recorded in `derived`, and served.
@@ -594,19 +680,54 @@ async fn api_asset(
     };
     let hash = hash.to_string();
     let target = target.to_string();
-    let cache_rel = format!("{hash}.{target}");
+
+    // Resolve the source before consulting the ledger: for video, party config can
+    // change what we produce from it, and that feeds the cache key — so there's
+    // nothing to look up until the overrides are known. It's the same row the
+    // transcode path needs anyway.
+    let (rel_path, src_ext, category): (String, String, String) = state
+        .db
+        .with({
+            let hash = hash.clone();
+            move |c| {
+                c.query_row(
+                    "SELECT rel_path, ext, category FROM files WHERE content_hash=?1 LIMIT 1",
+                    [&hash],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+            }
+        })
+        .await
+        .map_err(|_| AppError::NotFound)?;
+    // `.party.json` keys paths relative to the party folder, which is the first
+    // segment of a scanned rel_path.
+    let (party_dir, party_rel) = rel_path.split_once('/').ok_or(AppError::NotFound)?;
+    let (fps, audio_plan, seed) = match kind {
+        "video" => video_overrides(&state, party_dir, party_rel, &category).await?,
+        _ => (None, None, String::new()),
+    };
+
+    // With overrides in play the source hash no longer identifies the output, so the
+    // recipe is folded into the ledger's `target` (`mp4+<v>`) and the cache filename.
+    // Rows for a superseded recipe simply go unreferenced.
+    let (ledger_target, cache_rel) = if seed.is_empty() {
+        (target.clone(), format!("{hash}.{target}"))
+    } else {
+        let v = hex::encode(sha2::Sha256::digest(seed.as_bytes()))[..16].to_string();
+        (format!("{target}+{v}"), format!("{hash}.{v}.{target}"))
+    };
     let cache_path = state.cfg.cache_dir.join(&cache_rel);
 
-    // Recorded outcome for this (hash, target), if any.
+    // Recorded outcome for this (hash, recipe), if any.
     let recorded: Option<String> = state
         .db
         .with({
             let hash = hash.clone();
-            let target = target.clone();
+            let ledger_target = ledger_target.clone();
             move |c| {
                 c.query_row(
                     "SELECT status FROM derived WHERE content_hash=?1 AND target=?2",
-                    rusqlite::params![hash, target],
+                    rusqlite::params![hash, ledger_target],
                     |r| r.get::<_, String>(0),
                 )
                 .map(Some)
@@ -636,39 +757,39 @@ async fn api_asset(
         return Err(AppError::Upstream("transcoder not configured".into()));
     }
 
-    // Resolve the source file (path within root) + its extension hint.
-    let (rel_path, src_ext): (String, String) = state
-        .db
-        .with({
-            let hash = hash.clone();
-            move |c| {
-                c.query_row(
-                    "SELECT rel_path, ext FROM files WHERE content_hash=?1 LIMIT 1",
-                    [&hash],
-                    |r| Ok((r.get(0)?, r.get(1)?)),
-                )
-            }
-        })
-        .await
-        .map_err(|_| AppError::NotFound)?;
-    let full = state.cfg.root.join(&rel_path);
-    let (canon, canon_root) = match (full.canonicalize(), state.cfg.root.canonicalize()) {
-        (Ok(a), Ok(b)) => (a, b),
-        _ => return Err(AppError::NotFound),
+    let src = tokio::fs::read(&resolve_in_root(&state, &rel_path)?).await?;
+    // Only now is the sidecar audio worth reading — a cache hit never gets here.
+    let audio = match audio_plan {
+        Some(p) => {
+            let canon = resolve_in_root(&state, &p.rel)?;
+            let ext = canon
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("bin")
+                .to_ascii_lowercase();
+            Some(crate::transcoder::AuxAudio {
+                ext,
+                bytes: tokio::fs::read(&canon).await?,
+                format: p.format,
+                rate: p.rate,
+                channels: p.channels,
+            })
+        }
+        None => None,
     };
-    if !canon.starts_with(&canon_root) || !canon.is_file() {
-        return Err(AppError::NotFound);
-    }
 
-    let src = tokio::fs::read(&canon).await?;
-    let out = match tc.transcode(kind, &src_ext, src).await {
+    let result = match kind {
+        "video" => tc.transcode_video(&src_ext, src, fps, audio).await,
+        _ => tc.transcode_image(&src_ext, src).await,
+    };
+    let out = match result {
         Ok(out) => out,
         // Permanent failure → record it so subsequent views short-circuit instead
         // of re-encoding. Transient upstream errors are NOT cached (they retry).
         Err(e @ AppError::Unprocessable(_)) => {
             let now = chrono::Utc::now().to_rfc3339();
             let hash = hash.clone();
-            let target = target.clone();
+            let ledger_target = ledger_target.clone();
             state
                 .db
                 .write(move |c| {
@@ -677,7 +798,7 @@ async fn api_asset(
                          VALUES (?1, ?2, '', 'failed', ?3)
                          ON CONFLICT(content_hash, target) DO UPDATE SET
                            status='failed', rel_cache='', bytes=NULL, updated_at=excluded.updated_at",
-                        rusqlite::params![hash, target, now],
+                        rusqlite::params![hash, ledger_target, now],
                     )
                 })
                 .await?;
@@ -702,7 +823,7 @@ async fn api_asset(
                  ON CONFLICT(content_hash, target) DO UPDATE SET
                    rel_cache=excluded.rel_cache, status='ok',
                    bytes=excluded.bytes, updated_at=excluded.updated_at",
-                rusqlite::params![hash, target, cache_rel, bytes_len, now],
+                rusqlite::params![hash, ledger_target, cache_rel, bytes_len, now],
             )
         })
         .await?;

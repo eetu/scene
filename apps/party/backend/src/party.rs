@@ -43,6 +43,41 @@ pub struct EntryMeta {
     pub title: Option<String>,
 }
 
+/// Playback overrides for one file, keyed in [`PartyCfg::files`] by its path
+/// relative to the party folder. The escape hatch for archive quirks no scan can
+/// infer — currently all about the Assembly animation compos, whose entries are
+/// silent video-only MPEG-1 streams that also mis-declare their frame rate.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileCfg {
+    /// Authored playback rate, overriding the container's own (wrong) header.
+    /// Takes precedence over [`CategoryCfg::video_fps`].
+    #[serde(default)]
+    pub fps: Option<f64>,
+    /// Opt out of [`CategoryCfg::video_fps`] and keep the source's own timing.
+    ///
+    /// For a real container (AVI/MP4) the timestamps are authoritative and may be
+    /// *variable*, so forcing any constant rate discards them: the Assembly '95
+    /// `anim` folder holds two later DivX re-encodes whose picture drifts ~9 s out
+    /// from their own muxed audio if the compo's 12.5 fps is applied.
+    #[serde(default)]
+    pub native_fps: bool,
+    /// Sibling file holding the soundtrack, muxed in as the audio track.
+    /// Party-relative, like the keys of [`PartyCfg::files`].
+    #[serde(default)]
+    pub audio: Option<String>,
+    /// Raw PCM sample format of `audio` (`u8`, `s8`, `s16le`, …) when it's a
+    /// headerless dump. Omit for a container (WAV/MP3) — ffmpeg reads its header,
+    /// which is both less to author and impossible to get wrong.
+    #[serde(default)]
+    pub audio_format: Option<String>,
+    /// Sample rate, required alongside `audio_format`.
+    #[serde(default)]
+    pub audio_rate: Option<u32>,
+    /// Channel count, defaults to mono.
+    #[serde(default)]
+    pub audio_channels: Option<u32>,
+}
+
 /// A competition folder's descriptor. Overrides the heuristics the scanner would
 /// otherwise derive from the folder name and the productions' file kinds.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,6 +88,12 @@ pub struct CategoryCfg {
     pub platform: String,
     /// `demo` | `intro` | `music` | `graphics` | `animation` | `info`.
     pub medium: String,
+    /// Default playback rate for every video in this competition. A whole compo
+    /// tends to share one authoring pipeline (the Assembly animation compos are
+    /// 12.5 fps throughout), so this saves repeating `fps` per entry;
+    /// [`FileCfg::fps`] overrides it for the odd one out.
+    #[serde(default)]
+    pub video_fps: Option<f64>,
     /// Scraped competition placements (see [`ResultRow`]). Empty = no ranking.
     #[serde(default)]
     pub results: Vec<ResultRow>,
@@ -86,6 +127,10 @@ pub struct PartyCfg {
     /// display order in the SPA.
     #[serde(default)]
     pub categories: IndexMap<String, CategoryCfg>,
+    /// Per-file playback overrides, keyed by path relative to the party folder
+    /// (e.g. `anim/01 - Jaco - Flow/flow.mpg`). Empty for most parties.
+    #[serde(default)]
+    pub files: IndexMap<String, FileCfg>,
 }
 
 fn default_folder_name() -> String {
@@ -107,6 +152,7 @@ impl PartyCfg {
             logo: None,
             folder_name: default_folder_name(),
             categories: IndexMap::new(),
+            files: IndexMap::new(),
         }
     }
 
@@ -120,6 +166,26 @@ impl PartyCfg {
 
     pub fn category(&self, key: &str) -> Option<&CategoryCfg> {
         self.categories.get(key)
+    }
+
+    /// Overrides for one file, by its party-relative path. Case-sensitive — the key
+    /// has to match the name on disk exactly.
+    pub fn file(&self, party_rel: &str) -> Option<&FileCfg> {
+        self.files.get(party_rel)
+    }
+
+    /// Playback rate for a video: its own override, else its competition's default,
+    /// else none (leave the source's declared rate alone).
+    pub fn video_fps(&self, party_rel: &str, category: &str) -> Option<f64> {
+        if let Some(file) = self.file(party_rel) {
+            if file.native_fps {
+                return None;
+            }
+            if file.fps.is_some() {
+                return file.fps;
+            }
+        }
+        self.category(category).and_then(|c| c.video_fps)
     }
 
     /// Position of a category in the JSON `categories` map — the SPA sorts compos
@@ -223,11 +289,75 @@ mod tests {
                 compo: "Amiga demo".into(),
                 platform: "amiga".into(),
                 medium: "demo".into(),
+                video_fps: None,
                 results: Vec::new(),
                 unranked: Default::default(),
             },
         );
         assert!(cfg.is_two_level("amiga"));
         assert!(!cfg.is_two_level("demo"));
+    }
+
+    /// Every party config predates `files`/`video_fps`, so both have to be
+    /// optional — a config without them must still load.
+    #[test]
+    fn overrides_are_optional() {
+        let cfg: PartyCfg = serde_json::from_str(
+            r#"{"slug":"x","name":"X","categories":{"anim":{"compo":"Animation",
+               "platform":"video","medium":"animation"}}}"#,
+        )
+        .unwrap();
+        assert!(cfg.files.is_empty());
+        assert_eq!(cfg.video_fps("anim/a.mpg", "anim"), None);
+    }
+
+    #[test]
+    fn file_overrides_deserialize() {
+        let cfg: PartyCfg = serde_json::from_str(
+            r#"{"slug":"asm95","name":"Assembly '95",
+                "categories":{"anim":{"compo":"Animation","platform":"video",
+                  "medium":"animation","video_fps":12.5}},
+                "files":{
+                  "anim/01 - Jaco - Flow/flow.mpg":{"audio":"anim/01 - Jaco - Flow/flow.snd",
+                    "audio_format":"u8","audio_rate":12288,"audio_channels":1},
+                  "anim/01 - Vaapukka/x.mpg":{"fps":24}}}"#,
+        )
+        .unwrap();
+
+        let f = cfg.file("anim/01 - Jaco - Flow/flow.mpg").unwrap();
+        assert_eq!(f.audio.as_deref(), Some("anim/01 - Jaco - Flow/flow.snd"));
+        assert_eq!(f.audio_format.as_deref(), Some("u8"));
+        assert_eq!(f.audio_rate, Some(12288));
+        assert_eq!(f.audio_channels, Some(1));
+        assert!(f.fps.is_none());
+
+        // No per-file fps → the competition default applies.
+        assert_eq!(
+            cfg.video_fps("anim/01 - Jaco - Flow/flow.mpg", "anim"),
+            Some(12.5)
+        );
+        // A per-file fps wins over it.
+        assert_eq!(
+            cfg.video_fps("anim/01 - Vaapukka/x.mpg", "anim"),
+            Some(24.0)
+        );
+        // An unconfigured category has no default at all.
+        assert_eq!(cfg.video_fps("demo/whatever.mpg", "demo"), None);
+    }
+
+    /// `native_fps` has to beat the competition default, or a container whose own
+    /// timestamps are correct (and possibly variable) gets retimed and desyncs.
+    #[test]
+    fn native_fps_opts_out_of_the_category_default() {
+        let cfg: PartyCfg = serde_json::from_str(
+            r#"{"slug":"asm95","name":"A",
+                "categories":{"anim":{"compo":"Animation","platform":"video",
+                  "medium":"animation","video_fps":12.5}},
+                "files":{"anim/re-encode.avi":{"native_fps":true}}}"#,
+        )
+        .unwrap();
+        assert_eq!(cfg.video_fps("anim/re-encode.avi", "anim"), None);
+        // Its neighbours in the same compo still get the default.
+        assert_eq!(cfg.video_fps("anim/raw.mpg", "anim"), Some(12.5));
     }
 }
