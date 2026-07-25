@@ -1,0 +1,350 @@
+{
+  "slug": "bestofthebest",
+  "name": "Best of the Best",
+  "year": null,
+  "location": null,
+  "organizer": "Curated hall of fame — the finest productions of each kind, whatever their year, that run in-browser",
+  "folder_name": "rank-group-title",
+  "logo": "gfx/01 - Marvel - Ice Kingdom/icekngdm/icekngdm.lbm",
+  "categories": {
+    "pc": {
+      "compo": "PC demos (DOS)",
+      "platform": "pc",
+      "medium": "demo",
+      "results": [
+        {
+          "rank": 1,
+          "group": "Future Crew",
+          "title": "Second Reality"
+        },
+        {
+          "rank": 2,
+          "group": "Future Crew",
+          "title": "Unreal"
+        },
+        {
+          "rank": 3,
+          "group": "Triton",
+          "title": "Crystal Dream II"
+        },
+        {
+          "rank": 4,
+          "group": "EMF",
+          "title": "Verses"
+        },
+        {
+          "rank": 5,
+          "group": "Complex",
+          "title": "Dope"
+        },
+        {
+          "rank": 6,
+          "group": "Plant & EMF",
+          "title": "Caero"
+        },
+        {
+          "rank": 7,
+          "group": "blasphemy",
+          "title": "Moral Hard Candy"
+        },
+        {
+          "rank": 8,
+          "group": "Bomb",
+          "title": "State Of Mind"
+        },
+        {
+          "rank": 9,
+          "group": "NoooN",
+          "title": "Stars: Wonders of the World"
+        },
+        {
+          "rank": 10,
+          "group": "Acme",
+          "title": "303"
+        }
+      ]
+    },
+    "in64": {
+      "compo": "PC 64K intros",
+      "platform": "pc",
+      "medium": "intro",
+      "results": [
+        {
+          "rank": 1,
+          "group": "Psychic Link & Acme",
+          "title": "Paper"
+        },
+        {
+          "rank": 2,
+          "group": "Halcyon",
+          "title": "Empty"
+        },
+        {
+          "rank": 3,
+          "group": "Exceed",
+          "title": "Heaven Seven"
+        },
+        {
+          "rank": 4,
+          "group": "The Black Lotus",
+          "title": "Stash"
+        },
+        {
+          "rank": 5,
+          "group": "Halcyon",
+          "title": "hplus"
+        },
+        {
+          "rank": 6,
+          "group": "The Black Lotus",
+          "title": "Jizz"
+        },
+        {
+          "rank": 7,
+          "group": "Hellcore & Omnicolour",
+          "title": "Bakkslide 7"
+        },
+        {
+          "rank": 8,
+          "group": "Haujobb",
+          "title": "Fukwit Daddy"
+        },
+        {
+          "rank": 9,
+          "group": "Wild Light",
+          "title": "Drift"
+        },
+        {
+          "rank": 10,
+          "group": "Komplex",
+          "title": "Cyboman 2"
+        }
+      ]
+    },
+    "amiga/demo": {
+      "compo": "Amiga demos",
+      "platform": "amiga",
+      "medium": "demo",
+      "results": [
+        {
+          "rank": 1,
+          "group": "Phenomena",
+          "title": "Enigma"
+        },
+        {
+          "rank": 2,
+          "group": "Spaceballs",
+          "title": "State Of The Art"
+        },
+        {
+          "rank": 3,
+          "group": "Kefrens",
+          "title": "Desert Dream"
+        },
+        {
+          "rank": 4,
+          "group": "Spaceballs",
+          "title": "9 Fingers"
+        },
+        {
+          "rank": 5,
+          "group": "The Black Lotus",
+          "title": "Tint"
+        }
+      ]
+    },
+    "amiga/intro": {
+      "compo": "Amiga intros",
+      "platform": "amiga",
+      "medium": "intro",
+      "results": [
+        {
+          "rank": 1,
+          "group": "Rebels",
+          "title": "Introduction To Seduction"
+        },
+        {
+          "rank": 2,
+          "group": "Sanity",
+          "title": "Interference"
+        },
+        {
+          "rank": 3,
+          "group": "Stellar",
+          "title": "Peverly Hills"
+        }
+      ]
+    },
+    "c64": {
+      "compo": "C64 demos",
+      "platform": "c64",
+      "medium": "demo",
+      "results": [
+        {
+          "rank": 1,
+          "group": "Black Mail",
+          "title": "Dutch Breeze"
+        },
+        {
+          "rank": 2,
+          "group": "Oxyron",
+          "title": "Coma Light 13"
+        },
+        {
+          "rank": 3,
+          "group": "Booze Design",
+          "title": "Edge of Disgrace"
+        },
+        {
+          "rank": 4,
+          "group": "Resource & Chorus",
+          "title": "Desert Dream"
+        },
+        {
+          "rank": 5,
+          "group": "Smash Designs & The Obsessed Maniacs",
+          "title": "Second Reality 64"
+        },
+        {
+          "rank": 6,
+          "group": "Booze Design & Instinct",
+          "title": "Andropolis"
+        },
+        {
+          "rank": 7,
+          "group": "Fairlight",
+          "title": "We Are New"
+        },
+        {
+          "rank": 8,
+          "group": "Crest & Oxyron",
+          "title": "Deus Ex Machina"
+        },
+        {
+          "rank": 9,
+          "group": "Booze Design",
+          "title": "Cycle"
+        },
+        {
+          "rank": 10,
+          "group": "Oxyron",
+          "title": "Natural Wonders 2"
+        }
+      ]
+    },
+    "gfx": {
+      "compo": "Graphics",
+      "platform": "pc",
+      "medium": "graphics",
+      "results": [
+        {
+          "rank": 1,
+          "group": "Marvel",
+          "title": "Ice Kingdom"
+        },
+        {
+          "rank": 2,
+          "group": "Made",
+          "title": "Babylona"
+        },
+        {
+          "rank": 3,
+          "group": "Visualize",
+          "title": "Fiction"
+        },
+        {
+          "rank": 4,
+          "group": "Danny",
+          "title": "Space Tits"
+        },
+        {
+          "rank": 5,
+          "group": "Facet & Rubberduck",
+          "title": "Paradise"
+        },
+        {
+          "rank": 6,
+          "group": "Louie",
+          "title": "Me'n My Little Sister"
+        },
+        {
+          "rank": 7,
+          "group": "Danny & Louie",
+          "title": "Angelic Particles"
+        },
+        {
+          "rank": 8,
+          "group": "Rodney",
+          "title": "Climber"
+        },
+        {
+          "rank": 9,
+          "group": "Made",
+          "title": "Eden 377"
+        },
+        {
+          "rank": 10,
+          "group": "Cougar",
+          "title": "Dragon Sun"
+        }
+      ]
+    },
+    "music": {
+      "compo": "Tracker music",
+      "platform": "pc",
+      "medium": "music",
+      "results": [
+        {
+          "rank": 1,
+          "group": "Skaven",
+          "title": "2nd Reality"
+        },
+        {
+          "rank": 2,
+          "group": "Purple Motion",
+          "title": "Satellite One"
+        },
+        {
+          "rank": 3,
+          "group": "Necros",
+          "title": "Point Of Departure"
+        },
+        {
+          "rank": 4,
+          "group": "Jogeir Liljedahl",
+          "title": "Guitar Slinger"
+        },
+        {
+          "rank": 5,
+          "group": "Purple Motion",
+          "title": "Unreal ]["
+        },
+        {
+          "rank": 6,
+          "group": "Captain",
+          "title": "Space Debris"
+        },
+        {
+          "rank": 7,
+          "group": "Elwood",
+          "title": "Dead Lock"
+        },
+        {
+          "rank": 8,
+          "group": "Jester",
+          "title": "Elysium"
+        },
+        {
+          "rank": 9,
+          "group": "Karsten Koch",
+          "title": "Aryx"
+        },
+        {
+          "rank": 10,
+          "group": "Radix",
+          "title": "Yuki Satellites"
+        }
+      ]
+    }
+  }
+}

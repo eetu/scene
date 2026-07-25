@@ -44,6 +44,42 @@ Use `(030)`/`(040)` only for demos that actually need a 68030/68040 and/or an FP
 (they crash on the base A1200 68020 with a Line-F `#8000000B` or illegal-instruction
 `#80000004` guru). Most AGA demos are fine as `(AGA)`.
 
+## Running a demo locally (fs-uae)
+
+```sh
+just amiga ZIF                 # substring search over the tree
+just amiga "Desert Dream"      # ambiguous → it lists the matches and stops
+just amiga "/path/to/Demo (AGA).hdf"
+```
+
+**Why bother when the app runs them in a browser:** the in-browser core
+(libretro-uae under EmulatorJS) has **no JIT**. A 68020+ demo pushing a full-rate
+AGA display is exactly the workload that needs one, so AGA entries can crawl in the
+SPA while being perfectly fine on the hardware they targeted. fs-uae JITs. That
+makes this the way to tell **"this demo is broken"** from **"the WASM core is too
+slow"** — a distinction you can't make from the browser alone, and the one that
+matters when deciding whether an `.hdf` needs rebuilding.
+
+The recipe derives the machine and Kickstart from the same filename tags as the
+table above, so a local run reproduces what the app *aims* for. It mirrors the two
+app defaults that bite if you hand-roll the command:
+
+- **8 MB fast RAM on A1200.** The model preset implies it, but a bare
+  `--amiga_model=A1200` leaves any sizable demo aborting with *"not enough memory
+  available"* — the single most common reason a freshly-imaged demo "doesn't start".
+- **`(030)` → `A4000` + `--cpu=68030`**, since fs-uae has no `A4000/030` model.
+
+Equivalent by hand:
+
+```sh
+fs-uae --amiga_model=A1200 --kickstart_file="$PARTY_ROOT/.support/kick40068.A1200" --fast_memory=8192 --hard_drive_0="…/Title (AGA).hdf"
+```
+
+Floppy images (`.adf`/`.dms`/`.adz`/`.ipf`) go to DF0 instead of a hard drive; the
+recipe picks by extension. Walking the tree over SMB takes minutes, so the image
+list is cached at `~/.cache/scene-amiga-images.txt` and rebuilt only when a search
+misses — which also picks up newly-added demos on its own.
+
 ## Verifying a ROM
 
 ```sh

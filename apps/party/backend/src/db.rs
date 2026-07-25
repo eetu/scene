@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS files (
   category     TEXT NOT NULL,
   filename     TEXT NOT NULL,
   ext          TEXT NOT NULL,
-  kind         TEXT NOT NULL,          -- music|image|video|exe|diskimage|text|archive|data
+  kind         TEXT NOT NULL,          -- music|image|video|exe|amiga_exe|win_exe|diskimage|text|archive|data
   size         INTEGER NOT NULL,
   mtime        INTEGER NOT NULL,
   content_hash TEXT NOT NULL

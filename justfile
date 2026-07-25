@@ -89,6 +89,106 @@ e2e-install app="tracker":
 transcoder:
     cd services/transcoder && bacon --headless -j run
 
+# Boot an Amiga demo from the party tree in fs-uae (native, on your desktop).
+#
+# Why: the in-browser core (libretro-uae under EmulatorJS) has NO JIT, so AGA
+# demos — 68020+ chasing a full-rate AGA display — run poorly there. fs-uae JITs
+# and runs them at speed. It's also the honest way to tell "this demo is broken"
+# from "the WASM core is too slow", and the fastest loop when fixing an .hdf.
+#
+# The machine + Kickstart come from the demo's FILENAME TAG — the same mapping
+# `EjsEmulator.svelte` uses, so what you see here is what the app aims for. See
+# apps/party/AMIGA-ROMS.md for the tags and the ROM table.
+#
+#   (A500)/(OCS)/(ECS) → A500,      kick34005.A500
+#   (030)/(A4030)      → A4000+030, kick40068.A4000
+#   (040)/(A4040)      → A4000/040, kick40068.A4000
+#   else (e.g. (AGA))  → A1200,     kick40068.A1200   + 8 MB fast RAM
+#
+# `target` is a path, or any substring to search the tree for (.hdf/.adf/.dms/
+# .adz/.ipf, including per-prod .support/ dirs). PARTY_ROOT comes from the env,
+# else backend/.env, else the `root` argument. e.g. `just amiga ZIF`,
+# `just amiga "Desert Dream"`, or a full path to an image.
+#
+# Boot an Amiga demo natively in fs-uae (JIT — the browser core has none).
+amiga target root="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="{{root}}"
+    if [ -z "$root" ]; then root="${PARTY_ROOT:-}"; fi
+    if [ -z "$root" ] && [ -f apps/party/backend/.env ]; then
+        root="$(sed -n 's/^[[:space:]]*PARTY_ROOT=//p' apps/party/backend/.env | tail -1 | tr -d '"' )"
+    fi
+    root="${root:-/Volumes/scene/parties}"
+    root="${root%/}"
+    [ -d "$root" ] || { echo "PARTY_ROOT not found: $root (is the NAS mounted?)" >&2; exit 1; }
+
+    # A real path wins; otherwise search the tree by name. Walking the NAS takes
+    # minutes (SMB stats every file), so the image list is cached and only rebuilt
+    # when a search misses — which also picks up newly-added demos by itself.
+    cache="${XDG_CACHE_HOME:-$HOME/.cache}/scene-amiga-images.txt"
+    fresh=0   # set once we've built the index in THIS run, so a miss doesn't redo it
+    reindex() {
+        echo "indexing Amiga images under $root (a few minutes over SMB)…" >&2
+        mkdir -p "$(dirname "$cache")"
+        find "$root" -type f \
+            \( -iname '*.hdf' -o -iname '*.adf' -o -iname '*.dms' -o -iname '*.adz' -o -iname '*.ipf' \) \
+            -not -name '._*' > "$cache.tmp" && sort "$cache.tmp" > "$cache" && rm -f "$cache.tmp"
+        fresh=1
+        echo "indexed $(wc -l < "$cache" | tr -d ' ') images" >&2
+    }
+    # No `mapfile` — macOS ships bash 3.2.
+    search() {
+        hits=()
+        while IFS= read -r line; do [ -n "$line" ] && hits+=("$line"); done < <(
+            grep -i -F -- "{{target}}" "$cache" 2>/dev/null || true)
+    }
+
+    if [ -f "{{target}}" ]; then
+        img="{{target}}"
+    else
+        [ -s "$cache" ] || reindex
+        search
+        # Nothing found, or the cache points at something that's since moved →
+        # rebuild once and retry before giving up (skipped if we just built it).
+        if [ "$fresh" -eq 0 ] && { [ "${#hits[@]}" -eq 0 ] || { [ "${#hits[@]}" -eq 1 ] && [ ! -f "${hits[0]}" ]; }; }; then
+            reindex
+            search
+        fi
+        if [ "${#hits[@]}" -eq 0 ]; then echo "no Amiga image matching '{{target}}' under $root" >&2; exit 1; fi
+        if [ "${#hits[@]}" -gt 1 ]; then
+            echo "'{{target}}' matches ${#hits[@]} images — narrow it down:" >&2
+            printf '  %s\n' "${hits[@]#$root/}" >&2
+            exit 1
+        fi
+        img="${hits[0]}"
+    fi
+
+    # Tag → machine. Matched against the whole path (the tag is on the image, but
+    # a prod folder may carry it too), lowercased.
+    lower="$(printf '%s' "$img" | tr '[:upper:]' '[:lower:]')"
+    extra=()
+    case "$lower" in
+        *'(a500)'*|*'(ocs)'*|*'(ecs)'*) model="A500";      rom="kick34005.A500"  ;;
+        *'(040)'*|*'(a4040)'*)          model="A4000/040"; rom="kick40068.A4000" ;;
+        *'(030)'*|*'(a4030)'*)          model="A4000";     rom="kick40068.A4000"; extra+=(--cpu=68030) ;;
+        # A1200's "2M chip + 8M fast" preset is what the app forces; without the
+        # fast RAM any sizable demo aborts with "not enough memory available".
+        *)                              model="A1200";     rom="kick40068.A1200"; extra+=(--fast_memory=8192) ;;
+    esac
+    ks="$root/.support/$rom"
+    [ -f "$ks" ] || { echo "missing Kickstart: $ks" >&2; echo "see apps/party/AMIGA-ROMS.md (ROMs are copyrighted and supplied separately)" >&2; exit 1; }
+
+    # .hdf mounts as a hard drive; floppy formats go in DF0.
+    case "$lower" in
+        *.hdf) media=(--hard_drive_0="$img") ;;
+        *)     media=(--floppy_drive_0="$img") ;;
+    esac
+
+    echo "fs-uae: $model  rom=$rom"
+    echo "        ${img#$root/}"
+    exec fs-uae --amiga_model="$model" --kickstart_file="$ks" "${media[@]}" "${extra[@]}"
+
 # Package a finalized party tree into a read-only data image (run where the NAS
 # is mounted). The content (~hundreds of MB) isn't in the repo, so this is a
 # manual, reproducible one-off — NOT a CI artifact. Re-push a new :tag whenever

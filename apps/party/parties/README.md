@@ -613,16 +613,10 @@ shipping, using a native emulator configured like the in-browser core. This caug
 every issue below; none were visible from the file tree.
 
 ```sh
-# Amiga — fs-uae, mirroring the EJS puae A1200 config (note fast_memory!):
-cat > t.fs-uae <<EOF
-[fs-uae]
-amiga_model = A1200
-kickstart_file = /Volumes/scene/parties/.support/kick40068.A1200
-fast_memory = 8192
-hard_drive_0 = /path/to/.support/Title (AGA).hdf   # or floppy_drive_0 = …adf
-fullscreen = 1
-EOF
-fs-uae t.fs-uae & sleep 18; screencapture -x shot.png; pkill -f fs-uae   # then look at shot.png
+# Amiga — `just amiga` picks the machine + Kickstart from the demo's filename tag,
+# exactly as the app does, and adds the fast RAM the A1200 preset needs:
+just amiga "Desert Dream"       # substring search, or pass a full path
+just amiga ZIF & sleep 18; screencapture -x shot.png; pkill -f fs-uae   # then look at shot.png
 
 # PC — dosbox-x, mirroring the bundle's dosbox.conf (GUS + SB + env):
 #   [gus] gus=true gusbase=240 irq1=5 dma1=3   [sblaster] sbbase=220 irq=7 dma=1
@@ -632,6 +626,12 @@ dosbox-x -conf t.conf & sleep 16; screencapture -x shot.png; pkill -f dosbox
 
 Capturing the window to a PNG and reading it back is the reliable way to tell
 "reached the demo" from "dropped to a CLI / setup menu" without a human watching.
+
+**A slow AGA demo in the SPA is not necessarily a broken one.** The in-browser core
+has no JIT, so 68020+ AGA work can crawl there and still be fine natively. `just
+amiga` is the control: if it runs at speed in fs-uae, the image is good and the
+browser is simply the limit — don't go rebuilding the `.hdf`. See
+`apps/party/AMIGA-ROMS.md` for the tag→machine mapping the recipe shares with the app.
 
 The quirks we hit (all now fixed in the app, but know them when a demo misbehaves):
 

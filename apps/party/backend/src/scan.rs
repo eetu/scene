@@ -9,7 +9,7 @@
 //! under a `rest/` folder.
 
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::time::UNIX_EPOCH;
@@ -178,6 +178,35 @@ fn is_amiga_hunk(path: &Path) -> bool {
     f.read_exact(&mut buf).is_ok() && buf == AMIGA_HUNK_MAGIC
 }
 
+/// A Win32/PE executable. Prods from the late 90s on often ship a Windows port
+/// **beside** the DOS build (`CANDYW.EXE` next to `CANDYD.EXE`, `HEAVEN7W.EXE`
+/// next to `HEAVEN7D.EXE`), and the Windows one is usually the larger — so the
+/// "largest .exe wins" primary pick lands on a binary js-dos can't run. Nothing
+/// here emulates Windows, so PE files are classified apart and kept out of the
+/// runnable slot, exactly as Amiga Hunk binaries are.
+///
+/// Both DOS and PE images start `MZ`; a PE additionally has a `PE\0\0` signature
+/// at the offset stored in the header at 0x3C.
+fn is_win_pe(path: &Path) -> bool {
+    let Ok(mut f) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut head = [0u8; 0x40];
+    if f.read_exact(&mut head).is_err() || &head[..2] != b"MZ" {
+        return false;
+    }
+    let lfanew = u32::from_le_bytes([head[0x3C], head[0x3D], head[0x3E], head[0x3F]]) as u64;
+    // A DOS stub leaves junk here; bound it so a wild value isn't chased.
+    if !(0x40..=0x1000_0000).contains(&lfanew) {
+        return false;
+    }
+    if f.seek(SeekFrom::Start(lfanew)).is_err() {
+        return false;
+    }
+    let mut sig = [0u8; 4];
+    f.read_exact(&mut sig).is_ok() && &sig == b"PE\0\0"
+}
+
 fn is_junk(name: &str) -> bool {
     name == crate::party::CONFIG_FILE // .party.json — config, not a browsable file
         || name == ".DS_Store"
@@ -258,6 +287,7 @@ fn intern_kind(k: &str) -> &'static str {
         "video" => "video",
         "exe" => "exe",
         "amiga_exe" => "amiga_exe",
+        "win_exe" => "win_exe",
         "diskimage" => "diskimage",
         "text" => "text",
         "archive" => "archive",
@@ -362,7 +392,8 @@ fn medium_from_kind(kind: &str) -> &'static str {
         "music" => "music",
         "image" => "graphics",
         "video" => "animation",
-        "exe" | "amiga_exe" | "diskimage" => "demo",
+        // `win_exe` too: a Windows-only prod is still a demo, just not one we can run.
+        "exe" | "amiga_exe" | "win_exe" | "diskimage" => "demo",
         _ => "info",
     }
 }
@@ -427,6 +458,10 @@ fn pick_primary<'a>(
                 .iter()
                 .filter(|f| grp.contains(&f.2.as_str()))
                 .filter(|f| !(matches!(f.2.as_str(), "exe" | "com") && is_dos_helper(&f.0)))
+                // These groups match on extension, so a Windows port (`.exe`, but
+                // kind `win_exe`) would otherwise qualify — and usually outweighs
+                // the DOS build it ships beside.
+                .filter(|f| f.1 != "win_exe")
                 .max_by_key(|f| f.3)
             {
                 return Some(f);
@@ -594,6 +629,10 @@ pub fn scan_into(
                 // already-indexed files on the next rescan, not just new ones; it's
                 // a 4-byte read on the exe minority, parallelised with the rest here.
                 "exe" if is_amiga_hunk(path) => "amiga_exe",
+                // Same idea for a Windows port shipped beside the DOS build — see
+                // `is_win_pe`. Nothing here emulates Windows, so it must not win the
+                // runnable slot.
+                "exe" if is_win_pe(path) => "win_exe",
                 k => k,
             };
 
@@ -979,6 +1018,57 @@ mod tests {
         let tiny = dir.path().join("stub");
         std::fs::write(&tiny, [0x00u8, 0x00]).unwrap();
         assert!(!is_amiga_hunk(&tiny));
+    }
+
+    /// A prod shipping a Windows port beside the DOS build (CANDYW.EXE next to
+    /// CANDYD.EXE) must not have the Windows one picked as the runnable primary —
+    /// it's usually the larger of the two, and js-dos can't run it.
+    #[test]
+    fn detects_windows_pe_exe() {
+        let dir = tempfile::tempdir().unwrap();
+        let pe = |lfanew: u32, sig: &[u8]| {
+            let mut b = vec![0u8; 0x40];
+            b[0] = b'M';
+            b[1] = b'Z';
+            b[0x3C..0x40].copy_from_slice(&lfanew.to_le_bytes());
+            b.resize(lfanew as usize, 0);
+            b.extend_from_slice(sig);
+            b
+        };
+
+        let win = dir.path().join("CANDYW.EXE");
+        std::fs::write(&win, pe(0x80, b"PE\0\0")).unwrap();
+        assert!(is_win_pe(&win));
+
+        // A plain DOS MZ: no PE signature where the header points.
+        let dos = dir.path().join("CANDYD.EXE");
+        std::fs::write(&dos, pe(0x80, b"\0\0\0\0")).unwrap();
+        assert!(!is_win_pe(&dos));
+
+        // Short DOS exe, and an Amiga Hunk binary — neither is a PE, neither panics.
+        let short = dir.path().join("GAME.EXE");
+        std::fs::write(&short, b"MZ\x90\x00\x03\x00\x00\x00").unwrap();
+        assert!(!is_win_pe(&short));
+        let hunk = dir.path().join("AMIGA.EXE");
+        std::fs::write(&hunk, [0x00u8, 0x00, 0x03, 0xF3, 0x00, 0x00, 0x00, 0x00]).unwrap();
+        assert!(!is_win_pe(&hunk));
+
+        // A wild e_lfanew (DOS stub junk) must not be chased.
+        let wild = dir.path().join("WILD.EXE");
+        std::fs::write(&wild, pe(0xDEAD_BEEF, b"PE\0\0")).unwrap();
+        assert!(!is_win_pe(&wild));
+    }
+
+    /// The runnable groups match on extension, so `win_exe` has to be excluded by
+    /// kind or the bigger Windows build wins the primary slot.
+    #[test]
+    fn primary_skips_windows_port() {
+        let files: Vec<ProdFile> = vec![
+            ("d/CANDYW.EXE".into(), "win_exe", "exe".into(), 391_680),
+            ("d/CANDYD.EXE".into(), "exe", "exe".into(), 313_614),
+        ];
+        let p = pick_primary(&files, "pc", Some("demo")).unwrap();
+        assert_eq!(p.0, "d/CANDYD.EXE");
     }
 
     #[test]
