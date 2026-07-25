@@ -122,7 +122,7 @@
       ]
     },
     "amiga/demo": {
-      "compo": "Amiga demos",
+      "compo": "Amiga demos (OCS)",
       "platform": "amiga",
       "medium": "demo",
       "results": [
@@ -149,6 +149,88 @@
         {
           "rank": 5,
           "group": "The Black Lotus",
+          "title": "Eon"
+        },
+        {
+          "rank": 6,
+          "group": "Crionics & The Silents",
+          "title": "Hardwired"
+        },
+        {
+          "rank": 7,
+          "group": "Lemon.",
+          "title": "Rink a Dink: REDUX"
+        },
+        {
+          "rank": 8,
+          "group": "Sanity",
+          "title": "ARTE"
+        },
+        {
+          "rank": 9,
+          "group": "Scoopex",
+          "title": "Mental Hangover"
+        },
+        {
+          "rank": 10,
+          "group": "Mad Elks",
+          "title": "Technological Death"
+        }
+      ]
+    },
+    "amiga/aga": {
+      "compo": "Amiga demos (AGA)",
+      "platform": "amiga",
+      "medium": "demo",
+      "results": [
+        {
+          "rank": 1,
+          "group": "The Black Lotus",
+          "title": "Starstruck"
+        },
+        {
+          "rank": 2,
+          "group": "Nature & Traktor",
+          "title": "Jesus Christ Motocross"
+        },
+        {
+          "rank": 3,
+          "group": "The Black Lotus",
+          "title": "Ocean Machine"
+        },
+        {
+          "rank": 4,
+          "group": "The Black Lotus",
+          "title": "Silkcut"
+        },
+        {
+          "rank": 5,
+          "group": "Andromeda",
+          "title": "Nexus 7"
+        },
+        {
+          "rank": 6,
+          "group": "The Black Lotus",
+          "title": "Rift"
+        },
+        {
+          "rank": 7,
+          "group": "Ghostown & Loonies",
+          "title": "Human Traffic"
+        },
+        {
+          "rank": 8,
+          "group": "Ozone",
+          "title": "Smoke Bomb"
+        },
+        {
+          "rank": 9,
+          "group": "Ephidrena",
+          "title": "Lux Aeterna Luceat Eis"
+        },
+        {
+          "rank": 10,
+          "group": "The Black Lotus",
           "title": "Tint"
         }
       ]
@@ -172,6 +254,41 @@
           "rank": 3,
           "group": "Stellar",
           "title": "Peverly Hills"
+        },
+        {
+          "rank": 4,
+          "group": "Stellar",
+          "title": "Darkroom"
+        },
+        {
+          "rank": 5,
+          "group": "Melon & Crystal",
+          "title": "The Tetris Intro"
+        },
+        {
+          "rank": 6,
+          "group": "Virtual Dreams & Fairlight",
+          "title": "Chaosland"
+        },
+        {
+          "rank": 7,
+          "group": "Stellar",
+          "title": "Bananamen"
+        },
+        {
+          "rank": 8,
+          "group": "Rebels & Neural",
+          "title": "Hard Rain"
+        },
+        {
+          "rank": 9,
+          "group": "Andromeda",
+          "title": "A Murder Of Scrolls"
+        },
+        {
+          "rank": 10,
+          "group": "Desire",
+          "title": "Desire FM"
         }
       ]
     },
