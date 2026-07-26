@@ -13,43 +13,11 @@
 import { page } from "vitest/browser";
 import { expect, test } from "vitest";
 
-import BoingBall from "../BoingBall.svelte";
-import CopperBars from "../CopperBars.svelte";
-import DancerScene from "../DancerScene.svelte";
-import DiscoBall from "../DiscoBall.svelte";
-import Equalizer from "../Equalizer.svelte";
-import GlowWave from "../GlowWave.svelte";
-import HarmonyScope from "../HarmonyScope.svelte";
-import LedBars from "../LedBars.svelte";
-import NixieScene from "../NixieScene.svelte";
-import Plasma from "../Plasma.svelte";
-import SpeakerPaint from "../SpeakerPaint.svelte";
-import Starfield from "../Starfield.svelte";
-import Tunnel from "../Tunnel.svelte";
-import VuMeters from "../VuMeters.svelte";
 import { installTheme } from "./viz-feed";
+import { minFill, settleFor, VIZ } from "./viz-list";
 import { captureViz } from "./viz-shots";
 
 const OUT = "viz-gallery";
-
-// The registry order from player-view.svelte.ts, so the saved gallery reads like
-// the picker does.
-const VIZ = [
-  { id: "vu", comp: VuMeters },
-  { id: "bars", comp: Equalizer },
-  { id: "harmony", comp: HarmonyScope },
-  { id: "cube", comp: LedBars },
-  { id: "wave", comp: GlowWave },
-  { id: "stars", comp: Starfield },
-  { id: "copper", comp: CopperBars },
-  { id: "plasma", comp: Plasma },
-  { id: "tunnel", comp: Tunnel },
-  { id: "disco", comp: DiscoBall },
-  { id: "paint", comp: SpeakerPaint },
-  { id: "tubes", comp: NixieScene },
-  { id: "dancer", comp: DancerScene },
-  { id: "ball", comp: BoingBall, props: { energy: 0.7, live: true, react: true } },
-];
 
 test("every visualiser draws and moves", { timeout: 600000 }, async () => {
   // The harness page is a narrow portrait iframe by default; the viz pane in the
@@ -65,17 +33,14 @@ test("every visualiser draws and moves", { timeout: 600000 }, async () => {
       id: v.id,
       outDir: OUT,
       props: v.props,
-      // The 2D canvas effects are up on the first frame; the three.js scenes have a
-      // lazy import and a scene build to get through first.
-      settleMs: v.comp === BoingBall || v.comp === CopperBars ? 600 : 2200,
+      settleMs: settleFor(v.id),
     });
   }
 
   for (const v of VIZ) {
     const s = shots[v.id];
-    // Something is on screen. `harmony` is a chromagram and the synthetic feed is
-    // three sine tones, so it legitimately lights very little — hence the low bar.
-    expect.soft(s.fill, `${v.id} drew nothing`).toBeGreaterThan(0.5);
+    // Something is on screen, against a floor that suits the effect (see minFill).
+    expect.soft(s.fill, `${v.id} drew nothing`).toBeGreaterThan(minFill(v.id));
     // And it is animating, not a frozen first frame.
     expect.soft(s.motion, `${v.id} is static`).toBeGreaterThan(0.05);
   }
