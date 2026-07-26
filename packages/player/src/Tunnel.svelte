@@ -639,7 +639,10 @@
 
       // Optional CRT overlay ('s'): horizontal scanlines + a soft vignette.
       if (uScan > 0.5) {
-        float scan = 0.72 + 0.28 * sin(gl_FragCoord.y * 2.2);
+        // Frequency pi = a period of exactly two device pixels, the thinnest a
+        // scanline can be and stay coherent; tighter aliases into mush. Shallow
+        // depth so it reads as CRT texture rather than banding over the geometry.
+        float scan = 0.88 + 0.12 * sin(gl_FragCoord.y * 3.14159265);
         float vig = smoothstep(0.95, 0.35, length(gl_FragCoord.xy / uRes - 0.5));
         col *= scan * (0.8 + 0.3 * vig) * 1.25;
       }
