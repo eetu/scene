@@ -385,7 +385,7 @@
     {:else if pv.tab === "viz"}
       {@const vizActive = playback.playing && !playback.paused}
       <div class="viz-view" class:fs={vizFs} bind:this={vizEl}>
-        <div class="vizpick" class:hide={!pickerShown}>
+        <div class="vizpick" class:hide={!pickerShown} class:one-row={isMobile}>
           <!-- Narrow screens get one fixed-height row instead of the full list. Fourteen
                pills already wrap onto two rows, the CRT toggle takes a third, and every
                new visualiser makes it worse — a large bite out of a full-screen player on
@@ -704,6 +704,22 @@
     background: var(--accent);
     border-color: var(--accent);
   }
+  /* The whole point of the narrow layout is ONE row of fixed height. The pill list wraps
+     by design, and with five controls on a 390px screen this would wrap too — so it is
+     pinned, and the current visualiser (the only flexible item) absorbs the difference. */
+  .vizpick.one-row {
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+  .vizpick.one-row .current {
+    overflow: hidden;
+  }
+  .vizpick.one-row .current span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   /* Narrow screens: the compact row. Square icon buttons so they read as controls rather
      than as short-named modes, and the current visualiser is the wide target. `.fs` shares
      their shape but keeps its own class — it toggles a state rather than cycling the list,

@@ -52,6 +52,12 @@ test("on a phone the viz picker is a stepper row with a sheet for the full set",
   // One row: two steppers, the current visualiser, and the CRT toggle — not the pills.
   const pick = overlay.locator(".vizpick");
   await expect(pick).toBeVisible();
+  // One row, not two: every control has to fit on a phone, which is the whole reason this
+  // layout exists. Measured rather than eyeballed — a wrap here is invisible to any
+  // structural assertion.
+  await expect(pick).toHaveClass(/one-row/);
+  const rowH = (await pick.boundingBox())!.height;
+  expect(rowH).toBeLessThan(56);
   // Exactly two steppers: the fullscreen toggle deliberately isn't one of them, so
   // "the last stepper" keeps meaning "next visualiser".
   await expect(pick.locator(".step")).toHaveCount(2);
@@ -69,16 +75,25 @@ test("on a phone the viz picker is a stepper row with a sheet for the full set",
   await expect(sheet).toBeVisible();
   const tiles = sheet.locator(".sheetgrid button");
   await expect(tiles).toHaveCount(14);
-  await sheet.getByRole("button", { name: "tubes", exact: true }).click();
+  // A cheap 2D effect on purpose. This test is about the picker, and picking one of the
+  // three.js scenes (tubes, paint, dancer) drags a lazy three.js import and a scene build
+  // into it — slow anywhere, and on a runner falling back to software WebGL slow enough
+  // to time out.
+  await sheet.getByRole("button", { name: "copper", exact: true }).click();
   await expect(sheet).toHaveCount(0);
-  await expect(current).toHaveText("tubes");
+  await expect(current).toHaveText("copper");
 
-  // A fullscreen button, because a phone has no 'f' key. Only where the browser can
-  // actually do it — iOS Safari has no Element.requestFullscreen, so it is absent there
-  // rather than present and dead. Whether fullscreen SUCCEEDS isn't asserted: it needs a
-  // real user gesture and headless is unreliable about it, so that stays a manual check.
-  await expect(pick.locator(".fs")).toHaveCount(1);
-  await expect(pick.getByRole("button", { name: "Fill the screen" })).toBeVisible();
+  // A fullscreen button, because a phone has no 'f' key — but only where the browser can
+  // actually do it. iOS Safari has no Element.requestFullscreen, and headless Chromium
+  // reports fullscreenEnabled false, so the button is deliberately absent in both. The
+  // assertion follows the same condition the component uses rather than assuming a
+  // browser that supports it; asserting it unconditionally failed on CI for the very
+  // reason the gate exists. Whether fullscreen SUCCEEDS is not asserted either: that
+  // needs a real user gesture and headless is unreliable about it.
+  const canFullscreen = await page.evaluate(
+    () => !!document.fullscreenEnabled && typeof Element.prototype.requestFullscreen === "function",
+  );
+  await expect(pick.locator(".fs")).toHaveCount(canFullscreen ? 1 : 0);
 
   // Escape closes it too, rather than stranding it over the picture.
   await current.click();
