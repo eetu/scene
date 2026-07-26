@@ -155,7 +155,12 @@
       autoOrbit: true,
       orbitSpeed: 0.2,
       pitch: 0.34,
-      distance: 4.2,
+      // Closer than before (4.2), which left most of a wide pane as empty air. Not
+      // closer than this: the camera orbits the grid's centre and the bars grow from
+      // its floor, so zooming magnifies that downward offset and starts cutting the
+      // bars off the bottom — 3.5 clips, 3.9 doesn't. The mass sitting below centre
+      // is the dB range's headroom, not the camera, and is left alone.
+      distance: 3.9,
       projection: "perspective",
     }}
     interaction={{ drag: true, zoom: true }}

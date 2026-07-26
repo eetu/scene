@@ -37,7 +37,13 @@
     const float NLON = 24.0;       // ball tile columns (longitude segments)
     const float PI = 3.14159265;
     const float TAU = 6.28318530;
-    const vec3 C = vec3(0.0, 0.4, 6.0);  // ball centre
+    // Ball centre. The uv below is normalised by the SHORT axis, so the half-FOV on
+    // that axis is a fixed atan(0.5/1.5) = 18.4° whatever the aspect — which means
+    // the ball's angular size has to fit inside it or it clips, and on a landscape
+    // pane it clips at the top. At z=6 the ball spanned to 20.2° (3.8° of centre
+    // lift plus 16.4° of angular radius) and was cut off flat; z=7.2 brings that to
+    // 16.9° and leaves the lift intact, since a mirror ball wants to hang high.
+    const vec3 C = vec3(0.0, 0.4, 7.2);  // ball centre
     const float BR = 1.7;                 // ball radius
     const vec3 BOXMIN = vec3(-7.0, -4.0, -1.5);
     const vec3 BOXMAX = vec3(7.0, 4.0, 15.0);
