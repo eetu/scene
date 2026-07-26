@@ -5,7 +5,8 @@
   "type": "module",
   "svelte": "./src/index.ts",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --project unit --project browser",
+    "test:visual": "vitest run --project visual",
     "test:unit": "vitest run --project unit",
     "test:browser": "vitest run --project browser"
   },

@@ -54,6 +54,12 @@ export function startVizFeed(opts: { jitter?: number; gain?: number } = {}): Viz
 
   const hzPerBin = SAMPLE_RATE / 2 / SPECTRUM_SIZE;
 
+  // Narrow spectral peaks on top of the broadband bed — an A minor triad across three
+  // octaves. Real music has pitched partials, and effects that look for them found
+  // nothing in a smooth rolloff: the chromagram in particular lit no pitch classes at
+  // all, which is a property of the signal rather than of the effect.
+  const PARTIALS = [110, 220, 261.63, 329.63, 440, 523.25, 659.26, 880];
+
   const fake = {
     fftSize: SPECTRUM_SIZE * 2,
     frequencyBinCount: SPECTRUM_SIZE,
@@ -68,7 +74,16 @@ export function startVizFeed(opts: { jitter?: number; gain?: number } = {}): Viz
         // Spectra fall off with frequency; without it every bar reads level.
         const rolloff = 1 / (1 + hz / 900);
         const n = 1 + jitter * (noise(i, frame) - 0.5) * 0.5;
-        buf[i] = Math.max(0, Math.min(255, band * rolloff * 340 * n * gain));
+        let v = band * rolloff * 340 * n * gain;
+        // Add any partial landing in this bin, weighted by the band it sits in.
+        for (const f of PARTIALS) {
+          const d = Math.abs(hz - f) / hzPerBin;
+          if (d < 1.6) {
+            const w = f < 200 ? bass : f < 2000 ? mid : treble;
+            v += (1 - d / 1.6) * w * 300 * gain;
+          }
+        }
+        buf[i] = Math.max(0, Math.min(255, v));
       }
     },
     getByteTimeDomainData(buf: Uint8Array) {

@@ -316,12 +316,14 @@
      stretches each slot and stops looking like a clock. */
   .display {
     position: absolute;
-    /* No z-index. `.room` is position:relative with z-index auto, so it does NOT
-       create a stacking context — any z-index in here competes in the viz pane's
-       context instead, and a positive one lifts the readout ABOVE the CRT screen's
-       output canvas. The panel then paints un-composited over the tube while its
-       digit canvases stay hidden, i.e. an empty box. Plain DOM order already puts it
-       over .scene, so nothing is lost. */
+    /* No z-index, and isolated. `.room` is position:relative with z-index auto, so it
+       creates no stacking context — a z-index in here competes in the viz pane's
+       context instead, and a positive one lifted this panel ABOVE the CRT screen's
+       output canvas: it then painted un-composited over the tube while its digit
+       canvases stayed hidden, i.e. an empty box. Plain DOM order already puts the
+       readout over .scene, so none was needed. `isolation` contains any that gets
+       added later. */
+    isolation: isolate;
     pointer-events: none; /* the tap target underneath owns the whole surface */
     right: 4cqw;
     bottom: 5cqh;
@@ -367,6 +369,12 @@
   .slot {
     flex: 1 1 0;
     min-width: 9px;
+    /* Positioned, so the digits paint ABOVE the face. The face is absolute and these
+       were static, and a positioned element paints over a non-positioned sibling
+       whatever the DOM order — so the face covered the digits and the readout went to a
+       solid black box. It only looked right under the CRT screen, which composites by
+       DOM order and so put the digits on top regardless. */
+    position: relative;
   }
   /* The colon fits by height, so a slim slot keeps the dots full size. */
   .slot.narrow {
