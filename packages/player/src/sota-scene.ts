@@ -103,7 +103,15 @@ export function danceRate(bpm: number, refBpm = 125): number {
 export async function createSotaScene(host: HTMLElement, opts: SotaOptions): Promise<SotaScene> {
   const THREE = await import("three");
 
-  const renderer: WebGLRenderer = new THREE.WebGLRenderer({ antialias: true });
+  // preserveDrawingBuffer: the CRT screen samples this canvas as a texture from its own
+  // rAF, and Safari discards a drawing buffer as soon as it has composited it — so
+  // without this the screen reads an empty buffer and the tube goes black there (Chrome
+  // happens to keep it around, which is why it only showed up on Safari). Costs the
+  // driver some freedom to discard, which is the price of being compositable.
+  const renderer: WebGLRenderer = new THREE.WebGLRenderer({
+    antialias: true,
+    preserveDrawingBuffer: true,
+  });
   // Both passes are drawn by hand, so clearing is managed here.
   renderer.autoClear = false;
   host.appendChild(renderer.domElement);
@@ -397,6 +405,16 @@ export async function createSotaScene(host: HTMLElement, opts: SotaOptions): Pro
       }
       bgMaterial.dispose();
       renderer.dispose();
+      // Hand the WebGL context back NOW. dispose() releases three's own resources but
+      // leaves the context itself alive until GC, and a browser allows only ~16 at a
+      // time — flipping between visualisers then walks over the limit ("too many
+      // active WebGL contexts, the oldest will be lost") and silently kills whichever
+      // one is on screen. That looks exactly like a broken visualiser.
+      //
+      // Guarded: the context may ALREADY be lost, either because the browser dropped
+      // it under that limit or because it was torn down once before. Asking again logs
+      // "INVALID_OPERATION: loseContext: context already lost".
+      if (!renderer.getContext().isContextLost()) renderer.forceContextLoss();
       renderer.domElement.remove();
     },
   };

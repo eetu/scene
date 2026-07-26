@@ -71,7 +71,16 @@
     const cv = canvas;
     if (!cv) return;
     const el: HTMLCanvasElement = cv;
-    const ctx = el.getContext("webgl", { antialias: false, alpha: false });
+    // preserveDrawingBuffer: the CRT screen samples this canvas as a texture from its own
+    // rAF, and Safari discards a drawing buffer as soon as it has composited it — so
+    // without this the screen reads an empty buffer and the tube goes black there (Chrome
+    // happens to keep it around, which is why it only showed up on Safari). Costs the
+    // driver some freedom to discard, which is the price of being compositable.
+    const ctx = el.getContext("webgl", {
+      antialias: false,
+      alpha: false,
+      preserveDrawingBuffer: true,
+    });
     if (!ctx) {
       console.warn("Plasma: WebGL unavailable");
       return;
