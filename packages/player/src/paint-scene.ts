@@ -26,8 +26,9 @@ export interface PaintScene {
   beat(): void;
   /** Playing? Idle-throttles the render loop to save battery. */
   setActive(active: boolean): void;
-  /** Follow the app light/dark theme — pass the resolved background colour (CSS). */
-  setTheme(bg: string): void;
+  /** Follow the app light/dark theme — pass the resolved background colour (CSS).
+   *  `accent` re-anchors the paint's colour ramp (see setRamp). */
+  setTheme(bg: string, accent?: string): void;
   resize(): void;
   dispose(): void;
 }
@@ -44,8 +45,12 @@ const GRAV = 20; // restoring pull to flat — bounds the surface, settles it to
 const DAMP = 0.985; // per-frame wave damping
 const H_MAX = 1.2; // height clamp (world units) — higher = taller splashes
 
-// Paint albedos per band — bold orange→purple, warm lows in the centre, cool highs
-// on the rim (the reference's two-tone scheme).
+// Paint albedos per band — warm lows in the centre, cool highs on the rim (the
+// reference's two-tone scheme). The warm end is anchored on the theme accent and
+// the cool end is derived from it, so the ramp follows the app instead of being a
+// fixed orange→purple that happens to match the default accent and nothing else.
+// Rewritten in place on a theme change; the shape of the ramp never changes, only
+// where its two ends sit on the wheel.
 const COLORS = [
   new THREE.Color(0xff2a00),
   new THREE.Color(0xff6a00),
@@ -53,6 +58,27 @@ const COLORS = [
   new THREE.Color(0x7a30ff),
   new THREE.Color(0x3626ff),
 ];
+
+const hsl = { h: 0, s: 0, l: 0 };
+
+/** Rebuild COLORS around `accent`: three warm shades of it, then two cool ones
+ *  from the far side of the wheel. */
+function setRamp(accent: string) {
+  new THREE.Color(accent).getHSL(hsl);
+  // 210°, not a near-complement. Hues differ enormously in intrinsic luminance, and
+  // the surface is a clearcoated physical material under bloom, so a bright hue
+  // blows straight out to white. A warm accent's complement lands on cyan, which is
+  // about the brightest hue there is and turns the rim into a pale glow; 210° puts
+  // it in violet/blue instead — the darkest part of the wheel, which is what let the
+  // original fixed orange→violet ramp stay rich.
+  const cool = (hsl.h + 210 / 360) % 1;
+  const sat = Math.max(0.75, hsl.s);
+  COLORS[0].setHSL((hsl.h - 0.03 + 1) % 1, sat, 0.4);
+  COLORS[1].setHSL(hsl.h, sat, 0.48);
+  COLORS[2].setHSL((hsl.h + 0.04) % 1, sat, 0.55);
+  COLORS[3].setHSL(cool, sat, 0.46);
+  COLORS[4].setHSL((cool + 0.04) % 1, sat, 0.4);
+}
 
 export function createPaintScene(container: HTMLElement): PaintScene {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -91,25 +117,33 @@ export function createPaintScene(container: HTMLElement): PaintScene {
   // band colours; the wave moves the surface, this tints it.
   const colArr = new Float32Array(G * G * 4); // RGBA — the A fades the rim to transparent
   const tmp = new THREE.Color();
-  for (let k = 0; k < G * G; k++) {
-    const x = posArr[k * 3];
-    const z = posArr[k * 3 + 2];
-    const rr = Math.hypot(x, z);
-    const ang = Math.atan2(z, x);
-    // Radius drives the band, with an angular wobble so the colours intermix into
-    // organic zones rather than reading as perfect concentric rings.
-    const rn = (rr / R_PAINT) * (1 + 0.16 * Math.sin(ang * 3.0) + 0.09 * Math.sin(ang * 7.0 + 1.0));
-    const t = Math.min(1, Math.max(0, rn)) * (NBAND - 1);
-    const i0 = Math.min(NBAND - 2, Math.floor(t));
-    tmp.copy(COLORS[i0]).lerp(COLORS[i0 + 1], t - i0);
-    colArr[k * 4] = tmp.r;
-    colArr[k * 4 + 1] = tmp.g;
-    colArr[k * 4 + 2] = tmp.b;
-    // Fade alpha to 0 over the outer rim so the paint dissolves softly into the
-    // background — hiding the grid-stepped disc edge with no hard silhouette.
-    colArr[k * 4 + 3] = Math.max(0, Math.min(1, (R_PAINT - rr) / 0.28));
+  // Re-run whenever the ramp is re-anchored on a new accent. These are baked into a
+  // vertex attribute rather than computed in a shader, so mutating COLORS alone
+  // changes nothing on screen — the buffer has to be rewritten and re-uploaded.
+  function bakeColors() {
+    for (let k = 0; k < G * G; k++) {
+      const x = posArr[k * 3];
+      const z = posArr[k * 3 + 2];
+      const rr = Math.hypot(x, z);
+      const ang = Math.atan2(z, x);
+      // Radius drives the band, with an angular wobble so the colours intermix into
+      // organic zones rather than reading as perfect concentric rings.
+      const rn =
+        (rr / R_PAINT) * (1 + 0.16 * Math.sin(ang * 3.0) + 0.09 * Math.sin(ang * 7.0 + 1.0));
+      const t = Math.min(1, Math.max(0, rn)) * (NBAND - 1);
+      const i0 = Math.min(NBAND - 2, Math.floor(t));
+      tmp.copy(COLORS[i0]).lerp(COLORS[i0 + 1], t - i0);
+      colArr[k * 4] = tmp.r;
+      colArr[k * 4 + 1] = tmp.g;
+      colArr[k * 4 + 2] = tmp.b;
+      // Fade alpha to 0 over the outer rim so the paint dissolves softly into the
+      // background — hiding the grid-stepped disc edge with no hard silhouette.
+      colArr[k * 4 + 3] = Math.max(0, Math.min(1, (R_PAINT - rr) / 0.28));
+    }
   }
-  geo.setAttribute("color", new THREE.BufferAttribute(colArr, 4));
+  bakeColors();
+  const colAttr = new THREE.BufferAttribute(colArr, 4);
+  geo.setAttribute("color", colAttr);
   // Render only the triangles inside the paint disc (the sim still runs on the full
   // square grid), so there's no flat square corner — just a clean paint disc.
   const idx: number[] = [];
@@ -193,6 +227,35 @@ export function createPaintScene(container: HTMLElement): PaintScene {
   controls.autoRotateSpeed = 0.6;
   controls.update();
 
+  // Persistent drive sites. Each band owns a fixed set of angular positions that
+  // rotate slowly, rather than a fresh Math.random() angle and radius every frame.
+  // Re-rolling the geometry per frame gives the surface no continuity from one
+  // frame to the next, so it reads as a field of speckle re-sprayed 30 times a
+  // second instead of as waves travelling outward from a source.
+  // They have to TRAVEL, and not slowly. A source that holds still in a damped
+  // wave field grows a standing peak under itself — persistent-but-stationary
+  // sites just trade a bed of needles for a ring of rigid towers. Sweeping them
+  // means each impulse lands somewhere new while the previous ripple is still
+  // spreading, which is what reads as liquid.
+  const SITES = 5;
+  const siteAngle = new Float32Array(NBAND * SITES);
+  const siteSpin = new Float32Array(NBAND * SITES);
+  for (let b = 0; b < NBAND; b++) {
+    for (let s = 0; s < SITES; s++) {
+      const k = b * SITES + s;
+      siteAngle[k] = (s / SITES) * Math.PI * 2 + b * 0.7; // spread, offset per band
+      // Mutually incommensurate, and alternating in sign so neighbouring bands
+      // shear past each other rather than rotating as one rigid wheel.
+      siteSpin[k] = (0.5 + 0.32 * ((b + s) % 3)) * (b % 2 === 0 ? 1 : -1);
+    }
+  }
+  let centreSpin = 0;
+  // The central column drive squares its input, and squaring roughly doubles
+  // relative fluctuation — so feeding it the raw band level puts twice the FFT
+  // jitter into the tallest, most visible feature. This follows the bass with its
+  // own time constant instead.
+  let bassSmooth = 0;
+
   const levels = new Float32Array(NBAND);
   let beatPulse = 0;
   let pendingKick = false;
@@ -214,30 +277,39 @@ export function createPaintScene(container: HTMLElement): PaintScene {
     // centre. Only while playing (paused → the wave just damps out to flat).
     if (sceneActive) {
       const f = dt * 60; // normalise impulse magnitude to a 60fps step
+      bassSmooth += (levels[0] - bassSmooth) * (1 - Math.exp(-dt / 0.11));
+      centreSpin += dt * 0.45;
+      for (let k = 0; k < NBAND * SITES; k++) siteAngle[k] += dt * siteSpin[k];
+
       // Sustained central push from the sub-bass → a tall central column that rises
       // with the low end (the height clamp caps it), plus a sharp punch on each beat.
-      if (levels[0] > 0.08) {
-        // A small jittered cluster (not one dead-centre point) so the central column
-        // erupts rough + churning rather than as a smooth symmetric "lipstick".
-        const amp = levels[0] * levels[0] * 2.3 * motion * f;
+      if (bassSmooth > 0.08) {
+        // Three points on an orbit rather than one dead-centre source, so the column
+        // churns instead of rising as a smooth symmetric cone. Kept NARROW: driving a
+        // wide patch uniformly lifts all of it into the tanh ceiling at once, which
+        // tops the column off as a flat mesa. A tight source gives a peak that
+        // tapers instead of clipping.
+        const amp = bassSmooth * bassSmooth * 2.3 * motion * f * 0.34;
         for (let n = 0; n < 3; n++) {
-          const jr = Math.random() * 0.16;
-          const ja = Math.random() * TAU;
-          impulse(Math.cos(ja) * jr, Math.sin(ja) * jr, amp, 2);
+          const a = centreSpin + (n / 3) * TAU;
+          impulse(Math.cos(a) * 0.13, Math.sin(a) * 0.13, amp, 3);
         }
       }
-      if (kick)
-        impulse((Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.12, 3.8 * motion * f, 3);
+      if (kick) impulse(0, 0, 3.8 * motion * f * 0.5, 5);
+      // Impulse radii are moderate — 4–5 cells, not 2. On a 128² grid a 2-cell
+      // splash injects at almost the grid's Nyquist limit, producing the finest
+      // ripple the sim can represent, and the surface reads as a bed of needles.
+      // Much wider than this and the drive saturates into plateaux instead.
       for (let bnd = 0; bnd < NBAND; bnd++) {
         const lvl = levels[bnd] * motion;
         if (lvl < 0.03) continue;
-        const nImp = 1 + Math.floor(lvl * lvl * 3);
-        const r0 = (bnd / NBAND) * R_DRIVE;
-        const r1 = ((bnd + 1) / NBAND) * R_DRIVE;
-        for (let n = 0; n < nImp; n++) {
-          const rr = r0 + Math.random() * (r1 - r0);
-          const a = Math.random() * TAU;
-          impulse(Math.cos(a) * rr, Math.sin(a) * rr, (0.3 + 1.6 * lvl) * f, 2);
+        // The ring breathes in and out slowly, so a band's sources don't retrace
+        // one fixed circle and wear a groove in it.
+        const rMid =
+          ((bnd + 0.5) / NBAND) * R_DRIVE * (1 + 0.16 * Math.sin(centreSpin * 0.7 + bnd));
+        for (let s = 0; s < SITES; s++) {
+          const a = siteAngle[bnd * SITES + s];
+          impulse(Math.cos(a) * rMid, Math.sin(a) * rMid, (0.3 + 1.6 * lvl) * f * 0.26, 4);
         }
       }
     }
@@ -365,7 +437,12 @@ export function createPaintScene(container: HTMLElement): PaintScene {
     setActive(a) {
       sceneActive = a;
     },
-    setTheme(bg) {
+    setTheme(bg, accent) {
+      if (accent) {
+        setRamp(accent);
+        bakeColors();
+        colAttr.needsUpdate = true;
+      }
       const c = new THREE.Color(bg);
       scene.background = c;
       const light = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b > 0.5;

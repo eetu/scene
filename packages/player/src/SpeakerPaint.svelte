@@ -24,10 +24,11 @@
       const { createPaintScene } = await import("./paint-scene");
       if (stopped) return;
       scene = createPaintScene(host);
-      const bgHex = () =>
-        getComputedStyle(document.documentElement).getPropertyValue("--scope-bg").trim() ||
-        "#0f0f0f";
-      scene.setTheme(bgHex());
+      const cssVar = (name: string, fallback: string) =>
+        getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+      const bgHex = () => cssVar("--scope-bg", "#0f0f0f");
+      const accentHex = () => cssVar("--accent", "#f78f08");
+      scene.setTheme(bgHex(), accentHex());
       let cachedMode = theme.mode;
 
       const NBAND = 5;
@@ -51,7 +52,12 @@
               let sum = 0;
               for (let j = lo; j < hi; j++) sum += spec[j];
               const v = Math.pow(sum / (hi - lo) / 255, 0.75);
-              lev[i] += (v - lev[i]) * (v > lev[i] ? 0.6 : 0.14);
+              // Asymmetric follower: quick to rise, slow to fall, so a hit reads as
+              // a hit. But an attack near 1 is a ratchet — it tracks every upward
+              // FFT flicker unfiltered while smoothing only the way down, which
+              // turns bin noise into visible surface chatter. Fast enough to feel
+              // the transient, slow enough to ignore a single noisy frame.
+              lev[i] += (v - lev[i]) * (v > lev[i] ? 0.3 : 0.12);
             }
           } else {
             for (let i = 0; i < NBAND; i++) lev[i] *= 0.9;
@@ -59,7 +65,7 @@
           scene!.setLevels(lev);
           scene!.setActive(active);
           if (theme.mode !== cachedMode) {
-            scene!.setTheme(bgHex());
+            scene!.setTheme(bgHex(), accentHex());
             cachedMode = theme.mode;
           }
           if (lastBeat < 0) lastBeat = playback.beat;
