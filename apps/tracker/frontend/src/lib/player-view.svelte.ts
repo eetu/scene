@@ -18,6 +18,7 @@ export type VizMode =
   | "disco"
   | "paint"
   | "tubes"
+  | "dancer"
   | "ball";
 
 export const VIZ: VizMode[] = [
@@ -33,6 +34,7 @@ export const VIZ: VizMode[] = [
   "disco",
   "paint",
   "tubes",
+  "dancer",
   "ball",
 ];
 

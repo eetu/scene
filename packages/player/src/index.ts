@@ -10,6 +10,7 @@ export { default as ChannelPager } from "./ChannelPager.svelte";
 export { default as ChannelScope } from "./ChannelScope.svelte";
 export { CELL_W, channelWindow, type ChannelWindow, ROWNUM_W } from "./channel-window";
 export { pageSwipe } from "./pageSwipe";
+export { default as DancerScene } from "./DancerScene.svelte";
 export { default as CopperBars } from "./CopperBars.svelte";
 export { default as DiscoBall } from "./DiscoBall.svelte";
 export { default as Equalizer } from "./Equalizer.svelte";

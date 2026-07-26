@@ -9,6 +9,7 @@
   import {
     BoingBall,
     CopperBars,
+    DancerScene,
     DiscoBall,
     Equalizer,
     GlowWave,
@@ -357,6 +358,8 @@
             <SpeakerPaint active={vizActive} />
           {:else if pv.vizMode === "tubes"}
             <NixieScene active={vizActive} />
+          {:else if pv.vizMode === "dancer"}
+            <DancerScene active={vizActive} />
           {:else}
             <BoingBall energy={vizActive ? vuEnergy : 0} live={vizActive} react />
           {/if}

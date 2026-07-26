@@ -36,3 +36,9 @@ apps/tracker/frontend/static/demo/
 # vitest browser mode artifacts (screenshots / attachments)
 .vitest-attachments/
 **/__screenshots__/
+
+# Raw Mixamo source for the dancer viz. Kept local, never committed: Mixamo's
+# terms forbid redistributing their assets as standalone files. The committed
+# asset is dancer.glb — decimated, stripped and merged by build-dancer.py, i.e.
+# incorporated into this project rather than republished.
+packages/player/src/assets/*.fbx
