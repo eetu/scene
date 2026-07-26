@@ -265,10 +265,19 @@ export async function createSotaScene(host: HTMLElement, opts: SotaOptions): Pro
     const key = paper + ink + accent;
     if (key === lastTheme) return;
     lastTheme = key;
-    bgMaterial.uniforms.uPaper.value.set(paper);
+    const paperCol = new THREE.Color(paper);
     // A touch of accent in the pattern, so the backdrop carries the app's hue
     // without becoming a block of it.
-    bgMaterial.uniforms.uInk.value.set(ink).lerp(new THREE.Color(accent), 0.18);
+    const inkCol = new THREE.Color(ink).lerp(new THREE.Color(accent), 0.18);
+    // Then pull the pair toward each other. The theme's surface and text tokens
+    // are picked for legible body copy — around a 7:1 luminance ratio — and a
+    // dense fringe field at that contrast competes with the figure instead of
+    // sitting behind it. Ink gives up more than paper does, so the backdrop settles
+    // slightly darker overall and the accent-coloured dancer stays the brightest
+    // thing in frame.
+    const mid = paperCol.clone().lerp(inkCol, 0.5);
+    bgMaterial.uniforms.uPaper.value.copy(paperCol.lerp(mid, 0.22));
+    bgMaterial.uniforms.uInk.value.copy(inkCol.lerp(mid, 0.34));
   };
 
   const render = () => {

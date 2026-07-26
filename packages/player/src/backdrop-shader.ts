@@ -42,7 +42,14 @@ void main() {
   // fixed gap therefore looks right in portrait but leaves a wide screen blank
   // either side, so the centres are placed as a fraction of what's visible.
   float halfW = 0.5 * uRes.x / m;
-  float sep = max(0.22, halfW * 0.52);
+  // Capped. Separation has to grow with the frame or a wide screen goes flat at
+  // the sides, but fringe density rises with it too, so letting it track the full
+  // half-width turns a wide pane into a hard checkerboard.
+  float sep = clamp(halfW * 0.40, 0.22, 0.34);
+  // How much wider than square this pane is. Fringe count across the frame scales
+  // with freq * sep * width, and sep already grows — so at 16:9 an uncompensated
+  // freq lands nearly three times the fringes of a square pane. Divide it back out.
+  float widen = clamp(halfW / 0.5, 1.0, 2.0);
   // Wide, slow, mutually-prime orbits. The centres wandering is what makes the
   // fringes sweep and turn rather than just breathe in place — and since the
   // moiré amplifies their motion, this is the strongest lever on the illusion.
@@ -51,7 +58,7 @@ void main() {
 
   // Tight ring spacing: the finer the rings, the finer and faster-moving the
   // interference fringes, which is the whole effect. Bass tightens them further.
-  float freq = 62.0 + uPulse * 12.0;
+  float freq = (62.0 + uPulse * 12.0) / widen;
 
   // Matched frequencies, counter-rotating phases. Equal ring spacing is what
   // gives the clean hyperbolic fringes of a true two-source interference figure;
@@ -59,9 +66,13 @@ void main() {
   float a = rings(p, c1, freq, -t * 1.25);
   float b = rings(p, c2, freq, t * 0.98);
 
-  // Sign agreement between the two fields. This is the interference: hard black
-  // and white, no midtones, the way a two-colour Amiga screen would do it.
-  float ink = step(0.0, a * b);
+  // Sign agreement between the two fields — this is the interference. A bare step
+  // is what a two-colour Amiga screen would do, but with no midtones at all every
+  // fringe edge is a hard cliff, and a dense field of those is a checkerboard
+  // fighting the figure for attention. Bleeding a little of the continuous product
+  // back in rounds the edges without turning the pattern to mush.
+  float prod = a * b;
+  float ink = mix(step(0.0, prod), 0.5 + 0.5 * prod, 0.32);
 
   // Themed rather than pure black and white. Full-contrast mono is harsh behind a
   // figure and ignores the app's palette; these come from the theme's ground and
@@ -73,7 +84,7 @@ void main() {
   // aliases into mush. Shallow depth so it reads as texture rather than banding.
   float scan = 0.88 + 0.12 * sin(gl_FragCoord.y * 3.14159265);
   float vig = smoothstep(0.95, 0.35, length(gl_FragCoord.xy / uRes - 0.5));
-  col *= scan * (0.8 + 0.3 * vig) * 1.25;
+  col *= scan * (0.8 + 0.3 * vig) * 1.12;
 
   gl_FragColor = vec4(col, 1.0);
 }
