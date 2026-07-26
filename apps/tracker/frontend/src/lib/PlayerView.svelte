@@ -5,7 +5,21 @@
   // overlay reads the shared stores (playback, the pv tab/viz store, settings for
   // the pattern mode, library for the current track) and takes leaf callbacks for
   // the parent-owned overlays (add / rename / settings) + close + toast.
-  import { Link2, ListPlus, Pencil, Play, Settings, Square, Star, X } from "@lucide/svelte";
+  import {
+    ChevronLeft,
+    ChevronRight,
+    LayoutGrid,
+    Link2,
+    ListPlus,
+    Maximize,
+    Minimize,
+    Pencil,
+    Play,
+    Settings,
+    Square,
+    Star,
+    X,
+  } from "@lucide/svelte";
   import {
     BoingBall,
     CopperBars,
@@ -185,11 +199,34 @@
       el.removeEventListener("pointerdown", revealPicker);
     };
   });
+  // Whether a fullscreen button is worth showing at all. iOS Safari implements
+  // fullscreen for <video> only — Element.requestFullscreen doesn't exist there — so on
+  // an iPhone this is absent rather than present and dead. Desktop keeps the 'f' key
+  // regardless; the button exists because a phone has no keyboard to press it with.
+  const fullscreenOk = $derived(
+    typeof document !== "undefined" &&
+      !!document.fullscreenEnabled &&
+      typeof Element !== "undefined" &&
+      typeof Element.prototype.requestFullscreen === "function",
+  );
+
   function toggleVizFullscreen() {
     if (!vizEl) return;
     if (document.fullscreenElement) void document.exitFullscreen();
     else void vizEl.requestFullscreen?.();
   }
+  // The visualiser sheet (narrow screens): the full set as a grid, since a stepper alone
+  // means cycling past a dozen others to reach one. Its open state lives in the pv store
+  // so +page's Escape cascade can treat it as the innermost layer.
+  function stepViz(dir: number) {
+    const i = VIZ.indexOf(pv.vizMode);
+    pv.vizMode = VIZ[(i + dir + VIZ.length) % VIZ.length];
+  }
+  // Leaving the viz tab (or the whole overlay) must not strand the sheet open.
+  $effect(() => {
+    if (pv.tab !== "viz") pv.vizSheet = false;
+  });
+
   // 'f' fullscreens the visualiser when the viz tab is open (ignored while typing).
   function onVizKey(e: KeyboardEvent) {
     if (pv.tab !== "viz" || (e.key !== "f" && e.key !== "F")) return;
@@ -349,9 +386,43 @@
       {@const vizActive = playback.playing && !playback.paused}
       <div class="viz-view" class:fs={vizFs} bind:this={vizEl}>
         <div class="vizpick" class:hide={!pickerShown}>
-          {#each VIZ as m (m)}
-            <button class:on={pv.vizMode === m} onclick={() => (pv.vizMode = m)}>{m}</button>
-          {/each}
+          <!-- Narrow screens get one fixed-height row instead of the full list. Fourteen
+               pills already wrap onto two rows, the CRT toggle takes a third, and every
+               new visualiser makes it worse — a large bite out of a full-screen player on
+               a phone. Steppers cycle without leaving the picture; the name opens the
+               whole set as a sheet. Desktop keeps the pills, where seeing all of them at
+               once is worth the room it takes. -->
+          {#if isMobile}
+            <button class="step" onclick={() => stepViz(-1)} aria-label="Previous visualiser">
+              <ChevronLeft />
+            </button>
+            <button
+              class="current"
+              onclick={() => (pv.vizSheet = true)}
+              aria-haspopup="dialog"
+              aria-label="Choose a visualiser"
+            >
+              <LayoutGrid />
+              <span>{pv.vizMode}</span>
+            </button>
+            <button class="step" onclick={() => stepViz(1)} aria-label="Next visualiser">
+              <ChevronRight />
+            </button>
+            {#if fullscreenOk}
+              <button
+                class="fs"
+                onclick={toggleVizFullscreen}
+                aria-pressed={vizFs}
+                aria-label={vizFs ? "Leave fullscreen" : "Fill the screen"}
+              >
+                {#if vizFs}<Minimize />{:else}<Maximize />{/if}
+              </button>
+            {/if}
+          {:else}
+            {#each VIZ as m (m)}
+              <button class:on={pv.vizMode === m} onclick={() => (pv.vizMode = m)}>{m}</button>
+            {/each}
+          {/if}
           <!-- Not a visualiser, so it sits apart from the mode list: a screen the
                chosen one is watched through. -->
           <button
@@ -359,9 +430,31 @@
             class:on={crt.on}
             onclick={toggleCrt}
             aria-pressed={crt.on}
-            title={crt.on ? "Turn the CRT screen off" : "Watch through a CRT screen"}>crt</button
+            aria-label={crt.on ? "Turn the CRT screen off" : "Watch through a CRT screen"}
+            >crt</button
           >
         </div>
+        <!-- Inside .viz-view on purpose: that element is what goes fullscreen, and a
+             sheet mounted outside it would be invisible while it is. -->
+        {#if pv.vizSheet}
+          <div class="vizsheet" role="dialog" aria-modal="true" aria-label="Choose a visualiser">
+            <div class="sheethead">
+              <span>visualiser</span>
+              <button onclick={() => (pv.vizSheet = false)} aria-label="Close"><X /></button>
+            </div>
+            <div class="sheetgrid">
+              {#each VIZ as m (m)}
+                <button
+                  class:on={pv.vizMode === m}
+                  onclick={() => {
+                    pv.vizMode = m;
+                    pv.vizSheet = false;
+                  }}>{m}</button
+                >
+              {/each}
+            </div>
+          </div>
+        {/if}
         <div class="vizstage">
           <div class="vizbody" bind:this={vizBody}>
             {#if pv.vizMode === "bars"}
@@ -611,6 +704,98 @@
     background: var(--accent);
     border-color: var(--accent);
   }
+  /* Narrow screens: the compact row. Square icon buttons so they read as controls rather
+     than as short-named modes, and the current visualiser is the wide target. `.fs` shares
+     their shape but keeps its own class — it toggles a state rather than cycling the list,
+     and grouping it under .step made "the last stepper" mean the fullscreen button. */
+  .vizpick .step,
+  .vizpick .fs {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    padding: 0;
+  }
+  .vizpick .current {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .vizpick .step :global(svg),
+  .vizpick .fs :global(svg),
+  .vizpick .current :global(svg) {
+    width: 13px;
+    height: 13px;
+  }
+
+  /* The whole set, as a sheet. Fills the pane at this width rather than floating as a
+     card — the house pattern for dialogs on narrow screens. */
+  .vizsheet {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+  }
+  .sheethead {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--surface-line-2);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .sheethead button {
+    display: grid;
+    place-items: center;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--panel-hi);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .sheethead button :global(svg) {
+    width: 14px;
+    height: 14px;
+  }
+  .sheetgrid {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 6px;
+    padding: 10px;
+    align-content: start;
+  }
+  .sheetgrid button {
+    padding: 10px 6px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel-hi);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .sheetgrid button.on {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
   /* The CRT toggle is not one of the modes — it's the screen they're watched
      through — so it's pushed to the far end, away from the mode list. */
   .vizpick button.crt {

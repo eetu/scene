@@ -254,6 +254,20 @@
       cancelEdit();
       return;
     }
+    // Innermost first: the visualiser sheet sits inside the player overlay, so it has to
+    // be dismissed before the overlay itself gets the key.
+    if (e.key === "Escape" && pv.vizSheet) {
+      pv.vizSheet = false;
+      return;
+    }
+    // Then fullscreen, before the overlay: losing the visualiser AND the view to one key
+    // is a surprise, and there'd be no way back to where you were. Most browsers consume
+    // Escape themselves to leave fullscreen and never deliver it here — this covers the
+    // ones that do deliver it.
+    if (e.key === "Escape" && document.fullscreenElement) {
+      void document.exitFullscreen();
+      return;
+    }
     if (e.key === "Escape" && showPattern) {
       showPattern = false;
       return;

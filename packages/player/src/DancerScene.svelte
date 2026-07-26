@@ -201,14 +201,10 @@
   <!-- The toggle covers the whole scene rather than the readout itself: once the
        readout is hidden there'd be nothing left to click to bring it back. A real
        button, so it's keyboard-reachable and announced, sized to fill and made
-       invisible rather than faked with a click handler on a div. -->
-  <button
-    class="tap"
-    type="button"
-    onclick={toggleClock}
-    aria-pressed={showClock}
-    title={showClock ? "Hide the clock" : "Show the clock"}
-  >
+       invisible rather than faked with a click handler on a div. Named by its own
+       visually-hidden label and NOT by `title`: a title on a full-bleed button pops a
+       tooltip over the middle of the picture on any hover. -->
+  <button class="tap" type="button" onclick={toggleClock} aria-pressed={showClock}>
     <span class="sr">{showClock ? "Hide the clock" : "Show the clock"}</span>
   </button>
   <!-- Backdrop + dancer, one canvas. Two interfering ring fields: the fringes

@@ -41,4 +41,8 @@ export const VIZ: VizMode[] = [
 export const pv = $state({
   tab: "pattern" as PvTab,
   vizMode: "vu" as VizMode,
+  // The visualiser sheet (narrow screens show the set as a grid rather than a pill row).
+  // Shared rather than local to PlayerView so +page's Escape cascade can close it as the
+  // innermost layer — otherwise one Escape dismissed the sheet AND the whole overlay.
+  vizSheet: false,
 });
