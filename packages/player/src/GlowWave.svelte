@@ -43,23 +43,27 @@
     const history: Float32Array[] = Array.from({ length: TRAILS }, () => new Float32Array(POINTS));
     let head = 0;
 
-    // Neon purple in both themes. Dark theme keeps the (dark) scope panel and
-    // blends strokes additively for the glow; light theme uses a lighter
-    // lavender panel and draws normally (additive would wash to white on a
-    // light field), so the purple still reads.
+    // The trace takes the theme accent, so it follows whatever the app is set to
+    // rather than being neon purple forever. Dark theme keeps the (dark) scope
+    // panel and blends strokes additively for the glow; light theme draws normally
+    // (additive would wash to white on a light field) over a panel tinted with the
+    // accent itself, so the trace still has something to read against.
     let cachedTheme: string | null = null;
     let light = false;
     let cBg = "#08080f";
     let cGrid = "#1c1c28";
-    const cWave = "#c46bff";
+    let cWave = "#c46bff"; // until the theme is read; the old fixed purple
     const node: HTMLCanvasElement = el;
     function refreshColors(isLight: boolean) {
+      const cs = getComputedStyle(node);
+      cWave = cs.getPropertyValue("--accent").trim() || "#c46bff";
       if (isLight) {
-        cBg = "#efeaf8";
-        cGrid = "#d8cdef";
+        // A wash of the accent rather than a fixed lavender, so the panel and the
+        // trace stay related whichever accent is in play.
+        cBg = `color-mix(in srgb, ${cWave} 10%, #f6f6f8)`;
+        cGrid = `color-mix(in srgb, ${cWave} 26%, #e8e8ee)`;
         return;
       }
-      const cs = getComputedStyle(node);
       cBg = cs.getPropertyValue("--scope-bg").trim() || "#08080f";
       cGrid = cs.getPropertyValue("--scope-grid").trim() || "#1c1c28";
     }

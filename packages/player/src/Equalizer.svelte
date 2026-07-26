@@ -13,9 +13,24 @@
 
   let canvas: HTMLCanvasElement | null = $state(null);
 
-  // Backlit-panel gradient endpoints (left → right): warm amber to cool green.
-  const LEFT: [number, number, number] = [255, 156, 28];
+  // Backlit-panel gradient endpoints (left → right): warm to cool across the
+  // spectrum, the standard LED-analyser convention, so hue tells you where in the
+  // frequency range you're looking. The warm end is taken from the theme accent at
+  // runtime (see refreshColors) rather than being a fixed amber that only happens
+  // to match the default; the cool end stays green, which is what makes the ramp
+  // legible as a frequency axis.
+  let LEFT: [number, number, number] = [255, 156, 28];
   const RIGHT: [number, number, number] = [56, 212, 84];
+
+  /** "#rgb"/"#rrggbb" → [r,g,b]; null if it isn't a hex colour, so a token that
+   *  resolves to something else leaves the default alone. */
+  function parseHex(s: string): [number, number, number] | null {
+    const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s);
+    if (!m) return null;
+    const hex = m[1].length === 3 ? [...m[1]].map((c) => c + c).join("") : m[1];
+    const n = parseInt(hex, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
 
   $effect(() => {
     const el = canvas;
@@ -68,6 +83,8 @@
       const cs = getComputedStyle(node);
       cBg = cs.getPropertyValue("--scope-bg").trim() || cBg;
       light = document.documentElement.dataset.theme === "light";
+      const accent = parseHex(cs.getPropertyValue("--accent").trim());
+      if (accent) LEFT = accent;
     }
 
     const stopFrames = driveFrames(
