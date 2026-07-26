@@ -16,8 +16,9 @@
     }
   },
   "dependencies": {
-    "@glowbox/nixie": "^1.0.0",
-    "@glowbox/svelte": "^1.3.0",
+    "@glowbox/crt": "^1.4.0",
+    "@glowbox/nixie": "^1.4.0",
+    "@glowbox/svelte": "^1.4.0",
     "@scene/design": "workspace:*",
     "three": "^0.185.1",
     "xstate": "^5.32.5"

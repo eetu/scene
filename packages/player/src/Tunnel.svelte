@@ -65,7 +65,6 @@
     uniform float uGlow;   // eased energy 0..1
     uniform float uBend;   // eased energy → how hard the tube bends
     uniform float uTime;   // seconds, for wall-theme morph + animation
-    uniform float uScan;   // 0/1 CRT scanline + vignette overlay ('s' toggles)
     uniform float uFov;    // field of view — punches in on the beat
     uniform float uWave;   // beat pulse-wave phase 0→1 (a ring rushing down the tube)
     uniform float uSpin;   // continuous barrel-roll angle (radians)
@@ -637,16 +636,6 @@
       col.b *= 1.0 + r2 * ca * 0.55;
       col *= 1.0 - r2 * (0.09 + uBurst * 0.16); // vignette
 
-      // Optional CRT overlay ('s'): horizontal scanlines + a soft vignette.
-      if (uScan > 0.5) {
-        // Frequency pi = a period of exactly two device pixels, the thinnest a
-        // scanline can be and stay coherent; tighter aliases into mush. Shallow
-        // depth so it reads as CRT texture rather than banding over the geometry.
-        float scan = 0.88 + 0.12 * sin(gl_FragCoord.y * 3.14159265);
-        float vig = smoothstep(0.95, 0.35, length(gl_FragCoord.xy / uRes - 0.5));
-        col *= scan * (0.8 + 0.3 * vig) * 1.25;
-      }
-
       gl_FragColor = vec4(col, 1.0);
     }
   `;
@@ -655,7 +644,16 @@
     const cv = canvas;
     if (!cv) return;
     const el: HTMLCanvasElement = cv;
-    const ctx = el.getContext("webgl", { antialias: true, alpha: false });
+    // preserveDrawingBuffer: the CRT screen samples this canvas as a texture from its own
+    // rAF, and Safari discards a drawing buffer as soon as it has composited it — so
+    // without this the screen reads an empty buffer and the tube goes black there (Chrome
+    // happens to keep it around, which is why it only showed up on Safari). Costs the
+    // driver some freedom to discard, which is the price of being compositable.
+    const ctx = el.getContext("webgl", {
+      antialias: true,
+      alpha: false,
+      preserveDrawingBuffer: true,
+    });
     if (!ctx) {
       console.warn("Tunnel: WebGL unavailable");
       return;
@@ -704,7 +702,6 @@
     const uGlow = gl.getUniformLocation(prog, "uGlow");
     const uBend = gl.getUniformLocation(prog, "uBend");
     const uTime = gl.getUniformLocation(prog, "uTime");
-    const uScan = gl.getUniformLocation(prog, "uScan");
     const uFov = gl.getUniformLocation(prog, "uFov");
     const uWave = gl.getUniformLocation(prog, "uWave");
     const uSpin = gl.getUniformLocation(prog, "uSpin");
@@ -761,13 +758,13 @@
     ro.observe(el);
 
     // Keys, scoped to this component (only while the tunnel viz is on screen;
-    // ignored while typing): 's' toggles CRT scanlines, 'n' jumps to the next wall
-    // theme, 'l' locks/unlocks the theme rotation.
+    // ignored while typing): 'n' jumps to the next wall theme, 'l' locks/unlocks the
+    // theme rotation. (Scanlines used to be an 's' toggle here; the CRT screen over
+    // the whole viz pane owns that now — see ./crt.svelte.ts.)
     let clock = 0; // seconds elapsed, for wall animation (uTime)
     const SLOT = 24; // seconds a wall theme holds before crossfading to the next
     let themeTime = 0; // theme-selection clock (frozen while locked)
     let locked = false; // freezes the rotation ('l', or picking a theme with 'n'/tap)
-    let scanOn = true; // CRT scanlines on by default
     // Advance to the next wall theme and flash its label. Bound to 'n' and to a
     // tap on the view (the touch equivalent for mobile, where there's no 'n' key).
     // Choosing a theme manually also LOCKS the rotation, so it stays on your pick
@@ -782,8 +779,7 @@
       const ae = document.activeElement;
       const typing = !!ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA");
       if (typing) return;
-      if (e.key === "s" || e.key === "S") scanOn = !scanOn;
-      else if (e.key === "n" || e.key === "N") nextTheme();
+      if (e.key === "n" || e.key === "N") nextTheme();
       else if (e.key === "l" || e.key === "L") locked = !locked;
     };
     window.addEventListener("keydown", onKey);
@@ -1010,7 +1006,6 @@
         gl.uniform1f(uGlow, glow);
         gl.uniform1f(uBend, (0.6 + bendEnv * 0.9) * motion); // straighter under reduced-motion
         gl.uniform1f(uTime, clock);
-        gl.uniform1f(uScan, scanOn ? 1 : 0);
         gl.uniform1f(uFov, 1.35 + punch * 0.14); // gentle zoom-push on the beat
         gl.uniform1f(uWave, active ? beatPhase(now) : 1); // 1 = no wave when idle
         gl.uniform1f(uSpin, spin);

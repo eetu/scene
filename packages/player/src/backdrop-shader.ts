@@ -79,13 +79,9 @@ void main() {
   // text tokens, so the backdrop turns over with light/dark.
   vec3 col = mix(uPaper, uInk, ink);
 
-  // CRT scanlines, matching the tunnel viz. Frequency pi = a period of exactly
-  // two device pixels, the thinnest a scanline can be and stay coherent; tighter
-  // aliases into mush. Shallow depth so it reads as texture rather than banding.
-  float scan = 0.88 + 0.12 * sin(gl_FragCoord.y * 3.14159265);
-  float vig = smoothstep(0.95, 0.35, length(gl_FragCoord.xy / uRes - 0.5));
-  col *= scan * (0.8 + 0.3 * vig) * 1.12;
-
+  // No scanlines or vignette here. The CRT screen over the whole viz pane owns
+  // those (see ./crt.svelte.ts) — drawn in both places, the two scanline layers
+  // beat against its phosphor mask and throw off chroma moiré in the periphery.
   gl_FragColor = vec4(col, 1.0);
 }
 `;

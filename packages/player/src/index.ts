@@ -5,6 +5,7 @@
 export * from "./host";
 export * from "./player.svelte";
 export { type FpsMode, perf } from "./perf.svelte";
+export { crt, CRT_OPTIONS, mountCrt, setCrt, toggleCrt } from "./crt.svelte";
 export { default as BoingBall } from "./BoingBall.svelte";
 export { default as ChannelPager } from "./ChannelPager.svelte";
 export { default as ChannelScope } from "./ChannelScope.svelte";

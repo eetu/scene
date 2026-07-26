@@ -9,12 +9,14 @@
   import {
     BoingBall,
     CopperBars,
+    crt,
     DancerScene,
     DiscoBall,
     Equalizer,
     GlowWave,
     HarmonyScope,
     LedBars,
+    mountCrt,
     NixieScene,
     PatternView,
     Plasma,
@@ -31,6 +33,7 @@
     setFollowPlay,
     SpeakerPaint,
     Starfield,
+    toggleCrt,
     Tunnel,
     VuMeters,
   } from "@scene/player";
@@ -136,6 +139,10 @@
   // fullscreen the viz picker auto-hides (slides up like a top drawer) after a
   // pause with no pointer activity, and slides back on movement.
   let vizEl = $state<HTMLElement | undefined>(undefined);
+  // The pane the CRT screen wraps. Deliberately the body and not `vizEl`, so the
+  // picker row stays outside the tube — buttons behind barrel distortion are hard
+  // to hit, and the screen forwards pointer events to canvases, not to controls.
+  let vizBody = $state<HTMLElement | undefined>(undefined);
   let vizFs = $state(false);
   let pickerShown = $state(true);
   let pickerTimer: ReturnType<typeof setTimeout> | null = null;
@@ -155,6 +162,19 @@
     if (vizFs) schedulePickerHide();
     else if (pickerTimer) clearTimeout(pickerTimer);
   }
+  // The CRT screen over the viz pane — created ONCE, not per visualiser. It owns a
+  // WebGL context, a browser allows only ~16 of those at a time, and every
+  // visualiser holds one of its own; re-creating the screen on each switch burned
+  // through the budget twice as fast and the browser started dropping live contexts
+  // ("too many active WebGL contexts, the oldest context will be lost"), blacking out
+  // whichever visualiser was on screen. The screen tracks canvases appearing and
+  // disappearing by itself, so a switch needs nothing from us.
+  $effect(() => {
+    const host = vizBody;
+    if (!host || !crt.on) return;
+    return mountCrt(host);
+  });
+
   $effect(() => {
     const el = vizEl;
     if (!el) return;
@@ -332,36 +352,58 @@
           {#each VIZ as m (m)}
             <button class:on={pv.vizMode === m} onclick={() => (pv.vizMode = m)}>{m}</button>
           {/each}
+          <!-- Not a visualiser, so it sits apart from the mode list: a screen the
+               chosen one is watched through. -->
+          <button
+            class="crt"
+            class:on={crt.on}
+            onclick={toggleCrt}
+            aria-pressed={crt.on}
+            title={crt.on ? "Turn the CRT screen off" : "Watch through a CRT screen"}>crt</button
+          >
         </div>
-        <div class="vizbody">
-          {#if pv.vizMode === "bars"}
-            <Equalizer active={vizActive} />
-          {:else if pv.vizMode === "harmony"}
-            <HarmonyScope active={vizActive} />
-          {:else if pv.vizMode === "cube"}
-            <LedBars active={vizActive} />
-          {:else if pv.vizMode === "wave"}
-            <GlowWave active={vizActive} />
-          {:else if pv.vizMode === "vu"}
-            <VuMeters active={vizActive} />
-          {:else if pv.vizMode === "stars"}
-            <Starfield active={vizActive} />
-          {:else if pv.vizMode === "copper"}
-            <CopperBars active={vizActive} />
-          {:else if pv.vizMode === "plasma"}
-            <Plasma active={vizActive} />
-          {:else if pv.vizMode === "tunnel"}
-            <Tunnel active={vizActive} />
-          {:else if pv.vizMode === "disco"}
-            <DiscoBall active={vizActive} />
-          {:else if pv.vizMode === "paint"}
-            <SpeakerPaint active={vizActive} />
-          {:else if pv.vizMode === "tubes"}
-            <NixieScene active={vizActive} />
-          {:else if pv.vizMode === "dancer"}
-            <DancerScene active={vizActive} />
-          {:else}
-            <BoingBall energy={vizActive ? vuEnergy : 0} live={vizActive} react />
+        <div class="vizstage">
+          <div class="vizbody" bind:this={vizBody}>
+            {#if pv.vizMode === "bars"}
+              <Equalizer active={vizActive} />
+            {:else if pv.vizMode === "harmony"}
+              <HarmonyScope active={vizActive} />
+            {:else if pv.vizMode === "cube"}
+              <LedBars active={vizActive} />
+            {:else if pv.vizMode === "wave"}
+              <GlowWave active={vizActive} />
+            {:else if pv.vizMode === "vu"}
+              <VuMeters active={vizActive} />
+            {:else if pv.vizMode === "stars"}
+              <Starfield active={vizActive} />
+            {:else if pv.vizMode === "copper"}
+              <CopperBars active={vizActive} />
+            {:else if pv.vizMode === "plasma"}
+              <Plasma active={vizActive} />
+            {:else if pv.vizMode === "tunnel"}
+              <Tunnel active={vizActive} />
+            {:else if pv.vizMode === "disco"}
+              <DiscoBall active={vizActive} />
+            {:else if pv.vizMode === "paint"}
+              <SpeakerPaint active={vizActive} />
+            {:else if pv.vizMode === "tubes"}
+              <NixieScene active={vizActive} />
+            {:else if pv.vizMode === "dancer"}
+              <DancerScene active={vizActive} />
+            {:else}
+              <BoingBall energy={vizActive ? vuEnergy : 0} live={vizActive} react />
+            {/if}
+          </div>
+          <!-- The set the tube is mounted in: a broadcast-monitor bezel, drawn over
+               the curved face. Purely decorative and outside the CRT host, so it is
+               never composited through the effect and never distorted by it. -->
+          {#if crt.on}
+            <div class="bezel" aria-hidden="true"></div>
+            <!-- The maker's mark on the set. An invented wordmark in the style of the
+                 era rather than a real manufacturer's — the look is the point, and
+                 stamping someone's actual trademark on it isn't. Sits on the frame, so
+                 it needs no extra bezel width. -->
+            <span class="mark" aria-hidden="true">TRONITRIN</span>
           {/if}
         </div>
       </div>
@@ -569,6 +611,13 @@
     background: var(--accent);
     border-color: var(--accent);
   }
+  /* The CRT toggle is not one of the modes — it's the screen they're watched
+     through — so it's pushed to the far end, away from the mode list. */
+  .vizpick button.crt {
+    margin-left: auto;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
   /* Fullscreen: the picker floats as a top drawer that slides away after a pause
      and returns on pointer movement, so the viz fills the screen. */
   .viz-view.fs {
@@ -589,9 +638,77 @@
     opacity: 0;
     pointer-events: none;
   }
+  /* Etched into the top-left of the frame. Sized off the frame's own width so it can
+     never outgrow it, and letter-spaced the way moulded plastic lettering reads.
+     Slightly translucent: printed white on grey, not a lit element. */
+  .mark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 4;
+    pointer-events: none;
+    /* Height only — matching the frame's thickness centres it in the top band. Giving
+       it a WIDTH of the frame thickness too made the box narrower than the word, so the
+       text spilled out of it and sat flush against the pane's left edge. */
+    height: var(--frame);
+    display: flex;
+    align-items: center;
+    /* Lines the wordmark's left edge up with the tube's, since the opening starts one
+       frame-width in. */
+    padding-left: var(--frame);
+    font:
+      600 1.05cqmin/1 var(--halo-font-body, system-ui),
+      sans-serif;
+    letter-spacing: 0.16em;
+    color: #fffffff2;
+    text-shadow: 0 0.06cqmin 0.06cqmin #00000055;
+    white-space: nowrap;
+  }
+
+  /* Holds the pane and, when the CRT screen is on, the bezel drawn over it.
+     A container so the bezel can be sized in proportion to the pane rather than in
+     fixed pixels — the same frame has to read on a phone and on a 4K fullscreen. */
+  .vizstage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    container-type: size;
+    /* Clips the bezel's outsized ring (below) to the pane. */
+    overflow: hidden;
+    /* Thickness of the monitor frame. One value so the opening, the wordmark's inset
+       and its height can't drift apart. Custom properties substitute as tokens, so the
+       cqmin resolves where it's USED — against this element, which is the container. */
+    --frame: 3.4cqmin;
+  }
   .vizbody {
     flex: 1;
     min-height: 0;
+  }
+  /* A broadcast-monitor bezel, after the grey plastic Sony sets these demos were
+     watched on. Only the border paints — the centre stays transparent, so the
+     picture shows through — and the inset shadows are the dark lip where the glass
+     meets the frame, which is what makes the tube look seated in something rather
+     than pasted on. Sides are lit differently (top lighter, bottom darker) for the
+     moulded bevel. */
+  .bezel {
+    position: absolute;
+    /* This element IS the opening, not the frame: it is inset by the frame's width and
+       the grey is a huge outset ring around it, clipped to the pane by .vizstage. Done
+       as a border with border-radius instead, the OUTER corners round off too and the
+       pane's own black shows through behind them — which is the notch that appeared in
+       the top-left corner. A ring has square outer corners by construction. */
+    inset: var(--frame);
+    border-radius: 3cqmin;
+    z-index: 3;
+    pointer-events: none;
+    box-shadow:
+      /* the moulded face plate, out past every edge of the pane */
+      0 0 0 100cqmax #a09c95,
+      /* a lighter top lip and a darker bottom one, for the bevel */ 0 -0.4cqmin 0 0.2cqmin #b8b4ac,
+      0 0.4cqmin 0 0.2cqmin #86837d,
+      /* the dark recess the glass sits in */ inset 0 0 0 0.35cqmin #55534f,
+      inset 0 0 2.6cqmin 0.5cqmin rgb(0 0 0 / 0.8);
   }
 
   @media (max-width: 640px) {
