@@ -16,13 +16,21 @@ function sizedBody() {
 test("DancerScene renders the seven-segment row", async () => {
   sizedBody();
   render(DancerScene, { props: { active: false } });
-  // Five slots: MM, the colon, SS — one canvas each. Scoped to the display, so
-  // the scene's own WebGL canvas isn't counted.
+  // Five slots — MM, the colon, SS — one canvas each. Counted by slot rather than by
+  // every canvas in the display, because the readout also paints its own face canvas
+  // behind them (a CSS background is invisible to the CRT screen, which composites
+  // canvases only). Scoped to the display either way, so the scene's own WebGL canvas
+  // isn't counted.
   await expect
-    .poll(() => document.querySelectorAll('[data-testid="dancer-viz"] .display canvas').length, {
-      timeout: 8000,
-    })
+    .poll(
+      () => document.querySelectorAll('[data-testid="dancer-viz"] .display .slot canvas').length,
+      { timeout: 8000 },
+    )
     .toBe(5);
+  // And the face is there, behind them.
+  expect(document.querySelectorAll('[data-testid="dancer-viz"] .display canvas.face').length).toBe(
+    1,
+  );
 });
 
 // The backdrop and the dancer share one WebGL scene, so the canvas must appear

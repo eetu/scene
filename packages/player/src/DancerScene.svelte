@@ -19,6 +19,7 @@
   import { onMount } from "svelte";
 
   import type { SotaScene } from "./sota-scene";
+  import { crt } from "./crt.svelte";
   import { beatBpm, playback, sampleBands } from "./player.svelte";
   import { driveFrames } from "./raf";
 
@@ -56,6 +57,11 @@
   const SHOW_KEY = "scene-dancer-readout";
   let showClock = $state(true);
 
+  // The readout's unlit face. Shared by the CSS panel and by each digit canvas's own
+  // background, so the row is one continuous colour whether or not the CRT screen is
+  // compositing it (see the note on the SevenSegment below).
+  const PANEL = "#06050b";
+
   function toggleClock() {
     showClock = !showClock;
     try {
@@ -64,6 +70,27 @@
       /* no storage — the choice just won't outlive the session */
     }
   }
+  // Painted flat with PANEL and resized with the row; see the note in the markup.
+  let faceEl: HTMLCanvasElement | undefined = $state();
+  $effect(() => {
+    const el = faceEl;
+    if (!el) return;
+    const paint = () => {
+      const r = el.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      el.width = Math.max(1, Math.round(r.width * dpr));
+      el.height = Math.max(1, Math.round(r.height * dpr));
+      const g = el.getContext("2d");
+      if (!g) return;
+      g.fillStyle = PANEL;
+      g.fillRect(0, 0, el.width, el.height);
+    };
+    paint();
+    const ro = new ResizeObserver(paint);
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
   // Gates the display row until after first layout. @glowbox/seven-segment paints
   // in a mount effect and throws on a zero-width canvas, and the row is sized in
   // container-query units — which are 0 until the container has been laid out.
@@ -118,7 +145,19 @@
       try {
         const { createSotaScene } = await import("./sota-scene");
         if (stopped || !sceneHost) return;
-        scene = await createSotaScene(sceneHost, { url: dancerUrl, stepFps: 12 });
+        const built = await createSotaScene(sceneHost, { url: dancerUrl, stepFps: 12 });
+        // Re-check AFTER the await. That call is slow — three.js plus a 1.12 MB glb —
+        // so the component can be torn down while it's in flight, and the old code
+        // assigned the finished scene to a `scene` that nobody would ever dispose. Its
+        // WebGL context then leaked, and since a browser keeps only ~16 alive, a few
+        // quick visualiser switches were enough for it to start dropping live ones and
+        // blacking out the pane. This is the dancer's own leak, separate from anything
+        // the CRT screen does.
+        if (stopped) {
+          built.dispose();
+          return;
+        }
+        scene = built;
         pickLook();
       } catch {
         scene = null;
@@ -182,13 +221,27 @@
   {/if}
 
   {#if showClock}
-    <div class="display" style="--dx: {driftX}; --dy: {driftY}">
+    <div class="display" class:inset={crt.on} style="--dx: {driftX}; --dy: {driftY}">
+      <!-- The unlit face the digits sit on, as a CANVAS rather than a CSS background.
+           SevenSegment's own `background` is a translucent window tint (alpha ~40/255,
+           and only over the window body — the corners stay clear), which assumes a
+           housing behind it. That housing used to be this element's CSS background,
+           but the CRT screen composites canvases and not CSS, so under CRT the digits
+           ended up floating on the backdrop with no face at all. -->
+      <canvas class="face" bind:this={faceEl}></canvas>
       {#each laidOut ? slots : [] as slot, i (i)}
         <div class="slot" class:narrow={slot === ":"}>
+          <!-- Each digit carries its own opaque background rather than sitting
+               transparent over the panel's CSS one. The CRT screen composites
+               CANVASES and not CSS, so a transparent digit over a CSS panel loses
+               its backing entirely and the segments end up glowing against bare
+               black with nothing to read against. Owning the colour per canvas
+               works the same either way; the gap is 0 so the row still reads as one
+               continuous panel rather than five tiles. -->
           <SevenSegment
             value={slot}
             displayStyle="vfd"
-            background="transparent"
+            background={PANEL}
             glow={slot === ":" ? glow * 0.9 : glow}
             age={0.28}
             transition={70}
@@ -263,7 +316,12 @@
      stretches each slot and stops looking like a clock. */
   .display {
     position: absolute;
-    z-index: 2;
+    /* No z-index. `.room` is position:relative with z-index auto, so it does NOT
+       create a stacking context — any z-index in here competes in the viz pane's
+       context instead, and a positive one lifts the readout ABOVE the CRT screen's
+       output canvas. The panel then paints un-composited over the tube while its
+       digit canvases stay hidden, i.e. an empty box. Plain DOM order already puts it
+       over .scene, so nothing is lost. */
     pointer-events: none; /* the tap target underneath owns the whole surface */
     right: 4cqw;
     bottom: 5cqh;
@@ -273,9 +331,9 @@
     align-items: stretch;
     justify-content: center;
     gap: 0.4cqh;
-    /* One continuous panel. Each digit's own window tint is switched off
-       (`background="transparent"`), or the row reads as separate tiles with the
-       backdrop glaring through the gaps between them. */
+    /* The panel behind the digits. Still here for the rounded corners and the
+       padding halo when the CRT screen is off; the digits no longer depend on it
+       for their backing. */
     padding: 0.9cqh 1.2cqh;
     border-radius: 1.6cqh;
     background: #06050b;
@@ -284,6 +342,24 @@
        in minutes, far below the threshold for perceived movement, and an OLED
        burns the same either way. */
     transform: translate(calc(var(--dx) * 1cqh), calc(var(--dy) * 1cqh));
+  }
+  /* Pulled well clear of the corner while the CRT screen is on. Barrel distortion
+     is strongest at the very edge of the tube face, and out at 4cqw the readout
+     lands in it and squashes into something you can't read. */
+  .display.inset {
+    right: 10cqw;
+    bottom: 12cqh;
+  }
+  /* Fills the panel, behind the digits. Rounded to match when the CRT screen is off;
+     under CRT it composites as the plain rectangle it is, which the bezel and the
+     digits sit happily on. */
+  .face {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 1.6cqh;
+    display: block;
   }
   /* The min-widths are load-bearing: @glowbox/seven-segment throws on a canvas
      narrower than ~5px, and these slots are sized in `cqh`, which collapses in a
