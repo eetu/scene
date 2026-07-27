@@ -335,16 +335,16 @@ function wireGlobalsOnce(): void {
     //
     // The threshold is well above ordinary jitter (the interval itself is only
     // approximately 1s) and well below the 3s stall case.
-    if (
-      stalled > 150 &&
-      stalled <= 3000 &&
-      playback.playing &&
-      !playback.paused &&
-      !document.hidden
-    ) {
+    if (stalled > 150 && stalled <= 3000 && playback.playing && !playback.paused) {
+      // Hidden is NOT excluded any more. It was, to keep a backgrounded tab from filling
+      // the console — but backgrounded is exactly where the fault was reported, so the
+      // filter was hiding the evidence. Timer throttling does not produce false readings
+      // here: a late interval inflates the wall and context deltas together, so the
+      // difference stays near zero.
       console.warn(
         `[audio] clock fell ${Math.round(stalled)}ms behind in the last second ` +
-          `(context ${player.context.sampleRate}Hz, state ${player.context.state})`,
+          `(context ${player.context.sampleRate}Hz, state ${player.context.state}` +
+          `${document.hidden ? ", hidden" : ""})`,
       );
     }
     wdLastPos = playback.position;
@@ -526,6 +526,18 @@ function ensurePlayer(): Promise<void> {
     renderLoadLogged = true;
     console.info(
       `[audio] decoder using ${d.percent}% of real time (${d.perChunkMs}ms per 21ms chunk)`,
+    );
+  });
+  // Pitch/tempo wobble. Reported from the audio thread because the main thread cannot
+  // see it: its timers are throttled to roughly once a minute while the page is hidden —
+  // which is when this happens — and a one-second average flattens a wobble to nothing.
+  // A positive figure means the device consumed audio slower than nominal, i.e. pitch
+  // fell; that is the OS or the audio device, not the decoder, which has been measured
+  // with ~28x headroom.
+  player.onRateDrift((d: { percent: number; windowMs: number }) => {
+    console.warn(
+      `[audio] playback rate off by ${d.percent}% over ${d.windowMs}ms ` +
+        `(${document.hidden ? "hidden" : "visible"}) — pitch/tempo wobble`,
     );
   });
   player.onLoadGap((d: { ms: number }) => {

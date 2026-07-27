@@ -31,6 +31,20 @@ class MPT extends AudioWorkletProcessor {
 		this.reportedFrames = 0;
 		this.primed = false; // has a chunk of the current generation played yet?
 		this.primeSilent = 0; // silence emitted while waiting for it
+
+		// Rate drift, measured HERE rather than on the main thread. Two reasons the main
+		// thread cannot see it: its timers are throttled to about once a minute once the
+		// page is hidden, which is exactly when this is reported to happen, and a one-second
+		// average flattens a wobble to nothing. This callback runs on the audio thread every
+		// 128 frames and is not throttled while audio is playing.
+		//
+		// currentTime advances by one quantum per call, so comparing its advance against the
+		// wall clock measures how fast the device is actually consuming audio. A device
+		// running slow calls us less often than 128/sampleRate seconds, and the ratio is the
+		// pitch error you can hear.
+		this.driftCtx = 0;
+		this.driftWall = 0;
+		this.driftReportedAt = 0;
 	}
 
 	onControl(e) {
@@ -150,6 +164,30 @@ class MPT extends AudioWorkletProcessor {
 
 		// Report at most once a second, and only when something was actually lost, so a
 		// healthy stream posts nothing at all from the audio thread.
+		// Rate check, about four times a second — fine enough to catch a wobble, coarse
+		// enough that one late callback doesn't read as drift.
+		const nowWall = Date.now();
+		if (!this.driftWall) {
+			this.driftWall = nowWall;
+			this.driftCtx = currentTime;
+		} else if (currentTime - this.driftCtx >= 0.25) {
+			const ctxMs = (currentTime - this.driftCtx) * 1000;
+			const wallMs = nowWall - this.driftWall;
+			const errPct = ((wallMs - ctxMs) / ctxMs) * 100;
+			// Over ~3% is audible as pitch; report at most once a second so a sustained
+			// wobble doesn't flood the port from the audio thread.
+			if (Math.abs(errPct) > 3 && nowWall - this.driftReportedAt > 1000) {
+				this.driftReportedAt = nowWall;
+				this.port.postMessage({
+					cmd: 'ratedrift',
+					percent: Math.round(errPct * 10) / 10,
+					windowMs: Math.round(ctxMs)
+				});
+			}
+			this.driftWall = nowWall;
+			this.driftCtx = currentTime;
+		}
+
 		this.sinceReport += n;
 		if (this.sinceReport >= sampleRate) {
 			if (this.silentFrames > this.reportedFrames) {

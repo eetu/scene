@@ -205,6 +205,9 @@ export class ChiptuneJsPlayer {
 			case 'loadgap':
 				this.fireEvent('onLoadGap', d);
 				break;
+			case 'ratedrift':
+				this.fireEvent('onRateDrift', d);
+				break;
 			default:
 				break;
 		}
@@ -231,6 +234,11 @@ export class ChiptuneJsPlayer {
 	 *  parse and first render, not the decoder falling behind. */
 	onLoadGap(h) {
 		this.addHandler('onLoadGap', h);
+	}
+	/** The audio device is consuming audio faster or slower than its nominal rate —
+	 *  heard as pitch and tempo wobble. Measured on the audio thread. */
+	onRateDrift(h) {
+		this.addHandler('onRateDrift', h);
 	}
 	/** Share of real time the decoder spends rendering — tells compute-bound apart
 	 *  from simply-not-scheduled when audio drops out. */
