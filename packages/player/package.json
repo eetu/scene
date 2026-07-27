@@ -17,10 +17,10 @@
     }
   },
   "dependencies": {
-    "@glowbox/crt": "^1.4.1",
-    "@glowbox/flip-dot": "1.5.0-rc.1",
-    "@glowbox/nixie": "^1.4.1",
-    "@glowbox/svelte": "^1.4.1",
+    "@glowbox/crt": "^1.5.1",
+    "@glowbox/flip-dot": "^1.5.1",
+    "@glowbox/nixie": "^1.5.1",
+    "@glowbox/svelte": "^1.5.1",
     "@scene/design": "workspace:*",
     "three": "^0.185.1",
     "xstate": "^5.32.5"

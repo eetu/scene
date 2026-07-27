@@ -289,51 +289,52 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@glowbox/crt@npm:^1.4.1":
-  version: 1.4.1
-  resolution: "@glowbox/crt@npm:1.4.1"
-  checksum: 10/7e3855898bdb73665943140970707a8f48d42b4407a3dd8d3be623493481284d0f24b042f45115d8f20a4ed41fe4d7f88d85ac559c6c5f01b1fffd8342aad6db
+"@glowbox/crt@npm:^1.5.1":
+  version: 1.5.1
+  resolution: "@glowbox/crt@npm:1.5.1"
+  checksum: 10/33c539e2feebc941116cae5ed7102795af2fda9fe5a23e41e0d94df2a8ebbf84b57a6f23a2bb0dafedca335c98ff53c4943d7a64f85baaf8211e54bf44a0802f
   languageName: node
   linkType: hard
 
-"@glowbox/flip-dot@npm:1.5.0-rc.1":
-  version: 1.5.0-rc.1
-  resolution: "@glowbox/flip-dot@npm:1.5.0-rc.1"
-  checksum: 10/6aadb9551b2c643e2e786931dfa2d2f8be05d52173b74a5b9f0f0e8a8eed189426ec92a8ec278f9c3bf0f564a0c8742efb0975db92c5843224669aba79d9548d
+"@glowbox/flip-dot@npm:^1.5.1":
+  version: 1.5.1
+  resolution: "@glowbox/flip-dot@npm:1.5.1"
+  checksum: 10/9ec48de92099a242a80a16172f9541685f94ec683f6d32342628a662ecc8cbb56e475410a3092ceed023b0471346e23896adfb64f8ba2c017b3da7a5860c7610
   languageName: node
   linkType: hard
 
-"@glowbox/led-grid@npm:^1.4.1":
-  version: 1.4.1
-  resolution: "@glowbox/led-grid@npm:1.4.1"
-  checksum: 10/9773cc551a9593cdb2bbedc17e9bf585f4fb7d0993a7bf2b713500b85c7bdcb725b7775757854b87e90258cab143b377b42611f78557c68667609d66e0e47f9d
+"@glowbox/led-grid@npm:^1.5.1":
+  version: 1.5.1
+  resolution: "@glowbox/led-grid@npm:1.5.1"
+  checksum: 10/de20072af530cbcf837e5de763ab10fea6ac83e85ba675b9440575b05fc1f313fa80dafd74e9c6fc523da66c909aa538af8fb489357f70f261505188e07fee1f
   languageName: node
   linkType: hard
 
-"@glowbox/nixie@npm:^1.4.1":
-  version: 1.4.1
-  resolution: "@glowbox/nixie@npm:1.4.1"
-  checksum: 10/cd364ae0572972a95d7b0ba49c666361453228d14ca769476887f9dd18ae6c2e2ac90aadcda5b7e13876bfd6a4130b83a9cbb7b1ab0c76677fd650dd1ad1b875
+"@glowbox/nixie@npm:^1.5.1":
+  version: 1.5.1
+  resolution: "@glowbox/nixie@npm:1.5.1"
+  checksum: 10/6711c9bce8b6e3587bbdfa47a394ca45388a3f4cfe0487bc4def9aa54fa0fae17a8675f5eb606ca2e3d7ed9fa64237857f89fb60245d287a181290dfc5425feb
   languageName: node
   linkType: hard
 
-"@glowbox/seven-segment@npm:^1.4.1":
-  version: 1.4.1
-  resolution: "@glowbox/seven-segment@npm:1.4.1"
-  checksum: 10/045fcaa305b538f5b26947fdb3200f34bfb5563f1a1175bc1ab841beb276c2d2d1db843336997bd4b8ca2c62f86864c3753c33ce08be041036614e6503dce1bb
+"@glowbox/seven-segment@npm:^1.5.1":
+  version: 1.5.1
+  resolution: "@glowbox/seven-segment@npm:1.5.1"
+  checksum: 10/d81a289d95b279955ede7131dc9f204b6904adb6d8937123c8c6c984fb82eaaa59482d93683ddda3a5887c36826b878890ff1829d3920167d95459070d00003a
   languageName: node
   linkType: hard
 
-"@glowbox/svelte@npm:^1.4.1":
-  version: 1.4.1
-  resolution: "@glowbox/svelte@npm:1.4.1"
+"@glowbox/svelte@npm:^1.5.1":
+  version: 1.5.1
+  resolution: "@glowbox/svelte@npm:1.5.1"
   dependencies:
-    "@glowbox/led-grid": "npm:^1.4.1"
-    "@glowbox/nixie": "npm:^1.4.1"
-    "@glowbox/seven-segment": "npm:^1.4.1"
+    "@glowbox/flip-dot": "npm:^1.5.1"
+    "@glowbox/led-grid": "npm:^1.5.1"
+    "@glowbox/nixie": "npm:^1.5.1"
+    "@glowbox/seven-segment": "npm:^1.5.1"
   peerDependencies:
     svelte: ^5
-  checksum: 10/2b2524bf1d963969dd60b819f36e64301d262431759651523a5c1267dc04a76422de54ff7f58a73e785d69ecdeffa1f4080bd6c065f0e585c69b84ef298fc6f6
+  checksum: 10/aa9837d10e8d0f9448bf74660970d0cb61ad7166fec610fa4b0e6a971a4aa20aa5a2ba2837be2268d6fe380b992892d34ad3bd96ede9477fa314c36d9900d02f
   languageName: node
   linkType: hard
 
@@ -739,10 +740,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@scene/player@workspace:packages/player"
   dependencies:
-    "@glowbox/crt": "npm:^1.4.1"
-    "@glowbox/flip-dot": "npm:1.5.0-rc.1"
-    "@glowbox/nixie": "npm:^1.4.1"
-    "@glowbox/svelte": "npm:^1.4.1"
+    "@glowbox/crt": "npm:^1.5.1"
+    "@glowbox/flip-dot": "npm:^1.5.1"
+    "@glowbox/nixie": "npm:^1.5.1"
+    "@glowbox/svelte": "npm:^1.5.1"
     "@scene/design": "workspace:*"
     "@sveltejs/vite-plugin-svelte": "npm:^7.2.0"
     "@types/three": "npm:^0.185.1"

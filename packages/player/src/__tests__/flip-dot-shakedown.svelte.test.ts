@@ -145,20 +145,17 @@ test("sound does not open an AudioContext until it is used", { timeout: 30000 },
     const afterDispose = built;
 
     const report = `default=${afterQuiet} construct=${afterConstruct} flip=${afterFlip} dispose=${afterDispose}`;
-    // Measured 2026-07-27 against 1.5.0-rc.1: default=0 construct=0 flip=1.
+    // No AudioContext at all without a user gesture — not at construction, and not on a
+    // flip. This is what a page that already runs one (this app, for playback) needs from
+    // a display core, and browsers cap how many a page may have.
     //
-    // The default costing nothing is the part that matters to us: this app leaves sound
-    // off and already runs a context for playback. Construction being free too is better
-    // than it needed to be.
+    // Against 1.5.0-rc.1 this read default=0 construct=0 flip=1: the first flip opened it,
+    // since flips come from data rather than from a gesture. Pinning that number is what
+    // surfaced the change when 1.5.1 fixed it, rather than it passing unnoticed — so the
+    // exact expectations stay exact.
     expect(afterQuiet, `sound:false opened a context — ${report}`).toBe(0);
     expect(afterConstruct, `sound:true allocated at construction — ${report}`).toBe(0);
-    // The first FLIP opens it, not the first user gesture — flips come from data, so the
-    // context arrives without one and starts suspended until a gesture resumes it.
-    // Pinned as observed rather than asserted as a fault: it is a defensible reading of
-    // "sound starts on the first user gesture", which is about audible output rather than
-    // allocation. Recorded so a change upstream surfaces here instead of as a surprise
-    // second context in a page that already has one.
-    expect(afterFlip, `first flip no longer opens the context — ${report}`).toBe(1);
+    expect(afterFlip, `a flip opened an AudioContext with no user gesture — ${report}`).toBe(0);
   } finally {
     (window as unknown as { AudioContext: typeof Real }).AudioContext = Real;
   }
