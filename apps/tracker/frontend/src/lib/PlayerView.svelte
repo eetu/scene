@@ -27,6 +27,7 @@
     DancerScene,
     DiscoBall,
     Equalizer,
+    FlipDots,
     GlowWave,
     HarmonyScope,
     LedBars,
@@ -483,6 +484,8 @@
               <NixieScene active={vizActive} />
             {:else if pv.vizMode === "dancer"}
               <DancerScene active={vizActive} />
+            {:else if pv.vizMode === "flip"}
+              <FlipDots active={vizActive} />
             {:else}
               <BoingBall energy={vizActive ? vuEnergy : 0} live={vizActive} react />
             {/if}

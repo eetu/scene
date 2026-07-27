@@ -296,6 +296,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@glowbox/flip-dot@npm:1.5.0-rc.1":
+  version: 1.5.0-rc.1
+  resolution: "@glowbox/flip-dot@npm:1.5.0-rc.1"
+  checksum: 10/6aadb9551b2c643e2e786931dfa2d2f8be05d52173b74a5b9f0f0e8a8eed189426ec92a8ec278f9c3bf0f564a0c8742efb0975db92c5843224669aba79d9548d
+  languageName: node
+  linkType: hard
+
 "@glowbox/led-grid@npm:^1.4.1":
   version: 1.4.1
   resolution: "@glowbox/led-grid@npm:1.4.1"
@@ -733,6 +740,7 @@ __metadata:
   resolution: "@scene/player@workspace:packages/player"
   dependencies:
     "@glowbox/crt": "npm:^1.4.1"
+    "@glowbox/flip-dot": "npm:1.5.0-rc.1"
     "@glowbox/nixie": "npm:^1.4.1"
     "@glowbox/svelte": "npm:^1.4.1"
     "@scene/design": "workspace:*"

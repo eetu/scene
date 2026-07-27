@@ -41,13 +41,21 @@ test("on a phone the viz picker is a stepper row with a sheet for the full set",
   context,
   page,
 }) => {
-  await page.setViewportSize({ width: 390, height: 780 }); // iPhone-ish portrait
   await mockLibrary(context);
   await page.goto("/");
 
   await page.locator("button.row").first().click();
   const overlay = page.locator(".pattern-overlay");
   await overlay.getByRole("button", { name: "viz", exact: true }).click();
+
+  // Count the visualisers from the DESKTOP pill row, which is the full list by
+  // construction, and hold the mobile sheet to the same number. Hard-coding it meant
+  // adding a visualiser broke this test for no reason — and the property worth checking
+  // was never the number, it was that the sheet lists all of them rather than a subset.
+  const vizCount = await overlay.locator(".vizpick button:not(.crt)").count();
+  expect(vizCount).toBeGreaterThan(5);
+
+  await page.setViewportSize({ width: 390, height: 780 }); // iPhone-ish portrait
 
   // One row: two steppers, the current visualiser, and the CRT toggle — not the pills.
   const pick = overlay.locator(".vizpick");
@@ -74,7 +82,7 @@ test("on a phone the viz picker is a stepper row with a sheet for the full set",
   const sheet = overlay.locator(".vizsheet");
   await expect(sheet).toBeVisible();
   const tiles = sheet.locator(".sheetgrid button");
-  await expect(tiles).toHaveCount(14);
+  await expect(tiles).toHaveCount(vizCount);
   // A cheap 2D effect on purpose. This test is about the picker, and picking one of the
   // three.js scenes (tubes, paint, dancer) drags a lazy three.js import and a scene build
   // into it — slow anywhere, and on a runner falling back to software WebGL slow enough
