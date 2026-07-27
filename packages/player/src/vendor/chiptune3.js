@@ -37,7 +37,18 @@ export class ChiptuneJsPlayer {
 			this.context = this.config.context;
 			this.destination = false;
 		} else {
-			this.context = new AudioContext();
+			// latencyHint 'playback', not the default 'interactive'. The default asks for the
+			// smallest output buffer the browser will give, which is also the least tolerant of
+			// the audio thread being serviced late — measured here at up to 10% behind the wall
+			// clock while the window was hidden under load, heard as a pitch/tempo wobble. A
+			// larger buffer absorbs that jitter. This is a DIFFERENT buffer from the decoder's
+			// jitter buffer (decoder.worker.js TARGET): that one keeps the worklet fed, this one
+			// gives the audio thread slack against the OS.
+			//
+			// The cost is output latency, which the jam sampler shares (jam.ts plays on this
+			// context) — so pressing a key takes longer to sound. The browser picks the actual
+			// size, so it is logged rather than assumed.
+			this.context = new AudioContext({ latencyHint: 'playback' });
 			this.destination = this.context.destination;
 		}
 		const workletUrl = this.config.workletUrl;

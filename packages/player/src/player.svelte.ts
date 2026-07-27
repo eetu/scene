@@ -446,6 +446,15 @@ function ensurePlayer(): Promise<void> {
   void ready
     .then(() => {
       playback.canReadSamples = player.capabilities?.canReadSamples ?? false;
+      // What the browser actually gave us for the 'playback' latency hint (see
+      // chiptune3.js). baseLatency is the graph's own buffering; outputLatency includes
+      // the OS and the device, so on Bluetooth it can be far larger. Both are the cost
+      // paid for jitter tolerance, and the jam keyboard pays it too.
+      console.info(
+        `[audio] output latency ${Math.round((player.context.baseLatency ?? 0) * 1000)}ms base, ` +
+          `${Math.round(((player.context as AudioContext).outputLatency ?? 0) * 1000)}ms total ` +
+          `@ ${player.context.sampleRate}Hz`,
+      );
       playback.canMuteChannels = player.capabilities?.canMuteChannels ?? false;
       playback.canReadCells = player.capabilities?.canReadCells ?? false;
       if (playback.mono) player.setMono(true); // restore persisted mono downmix
