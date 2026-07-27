@@ -199,6 +199,9 @@ export class ChiptuneJsPlayer {
 			case 'underrun':
 				this.fireEvent('onUnderrun', d);
 				break;
+			case 'loadgap':
+				this.fireEvent('onLoadGap', d);
+				break;
 			default:
 				break;
 		}
@@ -220,6 +223,11 @@ export class ChiptuneJsPlayer {
 	 *  once a second, and only when frames were actually lost. */
 	onUnderrun(h) {
 		this.addHandler('onUnderrun', h);
+	}
+	/** Silence between a load/seek and the first audio of the new stream — the fetch,
+	 *  parse and first render, not the decoder falling behind. */
+	onLoadGap(h) {
+		this.addHandler('onLoadGap', h);
 	}
 	onError(h) {
 		this.addHandler('onError', h);

@@ -490,6 +490,15 @@ function ensurePlayer(): Promise<void> {
       `[audio] dropped ${d.sinceMs}ms just now — ${d.events} dropouts, ${d.lostMs}ms total this session`,
     );
   });
+  // The silence between starting a track and its first audio: fetch, libopenmpt parse,
+  // first render. Reported apart from dropouts because it is a different thing with a
+  // different fix — a deeper jitter buffer cannot help, since the buffer is deliberately
+  // emptied on a song change — and because counting it as starvation hid whether real
+  // starvation was happening at all.
+  player.onLoadGap((d: { ms: number }) => {
+    playback.loadGapMs = d.ms;
+    if (d.ms >= 60) console.info(`[audio] ${d.ms}ms of silence loading this track`);
+  });
   player.onError((e: { type?: string }) => {
     playback.error = e?.type ?? "playback error";
     consecutiveErrors++;

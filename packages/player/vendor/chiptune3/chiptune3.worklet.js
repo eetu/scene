@@ -29,6 +29,8 @@ class MPT extends AudioWorkletProcessor {
 		this.inUnderrun = false;
 		this.sinceReport = 0; // frames rendered since the last report
 		this.reportedFrames = 0;
+		this.primed = false; // has a chunk of the current generation played yet?
+		this.primeSilent = 0; // silence emitted while waiting for it
 	}
 
 	onControl(e) {
@@ -54,6 +56,12 @@ class MPT extends AudioWorkletProcessor {
 				this.eofPending = false;
 				this.endSent = false;
 				this.lastReported = null;
+				// Waiting on the first chunk of a new song or seek. The silence until it
+				// arrives is the load — fetch, parse, render — not the decoder falling
+				// behind, and conflating the two makes the dropout count useless for
+				// spotting the real thing.
+				this.primed = false;
+				this.primeSilent = 0;
 				break;
 			default:
 				break;
@@ -86,6 +94,16 @@ class MPT extends AudioWorkletProcessor {
 		let i = 0;
 		while (i < n && this.queue.length) {
 			const head = this.queue[0];
+			if (!this.primed) {
+				// First audio of this song/seek is going out now: the load is over, and
+				// anything that starves us after this really is the decoder falling behind.
+				this.primed = true;
+				this.port.postMessage({
+					cmd: 'loadgap',
+					ms: Math.round((this.primeSilent / sampleRate) * 1000)
+				});
+				this.primeSilent = 0;
+			}
 			if (head !== this.lastReported) {
 				// Report position/VU at the moment this chunk starts playing.
 				this.port.postMessage({
@@ -115,7 +133,11 @@ class MPT extends AudioWorkletProcessor {
 			right.fill(0, i);
 			// Only count it as a dropout while the song is still running; the tail after
 			// the last chunk of a finished tune is silence by definition, not a fault.
-			if (!this.eofPending) {
+			if (this.eofPending) {
+				// Tail of a finished song: silence by definition.
+			} else if (!this.primed) {
+				this.primeSilent += n - i;
+			} else {
 				this.silentFrames += n - i;
 				if (!this.inUnderrun) {
 					this.underruns++;

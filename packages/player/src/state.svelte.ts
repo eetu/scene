@@ -68,6 +68,8 @@ export const playback = $state({
   // these exist to say how bad and how often.
   underruns: 0,
   underrunMs: 0,
+  // Silence spent loading the current track (parse + first render), not a fault.
+  loadGapMs: 0,
   // Custom-build capability (this app's vendored WASM carries the sample-read
   // shim; party's stock build doesn't). Set once the engine reports ready. UI
   // (keyboard, waveform pane) gates on it so the shared package degrades.
