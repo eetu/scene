@@ -327,6 +327,26 @@ function wireGlobalsOnce(): void {
         /* engine gone */
       }
     }
+    // Audio running SLOW rather than cutting out. The watchdog above only acts on a
+    // hard stall, but the same arithmetic measures small drift, and that is the one
+    // symptom the dropout counter cannot see: the pitch and tempo sag together while
+    // PCM keeps flowing, so nothing underruns and nothing is logged. This says whether
+    // the audio clock genuinely fell behind the wall clock, and by how much.
+    //
+    // The threshold is well above ordinary jitter (the interval itself is only
+    // approximately 1s) and well below the 3s stall case.
+    if (
+      stalled > 150 &&
+      stalled <= 3000 &&
+      playback.playing &&
+      !playback.paused &&
+      !document.hidden
+    ) {
+      console.warn(
+        `[audio] clock fell ${Math.round(stalled)}ms behind in the last second ` +
+          `(context ${player.context.sampleRate}Hz, state ${player.context.state})`,
+      );
+    }
     wdLastPos = playback.position;
   }, 1000);
 }
