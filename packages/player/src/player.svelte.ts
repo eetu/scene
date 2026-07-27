@@ -551,7 +551,11 @@ function ensurePlayer(): Promise<void> {
   });
   player.onLoadGap((d: { ms: number }) => {
     playback.loadGapMs = d.ms;
-    if (d.ms >= 60) console.info(`[audio] ${d.ms}ms of silence loading this track`);
+    // Only when it is long enough to be worth a look. Measured gaps run 100-400ms — the
+    // fetch, parse and first render — so a 60ms bar meant this printed on virtually every
+    // track change, which is expected behaviour rather than news. The value stays on the
+    // store either way; this is just about not narrating the normal case forever.
+    if (d.ms >= 600) console.info(`[audio] ${d.ms}ms of silence loading this track`);
   });
   player.onError((e: { type?: string }) => {
     playback.error = e?.type ?? "playback error";
