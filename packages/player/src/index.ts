@@ -14,7 +14,6 @@ export { pageSwipe } from "./pageSwipe";
 export { default as DancerScene } from "./DancerScene.svelte";
 export { default as CopperBars } from "./CopperBars.svelte";
 export { default as DiscoBall } from "./DiscoBall.svelte";
-export { default as Equalizer } from "./Equalizer.svelte";
 export { default as FlipDots } from "./FlipDots.svelte";
 export { default as GlowWave } from "./GlowWave.svelte";
 export { default as HarmonyScope } from "./HarmonyScope.svelte";

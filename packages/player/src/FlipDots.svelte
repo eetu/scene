@@ -3,11 +3,15 @@
   //
   // @glowbox/flip-dot renders real flip physics — each dot is a disc rotating about its
   // pivot, and a frame change sweeps the board as a driver scan rather than landing at
-  // once. That has a consequence for how it can be driven: a disc takes ~70ms to turn and
-  // the sweep another ~150ms, so pushing frames at 30fps just re-targets dots that never
-  // settle, and the board reads as mush. It's updated on the beat instead, falling back to
-  // a slow free-run when the tempo is unknown — which is also how the real boards behave,
-  // since they change when the departure does, not continuously.
+  // once. That sets a ceiling on how fast it can be driven, but the ceiling is higher than
+  // it first looks: with the flip shortened to 45ms and the sweep to 90ms, a disc has
+  // finished well inside a 100ms update, so the board can run at 10Hz and still show every
+  // change land. Frames also go out on the beat, so hits are on time rather than up to a
+  // tick late.
+  //
+  // Driving it slower than this — a frame only per beat — was the first attempt and it
+  // read as a static mass: at 2-3 updates a second the spectrum is a shape that occasionally
+  // changes rather than something moving to the music.
   //
   // Content is one bit per dot, so the spectrum is drawn as bar heights directly rather
   // than dithered: at this resolution a clean cut gives a stable silhouette where a
@@ -61,6 +65,11 @@
         // CRT screen's mask than the shaded lighting does.
         shaded: false,
         stagger: "scan",
+        // Quicker than the defaults (70/150). The real boards are this slow; at 10Hz
+        // updates the default flip is still in flight when the next frame arrives, so
+        // dots never quite arrive and the board smears.
+        flipMs: 38,
+        scanMs: 70,
         label: "spectrum on a flip-dot board",
       });
       if (!board) return; // no 2D context — leave the pane empty rather than half-built
@@ -73,6 +82,19 @@
       const F_MAX = 12000;
       const heights = new Float32Array(COLS); // eased column heights, 0..1
       const peaks = new Float32Array(COLS);
+
+      // Per-column tilt. Music carries far more energy low down, so mapping magnitude
+      // straight to height pegs the bass columns and barely lights the treble — the board
+      // sits half-full on the left through most of a track and the right stays dead. This
+      // is the analyser convention of tilting up with frequency (about +3dB/octave, i.e.
+      // amplitude with the square root of f), clamped so the very top of the range can't
+      // run away on hiss.
+      const tilt = new Float32Array(COLS);
+      for (let c = 0; c < COLS; c++) {
+        const f0 = F_MIN * Math.pow(F_MAX / F_MIN, c / COLS);
+        const f1 = F_MIN * Math.pow(F_MAX / F_MIN, (c + 1) / COLS);
+        tilt[c] = Math.min(2.8, Math.max(0.7, Math.pow(Math.sqrt(f0 * f1) / 320, 0.5)));
+      }
       let lastBeat = -1;
       let sinceUpdate = 0;
 
@@ -90,25 +112,28 @@
               const hi = Math.min(SPECTRUM_SIZE, Math.max(lo + 1, Math.ceil(f1 / hzPerBin)));
               let sum = 0;
               for (let j = lo; j < hi; j++) sum += spec[j];
-              const v = Math.pow(sum / (hi - lo) / 255, 0.8);
-              // Quick to rise, slow to fall — the board can't show a transient it missed,
-              // so the level it does show should be the recent peak rather than an
-              // instant that happened to fall on the update.
-              heights[c] += (v - heights[c]) * (v > heights[c] ? 0.5 : 0.08);
-              peaks[c] = Math.max(peaks[c] - dt * 0.28, heights[c]);
+              // Gamma above 1 compresses toward the floor rather than the ceiling. The
+              // original 0.8 did the opposite — it lifted every middling level toward
+              // full, which is the other half of why the board looked permanently full.
+              const v = Math.min(1, Math.pow((sum / (hi - lo) / 255) * tilt[c], 1.25));
+              // Fast attack, and a fall quick enough to see. The original 0.08 release
+              // held every bar near its recent maximum, so the lit area only ever grew
+              // within a phrase — the "static bulk" that made the board look dead.
+              heights[c] += (v - heights[c]) * (v > heights[c] ? 0.6 : 0.3);
+              peaks[c] = Math.max(peaks[c] - dt * 0.5, heights[c]);
             }
           } else {
             for (let c = 0; c < COLS; c++) {
-              heights[c] *= 0.9;
-              peaks[c] = Math.max(peaks[c] - dt * 0.5, heights[c]);
+              heights[c] *= 0.86;
+              peaks[c] = Math.max(peaks[c] - dt * 0.8, heights[c]);
             }
           }
 
-          // Push a frame on the beat, or every 350ms when there's no tempo yet. Faster
-          // than the board's own settling time and the discs never finish turning.
+          // ~14Hz, plus an immediate frame on the beat so hits land on time. Still outside
+          // the 38ms flip, so a disc finishes before it is asked to turn again.
           sinceUpdate += dt;
           const onBeat = playback.beat !== lastBeat;
-          if (!onBeat && sinceUpdate < 0.35) return;
+          if (!onBeat && sinceUpdate < 0.07) return;
           lastBeat = playback.beat;
           sinceUpdate = 0;
 

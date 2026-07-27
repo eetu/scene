@@ -26,7 +26,6 @@
     crt,
     DancerScene,
     DiscoBall,
-    Equalizer,
     FlipDots,
     GlowWave,
     HarmonyScope,
@@ -458,8 +457,8 @@
         {/if}
         <div class="vizstage">
           <div class="vizbody" bind:this={vizBody}>
-            {#if pv.vizMode === "bars"}
-              <Equalizer active={vizActive} />
+            {#if pv.vizMode === "flip"}
+              <FlipDots active={vizActive} />
             {:else if pv.vizMode === "harmony"}
               <HarmonyScope active={vizActive} />
             {:else if pv.vizMode === "cube"}
@@ -484,8 +483,6 @@
               <NixieScene active={vizActive} />
             {:else if pv.vizMode === "dancer"}
               <DancerScene active={vizActive} />
-            {:else if pv.vizMode === "flip"}
-              <FlipDots active={vizActive} />
             {:else}
               <BoingBall energy={vizActive ? vuEnergy : 0} live={vizActive} react />
             {/if}

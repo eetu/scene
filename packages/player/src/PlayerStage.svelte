@@ -2,7 +2,7 @@
   // Party's enabled visualizers (its own set — the tracker keeps a separate list).
   type VizMode =
     | "vu"
-    | "bars"
+    | "flip"
     | "cube"
     | "wave"
     | "stars"
@@ -15,7 +15,7 @@
     | "ball";
   const VIZ: VizMode[] = [
     "vu",
-    "bars",
+    "flip",
     "cube",
     "wave",
     "stars",
@@ -46,7 +46,7 @@
   import BoingBall from "./BoingBall.svelte";
   import CopperBars from "./CopperBars.svelte";
   import DiscoBall from "./DiscoBall.svelte";
-  import Equalizer from "./Equalizer.svelte";
+  import FlipDots from "./FlipDots.svelte";
   import GlowWave from "./GlowWave.svelte";
   import LedBars from "./LedBars.svelte";
   import NixieScene from "./NixieScene.svelte";
@@ -145,8 +145,8 @@
           {/each}
         </div>
         <div class="vizbody">
-          {#if vizMode === "bars"}
-            <Equalizer active={playing} />
+          {#if vizMode === "flip"}
+            <FlipDots active={playing} />
           {:else if vizMode === "cube"}
             <LedBars active={playing} />
           {:else if vizMode === "wave"}

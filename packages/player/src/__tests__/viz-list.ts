@@ -5,7 +5,6 @@ import BoingBall from "../BoingBall.svelte";
 import CopperBars from "../CopperBars.svelte";
 import DancerScene from "../DancerScene.svelte";
 import DiscoBall from "../DiscoBall.svelte";
-import Equalizer from "../Equalizer.svelte";
 import FlipDots from "../FlipDots.svelte";
 import GlowWave from "../GlowWave.svelte";
 import HarmonyScope from "../HarmonyScope.svelte";
@@ -19,7 +18,7 @@ import VuMeters from "../VuMeters.svelte";
 
 export const VIZ = [
   { id: "vu", comp: VuMeters },
-  { id: "bars", comp: Equalizer },
+  { id: "flip", comp: FlipDots },
   { id: "harmony", comp: HarmonyScope },
   { id: "cube", comp: LedBars },
   { id: "wave", comp: GlowWave },
@@ -31,7 +30,6 @@ export const VIZ = [
   { id: "paint", comp: SpeakerPaint },
   { id: "tubes", comp: NixieScene },
   { id: "dancer", comp: DancerScene },
-  { id: "flip", comp: FlipDots },
   { id: "ball", comp: BoingBall, props: { energy: 0.7, live: true, react: true } },
 ] as { id: string; comp: unknown; props?: Record<string, unknown> }[];
 
