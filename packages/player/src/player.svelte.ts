@@ -898,6 +898,10 @@ export function seekToOrder(o: number) {
 // --- channel mute / solo (custom build) -------------------------------------
 // Mutes are applied to the LIVE module (chan_mute → CHN_MUTE), so the song's own
 // render drops the channel. State is per-session per-module (reset on load).
+//
+// They take effect at the DECODER, which renders about a second and a half ahead of what
+// you are hearing (decoder.worker.js TARGET) — so a toggle is silent for that long before
+// it lands. That buffer depth is deliberate and measured; see the note there.
 
 /** Mute/unmute channel `ch`. */
 export function setChannelMute(ch: number, on: boolean) {

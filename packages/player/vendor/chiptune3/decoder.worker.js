@@ -21,9 +21,22 @@ const OPENMPT_MODULE_RENDER_STEREOSEPARATION_PERCENT = 2;
 const OPENMPT_MODULE_RENDER_INTERPOLATIONFILTER_LENGTH = 3;
 
 const CHUNK = 1024; // frames per chunk (~21ms @48k) — fine-grained for pattern/VU sync
-const TARGET = 24; // chunks kept in flight (~512ms jitter buffer) — deep enough to ride
+const TARGET = 72; // chunks kept in flight (~1.5s jitter buffer) — deep enough to ride
 // through the background-worker throttling (macOS App Nap etc.) that hits on a desktop/app
 // switch, which briefly starves decode and would otherwise underrun the audio thread.
+//
+// Sized from measurement, not taste. At 24 chunks (~512ms) a screen change under load
+// produced dropouts of 27ms, 40ms and 419ms — the last one almost the whole buffer, with
+// the audio clock separately reported as 356ms behind in the same second. 72 gives about
+// three times the worst case seen.
+//
+// The cost is channel mute/solo: it is applied to the live module HERE (see muteChannel),
+// so whatever is already rendered plays out before the change is heard — up to a buffer's
+// worth. At half a second that was imperceptible; at a second and a half it is noticeable
+// if you toggle a channel while listening. Judged worth it, because a dropout interrupts
+// everyone and mute latency only shows up in the editor. Making both work means re-seeking
+// the module to the currently-playing position on a mute change, which libopenmpt cannot do
+// sample-exactly — trading a known lag for a possible tick on every toggle.
 
 let lib = null;
 let sampleRate = 48000;
