@@ -19,6 +19,16 @@ class MPT extends AudioWorkletProcessor {
 		this.eofPending = false;
 		this.endSent = false;
 		this.lastReported = null;
+		// Underrun accounting. The queue running dry is the ONLY way this engine drops
+		// audio, and it is otherwise silent about it — the gap just gets filled with
+		// zeroes below and sounds like the tune stumbled. Counting it is what turns
+		// "it hiccups sometimes on Safari" into a number, and tells us how long the
+		// decode worker actually stalls, which is what the jitter buffer has to outlast.
+		this.underruns = 0; // distinct dry spells
+		this.silentFrames = 0; // frames of silence emitted in total
+		this.inUnderrun = false;
+		this.sinceReport = 0; // frames rendered since the last report
+		this.reportedFrames = 0;
 	}
 
 	onControl(e) {
@@ -103,6 +113,34 @@ class MPT extends AudioWorkletProcessor {
 			// Underrun (worker fell behind) or end of song — fill with silence.
 			left.fill(0, i);
 			right.fill(0, i);
+			// Only count it as a dropout while the song is still running; the tail after
+			// the last chunk of a finished tune is silence by definition, not a fault.
+			if (!this.eofPending) {
+				this.silentFrames += n - i;
+				if (!this.inUnderrun) {
+					this.underruns++;
+					this.inUnderrun = true;
+				}
+			}
+		} else if (this.inUnderrun) {
+			this.inUnderrun = false;
+		}
+
+		// Report at most once a second, and only when something was actually lost, so a
+		// healthy stream posts nothing at all from the audio thread.
+		this.sinceReport += n;
+		if (this.sinceReport >= sampleRate) {
+			if (this.silentFrames > this.reportedFrames) {
+				this.port.postMessage({
+					cmd: 'underrun',
+					events: this.underruns,
+					frames: this.silentFrames,
+					lostMs: Math.round((this.silentFrames / sampleRate) * 1000),
+					sinceMs: Math.round(((this.silentFrames - this.reportedFrames) / sampleRate) * 1000)
+				});
+				this.reportedFrames = this.silentFrames;
+			}
+			this.sinceReport = 0;
 		}
 		if (!this.queue.length && this.eofPending && !this.endSent) {
 			this.port.postMessage({ cmd: 'end' });

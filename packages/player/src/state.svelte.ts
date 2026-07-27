@@ -63,6 +63,11 @@ export const playback = $state({
   queueIndex: -1,
   queueLength: 0,
   error: null as string | null,
+  // Audio dropped because the decode worker couldn't keep the worklet fed (see the
+  // onUnderrun wiring). Counters, not a fault state: a dropout is already audible, and
+  // these exist to say how bad and how often.
+  underruns: 0,
+  underrunMs: 0,
   // Custom-build capability (this app's vendored WASM carries the sample-read
   // shim; party's stock build doesn't). Set once the engine reports ready. UI
   // (keyboard, waveform pane) gates on it so the shared package degrades.

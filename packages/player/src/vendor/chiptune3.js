@@ -196,6 +196,9 @@ export class ChiptuneJsPlayer {
 			case 'err':
 				this.fireEvent('onError', { type: d.val });
 				break;
+			case 'underrun':
+				this.fireEvent('onUnderrun', d);
+				break;
 			default:
 				break;
 		}
@@ -212,6 +215,11 @@ export class ChiptuneJsPlayer {
 	}
 	onEnded(h) {
 		this.addHandler('onEnded', h);
+	}
+	/** The audio thread ran out of decoded PCM and emitted silence. Reported at most
+	 *  once a second, and only when frames were actually lost. */
+	onUnderrun(h) {
+		this.addHandler('onUnderrun', h);
 	}
 	onError(h) {
 		this.addHandler('onError', h);

@@ -476,6 +476,20 @@ function ensurePlayer(): Promise<void> {
       syncNowPlaying();
     }
   });
+  // Dropped audio. libopenmpt renders in a Worker and feeds the audio worklet over a
+  // port, so a stalled worker starves the audio thread and it emits silence — the tune
+  // stumbles with nothing logged anywhere. Safari throttles background workers hard
+  // enough to do this across an app switch. Surfaced rather than fixed: the numbers say
+  // how long the stall actually lasts, which is what the jitter buffer has to be sized
+  // to outlast (decoder.worker.js TARGET). The worklet reports at most once a second and
+  // only when frames were lost, so a healthy stream is silent.
+  player.onUnderrun((d: { events: number; lostMs: number; sinceMs: number }) => {
+    playback.underruns = d.events;
+    playback.underrunMs = d.lostMs;
+    console.warn(
+      `[audio] dropped ${d.sinceMs}ms just now — ${d.events} dropouts, ${d.lostMs}ms total this session`,
+    );
+  });
   player.onError((e: { type?: string }) => {
     playback.error = e?.type ?? "playback error";
     consecutiveErrors++;
