@@ -861,8 +861,11 @@
       600 1.05cqmin/1 var(--halo-font-body, system-ui),
       sans-serif;
     letter-spacing: 0.16em;
-    color: #fffffff2;
-    text-shadow: 0 0.06cqmin 0.06cqmin #00000055;
+    /* Printed on the plastic, so it has to INVERT with it, not merely track it: light
+       lettering on a dark set, dark lettering on a light one. --text already flips that
+       way; a little of the frame mixed back in keeps it printed rather than glowing. */
+    color: color-mix(in srgb, var(--text) 88%, var(--bezel));
+    text-shadow: 0 0.06cqmin 0.06cqmin rgb(0 0 0 / 0.35);
     white-space: nowrap;
   }
 
@@ -881,6 +884,16 @@
        and its height can't drift apart. Custom properties substitute as tokens, so the
        cqmin resolves where it's USED — against this element, which is the container. */
     --frame: 3.4cqmin;
+    /* The set's plastic, derived from --panel-hi (i.e. --halo-off-bg) rather than the
+       hard-coded greys this used to carry. That token is already dark on the dark theme
+       and light on the light one, so the frame sits in the room's lighting instead of
+       glowing out of a dark page — and it flips with the theme for free. A little accent
+       mixed in keeps it warm moulded plastic rather than neutral grey, and follows a
+       re-themed accent the way the visualisers now do. */
+    --bezel: color-mix(in srgb, var(--panel-hi) 94%, var(--accent));
+    --bezel-hi: color-mix(in srgb, var(--bezel) 82%, white);
+    --bezel-lo: color-mix(in srgb, var(--bezel) 84%, black);
+    --bezel-lip: color-mix(in srgb, var(--bezel) 52%, black);
   }
   .vizbody {
     flex: 1;
@@ -903,12 +916,14 @@
     border-radius: 3cqmin;
     z-index: 3;
     pointer-events: none;
+    /* Face plate, then a lighter top lip and darker bottom one for the moulded bevel,
+       then the dark recess the glass sits in. All from --bezel, so the whole frame
+       follows the theme together. */
     box-shadow:
-      /* the moulded face plate, out past every edge of the pane */
-      0 0 0 100cqmax #a09c95,
-      /* a lighter top lip and a darker bottom one, for the bevel */ 0 -0.4cqmin 0 0.2cqmin #b8b4ac,
-      0 0.4cqmin 0 0.2cqmin #86837d,
-      /* the dark recess the glass sits in */ inset 0 0 0 0.35cqmin #55534f,
+      0 0 0 100cqmax var(--bezel),
+      0 -0.4cqmin 0 0.2cqmin var(--bezel-hi),
+      0 0.4cqmin 0 0.2cqmin var(--bezel-lo),
+      inset 0 0 0 0.35cqmin var(--bezel-lip),
       inset 0 0 2.6cqmin 0.5cqmin rgb(0 0 0 / 0.8);
   }
 

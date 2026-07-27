@@ -102,3 +102,59 @@ test("on a phone the viz picker is a stepper row with a sheet for the full set",
   await expect(overlay.locator(".vizsheet")).toHaveCount(0);
   await expect(overlay).toBeVisible();
 });
+
+// The CRT bezel is the one part of the viz pane with no test at all — it's CSS, so no
+// component test renders it, and it had been carrying hard-coded greys that ignored the
+// theme. It now derives from --panel-hi, which is dark on the dark theme and light on the
+// light one, so the set sits in the room's lighting rather than glowing out of a dark page.
+//
+// Asserted on the RESOLVED box-shadow colour rather than the custom property: the property
+// holds an unresolved color-mix() expression, which would pass this test while painting
+// anything at all.
+test("the CRT bezel takes its grey from the theme", async ({ context, page }) => {
+  await mockLibrary(context);
+  await page.goto("/");
+  await page.locator("button.row").first().click();
+  const overlay = page.locator(".pattern-overlay");
+  await overlay.getByRole("button", { name: "viz", exact: true }).click();
+
+  // CRT is on by default, so the bezel is there; turning it off takes it away.
+  const bezel = overlay.locator(".bezel");
+  await expect(bezel).toHaveCount(1);
+
+  // Perceived lightness of the face plate. Measured by painting --bezel onto a throwaway
+  // probe and reading back its background-color, which a browser always resolves to
+  // rgb(). Neither of the direct routes works: the custom property computes to an
+  // unresolved color-mix() expression, and box-shadow keeps it unresolved too — parsing
+  // that string found the inset recess's rgb(0 0 0) instead and reported 0 for both
+  // themes.
+  const plateLightness = async () =>
+    await bezel.evaluate((el) => {
+      const probe = document.createElement("div");
+      probe.style.background = "var(--bezel)";
+      el.parentElement!.appendChild(probe);
+      const rgb = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      // Two serialisations to handle: plain rgb(), and color(srgb r g b) with 0..1
+      // components, which is how a color-mix() result comes back.
+      const srgb = /color\(srgb ([^)]+)\)/.exec(rgb);
+      const plain = /rgba?\(([^)]+)\)/.exec(rgb);
+      if (!srgb && !plain) throw new Error("unresolved bezel colour: " + rgb);
+      const parts = (srgb ? srgb[1] : plain![1]).split(/[ ,/]+/).map((n) => parseFloat(n));
+      const [r, g, b] = srgb ? parts.slice(0, 3).map((n) => n * 255) : parts;
+      return 0.299 * r + 0.587 * g + 0.114 * b;
+    });
+
+  await page.evaluate(() => (document.documentElement.dataset.theme = "dark"));
+  const dark = await plateLightness();
+  await page.evaluate(() => (document.documentElement.dataset.theme = "light"));
+  const light = await plateLightness();
+
+  // Lighter on the light theme, darker on the dark one, and by a margin you can see —
+  // two greys a few points apart would satisfy a bare inequality and look identical.
+  expect(light, `light=${light} dark=${dark}`).toBeGreaterThan(dark + 60);
+
+  // And it belongs to the screen, not the pane: no CRT, no bezel.
+  await overlay.getByRole("button", { name: /CRT screen/ }).click();
+  await expect(overlay.locator(".bezel")).toHaveCount(0);
+});
