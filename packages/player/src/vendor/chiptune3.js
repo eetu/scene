@@ -135,6 +135,9 @@ export class ChiptuneJsPlayer {
 
 	handleWorkerMessage_(d) {
 		switch (d.cmd) {
+			case 'renderload':
+				this.fireEvent('onRenderLoad', d);
+				break;
 			case 'ready':
 				this.workerReady = true;
 				if (d.caps) this.capabilities = d.caps;
@@ -228,6 +231,11 @@ export class ChiptuneJsPlayer {
 	 *  parse and first render, not the decoder falling behind. */
 	onLoadGap(h) {
 		this.addHandler('onLoadGap', h);
+	}
+	/** Share of real time the decoder spends rendering — tells compute-bound apart
+	 *  from simply-not-scheduled when audio drops out. */
+	onRenderLoad(h) {
+		this.addHandler('onRenderLoad', h);
 	}
 	onError(h) {
 		this.addHandler('onError', h);

@@ -40,6 +40,26 @@ const TARGET = 72; // chunks kept in flight (~1.5s jitter buffer) — deep enoug
 
 let lib = null;
 let sampleRate = 48000;
+
+// Render cost, as a share of real time. The question this answers: when the audio drops
+// out under load, is this worker compute-bound (so cheaper rendering — a lower output
+// rate, a shorter interpolation filter — would buy headroom), or simply not being
+// SCHEDULED (in which case rendering faster changes little and only a deeper buffer
+// helps)? Guessing between those two is how you end up tuning the wrong knob.
+let renderMs = 0;
+let renderedFrames = 0;
+function reportLoad() {
+	// Every ~5s of audio, so it is a stable average rather than per-chunk noise.
+	if (renderedFrames < sampleRate * 5) return;
+	const audioMs = (renderedFrames / sampleRate) * 1000;
+	self.postMessage({
+		cmd: 'renderload',
+		percent: Math.round((renderMs / audioMs) * 1000) / 10,
+		perChunkMs: Math.round((renderMs / (renderedFrames / CHUNK)) * 100) / 100
+	});
+	renderMs = 0;
+	renderedFrames = 0;
+}
 let config = { repeatCount: -1, stereoSeparation: 100, interpolationFilter: 0 };
 
 let modulePtr = 0; // the song being played (a plain module)
@@ -157,7 +177,11 @@ function renderAndSend() {
 	for (let i = 0; i < channels; i++) {
 		vu.push(lib._openmpt_module_get_current_channel_vu_mono(modulePtr, i));
 	}
+	const t0 = performance.now();
 	const frames = lib._openmpt_module_read_float_stereo(modulePtr, sampleRate, CHUNK, leftPtr, rightPtr);
+	renderMs += performance.now() - t0;
+	renderedFrames += frames;
+	reportLoad();
 	if (frames === 0) {
 		eof = true;
 		pcmPort.postMessage({ gen, eof: true });

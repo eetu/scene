@@ -515,6 +515,19 @@ function ensurePlayer(): Promise<void> {
   // different fix — a deeper jitter buffer cannot help, since the buffer is deliberately
   // emptied on a song change — and because counting it as starvation hid whether real
   // starvation was happening at all.
+  // How much real time the decoder burns rendering. Under 5% it has ample headroom and
+  // any dropout is the worker not being scheduled — cheaper rendering (a lower output
+  // rate, a shorter interpolation filter) would buy nothing. Above ~25% it is genuinely
+  // close to the edge and those knobs matter. Logged once, not continuously: it is a
+  // property of the module and the settings, not something that drifts.
+  let renderLoadLogged = false;
+  player.onRenderLoad((d: { percent: number; perChunkMs: number }) => {
+    if (renderLoadLogged) return;
+    renderLoadLogged = true;
+    console.info(
+      `[audio] decoder using ${d.percent}% of real time (${d.perChunkMs}ms per 21ms chunk)`,
+    );
+  });
   player.onLoadGap((d: { ms: number }) => {
     playback.loadGapMs = d.ms;
     if (d.ms >= 60) console.info(`[audio] ${d.ms}ms of silence loading this track`);
