@@ -2,7 +2,6 @@ name: Automerge
 
 on:
   pull_request:
-    branches: [main]
 
 permissions:
   contents: write
@@ -11,7 +10,7 @@ permissions:
 jobs:
   automerge:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     # Skip github-actions bumps: they edit .github/workflows/*, which GITHUB_TOKEN
     # cannot merge (no `workflows` permission scope) — the run would fail and leave
     # a red X. Merge those by hand (and review the CI change). Everything else
@@ -19,8 +18,15 @@ jobs:
     if: github.actor == 'dependabot[bot]' && !startsWith(github.head_ref, 'dependabot/github_actions')
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - name: Automerge Dependabot PR
-        uses: eetu/action-automerge@3b0f8a84c10e656fd6775c5792265c64c8961ed9 # v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+      # Native GitHub auto-merge: merges once the REQUIRED checks pass — here the
+      # `main` ruleset requires the "CI gate" job, which is the only job that always
+      # reports (`if: always()`), since the rest are skipped by the `changes` path
+      # filter. Required-only is the point: this replaces the retired house action
+      # (eetu/action-automerge, archived and read-only), which counted a SKIPPED
+      # check as still-pending and so polled until its own timeout on every PR that
+      # didn't run every job.
+      - name: Enable auto-merge
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
