@@ -38,6 +38,7 @@
     prefetchTubes,
     SampleBrowser,
     Scope,
+    ScrollerBoard,
     seekToOrder,
     seqToggle,
     setEditing,
@@ -459,6 +460,8 @@
           <div class="vizbody" bind:this={vizBody}>
             {#if pv.vizMode === "flip"}
               <FlipDots active={vizActive} />
+            {:else if pv.vizMode === "board"}
+              <ScrollerBoard active={vizActive} />
             {:else if pv.vizMode === "harmony"}
               <HarmonyScope active={vizActive} />
             {:else if pv.vizMode === "cube"}

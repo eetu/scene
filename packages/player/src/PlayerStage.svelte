@@ -3,6 +3,7 @@
   type VizMode =
     | "vu"
     | "flip"
+    | "board"
     | "cube"
     | "wave"
     | "stars"
@@ -16,6 +17,7 @@
   const VIZ: VizMode[] = [
     "vu",
     "flip",
+    "board",
     "cube",
     "wave",
     "stars",
@@ -55,6 +57,7 @@
   import Plasma from "./Plasma.svelte";
   import SampleBrowser from "./SampleBrowser.svelte";
   import Scope from "./Scope.svelte";
+  import ScrollerBoard from "./ScrollerBoard.svelte";
   import SpeakerPaint from "./SpeakerPaint.svelte";
   import Starfield from "./Starfield.svelte";
   import Tunnel from "./Tunnel.svelte";
@@ -147,6 +150,8 @@
         <div class="vizbody">
           {#if vizMode === "flip"}
             <FlipDots active={playing} />
+          {:else if vizMode === "board"}
+            <ScrollerBoard active={playing} />
           {:else if vizMode === "cube"}
             <LedBars active={playing} />
           {:else if vizMode === "wave"}

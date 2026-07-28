@@ -289,52 +289,60 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@glowbox/crt@npm:^1.5.1":
-  version: 1.5.1
-  resolution: "@glowbox/crt@npm:1.5.1"
-  checksum: 10/33c539e2feebc941116cae5ed7102795af2fda9fe5a23e41e0d94df2a8ebbf84b57a6f23a2bb0dafedca335c98ff53c4943d7a64f85baaf8211e54bf44a0802f
+"@glowbox/crt@npm:^1.6.0":
+  version: 1.6.0
+  resolution: "@glowbox/crt@npm:1.6.0"
+  checksum: 10/5f56714b4e3db66d14f7a58575cb443204274a2bf44d5ae13e64a5571c8dea1e568ae79a9d94e46fa967d960d94cc9df50c194928571cbabe139c6b59f66a607
   languageName: node
   linkType: hard
 
-"@glowbox/flip-dot@npm:^1.5.1":
-  version: 1.5.1
-  resolution: "@glowbox/flip-dot@npm:1.5.1"
-  checksum: 10/9ec48de92099a242a80a16172f9541685f94ec683f6d32342628a662ecc8cbb56e475410a3092ceed023b0471346e23896adfb64f8ba2c017b3da7a5860c7610
+"@glowbox/flip-dot@npm:^1.6.0":
+  version: 1.6.0
+  resolution: "@glowbox/flip-dot@npm:1.6.0"
+  checksum: 10/11221e8e1a150716807c4dad140963dfff9e77bff8613e68bd9f45976cf6f2ebdc6c8b7b4eb1890db3e510565370370dc4affdaf60f0a28f349c6a2ebe8db5b6
   languageName: node
   linkType: hard
 
-"@glowbox/led-grid@npm:^1.5.1":
-  version: 1.5.1
-  resolution: "@glowbox/led-grid@npm:1.5.1"
-  checksum: 10/de20072af530cbcf837e5de763ab10fea6ac83e85ba675b9440575b05fc1f313fa80dafd74e9c6fc523da66c909aa538af8fb489357f70f261505188e07fee1f
+"@glowbox/led-grid@npm:^1.6.0":
+  version: 1.6.0
+  resolution: "@glowbox/led-grid@npm:1.6.0"
+  checksum: 10/e6dc04bc32be7793ded5296e4deddf4ebb9b528b97a7875be315776d497976152bc19e37098cfe89808a8abf7acc57d79fc11b585f7ab7281e5c46cceefcfa77
   languageName: node
   linkType: hard
 
-"@glowbox/nixie@npm:^1.5.1":
-  version: 1.5.1
-  resolution: "@glowbox/nixie@npm:1.5.1"
-  checksum: 10/6711c9bce8b6e3587bbdfa47a394ca45388a3f4cfe0487bc4def9aa54fa0fae17a8675f5eb606ca2e3d7ed9fa64237857f89fb60245d287a181290dfc5425feb
+"@glowbox/nixie@npm:^1.6.0":
+  version: 1.6.0
+  resolution: "@glowbox/nixie@npm:1.6.0"
+  checksum: 10/16ca8259191b02b326d6f8856bcff796472cab6dcba8998fda3fc4dc76ece559b590e95a0fa9ecb02c472ce77bb26a8f33e09a2462543dbd1348b8b2759bd1bc
   languageName: node
   linkType: hard
 
-"@glowbox/seven-segment@npm:^1.5.1":
-  version: 1.5.1
-  resolution: "@glowbox/seven-segment@npm:1.5.1"
-  checksum: 10/d81a289d95b279955ede7131dc9f204b6904adb6d8937123c8c6c984fb82eaaa59482d93683ddda3a5887c36826b878890ff1829d3920167d95459070d00003a
+"@glowbox/seven-segment@npm:^1.6.0":
+  version: 1.6.0
+  resolution: "@glowbox/seven-segment@npm:1.6.0"
+  checksum: 10/0766f4c24341cd044d0642801353fd0f7383ea38fc6d180264f2dcbdf2cf0504fbc83fdae4711d7fe17a302ac0a532a4b78cbe248e032198bb249f9654aa57d3
   languageName: node
   linkType: hard
 
-"@glowbox/svelte@npm:^1.5.1":
-  version: 1.5.1
-  resolution: "@glowbox/svelte@npm:1.5.1"
+"@glowbox/split-flap@npm:^1.6.0":
+  version: 1.6.0
+  resolution: "@glowbox/split-flap@npm:1.6.0"
+  checksum: 10/56113006344f72162600640d15858adb11a6dc9d965704b7ea29d63035df0a377a3044aca81081a82a1592f26115df4b97cccb21cc281a2b54402205227d32f7
+  languageName: node
+  linkType: hard
+
+"@glowbox/svelte@npm:^1.6.0":
+  version: 1.6.0
+  resolution: "@glowbox/svelte@npm:1.6.0"
   dependencies:
-    "@glowbox/flip-dot": "npm:^1.5.1"
-    "@glowbox/led-grid": "npm:^1.5.1"
-    "@glowbox/nixie": "npm:^1.5.1"
-    "@glowbox/seven-segment": "npm:^1.5.1"
+    "@glowbox/flip-dot": "npm:^1.6.0"
+    "@glowbox/led-grid": "npm:^1.6.0"
+    "@glowbox/nixie": "npm:^1.6.0"
+    "@glowbox/seven-segment": "npm:^1.6.0"
+    "@glowbox/split-flap": "npm:^1.6.0"
   peerDependencies:
     svelte: ^5
-  checksum: 10/aa9837d10e8d0f9448bf74660970d0cb61ad7166fec610fa4b0e6a971a4aa20aa5a2ba2837be2268d6fe380b992892d34ad3bd96ede9477fa314c36d9900d02f
+  checksum: 10/0a5ea6be1f74af94848ac4ba7b95d066b2405d08e5a982e2fff7ccd15e0585beb2606c9b37a70a3c9fc6f1e429a585b9eeceb7976ed60c9210e5354136955c06
   languageName: node
   linkType: hard
 
@@ -740,10 +748,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@scene/player@workspace:packages/player"
   dependencies:
-    "@glowbox/crt": "npm:^1.5.1"
-    "@glowbox/flip-dot": "npm:^1.5.1"
-    "@glowbox/nixie": "npm:^1.5.1"
-    "@glowbox/svelte": "npm:^1.5.1"
+    "@glowbox/crt": "npm:^1.6.0"
+    "@glowbox/flip-dot": "npm:^1.6.0"
+    "@glowbox/nixie": "npm:^1.6.0"
+    "@glowbox/split-flap": "npm:^1.6.0"
+    "@glowbox/svelte": "npm:^1.6.0"
     "@scene/design": "workspace:*"
     "@sveltejs/vite-plugin-svelte": "npm:^7.2.0"
     "@types/three": "npm:^0.185.1"

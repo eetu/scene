@@ -14,7 +14,7 @@ import { page } from "vitest/browser";
 import { expect, test } from "vitest";
 
 import { installTheme } from "./viz-feed";
-import { minFill, settleFor, VIZ } from "./viz-list";
+import { minFill, minMotion, settleFor, VIZ } from "./viz-list";
 import { captureViz } from "./viz-shots";
 
 const OUT = "viz-gallery";
@@ -41,8 +41,9 @@ test("every visualiser draws and moves", { timeout: 600000 }, async () => {
     const s = shots[v.id];
     // Something is on screen, against a floor that suits the effect (see minFill).
     expect.soft(s.fill, `${v.id} drew nothing`).toBeGreaterThan(minFill(v.id));
-    // And it is animating, not a frozen first frame.
-    expect.soft(s.motion, `${v.id} is static`).toBeGreaterThan(0.05);
+    // And it is animating, not a frozen first frame (see minMotion for the one
+    // effect whose stillness is deliberate).
+    expect.soft(s.motion, `${v.id} is static`).toBeGreaterThanOrEqual(minMotion(v.id));
   }
 
   // The dancer's moiré backdrop is scenery behind a figure. At the theme's own

@@ -22,6 +22,7 @@ export { default as NixieScene } from "./NixieScene.svelte";
 export { prefetchTubes } from "./prefetch";
 export { default as PatternView } from "./PatternView.svelte";
 export { default as SampleBrowser } from "./SampleBrowser.svelte";
+export { default as ScrollerBoard } from "./ScrollerBoard.svelte";
 export { default as Plasma } from "./Plasma.svelte";
 export { default as Starfield } from "./Starfield.svelte";
 export { default as SpeakerPaint } from "./SpeakerPaint.svelte";

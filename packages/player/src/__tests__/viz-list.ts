@@ -11,6 +11,7 @@ import HarmonyScope from "../HarmonyScope.svelte";
 import LedBars from "../LedBars.svelte";
 import NixieScene from "../NixieScene.svelte";
 import Plasma from "../Plasma.svelte";
+import ScrollerBoard from "../ScrollerBoard.svelte";
 import SpeakerPaint from "../SpeakerPaint.svelte";
 import Starfield from "../Starfield.svelte";
 import Tunnel from "../Tunnel.svelte";
@@ -19,6 +20,7 @@ import VuMeters from "../VuMeters.svelte";
 export const VIZ = [
   { id: "vu", comp: VuMeters },
   { id: "flip", comp: FlipDots },
+  { id: "board", comp: ScrollerBoard },
   { id: "harmony", comp: HarmonyScope },
   { id: "cube", comp: LedBars },
   { id: "wave", comp: GlowWave },
@@ -41,6 +43,16 @@ export const VIZ = [
  *  fails one that is working. */
 export const minFill = (id: string) => (id === "harmony" ? 0.4 : 2);
 
+/** Lowest plausible frame-to-frame change, as a percentage.
+ *
+ *  Zero for the scroller board, and only for it: it is the one visualiser whose
+ *  resting state is the point. It holds a page for ~15s so the words can be read, so
+ *  across the gallery's two frames it is usually mid-hold and measures 0. That it
+ *  turns the page at all is asserted where the timescale suits it —
+ *  scroller-board.svelte.test.ts waits out a full hold and compares the text. */
+export const minMotion = (id: string) => (id === "board" ? 0 : 0.05);
+
 /** The 2D-canvas effects are up on the first frame; the three.js scenes have a lazy
  *  import and a scene build to get through first. */
-export const settleFor = (id: string) => (id === "ball" || id === "copper" ? 600 : 2200);
+export const settleFor = (id: string) =>
+  id === "ball" || id === "copper" ? 600 : id === "board" ? 3500 : 2200;
