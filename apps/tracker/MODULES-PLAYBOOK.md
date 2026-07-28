@@ -196,6 +196,13 @@ rather than a physical merge.
   clean filenames, one file per tune. An author appears under **several format
   dirs**; sweep them all. Enumerate the **live directory** — counts from memory or
   an agent under-report.
+  - **Start from the bulk index, not the directory listings:**
+    `https://ftp.modland.com/pub/documents/allmods_md5.zip` (~21 MB → ~45 MB of
+    `md5<space>path`, rebuilt daily). Because it carries **md5**, "do we already
+    have this tune?" is a local join against `files.md5` in the tracker DB — no
+    downloads, no name matching, and it answers the artist-sweep and the
+    dedup question in one grep. (An older `allmods.txt` listed size+path only;
+    the doc comment in `backend/src/modland.rs` still says md5 isn't available.)
 - **AMP** (Amiga Music Preservation) — `https://amp.dascene.net/`. Fallback for
   artists/tunes not on Modland. `detail.php?detail=modules&view=<id>` lists a
   composer's modules; `downmod.php?index=<N>` 302-redirects to a **gzipped** file
@@ -353,3 +360,11 @@ trust an author dir by name alone:
   library is now purely `group/artist` + `_groupless` (~473 group folders,
   ~524 groupless). Notable: Purple Motion->Future Crew, Drax & Jeroen Tel->Maniacs
   of Noise, mislabeled folders relocated to the real artist.
+- **Qualified artist folders** (a `(qualifier)` suffix = a reused handle already
+  taken by someone else in the tree, Modland's own `Xerxes (SE)` convention):
+  - `Xerxes (Brainstorm)` — signs `xerxes/brainstorm` + xerxes-music.com, Demozoo
+    scener 552. Plain `Xerxes` is scener 4164 (Voice/Cycron, aka Fix, Amiga).
+  - `Probe (Affection)` — Modland files him under an author dir named `Affection`,
+    but both tunes there read "Composed By Probe / Affection/Oxylon": that dir is a
+    **group**, and the manifest already knew it (Roadrunner is an Affection member).
+    Plain `Probe` is the vd&tbl / Razor 1911 one.
