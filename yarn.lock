@@ -282,10 +282,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@fontsource-variable/inter@npm:^5.2.8":
-  version: 5.2.8
-  resolution: "@fontsource-variable/inter@npm:5.2.8"
-  checksum: 10/7f45ab415f0d3c43f31129dd9972dcbfb60ebe51801891b9a88a7ba395d4be664c507b0027138f42307b9ffe91bdd564fcae98bce5b244046274f4aceae07382
+"@fontsource-variable/inter@npm:^5.3.0":
+  version: 5.3.0
+  resolution: "@fontsource-variable/inter@npm:5.3.0"
+  checksum: 10/b7d30aa2605cc1b4db5d87ddc06de7b315c7b0e67c919052c8002d11670ee41fc0a0fcb01b7adbe8243bb889230ab61fbc0b0b84d34fd1fd4cf6f6f641a0ff73
   languageName: node
   linkType: hard
 
@@ -440,12 +440,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lucide/svelte@npm:^1.24.0":
-  version: 1.24.0
-  resolution: "@lucide/svelte@npm:1.24.0"
+"@lucide/svelte@npm:^1.25.0":
+  version: 1.25.0
+  resolution: "@lucide/svelte@npm:1.25.0"
   peerDependencies:
     svelte: ^5
-  checksum: 10/b8c70e30b4f22d3c83ae6d31a130d284daa12a40a4b95e28c5db01635124f8d006c36ae35234ff34f0acba9b035d2eb2d7c78fe83f5fa163883912421f8eee6e
+  checksum: 10/02e1ceab90aa29af5aff59c329e8fad55e557bc0e467fa9c4b87d782930da32a7415d6fb2fd8c5af17d087e55a483e5303172ded37caaa2f079c2191083404e9
   languageName: node
   linkType: hard
 
@@ -794,9 +794,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sveltejs/kit@npm:^2.69.3":
-  version: 2.69.3
-  resolution: "@sveltejs/kit@npm:2.69.3"
+"@sveltejs/kit@npm:^2.70.1":
+  version: 2.70.1
+  resolution: "@sveltejs/kit@npm:2.70.1"
   dependencies:
     "@standard-schema/spec": "npm:^1.0.0"
     "@sveltejs/acorn-typescript": "npm:^1.0.9"
@@ -823,7 +823,7 @@ __metadata:
       optional: true
   bin:
     svelte-kit: svelte-kit.js
-  checksum: 10/4d4430497adfe12b7feb8e3092459398cd540c21037f17e201c7d7efcf987862b818e9f16fbf248392493fdd962f8c1f287df03c972cdc5478d1eb206a96dafe
+  checksum: 10/5bc541f33981d45db903763ef844310df6454227e640b21c2799234c427822c9593e10f87ebef38e055dbd9558a489d828490916fb07cffbd5fbc4db0dd0dd17
   languageName: node
   linkType: hard
 
@@ -849,21 +849,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/svelte-virtual@npm:^3.13.32":
-  version: 3.13.32
-  resolution: "@tanstack/svelte-virtual@npm:3.13.32"
+"@tanstack/svelte-virtual@npm:^3.13.34":
+  version: 3.13.34
+  resolution: "@tanstack/svelte-virtual@npm:3.13.34"
   dependencies:
-    "@tanstack/virtual-core": "npm:3.17.4"
+    "@tanstack/virtual-core": "npm:3.17.6"
   peerDependencies:
     svelte: ^3.48.0 || ^4.0.0 || ^5.0.0
-  checksum: 10/041d699ada98f1b3d4f86f26d9ec42c0e0fefc7046ab6893fe8c368dcd10d703607f0222e30090a785d56f60d9523bff10c53d8217b025f4d3989ef72ace8401
+  checksum: 10/44b36dce015922a81d834c556ef793dd055bbe423c9a67459cf41c871ecfc1d79dc0d0722da1f85ba04b1eccce1e5d19285b190295ae44be9286c943e941f9f7
   languageName: node
   linkType: hard
 
-"@tanstack/virtual-core@npm:3.17.4":
-  version: 3.17.4
-  resolution: "@tanstack/virtual-core@npm:3.17.4"
-  checksum: 10/a0bcb45b76511b8aaff07d9dd64988fb019a2b87e7370e1d5fd39ccc729f9cb026b2afbfb0270c2d406ec86811c91232125a83d51582c86a79f7a12cc427cb91
+"@tanstack/virtual-core@npm:3.17.6":
+  version: 3.17.6
+  resolution: "@tanstack/virtual-core@npm:3.17.6"
+  checksum: 10/17a067cf0bf5796b4bdc8572ae22ff7f99096b4bd4f84c12bf5d45303aefb227e7e755f1e064c8689f72658ae952d2ea8c5583817da450707e5a46113778396e
   languageName: node
   linkType: hard
 
@@ -2482,22 +2482,22 @@ __metadata:
   dependencies:
     "@anarkisti/eslint-config": "npm:^1.0.0"
     "@anarkisti/igyb": "npm:^0.5.0"
-    "@fontsource-variable/inter": "npm:^5.2.8"
-    "@lucide/svelte": "npm:^1.24.0"
+    "@fontsource-variable/inter": "npm:^5.3.0"
+    "@lucide/svelte": "npm:^1.25.0"
     "@playwright/test": "npm:^1.61.1"
     "@scene/design": "workspace:*"
     "@scene/player": "workspace:*"
     "@sveltejs/adapter-static": "npm:^3.0.10"
-    "@sveltejs/kit": "npm:^2.69.3"
+    "@sveltejs/kit": "npm:^2.70.1"
     "@sveltejs/vite-plugin-svelte": "npm:^7.2.0"
-    "@tanstack/svelte-virtual": "npm:^3.13.32"
+    "@tanstack/svelte-virtual": "npm:^3.13.34"
     "@types/node": "npm:^26"
     "@vitejs/plugin-basic-ssl": "npm:^2.3.0"
     "@vitest/browser-playwright": "npm:^4.1.10"
     eslint: "npm:^10.7.0"
     js-dos: "npm:^8.4.1"
     playwright: "npm:^1.61.1"
-    prettier: "npm:^3.9.5"
+    prettier: "npm:^3.9.6"
     prettier-plugin-svelte: "npm:^4.0.1"
     svelte: "npm:^5.56.6"
     svelte-check: "npm:^4.7.3"
@@ -2685,12 +2685,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier@npm:^3.9.5":
-  version: 3.9.5
-  resolution: "prettier@npm:3.9.5"
+"prettier@npm:^3.9.6":
+  version: 3.9.6
+  resolution: "prettier@npm:3.9.6"
   bin:
     prettier: bin/prettier.cjs
-  checksum: 10/b6587f1582ba653ce5207ee227aff646500e5098646931088f176d1ab090b1f47d5a333f1facd634e9aa7dcb15c45940e2cec13a5962534cf0200617517b67b6
+  checksum: 10/1dd1a1e0e40ec3b91cda9d294c4a95022aef61880ca3f441aad99b1252279f58a766c4cece81132c01550dcff1fd445efbd8812ea4a2374313e7fc6c8136f11f
   languageName: node
   linkType: hard
 
@@ -2940,7 +2940,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "scene@workspace:."
   dependencies:
-    prettier: "npm:^3.9.5"
+    prettier: "npm:^3.9.6"
     prettier-plugin-svelte: "npm:^4.0.1"
     svelte: "npm:^5.56.6"
   languageName: unknown
@@ -3150,22 +3150,22 @@ __metadata:
   resolution: "tracker-frontend@workspace:apps/tracker/frontend"
   dependencies:
     "@anarkisti/eslint-config": "npm:^1.0.0"
-    "@fontsource-variable/inter": "npm:^5.2.8"
-    "@lucide/svelte": "npm:^1.24.0"
+    "@fontsource-variable/inter": "npm:^5.3.0"
+    "@lucide/svelte": "npm:^1.25.0"
     "@playwright/test": "npm:^1.61.1"
     "@scene/design": "workspace:*"
     "@scene/player": "workspace:*"
     "@sveltejs/adapter-static": "npm:^3.0.10"
-    "@sveltejs/kit": "npm:^2.69.3"
+    "@sveltejs/kit": "npm:^2.70.1"
     "@sveltejs/vite-plugin-svelte": "npm:^7.2.0"
-    "@tanstack/svelte-virtual": "npm:^3.13.32"
+    "@tanstack/svelte-virtual": "npm:^3.13.34"
     "@types/node": "npm:^26"
     "@vitejs/plugin-basic-ssl": "npm:^2.3.0"
     "@vitest/browser-playwright": "npm:^4.1.10"
     eslint: "npm:^10.7.0"
     fflate: "npm:^0.8.3"
     playwright: "npm:^1.61.1"
-    prettier: "npm:^3.9.5"
+    prettier: "npm:^3.9.6"
     prettier-plugin-svelte: "npm:^4.0.1"
     svelte: "npm:^5.56.6"
     svelte-check: "npm:^4.7.3"
