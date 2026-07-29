@@ -33,6 +33,25 @@ export function toggleCrt() {
   setCrt(!crt.on);
 }
 
+/** Visualisers the CRT screen does not belong in front of.
+ *
+ *  Not a taste call. The screen simulates a phosphor tube — scanlines, a shadow mask, a
+ *  barrel-warped glass face. Every other visualiser here is light emitted by a display,
+ *  so a tube in front of it is another display in the chain and reads as period hardware.
+ *  These two are not displays in that sense: a flip-dot matrix and a Solari panel are
+ *  physical objects in a room, printed cards and painted discs lit by whatever light is
+ *  around them. Putting a raster over them says they are emitting, which is exactly the
+ *  illusion they trade on not doing, and the barrel warp bends cards that are supposed to
+ *  be flat.
+ *
+ *  They also carry controls drawn into the panel, which the screen cannot composite. */
+const MECHANICAL = new Set(["flip", "board"]);
+
+/** Should the CRT screen be mounted for this visualiser? */
+export function crtSuits(viz: string): boolean {
+  return !MECHANICAL.has(viz);
+}
+
 export const CRT_OPTIONS: CrtOptions = {
   // Gentle. The pane carries overlaid readouts near its edges and the effects have
   // fine detail (the dancer's fringes, the tunnel's rings) that a strong barrel

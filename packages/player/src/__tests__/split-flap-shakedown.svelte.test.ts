@@ -208,7 +208,23 @@ test("the drum only turns forward", () => {
 // and browsers cap how many a page may have. The flip-dot core opened one on its first
 // data-driven flip, which arrives without a user gesture — this checks split-flap
 // shipped with that lesson applied.
-test("sound does not open an AudioContext until it is used", { timeout: 30000 }, async () => {
+test("sound does not open an AudioContext until it is used", { timeout: 30000 }, async (ctx) => {
+  // Precondition, not a formality. The library's contract is that sound waits for a user
+  // gesture, so "no context yet" is only meaningful while the page has had none. The test
+  // harness creates a real activation of its own when an earlier test in this file fails,
+  // and that is enough to arm the handler — verified by putting a deliberate failure in
+  // front of this measurement on a version with no bug in it and watching it read 1.
+  //
+  // That is precisely how this probe once reported a phantom regression: a genuine
+  // unrelated bug failed an earlier test, the failure armed the audio path, and the flip
+  // below opened a context exactly as designed. Skipping is the honest outcome — the
+  // question cannot be answered on a page that has already been interacted with.
+  if (navigator.userActivation?.hasBeenActive) {
+    ctx.skip(
+      "page already has user activation (an earlier failure in this file?) — " +
+        "the no-gesture precondition is gone, so this cannot measure anything",
+    );
+  }
   const c = host();
   const Real = window.AudioContext;
   let built = 0;
