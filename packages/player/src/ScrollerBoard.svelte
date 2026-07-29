@@ -338,11 +338,15 @@
      part of the picture, and the same is already true of the pane's own crt and
      fullscreen buttons. z-index rather than DOM order because the screen appends its
      canvas after this one. */
+  /* Full height of the pane: the rail is a map of the script, and a 3.6rem stub of it
+     floating mid-edge showed the thumb's position without giving it room to mean much.
+     Stretched top to bottom, a glance at the thumb tells you how far through the
+     module's text you are. */
   .pager {
     position: absolute;
     right: 0.4rem;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 0.4rem;
+    bottom: 0.4rem;
     z-index: 3;
     display: flex;
     flex-direction: column;
@@ -351,6 +355,7 @@
   .pager button {
     display: grid;
     place-items: center;
+    flex: 0 0 auto;
     width: 2rem;
     height: 2rem;
     padding: 0;
@@ -379,8 +384,11 @@
      as one control. */
   .rail {
     position: relative;
+    flex: 1 1 auto;
     width: 2rem;
-    height: 3.6rem;
+    /* Floor so the rail survives a short pane (a phone in landscape) rather than
+       collapsing to nothing between the two arrows. */
+    min-height: 1.5rem;
     opacity: 0.45;
     transition: opacity 120ms ease;
   }
@@ -414,5 +422,29 @@
     stroke-width: 2.4;
     stroke-linecap: square;
     stroke-linejoin: miter;
+  }
+  /* Touch. A 2rem (32px) target is comfortably under the 44px both platforms ask for,
+     and this one sits at the very edge of the pane where the thumb approaches at an
+     angle — the two worst factors together. Widened rather than just made taller, so
+     the rail stays aligned with the arrows and the whole column is one gesture area.
+     Keyed on pointer type, not width: a small laptop with a trackpad wants the compact
+     version, and a large tablet does not. */
+  @media (pointer: coarse) {
+    .pager button {
+      width: 2.75rem;
+      height: 2.75rem;
+    }
+    .rail {
+      width: 2.75rem;
+    }
+    .pager :global(svg) {
+      width: 1.4rem;
+      height: 1.4rem;
+    }
+    /* Nothing hovers on touch, so the resting state has to be legible on its own. */
+    .pager button,
+    .rail {
+      opacity: 0.7;
+    }
   }
 </style>
