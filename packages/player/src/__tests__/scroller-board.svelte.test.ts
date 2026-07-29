@@ -9,7 +9,6 @@ import { mount, unmount } from "svelte";
 import { page } from "vitest/browser";
 import { afterEach, expect, test } from "vitest";
 
-import { mountCrt } from "../crt.svelte";
 import ScrollerBoard from "../ScrollerBoard.svelte";
 import { playback } from "../state.svelte";
 import { startVizFeed } from "./viz-feed";
@@ -139,10 +138,14 @@ test("a script that fits the board stays put", { timeout: 90000 }, async () => {
 // deliberately placed in front of the glass — and has to still receive clicks, because
 // the screen's own canvas covers the pane. Both have gone wrong here before (a readout
 // that vanished behind the screen, and one that painted over it).
-test("the pager reaches the board through the CRT screen", { timeout: 90000 }, async () => {
+// The scrollbar is drawn INTO the panel, so the pointer path is what has to work: a tap
+// on the last column moves the board. No CRT here on purpose — the app does not mount a
+// screen over the mechanical displays (see crtSuits), and the cross-package contract that
+// used to be checked here now lives in crt.svelte.test.ts, over a visualiser that ships
+// with one.
+test("a tap on the scrollbar column scrolls the board", { timeout: 90000 }, async () => {
   await page.viewport(1000, 620);
   feed = startVizFeed();
-  // A script long enough to page through — the arrows hide when everything fits.
   playback.samples = Array.from({ length: 24 }, (_, i) => `line number ${i} of the message`);
   playback.instruments = [];
 
@@ -150,39 +153,36 @@ test("the pager reaches the board through the CRT screen", { timeout: 90000 }, a
   app = mount(ScrollerBoard, { target: host, props: { active: true } });
   await new Promise((r) => setTimeout(r, 6000));
 
-  const drop = mountCrt(host);
-  try {
-    await new Promise((r) => setTimeout(r, 1200));
+  const canvas = host.querySelector("canvas")! as HTMLCanvasElement;
+  const box = canvas.getBoundingClientRect();
+  const colW = box.width / 27; // matches the board's own sizing at this pane size
 
-    const down = host.querySelector('button[aria-label="Next lines"]') as HTMLButtonElement | null;
-    expect(down, "no pager button rendered").toBeTruthy();
+  await page.elementLocator(host).screenshot({ path: "viz-gallery/board-pager.png" });
 
-    // Visible in front of the screen, not covered by it: the topmost element at the
-    // button's centre must be the button (or its icon), not the CRT's output canvas.
-    const r = down!.getBoundingClientRect();
-    expect(r.width, "pager has no layout box").toBeGreaterThan(0);
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    expect(
-      down!.contains(hit),
-      `CRT output is covering the pager — topmost element was ${hit?.nodeName}`,
-    ).toBe(true);
+  const before = canvas.getAttribute("aria-label") ?? "";
+  canvas.dispatchEvent(
+    new PointerEvent("pointerdown", {
+      clientX: box.right - colW / 2,
+      clientY: box.bottom - 8,
+      bubbles: true,
+    }),
+  );
+  await new Promise((r) => setTimeout(r, 400));
+  expect(
+    canvas.getAttribute("aria-label"),
+    "tapping the scrollbar column did not move the board",
+  ).not.toBe(before);
 
-    await page.elementLocator(host).screenshot({ path: "viz-gallery/board-pager.png" });
-
-    const canvas = host.querySelector("canvas")!;
-    const before = canvas.getAttribute("aria-label") ?? "";
-    down!.click();
-    await new Promise((r2) => setTimeout(r2, 400));
-    const after = canvas.getAttribute("aria-label") ?? "";
-    expect(after, "clicking the pager did not move the board").not.toBe(before);
-  } finally {
-    drop();
-  }
+  // The control a canvas cannot be: named, focusable, and in the accessibility tree.
+  const scrub = host.querySelector("input.scrub") as HTMLInputElement | null;
+  expect(scrub, "no range control for the scrollbar").toBeTruthy();
+  expect(scrub!.getAttribute("aria-label"), "range has no accessible name").toBeTruthy();
+  expect(getComputedStyle(scrub!).visibility, "range is out of the a11y tree").toBe("visible");
 });
 
-// Hand paging clamps; only the unattended drift loops. The rail between the arrows is a
-// scrollbar, and a thumb resting at the bottom has to mean there is nothing below it.
-test("paging clamps at both ends instead of wrapping", { timeout: 90000 }, async () => {
+// Hand scrolling clamps; only the unattended drift loops. The column IS a scrollbar, and
+// a thumb resting at the bottom has to mean there is nothing below it.
+test("scrolling clamps at both ends instead of wrapping", { timeout: 90000 }, async () => {
   await page.viewport(1000, 620);
   feed = startVizFeed();
   playback.samples = Array.from({ length: 24 }, (_, i) => `line number ${i} of the message`);
@@ -193,28 +193,65 @@ test("paging clamps at both ends instead of wrapping", { timeout: 90000 }, async
   await new Promise((r) => setTimeout(r, 6000));
 
   const canvas = host.querySelector("canvas")!;
-  const up = host.querySelector('button[aria-label="Previous lines"]') as HTMLButtonElement;
-  const down = host.querySelector('button[aria-label="Next lines"]') as HTMLButtonElement;
-  expect(up && down, "pager did not render").toBeTruthy();
+  const scrub = host.querySelector("input.scrub") as HTMLInputElement;
+  expect(scrub, "no range control rendered").toBeTruthy();
+
+  const max = Number(scrub.max);
+  expect(max, "range has no travel on a long script").toBeGreaterThan(0);
+
+  const drive = async (value: number) => {
+    scrub.value = String(value);
+    scrub.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
+  };
 
   // Starts at the top, so back is already the end of the road.
-  expect(up.disabled, "up should be disabled at the top of the script").toBe(true);
-  expect(down.disabled, "down should be live at the top of a long script").toBe(false);
+  expect(Number(scrub.value), "did not start at the top").toBe(0);
   const head = canvas.getAttribute("aria-label") ?? "";
-  up.click();
-  await new Promise((r) => setTimeout(r, 300));
-  expect(canvas.getAttribute("aria-label"), "up wrapped to the end from the top").toBe(head);
+  await drive(-5);
+  expect(canvas.getAttribute("aria-label"), "scrolled above the top").toBe(head);
 
-  // Page to the bottom. More clicks than there are lines, to prove it stops rather than
-  // rolling over — 60 steps through a ~50-line script would wrap more than once.
-  for (let i = 0; i < 60; i++) down.click();
-  await new Promise((r) => setTimeout(r, 600));
-
-  expect(down.disabled, "down should be disabled at the end of the script").toBe(true);
-  expect(up.disabled, "up should be live once away from the top").toBe(false);
+  // Well past the end, to prove it stops rather than rolling over.
+  await drive(max + 40);
   const tail = canvas.getAttribute("aria-label") ?? "";
-  expect(tail, "60 clicks wrapped back around to the head").not.toBe(head);
-  down.click();
-  await new Promise((r) => setTimeout(r, 300));
-  expect(canvas.getAttribute("aria-label"), "down moved past the end").toBe(tail);
+  expect(tail, "driving past the end wrapped back to the head").not.toBe(head);
+  await drive(max + 200);
+  expect(canvas.getAttribute("aria-label"), "scrolled past the end").toBe(tail);
+});
+
+// The column has to SHOW the position, not just carry it: arrows at the ends and a thumb
+// that moves. Read off the board's own target characters rather than pixels.
+test("the scrollbar column draws arrows and a moving thumb", { timeout: 90000 }, async () => {
+  await page.viewport(1000, 620);
+  feed = startVizFeed();
+  playback.samples = Array.from({ length: 24 }, (_, i) => `line number ${i} of the message`);
+  playback.instruments = [];
+
+  host = stage();
+  app = mount(ScrollerBoard, { target: host, props: { active: true } });
+  await new Promise((r) => setTimeout(r, 6000));
+
+  const canvas = host.querySelector("canvas")!;
+  const label = () => canvas.getAttribute("aria-label") ?? "";
+  const scrub = host.querySelector("input.scrub") as HTMLInputElement;
+
+  // The label carries the board's shown text, last column included, so the arrows and
+  // thumb are readable from it without reaching into the canvas.
+  const top = label();
+  expect(top, "no up arrow drawn").toContain("\u25b2");
+  expect(top, "no down arrow drawn").toContain("\u25bc");
+  expect(top, "no thumb drawn").toContain("\u2588");
+
+  // Move to the end; the thumb must be somewhere else in the column than it was.
+  const thumbRows = (text: string) =>
+    text
+      .split(" / ")
+      .map((line, i) => (line.trimEnd().endsWith("\u2588") ? i : -1))
+      .filter((i) => i >= 0)
+      .join(",");
+  const atTop = thumbRows(top);
+  scrub.value = scrub.max;
+  scrub.dispatchEvent(new Event("input", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 400));
+  expect(thumbRows(label()), `thumb did not move (was rows ${atTop})`).not.toBe(atTop);
 });

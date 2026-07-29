@@ -17,11 +17,11 @@
     }
   },
   "dependencies": {
-    "@glowbox/crt": "^1.6.0",
-    "@glowbox/flip-dot": "^1.6.0",
-    "@glowbox/nixie": "^1.6.0",
-    "@glowbox/split-flap": "^1.6.0",
-    "@glowbox/svelte": "^1.6.0",
+    "@glowbox/crt": "^1.7.1",
+    "@glowbox/flip-dot": "^1.7.1",
+    "@glowbox/nixie": "^1.7.1",
+    "@glowbox/split-flap": "^1.7.1",
+    "@glowbox/svelte": "^1.7.1",
     "@scene/design": "workspace:*",
     "three": "^0.185.1",
     "xstate": "^5.32.5"

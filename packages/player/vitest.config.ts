@@ -36,6 +36,8 @@ const VISUAL = [
   "src/__tests__/flip-dot-shakedown.svelte.test.ts",
   "src/__tests__/split-flap-shakedown.svelte.test.ts",
   "src/__tests__/scroller-board.svelte.test.ts",
+  "src/__tests__/flip-board.svelte.test.ts",
+  "src/__tests__/board-departures.svelte.test.ts",
 ];
 
 export default defineConfig({

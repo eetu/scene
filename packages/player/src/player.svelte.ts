@@ -686,6 +686,32 @@ function maybeCountPlay(pos: number) {
     });
 }
 
+/** The next `n` entries the queue will play, the current one first.
+ *
+ *  A window rather than the whole queue on purpose: a cue can hand over the entire
+ *  visible library (thousands of tracks), and putting that array into `$state` would
+ *  deep-proxy every Track on every cue for the sake of a visualiser showing eight rows.
+ *  Callers re-read this when `playback.queueIndex` / `playback.current` change, which
+ *  are reactive.
+ *
+ *  Walks the same planner the transport uses, so a shuffled queue reads in the order it
+ *  will actually be heard rather than in list order. */
+export function upcoming(n: number): Track[] {
+  const out: Track[] = [];
+  if (!queue.length || playback.queueIndex < 0) return out;
+  if (playback.shuffle && shuffleOrder.length !== queue.length) buildShuffleOrder();
+  let idx: number | null = playback.queueIndex;
+  // Shuffle wraps endlessly, so stop on a repeat rather than circling forever.
+  const seen = new Set<number>();
+  while (idx !== null && out.length < n && !seen.has(idx)) {
+    seen.add(idx);
+    const t = queue[idx];
+    if (t) out.push(t);
+    idx = plannedNext(queue.length, idx, playback.shuffle, shuffleOrder);
+  }
+  return out;
+}
+
 /** Play `track` as part of an ordered `list` (enables next/prev + auto-advance). */
 export async function playInOrder(list: Track[], track: Track) {
   queue = list;

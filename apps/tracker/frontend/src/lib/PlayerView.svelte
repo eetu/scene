@@ -24,6 +24,7 @@
     BoingBall,
     CopperBars,
     crt,
+    crtSuits,
     DancerScene,
     DiscoBall,
     FlipDots,
@@ -177,6 +178,11 @@
     if (vizFs) schedulePickerHide();
     else if (pickerTimer) clearTimeout(pickerTimer);
   }
+  // Is a tube actually in front of the current visualiser? Drives the mount, the set's
+  // bezel and the toggle together — gating only the mount once left the bezel drawn
+  // around a flip-dot board with no tube inside it.
+  const crtLive = $derived(crt.on && crtSuits(pv.vizMode));
+
   // The CRT screen over the viz pane — created ONCE, not per visualiser. It owns a
   // WebGL context, a browser allows only ~16 of those at a time, and every
   // visualiser holds one of its own; re-creating the screen on each switch burned
@@ -184,9 +190,13 @@
   // ("too many active WebGL contexts, the oldest context will be lost"), blacking out
   // whichever visualiser was on screen. The screen tracks canvases appearing and
   // disappearing by itself, so a switch needs nothing from us.
+  // …and skipped entirely for the visualisers a tube does not belong in front of (see
+  // crtSuits). Mounting is already keyed on the toggle, so this adds a mount/unmount
+  // only when a switch crosses the mechanical/emissive line — not on every switch, which
+  // is the case the warning above is about.
   $effect(() => {
     const host = vizBody;
-    if (!host || !crt.on) return;
+    if (!host || !crtLive) return;
     return mountCrt(host);
   });
 
@@ -425,14 +435,21 @@
             {/each}
           {/if}
           <!-- Not a visualiser, so it sits apart from the mode list: a screen the
-               chosen one is watched through. -->
+               chosen one is watched through. Disabled rather than hidden on the
+               visualisers it doesn't apply to — the toggle keeping its place, greyed,
+               says "not for this one"; vanishing would just look like a bug, and leaving
+               it live would mean pressing it did nothing. -->
           <button
             class="crt"
-            class:on={crt.on}
+            class:on={crtLive}
+            disabled={!crtSuits(pv.vizMode)}
             onclick={toggleCrt}
-            aria-pressed={crt.on}
-            aria-label={crt.on ? "Turn the CRT screen off" : "Watch through a CRT screen"}
-            >crt</button
+            aria-pressed={crtLive}
+            aria-label={!crtSuits(pv.vizMode)
+              ? "The CRT screen doesn't apply to this visualiser"
+              : crt.on
+                ? "Turn the CRT screen off"
+                : "Watch through a CRT screen"}>crt</button
           >
         </div>
         <!-- Inside .viz-view on purpose: that element is what goes fullscreen, and a
@@ -493,7 +510,7 @@
           <!-- The set the tube is mounted in: a broadcast-monitor bezel, drawn over
                the curved face. Purely decorative and outside the CRT host, so it is
                never composited through the effect and never distorted by it. -->
-          {#if crt.on}
+          {#if crtLive}
             <div class="bezel" aria-hidden="true"></div>
             <!-- The maker's mark on the set. An invented wordmark in the style of the
                  era rather than a real manufacturer's — the look is the point, and
@@ -821,6 +838,12 @@
     margin-left: auto;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+  }
+  /* Doesn't apply to the mechanical displays (see crtSuits). Dimmed in place rather
+     than removed, so the row keeps its shape as you step through visualisers. */
+  .vizpick button.crt:disabled {
+    opacity: 0.3;
+    cursor: default;
   }
   /* Fullscreen: the picker floats as a top drawer that slides away after a pause
      and returns on pointer movement, so the viz fills the screen. */

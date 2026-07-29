@@ -1,25 +1,27 @@
 <script lang="ts">
-  // Flip-dot viz: the spectrum on an electromechanical departure board.
+  // Flip-dot viz: an electromechanical departure-board matrix, showing one of several
+  // faces (see flip-modes.ts for what may live on it and why).
   //
   // @glowbox/flip-dot renders real flip physics — each dot is a disc rotating about its
   // pivot, and a frame change sweeps the board as a driver scan rather than landing at
-  // once. That sets a ceiling on how fast it can be driven, but the ceiling is higher than
-  // it first looks: with the flip shortened to 45ms and the sweep to 90ms, a disc has
-  // finished well inside a 100ms update, so the board can run at 10Hz and still show every
-  // change land. Frames also go out on the beat, so hits are on time rather than up to a
-  // tick late.
+  // once. That sets a ceiling on how fast it can be driven, but the ceiling is higher
+  // than it first looks: with the flip shortened to 38ms and the sweep to 70ms, a disc
+  // has finished well inside a 70ms update, so the board can run at ~14Hz and still
+  // show every change land. Frames also go out on the beat, so hits are on time rather
+  // than up to a tick late.
   //
   // Driving it slower than this — a frame only per beat — was the first attempt and it
-  // read as a static mass: at 2-3 updates a second the spectrum is a shape that occasionally
-  // changes rather than something moving to the music.
+  // read as a static mass: at 2-3 updates a second the spectrum is a shape that
+  // occasionally changes rather than something moving to the music.
   //
-  // Content is one bit per dot, so the spectrum is drawn as bar heights directly rather
-  // than dithered: at this resolution a clean cut gives a stable silhouette where a
-  // halftone would shimmer between frames.
+  // Content is one bit per dot, so nothing here dithers: at this resolution a clean cut
+  // gives a stable silhouette where a halftone would shimmer between frames.
   import { onMount } from "svelte";
 
   import type { FlipDotBoard } from "@glowbox/flip-dot";
-  import { playback, readSpectrum, SPECTRUM_SIZE, spectrumSampleRate } from "./player.svelte";
+  import { flip, setFlipMode } from "./flip-mode.svelte";
+  import { createFlipRenderer, FLIP_MODES } from "./flip-modes";
+  import { playback } from "./state.svelte";
   import { driveFrames } from "./raf";
 
   let { active = true }: { active?: boolean } = $props();
@@ -65,7 +67,7 @@
         // CRT screen's mask than the shaded lighting does.
         shaded: false,
         stagger: "scan",
-        // Quicker than the defaults (70/150). The real boards are this slow; at 10Hz
+        // Quicker than the defaults (70/150). The real boards are this slow; at 14Hz
         // updates the default flip is still in flight when the next frame arrives, so
         // dots never quite arrive and the board smears.
         flipMs: 38,
@@ -77,24 +79,7 @@
       ro = new ResizeObserver(() => board?.resize());
       ro.observe(host);
 
-      const spec = new Uint8Array(SPECTRUM_SIZE);
-      const F_MIN = 40;
-      const F_MAX = 12000;
-      const heights = new Float32Array(COLS); // eased column heights, 0..1
-      const peaks = new Float32Array(COLS);
-
-      // Per-column tilt. Music carries far more energy low down, so mapping magnitude
-      // straight to height pegs the bass columns and barely lights the treble — the board
-      // sits half-full on the left through most of a track and the right stays dead. This
-      // is the analyser convention of tilting up with frequency (about +3dB/octave, i.e.
-      // amplitude with the square root of f), clamped so the very top of the range can't
-      // run away on hiss.
-      const tilt = new Float32Array(COLS);
-      for (let c = 0; c < COLS; c++) {
-        const f0 = F_MIN * Math.pow(F_MAX / F_MIN, c / COLS);
-        const f1 = F_MIN * Math.pow(F_MAX / F_MIN, (c + 1) / COLS);
-        tilt[c] = Math.min(2.8, Math.max(0.7, Math.pow(Math.sqrt(f0 * f1) / 320, 0.5)));
-      }
+      const render = createFlipRenderer();
       let lastBeat = -1;
       let sinceUpdate = 0;
 
@@ -103,50 +88,17 @@
           const b = board;
           if (!b) return;
 
-          if (active && readSpectrum(spec)) {
-            const hzPerBin = spectrumSampleRate() / 2 / SPECTRUM_SIZE;
-            for (let c = 0; c < COLS; c++) {
-              const f0 = F_MIN * Math.pow(F_MAX / F_MIN, c / COLS);
-              const f1 = F_MIN * Math.pow(F_MAX / F_MIN, (c + 1) / COLS);
-              const lo = Math.max(1, Math.floor(f0 / hzPerBin));
-              const hi = Math.min(SPECTRUM_SIZE, Math.max(lo + 1, Math.ceil(f1 / hzPerBin)));
-              let sum = 0;
-              for (let j = lo; j < hi; j++) sum += spec[j];
-              // Gamma above 1 compresses toward the floor rather than the ceiling. The
-              // original 0.8 did the opposite — it lifted every middling level toward
-              // full, which is the other half of why the board looked permanently full.
-              const v = Math.min(1, Math.pow((sum / (hi - lo) / 255) * tilt[c], 1.25));
-              // Fast attack, and a fall quick enough to see. The original 0.08 release
-              // held every bar near its recent maximum, so the lit area only ever grew
-              // within a phrase — the "static bulk" that made the board look dead.
-              heights[c] += (v - heights[c]) * (v > heights[c] ? 0.6 : 0.3);
-              peaks[c] = Math.max(peaks[c] - dt * 0.5, heights[c]);
-            }
-          } else {
-            for (let c = 0; c < COLS; c++) {
-              heights[c] *= 0.86;
-              peaks[c] = Math.max(peaks[c] - dt * 0.8, heights[c]);
-            }
-          }
-
-          // ~14Hz, plus an immediate frame on the beat so hits land on time. Still outside
-          // the 38ms flip, so a disc finishes before it is asked to turn again.
+          // ~14Hz, plus an immediate frame on the beat so hits land on time. Still
+          // outside the 38ms flip, so a disc finishes before it is asked to turn again.
           sinceUpdate += dt;
           const onBeat = playback.beat !== lastBeat;
           if (!onBeat && sinceUpdate < 0.07) return;
+          const step = sinceUpdate;
           lastBeat = playback.beat;
           sinceUpdate = 0;
 
-          const rowCount = b.rows;
-          b.setFrame((x, y) => {
-            // y counts down from the top, so a bar of height h lights the bottom h rows.
-            const level = rowCount - y;
-            const h = heights[x] * rowCount;
-            if (level <= h) return true;
-            // Peak marker: one dot riding above the bar, the flip-dot equivalent of a
-            // peak-hold segment.
-            return Math.ceil(peaks[x] * rowCount) === level;
-          });
+          render.render(flip.mode, b.cols, b.rows, step, active, onBeat);
+          b.setFrame((x, y) => render.dot(x, y));
         },
         { active: () => active },
       );
@@ -163,6 +115,18 @@
 
 <div class="flip" bind:this={host} data-testid="flip-dots">
   <canvas bind:this={canvas}></canvas>
+  <!-- Sub-modes rather than four more entries in the pane's own picker: that list is
+       already fifteen wide and grew a stepper on phones because of it. These are faces
+       of one visualiser, not four visualisers. -->
+  <div class="modes">
+    {#each FLIP_MODES as m (m.id)}
+      <button
+        class:on={flip.mode === m.id}
+        onclick={() => setFlipMode(m.id)}
+        aria-pressed={flip.mode === m.id}>{m.label}</button
+      >
+    {/each}
+  </div>
 </div>
 
 <style>
@@ -181,5 +145,61 @@
     display: block;
     width: 100%;
     height: 100%;
+  }
+  /* In front of the CRT glass, necessarily: the screen composites canvases and nothing
+     else, so a DOM control can only sit on top. Same reasoning and treatment as the
+     scroller board's pager. */
+  /* Top right, not bottom right: the bottom edge is where a spectrum is densest, and
+     small labels sat unreadable on top of a wall of lit dots. Every mode here leaves the
+     top corners quiet — bars are short at the treble end, rings are circular, stars are
+     sparse. */
+  .modes {
+    position: absolute;
+    right: 0.4rem;
+    top: 0.4rem;
+    z-index: 3;
+    display: flex;
+    gap: 0.25rem;
+  }
+  .modes button {
+    padding: 0.2rem 0.5rem;
+    border: 1px solid color-mix(in srgb, var(--accent, #f78f08) 35%, transparent);
+    border-radius: 3px;
+    /* Opaque, not a tint: a translucent chip over lit dots washes out whichever way the
+       contrast falls, and this has to stay readable against a board that changes. */
+    background: #0a0b0d;
+    color: var(--accent, #f78f08);
+    font: inherit;
+    font-size: 0.7rem;
+    line-height: 1.1;
+    cursor: pointer;
+    /* Dim until wanted: the board is the thing being looked at. Not dimmer than this —
+       below ~0.5 the labels stop being readable at a glance, and a control you have to
+       hunt for is worse than one you can see. */
+    opacity: 0.55;
+    transition: opacity 120ms ease;
+  }
+  .modes button:hover,
+  .modes button:focus-visible {
+    opacity: 0.9;
+  }
+  .modes button.on {
+    opacity: 1;
+    border-color: var(--accent, #f78f08);
+    background: color-mix(in srgb, var(--accent, #f78f08) 18%, #0a0b0d);
+  }
+  /* Touch: 2rem-ish text buttons are well under the 44px both platforms ask for, and
+     these sit at the pane's edge. Keyed on pointer type, not width — a small laptop
+     with a trackpad wants the compact version, a large tablet does not. */
+  @media (pointer: coarse) {
+    .modes button {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+      font-size: 0.8rem;
+    }
+    /* Nothing hovers on touch, so the resting state has to be legible on its own. */
+    .modes button {
+      opacity: 0.7;
+    }
   }
 </style>
