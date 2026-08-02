@@ -126,6 +126,14 @@ test("the CRT bezel takes its grey from the theme", async ({ context, page }) =>
   const overlay = page.locator(".pattern-overlay");
   await overlay.getByRole("button", { name: "viz", exact: true }).click();
 
+  // Onto a visualiser the CRT actually suits before looking for the bezel. The default is
+  // `vu`, and the screen deliberately does not mount over that one — a moving-coil meter is
+  // an object in a room, not a picture, so a raster over it claims it is emitting (see
+  // `crtSuits`). `copper` for the same reason the picker test picks it: a cheap 2D effect,
+  // where one of the three.js scenes would drag a lazy import and a scene build into a test
+  // that is about neither.
+  await overlay.locator(".vizpick").getByRole("button", { name: "copper", exact: true }).click();
+
   // CRT is on by default, so the bezel is there; turning it off takes it away.
   const bezel = overlay.locator(".bezel");
   await expect(bezel).toHaveCount(1);
