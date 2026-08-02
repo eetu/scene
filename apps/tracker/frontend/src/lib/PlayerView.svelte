@@ -30,6 +30,7 @@
     FlipDots,
     GlowWave,
     HarmonyScope,
+    HiFiDeck,
     LedBars,
     mountCrt,
     NixieScene,
@@ -479,6 +480,8 @@
               <FlipDots active={vizActive} />
             {:else if pv.vizMode === "board"}
               <ScrollerBoard active={vizActive} />
+            {:else if pv.vizMode === "hifi"}
+              <HiFiDeck active={vizActive} />
             {:else if pv.vizMode === "harmony"}
               <HarmonyScope active={vizActive} />
             {:else if pv.vizMode === "cube"}

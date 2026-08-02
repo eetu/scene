@@ -54,6 +54,14 @@ export const playback = $state({
   // Downmix output to mono (accessibility). Persisted; applied once the engine
   // is ready. Read at startup so the choice survives reloads.
   mono: typeof localStorage !== "undefined" && localStorage.getItem("player:mono") === "1",
+  // Master output level, 0..1, applied to the engine's gain node. Persisted for the same
+  // reason mono is: a level you have to re-set on every reload is worse than no control.
+  // `muted` is orthogonal and rides on top — unmuting restores this, rather than 1.
+  volume: ((): number => {
+    if (typeof localStorage === "undefined") return 1;
+    const v = Number(localStorage.getItem("player:volume"));
+    return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 1;
+  })(),
   // Persisted so random mode survives a reload (the seeded order lives in
   // player.svelte.ts, keyed by player:shuffleSeed).
   shuffle: typeof localStorage !== "undefined" && localStorage.getItem("player:shuffle") === "1",

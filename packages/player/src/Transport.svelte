@@ -12,6 +12,8 @@
     SkipBack,
     SkipForward,
     TriangleAlert,
+    Volume2,
+    VolumeX,
   } from "@lucide/svelte";
 
   import {
@@ -20,6 +22,8 @@
     playPrev,
     seekSeconds,
     setMono,
+    setMuted,
+    setVolume,
     toggleRepeat,
     toggleShuffle,
     transportToggle,
@@ -180,6 +184,33 @@
       >
         <Repeat size={16} />
       </button>
+      <!-- Master level. The engine has always had the gain node — mute was the only thing
+           driving it, and nothing in either app called even that, so until now there was no
+           volume control anywhere. It lives here rather than only on the hi-fi visualiser's
+           knob, which is the same state: a master volume you can reach only by switching to
+           one visualiser is a volume control you cannot find. -->
+      <div class="t-vol">
+        <button
+          class="t-btn t-mode"
+          class:on={playback.muted}
+          onclick={() => setMuted(!playback.muted)}
+          aria-label={playback.muted ? "unmute" : "mute"}
+          title={playback.muted ? "unmute" : "mute"}
+        >
+          {#if playback.muted}<VolumeX size={16} />{:else}<Volume2 size={16} />{/if}
+        </button>
+        <input
+          class="t-vol-range"
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={playback.volume}
+          aria-label="volume"
+          title="volume"
+          oninput={(e) => setVolume(Number(e.currentTarget.value))}
+        />
+      </div>
       <div class="t-seg" role="group" aria-label="output channels">
         <button
           type="button"
@@ -330,6 +361,27 @@
   }
   /* Output-channel segmented control — shows both options, active one lit, so
      it's unambiguous which mode you're in (vs a single toggle's mystery label). */
+  /* Mute button and level slider as one cluster, so they read as one control. The slider is
+     narrow on purpose: this is a bar that already carries a seek strip, and a long second
+     track next to it invites the wrong drag. */
+  .t-vol {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .t-vol-range {
+    width: 72px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  /* Narrow bars drop the slider and keep the mute button — the one that still works with a
+     thumb, and the one you reach for in a hurry. */
+  @media (max-width: 640px) {
+    .t-vol-range {
+      display: none;
+    }
+  }
   .t-seg {
     flex: 0 0 auto;
     display: inline-flex;

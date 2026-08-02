@@ -8,6 +8,7 @@ import DiscoBall from "../DiscoBall.svelte";
 import FlipDots from "../FlipDots.svelte";
 import GlowWave from "../GlowWave.svelte";
 import HarmonyScope from "../HarmonyScope.svelte";
+import HiFiDeck from "../HiFiDeck.svelte";
 import LedBars from "../LedBars.svelte";
 import NixieScene from "../NixieScene.svelte";
 import Plasma from "../Plasma.svelte";
@@ -21,6 +22,7 @@ export const VIZ = [
   { id: "vu", comp: VuMeters },
   { id: "flip", comp: FlipDots },
   { id: "board", comp: ScrollerBoard },
+  { id: "hifi", comp: HiFiDeck },
   { id: "harmony", comp: HarmonyScope },
   { id: "cube", comp: LedBars },
   { id: "wave", comp: GlowWave },

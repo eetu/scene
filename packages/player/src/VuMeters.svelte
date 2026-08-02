@@ -6,6 +6,7 @@
   // is self-coloured, so it reads identically in both themes.
   import { playback } from "./player.svelte";
   import { driveFrames } from "./raf";
+  import { drawVuMeter, vuEase } from "./vu-meter";
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -34,8 +35,6 @@
     let posL = 0;
     let posR = 0;
     let posM = 0; // combined L+R needle (mono downmix → one meter)
-    const SWEEP = Math.PI * 0.4; // ±72° total
-
     function bank(lo: number, hi: number): number {
       const vu = playback.vu;
       if (!vu.length) return 0;
@@ -50,110 +49,10 @@
       return n ? Math.min(1, s / n) : 0;
     }
 
-    const MINOR = 20;
-    const MAJOR = 4; // every 4th minor tick is major + labelled
-
-    const ASPECT = 1.5; // dial face width:height — keeps it from elongating
-
-    function meter(x0: number, y0: number, cw: number, ch: number, level: number, label: string) {
-      const pad = Math.min(cw, ch) * 0.06;
-      const availW = cw - pad * 2;
-      const availH = ch - pad * 2;
-      // Cap the face to ASPECT and centre it in the cell, so a tall pane just
-      // adds dark margin top/bottom instead of stretching the meter.
-      let fw = availW;
-      let fh = fw / ASPECT;
-      if (fh > availH) {
-        fh = availH;
-        fw = fh * ASPECT;
-      }
-      const fx = x0 + (cw - fw) / 2;
-      const fy = y0 + (ch - fh) / 2;
-      const pivotX = fx + fw / 2;
-      const pivotY = fy + fh * 0.92;
-      const r = Math.min(fw * 0.46, fh * 0.86);
-
-      g2.save();
-
-      // Backlit amber face.
-      const face = g2.createRadialGradient(
-        pivotX,
-        fy + fh * 0.35,
-        fh * 0.05,
-        pivotX,
-        fy + fh * 0.35,
-        fh * 1.1,
-      );
-      face.addColorStop(0, "#ffe0a4");
-      face.addColorStop(0.55, "#f0a338");
-      face.addColorStop(1, "#7c4214");
-      g2.fillStyle = face;
-      g2.beginPath();
-      g2.roundRect(fx, fy, fw, fh, Math.min(fw, fh) * 0.07);
-      g2.fill();
-
-      // Scale ticks + numbers.
-      g2.textAlign = "center";
-      g2.textBaseline = "middle";
-      const numFont = Math.max(7, r * 0.1);
-      for (let i = 0; i <= MINOR; i++) {
-        const f = i / MINOR;
-        const ang = -Math.PI / 2 + (f - 0.5) * 2 * SWEEP;
-        const major = i % MAJOR === 0;
-        const red = f > 0.8;
-        const r0 = r * (major ? 0.84 : 0.9);
-        g2.strokeStyle = red ? "#bb2d1c" : "#3a2206";
-        g2.lineWidth = major ? 2 : 1;
-        g2.beginPath();
-        g2.moveTo(pivotX + Math.cos(ang) * r0, pivotY + Math.sin(ang) * r0);
-        g2.lineTo(pivotX + Math.cos(ang) * r, pivotY + Math.sin(ang) * r);
-        g2.stroke();
-        if (major) {
-          g2.fillStyle = red ? "#bb2d1c" : "#42280a";
-          g2.font = `${numFont}px ui-monospace, monospace`;
-          g2.fillText(
-            String(i * 5),
-            pivotX + Math.cos(ang) * r * 0.72,
-            pivotY + Math.sin(ang) * r * 0.72,
-          );
-        }
-      }
-
-      // Label (channel) under the arc.
-      g2.fillStyle = "rgba(60,34,8,0.7)";
-      g2.font = `${Math.max(8, r * 0.13)}px ui-monospace, monospace`;
-      g2.fillText(label, pivotX, fy + fh * 0.52);
-
-      // Needle (black) with a soft shadow.
-      const ang = -Math.PI / 2 + (Math.min(1, level) - 0.5) * 2 * SWEEP;
-      g2.strokeStyle = "#1a1206";
-      g2.shadowColor = "rgba(0,0,0,0.35)";
-      g2.shadowBlur = 3;
-      g2.lineWidth = Math.max(1.5, r * 0.022);
-      g2.lineCap = "round";
-      g2.beginPath();
-      g2.moveTo(pivotX, pivotY);
-      g2.lineTo(pivotX + Math.cos(ang) * r * 0.92, pivotY + Math.sin(ang) * r * 0.92);
-      g2.stroke();
-      g2.shadowBlur = 0;
-
-      // Dark bezel under the pivot — a dome sitting on a flat bottom edge
-      // (the needle emerges from its top), matching the inspiration meter.
-      const bezBottom = fy + fh; // flush with the face's bottom edge
-      const bezHalf = fw * 0.34;
-      g2.fillStyle = "#0e0a05";
-      g2.beginPath();
-      g2.moveTo(pivotX - bezHalf, bezBottom);
-      g2.quadraticCurveTo(pivotX, pivotY - fh * 0.22, pivotX + bezHalf, bezBottom);
-      g2.closePath();
-      g2.fill();
-      g2.fillStyle = "#2a1c0c";
-      g2.beginPath();
-      g2.arc(pivotX, pivotY, Math.max(2, r * 0.05), 0, Math.PI * 2);
-      g2.fill();
-
-      g2.restore();
-    }
+    // The dial itself lives in vu-meter.ts — the hi-fi deck wears the same instrument on
+    // its faceplate, and two drawings of one object drift apart.
+    const meter = (x0: number, y0: number, cw: number, ch: number, level: number, label: string) =>
+      drawVuMeter(g2, x0, y0, cw, ch, level, label);
 
     // Retro brushed-aluminium hi-fi face (light theme): a near-uniform cool grey
     // with a faint vertical sheen, overlaid with dense, low-contrast horizontal
@@ -185,9 +84,9 @@
         const tR = active && !mono ? bank(0.5, 1) : 0;
         const tM = active && mono ? bank(0, 1) : 0;
         // Eased attack, slower release (≈ VU ballistics).
-        posL += (tL - posL) * (tL > posL ? 0.3 : 0.1);
-        posR += (tR - posR) * (tR > posR ? 0.3 : 0.1);
-        posM += (tM - posM) * (tM > posM ? 0.3 : 0.1);
+        posL = vuEase(posL, tL);
+        posR = vuEase(posR, tR);
+        posM = vuEase(posM, tM);
 
         if (w > 0 && h > 0) {
           if (document.documentElement.dataset.theme === "light") drawBrushedSteel();

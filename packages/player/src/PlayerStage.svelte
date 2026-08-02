@@ -4,6 +4,7 @@
     | "vu"
     | "flip"
     | "board"
+    | "hifi"
     | "cube"
     | "wave"
     | "stars"
@@ -18,6 +19,7 @@
     "vu",
     "flip",
     "board",
+    "hifi",
     "cube",
     "wave",
     "stars",
@@ -50,6 +52,7 @@
   import DiscoBall from "./DiscoBall.svelte";
   import FlipDots from "./FlipDots.svelte";
   import GlowWave from "./GlowWave.svelte";
+  import HiFiDeck from "./HiFiDeck.svelte";
   import LedBars from "./LedBars.svelte";
   import NixieScene from "./NixieScene.svelte";
   import PatternView from "./PatternView.svelte";
@@ -152,6 +155,8 @@
             <FlipDots active={playing} />
           {:else if vizMode === "board"}
             <ScrollerBoard active={playing} />
+          {:else if vizMode === "hifi"}
+            <HiFiDeck active={playing} />
           {:else if vizMode === "cube"}
             <LedBars active={playing} />
           {:else if vizMode === "wave"}

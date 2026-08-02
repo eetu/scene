@@ -458,6 +458,11 @@ function ensurePlayer(): Promise<void> {
       playback.canMuteChannels = player.capabilities?.canMuteChannels ?? false;
       playback.canReadCells = player.capabilities?.canReadCells ?? false;
       if (playback.mono) player.setMono(true); // restore persisted mono downmix
+      // …and the persisted level. The gain node defaults to 1, so without this a saved
+      // volume is silently ignored until something touches the control.
+      if (playback.volume !== 1 || playback.muted) {
+        player.setVol(playback.muted ? 0 : playback.volume);
+      }
       setupMediaElementRoute();
     })
     .catch(() => {
@@ -906,8 +911,23 @@ export function eject() {
 
 export function setMuted(m: boolean) {
   if (!player) return;
-  player.setVol(m ? 0 : 1);
+  // Unmuting restores the LEVEL, not full scale. Slamming to 1 was fine while mute was the
+  // only thing touching the gain; with a real volume it would throw away the setting every
+  // time you muted and unmuted.
+  player.setVol(m ? 0 : playback.volume);
   playback.muted = m;
+}
+
+/** Master output level, 0..1. Persisted; takes effect immediately unless muted. */
+export function setVolume(v: number) {
+  const level = Math.min(1, Math.max(0, Number.isFinite(v) ? v : 1));
+  playback.volume = level;
+  if (player && !playback.muted) player.setVol(level);
+  try {
+    localStorage.setItem("player:volume", String(level));
+  } catch {
+    /* no storage — the level just won't outlive the session */
+  }
 }
 
 /** Toggle mono downmix of the output (accessibility); persisted. */

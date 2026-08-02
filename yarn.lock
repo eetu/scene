@@ -346,6 +346,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@glowbox/vfd@npm:1.9.0":
+  version: 1.9.0
+  resolution: "@glowbox/vfd@npm:1.9.0"
+  checksum: 10/d35ee712e134c618c5077a9e2b99abe8aa2ffb130e110e301d2ef363cab503d8d09e3b11776a4c10e49915200277213a12e404dc3426f9e72e31d3e16f145d06
+  languageName: node
+  linkType: hard
+
 "@humanfs/core@npm:^0.19.2":
   version: 0.19.2
   resolution: "@humanfs/core@npm:0.19.2"
@@ -753,6 +760,7 @@ __metadata:
     "@glowbox/nixie": "npm:^1.7.1"
     "@glowbox/split-flap": "npm:^1.7.1"
     "@glowbox/svelte": "npm:^1.7.1"
+    "@glowbox/vfd": "npm:1.9.0"
     "@scene/design": "workspace:*"
     "@sveltejs/vite-plugin-svelte": "npm:^7.2.0"
     "@types/three": "npm:^0.185.1"

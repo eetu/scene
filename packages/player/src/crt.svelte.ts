@@ -35,21 +35,34 @@ export function toggleCrt() {
 
 /** Visualisers the CRT screen does not belong in front of.
  *
- *  Not a taste call. The screen simulates a phosphor tube — scanlines, a shadow mask, a
- *  barrel-warped glass face. Every other visualiser here is light emitted by a display,
- *  so a tube in front of it is another display in the chain and reads as period hardware.
- *  These two are not displays in that sense: a flip-dot matrix and a Solari panel are
- *  physical objects in a room, printed cards and painted discs lit by whatever light is
- *  around them. Putting a raster over them says they are emitting, which is exactly the
- *  illusion they trade on not doing, and the barrel warp bends cards that are supposed to
- *  be flat.
+ *  One rule, and it is not a taste call: the screen simulates a phosphor tube — scanlines, a
+ *  shadow mask, a barrel-warped glass face — so it belongs in front of a PICTURE and not in
+ *  front of an OBJECT.
  *
- *  They also carry controls drawn into the panel, which the screen cannot composite. */
-const MECHANICAL = new Set(["flip", "board"]);
+ *  Most of the set is a picture: a raster of light with no depth and no housing, which is
+ *  what a tube in a chain shows and why the screen reads as period hardware over them. The
+ *  ones listed here are objects instead — things drawn as though they are sitting in a room,
+ *  with a case, a front panel and their own light:
+ *
+ *    flip   a flip-dot matrix: printed discs, lit by whatever light is around them
+ *    board  a Solari split-flap: physical cards that fall
+ *    hifi   a mini system: a brushed faceplate, a cassette door, two speaker cabinets
+ *    tubes  nixies in a chassis — glass envelopes you look INTO, not a surface
+ *    vu     moving-coil meters: a needle behind a window, an instrument rather than an image
+ *
+ *  Over any of these the raster claims the object is emitting, which is exactly the illusion
+ *  they trade on not doing, and the barrel warp bends front panels and printed cards that are
+ *  supposed to be flat. Several also carry controls drawn into the panel, which the screen
+ *  cannot composite.
+ *
+ *  The hi-fi is the interesting case, because it DOES contain a display. But the display is a
+ *  strip screwed into a faceplate, and what the visualiser draws is the stereo, not the
+ *  strip — so a tube in front is a third display in a chain that already has two. */
+const PHYSICAL = new Set(["flip", "board", "hifi", "tubes", "vu"]);
 
 /** Should the CRT screen be mounted for this visualiser? */
 export function crtSuits(viz: string): boolean {
-  return !MECHANICAL.has(viz);
+  return !PHYSICAL.has(viz);
 }
 
 export const CRT_OPTIONS: CrtOptions = {

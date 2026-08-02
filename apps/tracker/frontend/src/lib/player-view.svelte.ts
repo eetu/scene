@@ -9,6 +9,7 @@ export type VizMode =
   | "vu"
   | "flip"
   | "board"
+  | "hifi"
   | "harmony"
   | "cube"
   | "wave"
@@ -26,6 +27,7 @@ export const VIZ: VizMode[] = [
   "vu",
   "flip",
   "board",
+  "hifi",
   "harmony",
   "cube",
   "wave",

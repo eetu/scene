@@ -22,6 +22,7 @@
     "@glowbox/nixie": "^1.7.1",
     "@glowbox/split-flap": "^1.7.1",
     "@glowbox/svelte": "^1.7.1",
+    "@glowbox/vfd": "1.9.0",
     "@scene/design": "workspace:*",
     "three": "^0.185.1",
     "xstate": "^5.32.5"
