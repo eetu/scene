@@ -177,9 +177,13 @@
     void dim;
     redim?.();
   });
+  // POWER reaches two things: the panel handle switches the tube, and the chassis fades the
+  // tube's light off the metal around it. The poke is what starts that fade on a stopped
+  // pane — from there `settling` keeps the loop awake until it lands.
   $effect(() => {
     void powered;
     repower?.();
+    poke?.();
   });
 
   // A track change ejects: the door drops, the cassette is swapped at the bottom of the
@@ -330,6 +334,7 @@
           lastInput.volume = playback.volume;
           lastInput.grilles = vfdView.grilles;
           lastInput.loaded = loaded;
+          lastInput.powered = powered;
         }
         redraw();
       };
@@ -384,6 +389,7 @@
             hold: held,
             volume: playback.volume,
             grilles: vfdView.grilles,
+            powered,
             loaded,
           };
           chassis.draw(lastInput);
@@ -407,7 +413,10 @@
         // Also live while a control is held or the door is moving, so a press gives
         // feedback and an eject finishes even with the music stopped — the frame driver
         // would otherwise have frozen the loop.
-        { active: () => active || swapping || pressed !== null || dirty || !loaded },
+        {
+          active: () =>
+            active || swapping || pressed !== null || dirty || !loaded || !!chassis?.settling,
+        },
       );
     })();
 

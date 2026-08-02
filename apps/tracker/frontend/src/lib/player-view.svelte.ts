@@ -44,7 +44,14 @@ export const VIZ: VizMode[] = [
 
 export const pv = $state({
   tab: "pattern" as PvTab,
-  vizMode: "vu" as VizMode,
+  // Copper bars rather than the VU meters, which is what this was and which are the most
+  // modest thing in the set — two needles behind a window. Two reasons beyond taste:
+  // copper is a cheap 2D effect, so it is up the instant the tab opens (the three.js
+  // scenes drag a lazy import and a scene build first, and a blank pane is nobody's first
+  // impression); and the CRT screen does not mount over `vu` at all — it is on the
+  // `crtSuits` exception list as an object rather than a picture — so defaulting there
+  // meant arriving at a player whose signature screen effect was invisible.
+  vizMode: "copper" as VizMode,
   // The visualiser sheet (narrow screens show the set as a grid rather than a pill row).
   // Shared rather than local to PlayerView so +page's Escape cascade can close it as the
   // innermost layer — otherwise one Escape dismissed the sheet AND the whole overlay.

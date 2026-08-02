@@ -112,6 +112,9 @@ export type ChassisInput = {
    *  pressing PLAY again, which is the one state this machine has that the player doesn't:
    *  a track is still selected, it just isn't in the deck. */
   loaded: boolean;
+  /** Whether the display is switched on. The chassis needs this as well as the panel does:
+   *  the tube's light falls on the metal around it, and that metal is the chassis's to draw. */
+  powered: boolean;
 };
 
 // ─── layout ────────────────────────────────────────────────────────────────────────────
@@ -431,6 +434,10 @@ export type Chassis = {
    *  the covers can be pulled off by touching the speaker rather than by a chip somewhere
    *  else. Null on a pane too narrow to stand them beside the stack. */
   readonly speakers: [Rect, Rect] | null;
+  /** True while something the chassis animates on its OWN clock is still moving — the
+   *  display's glow fading out of the faceplate. The component's frame driver freezes the
+   *  loop on a stopped pane, so it has to be told to stay awake until this settles. */
+  readonly settling: boolean;
   /** Which plate the display is — a personal stereo has room for one line. */
   readonly panelSize: PanelSize;
   /** The stack layout, when that is what is being drawn. Exposed for the tests, which
@@ -500,6 +507,10 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
   };
   /** Needle positions, carried across frames — see vuEase. */
   const needle: [number, number] = [0, 0];
+  /** How much of the display's light is falling on the faceplate, 0..1. Carried across
+   *  frames for the same reason the needles are: it eases toward POWER rather than
+   *  following it. */
+  let glow = 1;
 
   /**
    * A speaker's grille cover, baked once.
@@ -798,6 +809,9 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
     get speakers() {
       return mode === "walkman" ? null : layout.speakers;
     },
+    get settling() {
+      return glow > 0 && glow < 1;
+    },
     get panelSize(): PanelSize {
       return mode === "walkman" ? "mini" : "full";
     },
@@ -988,19 +1002,39 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
       }
 
       // ── the display's own light on the metal around it ──
-      const gl = layout.glass;
-      const spill = ctx.createRadialGradient(
-        gl.x + gl.w / 2,
-        gl.y + gl.h / 2,
-        gl.h * 0.4,
-        gl.x + gl.w / 2,
-        gl.y + gl.h / 2,
-        gl.w * 0.85,
-      );
-      spill.addColorStop(0, INK.vfdSpill);
-      spill.addColorStop(1, "rgba(120,255,214,0)");
-      ctx.fillStyle = spill;
-      ctx.fillRect(layout.amp.x, layout.amp.y, layout.amp.w, layout.amp.h);
+      //
+      // It is the DISPLAY's light, so it goes out with the display. POWER only reached the
+      // panel handle, which left a green wash lying on the faceplate around a tube that was
+      // no longer lit — a glow with nothing making it.
+      //
+      // Faded rather than cut, and not for softness: a vacuum-fluorescent tube has a heated
+      // filament, so it dims over a moment instead of snapping off. A hard cut on a wash
+      // this large also reads as a rendering glitch, which is the one thing a light coming
+      // off a surface must not do.
+      glow += ((input.powered ? 1 : 0) - glow) * 0.16;
+      // Snapped at both ends. An exponential ease only approaches its target, so without
+      // this `settling` never goes false and the frame loop would be held awake for good by
+      // a fade that finished visibly a second ago.
+      if (glow < 0.01) glow = 0;
+      if (glow > 0.999) glow = 1;
+      if (glow > 0) {
+        const gl = layout.glass;
+        const spill = ctx.createRadialGradient(
+          gl.x + gl.w / 2,
+          gl.y + gl.h / 2,
+          gl.h * 0.4,
+          gl.x + gl.w / 2,
+          gl.y + gl.h / 2,
+          gl.w * 0.85,
+        );
+        spill.addColorStop(0, INK.vfdSpill);
+        spill.addColorStop(1, "rgba(120,255,214,0)");
+        ctx.save();
+        ctx.globalAlpha = glow;
+        ctx.fillStyle = spill;
+        ctx.fillRect(layout.amp.x, layout.amp.y, layout.amp.w, layout.amp.h);
+        ctx.restore();
+      }
     },
   };
 }
