@@ -87,6 +87,10 @@ const PALETTES = {
     keyTop: "#3a3d44",
     keyMid: "#23262b",
     keyBot: "#14161a",
+    /** The pointer dimple on the volume knob. Champagne on the black knob, where it is the
+     *  brightest thing on a dark cap; on the silver one it has to go the other way, because
+     *  gold on pale grey is two mid tones and you cannot see where the knob is pointing. */
+    knobDot: "#c8ae6a",
     btn: "#262930",
     notch: "#1b1d21",
     /** Holes: the cassette well and the door surround. */
@@ -138,6 +142,7 @@ const PALETTES = {
     keyTop: "#e2e5ea",
     keyMid: "#c6cad1",
     keyBot: "#a7acb4",
+    knobDot: "#33373d",
     btn: "#c9cdd4",
     notch: "#9ea3ab",
     recess: "#6e737a",
@@ -1557,7 +1562,7 @@ export function paintKnob(
     ctx.stroke();
   }
   // The pointer dimple.
-  ctx.fillStyle = INK.trimHi;
+  ctx.fillStyle = INK.knobDot;
   ctx.beginPath();
   ctx.arc(x + Math.cos(angle) * r * 0.6, y + Math.sin(angle) * r * 0.6, r * 0.11, 0, TAU);
   ctx.fill();
