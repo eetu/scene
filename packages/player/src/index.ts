@@ -19,6 +19,8 @@ export { flip, setFlipMode } from "./flip-mode.svelte";
 export { type FlipMode, FLIP_MODES, isFlipMode } from "./flip-modes";
 export { default as GlowWave } from "./GlowWave.svelte";
 export { default as HarmonyScope } from "./HarmonyScope.svelte";
+export { default as HiFiDeck } from "./HiFiDeck.svelte";
+export { setVfdFace, type VfdFace, VFD_FACES, vfdView } from "./vfd-mode.svelte";
 export { default as LedBars } from "./LedBars.svelte";
 export { default as NixieScene } from "./NixieScene.svelte";
 export { prefetchTubes } from "./prefetch";

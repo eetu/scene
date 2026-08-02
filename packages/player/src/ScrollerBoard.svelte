@@ -22,6 +22,7 @@
   import type { SplitFlapBoard } from "@glowbox/split-flap";
   import { boardView, BOARD_MODES, setBoardMode } from "./board-mode.svelte";
   import { departureLines, departureRows, HEADER, STATUS_DRUM, TIME_W, TIME_X } from "./departures";
+  import { moduleLines } from "./module-text";
   import { upcoming } from "./player.svelte";
   import { driveFrames } from "./raf";
   import { playback } from "./state.svelte";
@@ -79,44 +80,9 @@
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
   }
 
-  /** Does this name look like a message rather than a sample filename? */
-  function isProse(s: string): boolean {
-    if (s.length < 3) return false;
-    // "bd1.wav", "STRG-D1.WAV", "hihat closed 1" — the first two are inventory, the
-    // third is still just a label. Prose has a space AND isn't a filename, or is long
-    // enough that it can't be an instrument name.
-    if (/\.(wav|raw|smp|iff|snd|aif+|pcm|spl|s3i|its)$/i.test(s.trim())) return false;
-    return /\s/.test(s.trim()) || s.trim().length >= 12;
-  }
-
-  /** The board's script for the loaded module: a title card, then whatever the
-   *  composer wrote in the sample slots. Falls back progressively so a module with
-   *  no text still shows something rather than an empty board. */
-  const script = $derived.by(() => {
-    const t = playback.current;
-    const head: string[] = [];
-    if (t) head.push(String(t.title || t.filename));
-    if (t?.artist) head.push(`BY ${t.artist}`);
-
-    const slots = [...playback.instruments, ...playback.samples]
-      .map((s) => (s ?? "").replace(/\s+/g, " ").trim())
-      .filter(Boolean);
-    // De-dupe: trackers repeat the same padding line dozens of times to make a block
-    // of text, and a board that shows the same line eight times reads as broken.
-    const seen = new Set<string>();
-    const uniq = slots.filter((s) => {
-      const k = s.toUpperCase();
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-
-    const prose = uniq.filter(isProse);
-    // Two lines of prose is the bar for "this module has a message". Under that, show
-    // the whole inventory instead — on a sparse module the sample list IS the content.
-    const body = prose.length >= 2 ? prose : uniq;
-    return [...head, "", ...body];
-  });
+  /** The board's script for the loaded module — see module-text.ts, which the hi-fi's
+   *  text face reads the same way. */
+  const script = $derived(moduleLines(playback.current, playback.instruments, playback.samples));
 
   // Re-script the board when the loaded module changes. Declared out here because
   // $effect has to be created during component init — inside the async setup below

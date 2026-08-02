@@ -27,7 +27,14 @@ test("crt screen composites every visualiser", { timeout: 900000 }, async () => 
   // compositing them here would test a configuration that does not ship. Asserted rather
   // than silently skipped, so the exemption list and this suite cannot drift apart.
   const exempt = VIZ.filter((v) => !crtSuits(v.id)).map((v) => v.id);
-  expect(exempt, "the CRT exemption list changed").toEqual(["flip", "board"]);
+  // In VIZ order, not alphabetical — this is the picker's own order.
+  expect(exempt, "the CRT exemption list changed").toEqual([
+    "vu",
+    "flip",
+    "board",
+    "hifi",
+    "tubes",
+  ]);
 
   let checkedContract = false;
   for (const v of VIZ) {
