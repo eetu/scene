@@ -6,6 +6,24 @@
 import type { Track } from "./host";
 import type { Song } from "./player.svelte";
 
+/**
+ * What master volume a stored `player:volume` string means, 0..1.
+ *
+ * Its own function so it can be tested without a Storage, but the reason it exists is the
+ * order of the two checks. An ABSENT key has to be caught before the coercion, because
+ * `Number(null)` is 0 and 0 is a perfectly valid volume — so it walks straight past a
+ * finite-and-in-range test and a first-ever load comes up silent, with the knob and the
+ * slider both parked at zero. `Number("")` does the same thing.
+ *
+ * A zero that was genuinely stored still restores: this is about telling "no key" apart
+ * from "turned down", not about refusing to be quiet.
+ */
+export function initialVolume(raw: string | null): number {
+  if (raw === null || raw.trim() === "") return 1;
+  const v = Number(raw);
+  return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 1;
+}
+
 // Playback is a small state machine over one loaded module:
 //   stopped: playing=false            (transport shows ▶; play restarts from top)
 //   playing: playing=true, paused=false
@@ -57,11 +75,8 @@ export const playback = $state({
   // Master output level, 0..1, applied to the engine's gain node. Persisted for the same
   // reason mono is: a level you have to re-set on every reload is worse than no control.
   // `muted` is orthogonal and rides on top — unmuting restores this, rather than 1.
-  volume: ((): number => {
-    if (typeof localStorage === "undefined") return 1;
-    const v = Number(localStorage.getItem("player:volume"));
-    return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 1;
-  })(),
+  volume:
+    typeof localStorage === "undefined" ? 1 : initialVolume(localStorage.getItem("player:volume")),
   // Persisted so random mode survives a reload (the seeded order lives in
   // player.svelte.ts, keyed by player:shuffleSeed).
   shuffle: typeof localStorage !== "undefined" && localStorage.getItem("player:shuffle") === "1",
