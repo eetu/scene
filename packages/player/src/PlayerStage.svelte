@@ -38,7 +38,10 @@
   // the stage would snap back to the pattern tab (and default viz) on every song
   // change, regardless of what the listener was watching.
   let savedTab: "pattern" | "samples" | "viz" = "pattern";
-  let savedViz: VizMode = "vu";
+  // Copper bars, for the reasons the tracker's default carries: a cheap 2D effect that is
+  // up the moment the tab opens, and one the CRT screen actually mounts over — `vu` is on
+  // the `crtSuits` exception list, so defaulting there hid the screen entirely.
+  let savedViz: VizMode = "copper";
 </script>
 
 <script lang="ts">
