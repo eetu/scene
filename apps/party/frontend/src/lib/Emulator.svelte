@@ -1,7 +1,8 @@
 <script lang="ts">
   // DOS emulator surface (js-dos v8, self-hosted under /vendor/js-dos/). The
-  // runtime + WASM (~1.4 MB+) load only when the user clicks Launch — never on
-  // page view. Everything is same-origin, so the strict CSP is unchanged.
+  // runtime + WASM (~1.4 MB+, or ~7.9 MB for the DOSBox-X core) load only when the
+  // user clicks Launch — never on page view. Everything is same-origin, so the
+  // strict CSP is unchanged.
   import { Keyboard, Maximize, Play, Power, Volume2, X } from "@lucide/svelte";
   import { onDestroy } from "svelte";
 
@@ -9,10 +10,15 @@
 
   let {
     bundleUrl,
+    backend = "dosbox",
     label = "Launch",
     onKeyboard,
   }: {
     bundleUrl: string;
+    /** js-dos core, as named by the file's `dos_backend`. `dosboxX` is DOSBox-X —
+     *  needed only by demos whose party config pins an MMX-or-later CPU, and a
+     *  5× bigger download, so it never becomes the default. */
+    backend?: "dosbox" | "dosboxX";
     /** Launch-button label, e.g. "Launch CTSTOAST.EXE" when a specific build is
      *  picked from the file list. */
     label?: string;
@@ -124,6 +130,10 @@
         autoStart: true,
         kiosk: true,
         theme: appTheme,
+        // Always explicit: js-dos otherwise takes the core from localStorage, so a
+        // stale choice from its settings drawer would follow the user everywhere.
+        backend,
+        backendLocked: true,
         // The command interface arrives here once the emulator is running,
         // so we can inject keys (ESC etc.) the kiosk UI no longer offers.
         onEvent: (event, commandInterface) => {
@@ -286,7 +296,11 @@
       <Play size={20} />
       {label}
     </button>
-    <p class="hint">Loads the emulator (~1.5 MB) on demand.</p>
+    <p class="hint">
+      Loads the emulator ({backend === "dosboxX"
+        ? "~8 MB, this demo needs a bigger core"
+        : "~1.5 MB"}) on demand.
+    </p>
   {/if}
   {#if loading}<p class="hint">starting…</p>{/if}
   {#if error}<p class="err">{error}</p>{/if}

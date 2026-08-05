@@ -26,6 +26,13 @@ declare global {
     autoStart?: boolean;
     kiosk?: boolean;
     theme?: string;
+    /** Emulator core: `dosbox` (plain DOSBox, ~1.5 MB) or `dosboxX` (DOSBox-X,
+     *  ~7.9 MB, the only one with MMX). js-dos otherwise seeds this from
+     *  localStorage, so we always pass it explicitly. */
+    backend?: "dosbox" | "dosboxX";
+    /** Hide js-dos's own backend switch, so the core we picked is the core that
+     *  runs. */
+    backendLocked?: boolean;
     onEvent?: (event: string, ci?: DosCommandInterface) => void;
   }
   /** What `Dos()` returns — the UI handle, with teardown. */

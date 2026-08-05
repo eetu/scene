@@ -472,6 +472,28 @@ Key rules:
   - Editing any of these values yields a **new** cache entry rather than the previous
     mux (the recipe is hashed into the `derived` ledger key), so retuning is just
     edit → `POST /api/rescan` → reload.
+- **A DOS demo that needs a specific CPU** — `FileCfg.cputype`, keyed by the
+  executable's party-relative path. The default js-dos core (plain DOSBox) tops out
+  at a Pentium *without* MMX, so an MMX demo CPUID-gates and aborts before drawing
+  anything (`bestofthebest.json` → `pc/11 - byterapers - protocode0x28/PROT0X28.EXE`:
+  `"cputype": "pentium_mmx"`). Setting it to anything the light core can't do
+  switches that bundle to the **DOSBox-X** core — a 7.9 MB download and no JIT, so
+  set it only where a demo actually needs it. Write the standard DOSBox-X spelling
+  (`pentium_mmx`, `pentium_ii`, `486old`, …); `party.rs`'s `cpu_target` picks the
+  core and the value the core actually wants. An unrecognised value is logged at
+  startup and ignored — but a key that matches *no file* is silent, so **renaming
+  the entry folder unpins the CPU** (tidying `11 - byterapers - protocode0x28` to
+  `11 - Byterapers - Protocode 0x28` did exactly that): move the key with the folder,
+  and note the rename also changes the production's id, so reload the SPA rather
+  than trusting an open tab.
+  - **Neither MMX spelling of DOSBox-X-in-js-dos gives you MMX**, which is why that
+    one value is remapped: `cputype=pentium_mmx` logs `not supported (using pentium
+    instead)`, and the fork's own `jsdos_pentium_mmx` logs `pentium_mmx is enabled`
+    but *still* fails protocode0x28's check ("This machine does not report MMX
+    support") — its CPUID doesn't advertise MMX. `pentium_ii` is the lowest setting
+    whose CPUID does, and the demo runs on it, so an authored `pentium_mmx` resolves
+    to `pentium_ii`. Written out in `cpu_target`; `jsdos_pentium_mmx` remains
+    available if you name it explicitly.
 - Copy `assembly95.json` / `assembly96.json` as a starting template.
 
 ## Step 6 — Amiga AGA disk images (optional but recommended)
@@ -662,6 +684,15 @@ The quirks we hit (all now fixed in the app, but know them when a demo misbehave
   every other `.CFG` either auto-detects (MIDAS, IRQ/DMA = `ffffffff` sentinels) or
   uses the SoundBlaster defaults that already match. Scan for the pattern with
   `find <pc-compos> -iname setup.exe -o -iname '*.cfg'`.
+- **A PC demo that aborts instantly may want MMX.** The default core has none, and
+  such a demo says so on the way out (protocode0x28: `CPU: no MMX support -
+  aborting`) — check its `FILE_ID.DIZ`/`.nfo` requirements block, then set
+  `cputype` for that exe (Step 5) to move it onto DOSBox-X. Don't trust the core's
+  log line as proof: `jsdos_pentium_mmx` cheerfully reports `pentium_mmx is enabled`
+  while its CPUID still says no MMX, so the only confirmation that counts is the
+  demo getting past its own check (Step 5's sub-bullet — this is why an authored
+  `pentium_mmx` becomes `pentium_ii`). Native `dosbox-x` is unaffected: there you
+  write `pentium_mmx` normally.
 - **js-dos caches bundles by URL.** The backend builds each `.jsdos` bundle *live
   from disk*, so a fresh fetch always has the current files — but the browser caches
   the zip. Change a bundled file (a corrected `SOUND.CFG`) and clients keep the stale

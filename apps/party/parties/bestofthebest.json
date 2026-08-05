@@ -6,6 +6,11 @@
   "organizer": "Curated hall of fame — the finest productions of each kind, whatever their year, that run in-browser",
   "folder_name": "rank-group-title",
   "logo": "gfx/01 - Marvel - Ice Kingdom/icekngdm/icekngdm.lbm",
+  "files": {
+    "pc/11 - Byterapers - Protocode 0x28/PROT0X28.EXE": {
+      "cputype": "pentium_mmx"
+    }
+  },
   "categories": {
     "pc": {
       "compo": "PC demos (DOS)",
@@ -61,6 +66,11 @@
           "rank": 10,
           "group": "Acme",
           "title": "303"
+        },
+        {
+          "rank": 11,
+          "group": "Byterapers",
+          "title": "Protocode 0x28"
         }
       ]
     },
