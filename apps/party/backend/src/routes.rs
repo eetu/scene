@@ -362,6 +362,11 @@ struct FileOut {
     kind: String,
     mime: String,
     size: i64,
+    /// js-dos core this executable runs on — `dosbox` (the light default) or
+    /// `dosboxX` when the party config pins a `cputype` only DOSBox-X can do.
+    /// The core is a `Dos()` option, so the SPA has to be told; the `cputype`
+    /// itself never leaves the backend (it goes into the bundle's conf).
+    dos_backend: &'static str,
 }
 
 async fn api_production(
@@ -369,7 +374,7 @@ async fn api_production(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> AppResult<Json<Value>> {
-    let (prod, files, meta) = state
+    let (prod, mut files, meta) = state
         .db
         .with(move |c| {
             let prod = c.query_row(
@@ -422,6 +427,7 @@ async fn api_production(
                         mime,
                         filename,
                         ext,
+                        dos_backend: "dosbox", // filled in below, off the party config
                     })
                 })?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -457,6 +463,17 @@ async fn api_production(
         })
         .await
         .map_err(|_| AppError::NotFound)?;
+
+    // A demo whose config pins an MMX-or-later `cputype` has to run on DOSBox-X,
+    // which the SPA selects when it starts js-dos (see `dosbox_conf`).
+    let parties = state.parties();
+    for f in files.iter_mut().filter(|f| f.kind == "exe") {
+        if let Some((party_dir, party_rel)) = f.rel_path.split_once('/') {
+            if let Some((backend, _)) = parties.for_dir(party_dir).cpu(party_rel) {
+                f.dos_backend = backend;
+            }
+        }
+    }
 
     Ok(Json(json!({
         "production": prod,
@@ -888,15 +905,28 @@ async fn api_meta(
 /// to stop audio underruns, an SB16, and a **Gravis UltraSound** — vital for
 /// 90s PC demos. The `BLASTER`/`ULTRASND` env vars let the productions detect
 /// both cards (and pick GUS for module music). SVGA S3 + 32 MB cover VESA demos.
-fn dosbox_conf(exe: &str) -> String {
+///
+/// `cpu` is the core/`cputype` pair the party config pinned for this executable
+/// (see [`crate::party::cpu_target`]) — `None` is the default core at
+/// `cputype=auto`. Only the values that core accepts are ever emitted, so a
+/// DOSBox-X CPU (MMX and up) implies the SPA started the DOSBox-X core.
+fn dosbox_conf(exe: &str, cpu: Option<(&str, &str)>) -> String {
+    let (backend, cputype) = cpu.unwrap_or(("dosbox", "auto"));
+    // DOSBox-X keeps VESA video memory in a section of its own; the light core
+    // has no `[video]` and sizes it off `machine` instead.
+    let video = if backend == "dosboxX" {
+        "\n[video]\nvmemsize=8\n"
+    } else {
+        ""
+    };
     format!(
         "[dosbox]
 machine=svga_s3
 memsize=32
-
+{video}
 [cpu]
 core=auto
-cputype=auto
+cputype={cputype}
 cycles=max
 
 [mixer]
@@ -994,6 +1024,12 @@ async fn api_bundle(
         None => String::new(),
     };
     let exe_name = run_rel.rsplit('/').next().unwrap_or(&run_rel).to_string();
+    // A pinned `cputype` for this executable (party-relative key, like every other
+    // per-file override). It picks both the conf value and — via the file's
+    // `dos_backend` in `api_production` — the js-dos core the SPA starts.
+    let cpu = run_rel
+        .split_once('/')
+        .and_then(|(party_dir, party_rel)| state.parties().for_dir(party_dir).cpu(party_rel));
 
     let canon_root = state
         .cfg
@@ -1057,7 +1093,7 @@ async fn api_bundle(
             zip.write_all(&bytes)?;
         }
         zip.start_file(".jsdos/dosbox.conf", opts)?;
-        zip.write_all(dosbox_conf(&exe_name).as_bytes())?;
+        zip.write_all(dosbox_conf(&exe_name, cpu).as_bytes())?;
         Ok(zip.finish()?.into_inner())
     })
     .await

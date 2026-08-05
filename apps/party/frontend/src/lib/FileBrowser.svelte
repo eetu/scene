@@ -297,6 +297,7 @@
         {#key selected.rel_path}
           <Emulator
             bundleUrl={bundleUrl(prodId, selected.rel_path)}
+            backend={selected.dos_backend}
             label={`Launch ${selected.filename}`}
             onKeyboard={() => (listOpen = false)}
           />

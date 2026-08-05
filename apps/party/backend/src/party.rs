@@ -76,6 +76,59 @@ pub struct FileCfg {
     /// Channel count, defaults to mono.
     #[serde(default)]
     pub audio_channels: Option<u32>,
+    /// DOSBox `cputype` for a DOS executable that needs a specific CPU. Anything
+    /// the light core can't do (`pentium_mmx` and up — Byterapers' protocode0x28
+    /// CPUID-gates on MMX and aborts without it) switches the whole bundle to the
+    /// DOSBox-X core: a 7.9 MB download and a slower interpreter, hence per-file
+    /// rather than global. See [`cpu_target`] for the accepted values and for why
+    /// `pentium_mmx` resolves to a Pentium II; an unknown value is warned about at
+    /// load and ignored.
+    #[serde(default)]
+    pub cputype: Option<String>,
+}
+
+/// Which js-dos core runs a given `cputype`, and the value that core's config
+/// wants — `None` for a value neither core knows.
+///
+/// The two vendored cores accept different sets, so the authored CPU picks the
+/// core: `wdosbox` is plain DOSBox (small, fast, tops out at Pentium without
+/// MMX), `wdosbox-x` is DOSBox-X (8086 through Pentium III, MMX).
+///
+/// `pentium_mmx` is the one value that isn't passed through, because neither
+/// DOSBox-X-in-js-dos spelling of it delivers a CPU that *reports* MMX:
+/// `pentium_mmx` logs `not supported (using pentium instead)`, and the fork's own
+/// `jsdos_pentium_mmx` logs `pentium_mmx is enabled` yet still fails a demo's
+/// CPUID check (protocode0x28: "This machine does not report MMX support").
+/// `pentium_ii` is the lowest setting whose CPUID advertises MMX, and it runs
+/// that demo — so an authored `pentium_mmx` means "give me a CPU with MMX" and
+/// resolves here. Write `jsdos_pentium_mmx` explicitly for the fork's own mode.
+pub fn cpu_target(cputype: &str) -> Option<(&'static str, &'static str)> {
+    Some(match cputype {
+        "auto" => ("dosbox", "auto"),
+        "386_slow" => ("dosbox", "386_slow"),
+        "386_prefetch" => ("dosbox", "386_prefetch"),
+        "486_slow" => ("dosbox", "486_slow"),
+        "486_prefetch" => ("dosbox", "486_prefetch"),
+        "pentium_slow" => ("dosbox", "pentium_slow"),
+        "pentium_mmx" => ("dosboxX", "pentium_ii"),
+        "jsdos_pentium_mmx" => ("dosboxX", "jsdos_pentium_mmx"),
+        "8086" => ("dosboxX", "8086"),
+        "8086_prefetch" => ("dosboxX", "8086_prefetch"),
+        "80186" => ("dosboxX", "80186"),
+        "80186_prefetch" => ("dosboxX", "80186_prefetch"),
+        "286" => ("dosboxX", "286"),
+        "286_prefetch" => ("dosboxX", "286_prefetch"),
+        "386" => ("dosboxX", "386"),
+        "486old" => ("dosboxX", "486old"),
+        "486old_prefetch" => ("dosboxX", "486old_prefetch"),
+        "486" => ("dosboxX", "486"),
+        "pentium" => ("dosboxX", "pentium"),
+        "ppro_slow" => ("dosboxX", "ppro_slow"),
+        "pentium_ii" => ("dosboxX", "pentium_ii"),
+        "pentium_iii" => ("dosboxX", "pentium_iii"),
+        "experimental" => ("dosboxX", "experimental"),
+        _ => return None,
+    })
 }
 
 /// A competition folder's descriptor. Overrides the heuristics the scanner would
@@ -188,6 +241,13 @@ impl PartyCfg {
         self.category(category).and_then(|c| c.video_fps)
     }
 
+    /// The js-dos core and DOSBox `cputype` for a DOS executable, by its
+    /// party-relative path. `None` when the file has no authored `cputype` (the
+    /// default core and `cputype=auto`) or when the value isn't recognised.
+    pub fn cpu(&self, party_rel: &str) -> Option<(&'static str, &'static str)> {
+        cpu_target(self.file(party_rel)?.cputype.as_deref()?)
+    }
+
     /// Position of a category in the JSON `categories` map — the SPA sorts compos
     /// by this so the display order is whatever the author listed.
     pub fn category_order(&self, key: &str) -> Option<usize> {
@@ -221,6 +281,19 @@ impl PartyConfigs {
                 let slug = slugify(&entry.file_name().to_string_lossy());
                 match serde_json::from_str::<PartyCfg>(&text) {
                     Ok(cfg) => {
+                        // A mistyped `cputype` is otherwise silent: the file keeps
+                        // the default core and the demo fails exactly as before.
+                        for (file, f) in &cfg.files {
+                            if let Some(cpu) = f.cputype.as_deref() {
+                                if cpu_target(cpu).is_none() {
+                                    tracing::warn!(
+                                        path = %path.display(),
+                                        file, cputype = cpu,
+                                        "unknown cputype in party config — ignoring it"
+                                    );
+                                }
+                            }
+                        }
                         by_slug.insert(slug, cfg);
                     }
                     Err(e) => {
@@ -309,6 +382,40 @@ mod tests {
         .unwrap();
         assert!(cfg.files.is_empty());
         assert_eq!(cfg.video_fps("anim/a.mpg", "anim"), None);
+        assert_eq!(cfg.cpu("pc/demo/x.exe"), None);
+    }
+
+    /// The authored `cputype` picks the core, and `pentium_mmx` has to reach the
+    /// conf as `pentium_ii` — neither MMX spelling this core accepts produces a
+    /// CPU that reports MMX, so a demo gated on it would still abort.
+    #[test]
+    fn cputype_selects_the_core() {
+        let cfg: PartyCfg = serde_json::from_str(
+            r#"{"slug":"botb","name":"B",
+                "files":{"pc/11 - byterapers - protocode0x28/PROT0X28.EXE":
+                           {"cputype":"pentium_mmx"},
+                         "pc/slowdemo/SLOW.EXE":{"cputype":"386_slow"},
+                         "pc/typo/T.EXE":{"cputype":"pentum_mmx"}}}"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            cfg.cpu("pc/11 - byterapers - protocode0x28/PROT0X28.EXE"),
+            Some(("dosboxX", "pentium_ii"))
+        );
+        // The fork's own mode stays reachable, but only if asked for by name.
+        assert_eq!(
+            cpu_target("jsdos_pentium_mmx"),
+            Some(("dosboxX", "jsdos_pentium_mmx"))
+        );
+        assert_eq!(
+            cfg.cpu("pc/slowdemo/SLOW.EXE"),
+            Some(("dosbox", "386_slow"))
+        );
+        // Unknown value → no override at all (warned about at load).
+        assert_eq!(cfg.cpu("pc/typo/T.EXE"), None);
+        // A file with overrides but no cputype stays on the default core.
+        assert_eq!(cfg.cpu("pc/unlisted/U.EXE"), None);
     }
 
     #[test]

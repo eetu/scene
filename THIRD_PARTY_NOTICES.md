@@ -22,7 +22,12 @@ does not place this project's own code under the GPL.)
 - js-dos v8 · `apps/party/frontend/static/vendor/js-dos/`
 - Source: <https://github.com/caiiiycuk/js-dos> (wraps DOSBox,
   <https://www.dosbox.com/>); vendored unmodified.
-- Corresponding source = the upstream repository.
+- Bundles two emulator cores, both GPL-2.0-or-later:
+  - **DOSBox** (`emulators/wdosbox.*`) — the default core.
+  - **DOSBox-X** (`emulators/wdosbox-x.*`) — used by demos that need a CPU DOSBox
+    can't emulate (MMX and up) — <https://github.com/js-dos/dosbox-x>, the js-dos
+    fork of <https://dosbox-x.com/>.
+- Corresponding source = the upstream repositories above.
 
 ## Audio engine
 
