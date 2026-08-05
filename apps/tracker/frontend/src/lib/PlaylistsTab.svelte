@@ -1,5 +1,15 @@
 <script lang="ts">
-  import { ChevronDown, ChevronUp, Download, Play, Plus, Trash2, Upload, X } from "@lucide/svelte";
+  import {
+    ChevronDown,
+    ChevronUp,
+    Download,
+    Pencil,
+    Play,
+    Plus,
+    Trash2,
+    Upload,
+    X,
+  } from "@lucide/svelte";
   import { playback } from "@scene/player";
 
   import {
@@ -199,8 +209,8 @@
   function song(i: PlaylistItem): string {
     return i.title || i.filename || (i.md5 ? i.md5.slice(0, 12) : "unknown");
   }
-  // Group · artist context prefix — mirrors the library row's sub-label so a mod
-  // reads the same in every list view.
+  // Group · artist context, trailing the title — mirrors the library row's
+  // sub-label so a mod reads the same in every list view.
   function sub(i: PlaylistItem): string {
     return [i.group, i.artist].filter(Boolean).join(" · ");
   }
@@ -251,7 +261,9 @@
           <button class="mini" title="export" onclick={() => exportPlaylist(p)}>
             <Download size={13} />
           </button>
-          <button class="mini" title="rename" onclick={() => rename(p)}>✎</button>
+          <button class="mini" title="rename" onclick={() => rename(p)}>
+            <Pencil size={13} />
+          </button>
           <button class="mini" title="delete" onclick={() => remove(p.id)}>
             <Trash2 size={13} />
           </button>
@@ -295,27 +307,31 @@
         {#each detail.items as it, i (it.id)}
           <li class:missing={!it.present} class:current={isCurrent(it)}>
             <span class="ix">{i + 1}</span>
+            <!-- Title leads, muted group·artist trails — the library row's
+                 hierarchy (and the transport's), so a mod reads the same in
+                 every list. Present items are the click-to-play target. -->
             {#if it.present}
               <button
                 class="it-name play-it"
                 title="play — {it.path ?? ''}"
                 onclick={() => playItem(it)}
               >
-                {#if sub(it)}<span class="sub">{sub(it)}&nbsp;</span>{/if}<span class="song"
-                  >{song(it)}</span
+                <span class="nm"
+                  ><span class="song">{song(it)}</span>{#if sub(it)}<span class="sub"
+                      >&nbsp;{sub(it)}</span
+                    >{/if}</span
                 >
               </button>
             {:else}
               <span class="it-name" title={it.md5 ?? ""}>
-                {#if sub(it)}<span class="sub">{sub(it)}&nbsp;</span>{/if}<span class="song"
-                  >{song(it)}</span
-                ><span class="pending"> (missing)</span>
+                <span class="nm"
+                  ><span class="song">{song(it)}</span>{#if sub(it)}<span class="sub"
+                      >&nbsp;{sub(it)}</span
+                    >{/if}<span class="pending">&nbsp;(missing)</span></span
+                >
               </span>
             {/if}
-            <span class="meta">
-              {#if it.ext}<span class="fmt-chip">{it.ext}</span>{/if}
-              <span class="dur">{it.duration ? fmtTime(it.duration) : ""}</span>
-            </span>
+            <span class="dur">{it.duration ? fmtTime(it.duration) : ""}</span>
             <button class="mini" title="up" disabled={i === 0} onclick={() => move(i, -1)}>
               <ChevronUp size={13} />
             </button>
@@ -399,7 +415,10 @@
     gap: 2px;
     border-radius: 4px;
   }
-  .plist li:hover {
+  /* Row hover highlight — never on the "nothing here yet" placeholder li, which
+     isn't a target. */
+  .plist li:not(.empty):hover,
+  .items li:not(.empty):hover:not(.current) {
     background: var(--panel-hi);
   }
   .open {
@@ -463,12 +482,17 @@
   .play {
     margin-left: auto;
   }
+  /* One line at every width, like a library row: [#] title+muted sub … duration,
+     then the row's actions. The height comes from the row (not per-child padding)
+     so a long list reads as an even column. */
   .items li {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 6px;
+    min-height: 34px;
+    padding: 0 6px;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    border-radius: 4px;
   }
   .items li.missing {
     opacity: 0.5;
@@ -477,7 +501,6 @@
   .items li.current {
     background: color-mix(in srgb, var(--accent) 12%, transparent);
     box-shadow: inset 2px 0 0 var(--accent);
-    border-radius: 4px;
   }
   .items li.current .song {
     color: var(--accent);
@@ -491,7 +514,17 @@
     font-variant-numeric: tabular-nums;
     text-align: right;
   }
+  /* The name cell fills the row's height (so the whole line is one comfortable
+     target) and .nm carries the ellipsis — text-overflow needs an inline-content
+     box, which a flex container isn't. Same split as the library row's .row/.name. */
   .it-name {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+  }
+  .nm {
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -520,49 +553,34 @@
   .song {
     color: var(--text);
   }
-  /* Secondary metadata cluster (format + duration). On desktop it sits inline
-     between the name and the reorder controls; on mobile it wraps to a second
-     row (the reorder controls can't be hidden the way the library hides fav/
-     rename, so the row goes two-line instead). */
-  .meta {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .fmt-chip {
-    flex: 0 0 auto;
-    font-size: 10px;
-    line-height: 1;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--text);
-    background: var(--panel-hi);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 3px 5px;
-  }
+  /* Duration is the only metadata left in the row — the format chip is gone for
+     the same reason the library row dropped it: it was the loudest field despite
+     being the least decision-relevant, and it's what forced a second line on a
+     phone. Fixed-width + right-aligned so the column doesn't go ragged. */
   .dur {
     flex: 0 0 auto;
+    width: 40px;
+    text-align: right;
     color: var(--muted);
     font-size: 12px;
     font-variant-numeric: tabular-nums;
   }
   @media (max-width: 640px) {
+    /* Still ONE line (the library's mobile row): with the chip gone, the name
+       ellipsises instead of wrapping the metadata to a padded second row. Rows
+       grow a touch and the row buttons get touch-sized padding — reorder/remove
+       have no other home, so unlike fav/rename they can't be hidden here. */
     .items li {
-      flex-wrap: wrap;
+      min-height: 40px;
+      gap: 4px;
     }
-    /* Row 1: [#] name … ↑ ↓ ✕. Row 2: the metadata, indented under the name. */
-    .it-name {
-      order: 1;
+    /* Narrower position column buys the title back the width the touch-sized
+       buttons take (2 digits still fit; 3 just push into the gap). */
+    .ix {
+      width: 16px;
     }
-    .mini {
-      order: 2;
-    }
-    .meta {
-      order: 3;
-      flex-basis: 100%;
-      margin-left: 32px;
+    li .mini {
+      padding: 9px 5px;
     }
   }
   .empty,
