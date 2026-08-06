@@ -82,7 +82,9 @@
 
   /** The board's script for the loaded module — see module-text.ts, which the hi-fi's
    *  text face reads the same way. */
-  const script = $derived(moduleLines(playback.current, playback.instruments, playback.samples));
+  const script = $derived(
+    moduleLines(playback.current, playback.instruments, playback.samples, playback.notes),
+  );
 
   // Re-script the board when the loaded module changes. Declared out here because
   // $effect has to be created during component init — inside the async setup below

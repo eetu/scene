@@ -133,7 +133,7 @@
   // The composer's own words, for the text face. Joined into one run because the ticker
   // scrolls a continuous line rather than paging.
   const message = $derived(
-    moduleLines(playback.current, playback.instruments, playback.samples)
+    moduleLines(playback.current, playback.instruments, playback.samples, playback.notes)
       .filter(Boolean)
       .join("   ·   ") || "NO MESSAGE",
   );
