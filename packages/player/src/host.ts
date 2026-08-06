@@ -10,6 +10,14 @@ export type Track = {
   hash: string;
   filename: string;
   path?: string;
+  /** Lowercase file extension, when the host tracks one. Picks the decoder. */
+  ext?: string;
+  /** Which subtune of a multi-tune file to play (0-based). SID only. */
+  subsong?: number;
+  /** The host's own row id, when it has one (tracker's `files.id`). Carried so
+   *  the app can match the playing track against a queue of ids without holding
+   *  the rows. Absent for hosts that queue tracks directly (party). */
+  id?: number;
   title?: string | null;
   group?: string | null;
   artist?: string | null;
@@ -35,6 +43,12 @@ export type MetaIn = {
   n_patterns?: number | null;
 };
 
+/** An entry in the play queue. Apps that hold their whole track list in memory
+ *  (party) queue the tracks themselves; apps whose library lives server-side
+ *  (tracker, once HVSC makes the index too big to ship) queue opaque ids and
+ *  resolve them on demand. */
+export type QueueRef = number | string;
+
 export type PlayerHost = {
   /** Used as the Now-Playing artist fallback. */
   appName: string;
@@ -44,6 +58,45 @@ export type PlayerHost = {
   play: (hash: string) => Promise<{ play_count: number }>;
   /** Persist parsed metadata (best-effort cache write). */
   putMeta: (hash: string, meta: MetaIn) => Promise<void>;
+  /** Synchronously read an already-known track for a queue ref, or null when it
+   *  hasn't been hydrated yet. Callers that can't await (the upcoming-tracks
+   *  window feeding a visualiser) use this and simply show fewer entries.
+   *  Only needed by hosts that queue ids rather than tracks. */
+  peekTrack?: (ref: QueueRef) => Track | null;
+  /** Resolve a queue ref to a track, fetching if it isn't cached. Only needed by
+   *  hosts that queue ids rather than tracks. */
+  resolveTrack?: (ref: QueueRef) => Promise<Track | null>;
+  /** How long to actually play a track, when that differs from its stated
+   *  `duration`. A SID carries no length in the file, so tracker plays an
+   *  unknown-length one for a configured window rather than not at all; the
+   *  track's own `duration` stays null so nothing claims a length it doesn't
+   *  know. Absent → `duration ?? 0`, which is right for every other format. */
+  playLength?: (t: Track) => number;
+  /** Where the app serves the C64 system ROMs, for the SID decoder. Absent →
+   *  libsidplayfp's built-in images (most tunes still play; a BASIC-driven RSID
+   *  does not). */
+  romBase?: () => string;
+  /** Curator notes about a tune, for the text visualisers.
+   *
+   *  A SID has no sample or instrument slots, so it has none of the text a
+   *  tracker composer leaves in a module — the split-flap board and the hi-fi's
+   *  text face would show a bare title card. HVSC's STIL is the equivalent
+   *  writing for C64 music, and this is where it comes from. Absent, or
+   *  resolving to `[]`, simply means no notes. */
+  trackNotes?: (t: Track) => Promise<TrackNote[]>;
+};
+
+/** One curator note. `subsong` is -1 when it applies to the whole file.
+ *
+ *  `title`/`artist` name the **original this tune covers**, not the tune's own
+ *  title and author (`name`/`author`) — HVSC keeps those apart and so do we. */
+export type TrackNote = {
+  subsong: number;
+  comment: string | null;
+  title: string | null;
+  artist: string | null;
+  name: string | null;
+  author: string | null;
 };
 
 let current: PlayerHost | null = null;
