@@ -52,8 +52,11 @@
     if (busy) return;
     busy = true;
     try {
+      // An HVSC reindex is one catalogue read, so it answers synchronously with
+      // its counts — unlike a walked root, which answers 202 and reports via
+      // /status.
       const r = await reindexRoot(id);
-      onToast?.(`Indexed ${fmt(r.indexed)} tunes, ${fmt(r.subtunes ?? 0)} subtunes`);
+      onToast?.(`Indexed ${fmt(r.indexed ?? 0)} tunes, ${fmt(r.subtunes ?? 0)} subtunes`);
     } catch (e) {
       // A root pointed at a non-HVSC path answers 400 with why. Surfacing it
       // beats a button that appears to do nothing.

@@ -74,44 +74,84 @@ impl Stack {
             "<html><body>tracker</body></html>",
         )?;
 
-        let port = free_port()?;
-        let base = format!("http://127.0.0.1:{port}");
-
-        let mut cmd = Command::new(bin_path());
-        cmd.env("DEV_AUTH", "1")
-            .env("TRACKER_BIND", format!("127.0.0.1:{port}"))
-            .env("TRACKER_ROOT", &root)
-            .env("TRACKER_DB_PATH", &db_path)
-            .env("STATIC_DIR", static_tmp.path())
-            .env("RUST_LOG", "warn");
-        if let (Some((id, kind)), Some(p2)) = (&second, &root2) {
-            cmd.env(
-                "TRACKER_ROOTS",
-                format!("mods:scan:{},{id}:{kind}:{}", root.display(), p2.display()),
-            );
-        }
-        for (k, v) in extra {
-            cmd.env(k, v);
-        }
-        let child = cmd.spawn()?;
-
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
             .build()?;
 
-        // Generous: the suite spawns several backends in parallel, so process
-        // startup can lag under load. /status never touches the DB, so a slow
-        // response means the process isn't up yet, not that it's busy scanning.
-        let mut up = false;
-        for _ in 0..200 {
-            if let Ok(r) = client.get(format!("{base}/status")).send().await {
-                if r.status().is_success() {
-                    up = true;
+        // Spawn, and retry on a lost port race.
+        //
+        // `free_port` binds :0, reads the port and drops the listener, so the
+        // port is only *probably* still free when the child gets to it. The
+        // suite runs a couple of dozen backends across its test binaries
+        // concurrently, so two occasionally pick the same one: the loser can't
+        // bind, exits immediately, and every later assertion in that test fails
+        // for reasons that look nothing like the cause. (Diagnosed the hard way
+        // — it presented as "startup is slow under load", and raising the wait
+        // just made the failure take longer.)
+        //
+        // So: notice the child is gone rather than polling a corpse, and try
+        // again on a fresh port.
+        let mut child = None;
+        let mut base = String::new();
+        let mut last_err = String::new();
+        for attempt in 0..5 {
+            let port = free_port()?;
+            base = format!("http://127.0.0.1:{port}");
+
+            let mut cmd = Command::new(bin_path());
+            cmd.env("DEV_AUTH", "1")
+                .env("TRACKER_BIND", format!("127.0.0.1:{port}"))
+                .env("TRACKER_ROOT", &root)
+                .env("TRACKER_DB_PATH", &db_path)
+                .env("STATIC_DIR", static_tmp.path())
+                .env("RUST_LOG", "warn");
+            if let (Some((id, kind)), Some(p2)) = (&second, &root2) {
+                cmd.env(
+                    "TRACKER_ROOTS",
+                    format!("mods:scan:{},{id}:{kind}:{}", root.display(), p2.display()),
+                );
+            }
+            for (k, v) in extra {
+                cmd.env(k, v);
+            }
+            let mut c = cmd.spawn()?;
+
+            // 30s of headroom for a genuinely slow start; a dead child is caught
+            // within ~100ms of dying, so the budget only ever costs time when
+            // the process is alive and busy.
+            let mut up = false;
+            for _ in 0..300 {
+                if let Ok(Some(status)) = c.try_wait() {
+                    last_err = format!("backend exited early ({status}) on port {port}");
                     break;
                 }
+                if let Ok(r) = client.get(format!("{base}/status")).send().await {
+                    if r.status().is_success() {
+                        up = true;
+                        break;
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
             }
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            if up {
+                child = Some(c);
+                break;
+            }
+            let _ = c.kill();
+            let _ = c.wait();
+            if last_err.is_empty() {
+                // Alive but not answering: retrying on another port won't help.
+                last_err = format!("backend did not answer /status within 30s (attempt {attempt})");
+                break;
+            }
+            last_err.clear(); // it died — try another port
         }
+        let (child, up) = match child {
+            Some(c) => (c, true),
+            // Keep the struct construction below intact so the tempdirs are
+            // still owned (and cleaned up) when we bail.
+            None => (Command::new("true").spawn()?, false),
+        };
         let stack = Stack {
             child,
             base,
@@ -124,7 +164,7 @@ impl Stack {
             _static_tmp: static_tmp,
         };
         if !up {
-            anyhow::bail!("backend did not come up within 20s");
+            anyhow::bail!("backend never came up: {last_err}");
         }
         Ok(stack)
     }
@@ -178,10 +218,59 @@ impl Stack {
     }
 
     /// Run a synchronous rescan and return it once the index is up to date.
+    /// Start a scan of the primary root and wait for it to finish, returning
+    /// what it did (`/status.last_scan`).
+    ///
+    /// `POST /api/rescan` answers `202` and walks in the background, so for a
+    /// test "rescan" means start-and-await. There's no race with the poll: the
+    /// handler claims the `scanning` flag before it answers, so this can never
+    /// observe "not scanning" and return before the work has begun.
     pub async fn rescan(&self) -> serde_json::Value {
-        let r = self.post_empty("/api/rescan").await;
-        assert!(r.status().is_success(), "rescan failed: {}", r.status());
-        r.json().await.expect("rescan json")
+        self.rescan_root("").await
+    }
+
+    /// As [`Self::rescan`], for one named root. An empty id targets the primary.
+    pub async fn rescan_root(&self, root: &str) -> serde_json::Value {
+        let path = if root.is_empty() {
+            "/api/rescan".to_string()
+        } else {
+            format!("/api/rescan/{root}")
+        };
+        let r = self.post_empty(&path).await;
+        assert_eq!(
+            r.status(),
+            reqwest::StatusCode::ACCEPTED,
+            "rescan should be accepted, got {}",
+            r.status()
+        );
+        self.await_scan().await
+    }
+
+    /// Wait for any running scan to finish, and return what it did. Separate
+    /// from starting one, so a test can start a scan, observe the server while
+    /// it runs, and then wait — without a second POST being refused by the
+    /// one-at-a-time guard.
+    pub async fn await_scan(&self) -> serde_json::Value {
+        for _ in 0..600 {
+            let s = self.get_json("/status").await;
+            if s["scanning"] == false {
+                return s["last_scan"].clone();
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        panic!("scan did not finish within 30s");
+    }
+
+    /// Add `n` throwaway modules to the primary root, so a scan takes long
+    /// enough to be observed mid-flight. The three-file fixture finishes faster
+    /// than a request round-trip, which makes any "while it runs" assertion a
+    /// coin toss.
+    pub fn seed_bulk(&self, n: usize) {
+        let dir = self.root.join("Bulk");
+        std::fs::create_dir_all(&dir).expect("bulk dir");
+        for i in 0..n {
+            std::fs::write(dir.join(format!("t{i:05}.mod")), format!("bulk-{i}")).expect("bulk");
+        }
     }
 
     pub async fn tracks(&self) -> Vec<serde_json::Value> {

@@ -223,6 +223,10 @@ async fn status(State(state): State<AppState>) -> Json<Value> {
         "scan_total": state.scan.total.load(Ordering::Relaxed),
         "scan_processed": state.scan.processed.load(Ordering::Relaxed),
         "scan_hashed": state.scan.hashed.load(Ordering::Relaxed),
+        // What the last finished scan did. `POST /api/rescan` answers 202 before
+        // there's anything to report, so this is where the counts (or the
+        // failure) surface. Null until one has run in this process.
+        "last_scan": state.scan.last.lock().ok().and_then(|s| s.clone()),
     }))
 }
 
@@ -1064,7 +1068,10 @@ async fn api_delete(
 }
 
 /// Rescan the primary root. Kept for callers that predate multiple roots.
-async fn api_rescan(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
+async fn api_rescan(
+    _auth: Auth,
+    State(state): State<AppState>,
+) -> AppResult<(StatusCode, Json<Value>)> {
     let id = state.cfg.primary().id.clone();
     rescan_root(&state, &id).await
 }
@@ -1074,11 +1081,15 @@ async fn api_rescan_root(
     _auth: Auth,
     State(state): State<AppState>,
     Path(root): Path<String>,
-) -> AppResult<Json<Value>> {
+) -> AppResult<(StatusCode, Json<Value>)> {
     rescan_root(&state, &root).await
 }
 
-async fn rescan_root(state: &AppState, root_id: &str) -> AppResult<Json<Value>> {
+/// Walked roots answer `202` and scan in the background; an HVSC root answers
+/// `200` with its counts, because reindexing one is a single catalogue read that
+/// finishes in seconds — detaching it would trade a useful synchronous result
+/// for nothing.
+async fn rescan_root(state: &AppState, root_id: &str) -> AppResult<(StatusCode, Json<Value>)> {
     let root = state
         .cfg
         .root(root_id)
@@ -1102,32 +1113,90 @@ async fn rescan_root(state: &AppState, root_id: &str) -> AppResult<Json<Value>> 
         )
         .await
         .map_err(AppError::Internal)?;
-        return Ok(Json(json!({
-            "indexed": r.tunes,
-            "subtunes": r.subtunes,
-            "removed": r.removed,
-            "notes": r.notes,
-            "hashed": 0,
-        })));
+        return Ok((
+            StatusCode::OK,
+            Json(json!({
+                "indexed": r.tunes,
+                "subtunes": r.subtunes,
+                "removed": r.removed,
+                "notes": r.notes,
+                "hashed": 0,
+            })),
+        ));
     }
     if root.kind != crate::config::RootKind::Scan {
         return Err(AppError::BadRequest(format!(
             "root {root_id:?} is not walked — it is indexed from its own catalogue"
         )));
     }
-    let result = crate::run_scan(
-        state.db.clone(),
-        root.id.clone(),
-        root.path.clone(),
-        state.scan.clone(),
-    )
-    .await
-    .map_err(AppError::Internal)?;
-    Ok(Json(json!({
-        "indexed": result.indexed,
-        "hashed": result.hashed,
-        "removed": result.removed,
-    })))
+
+    // One at a time. Two scans would serialise on the single SQLite connection
+    // anyway, but they'd also interleave their writes to the shared progress
+    // counters, so `/status` would report a meaningless blend of the two.
+    //
+    // Claimed with compare-exchange rather than a load-then-store: now that the
+    // request returns before the scan starts, two arriving together would both
+    // pass a plain check. `run_scan` sets the same flag again (harmlessly) and
+    // its drop guard is what clears it, on any exit including a panic.
+    if state
+        .scan
+        .scanning
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err(AppError::Conflict("a scan is already running".into()));
+    }
+
+    // Answer immediately and walk in the background.
+    //
+    // A scan of the module root is minutes of stat-and-hash over a network
+    // mount. Holding the request open for that meant one dropped connection —
+    // a UI reload, a proxy timeout, a phone locking — looked like a failure
+    // while the scan carried on regardless, and nothing could tell the
+    // difference. The work was always detached in practice (`spawn_blocking`
+    // runs to completion whether or not anyone is awaiting it); this just makes
+    // the API say so.
+    //
+    // Progress is already reportable without the DB: the scanner writes
+    // lock-free counters that `/status` reads, which is what the client polls.
+    // The outcome lands in `scan.last` for the same reason — a 202 has nothing
+    // to report yet, and dropping the counts entirely would make a failed scan
+    // indistinguishable from one that found nothing.
+    let db = state.db.clone();
+    let progress = state.scan.clone();
+    let id = root.id.clone();
+    let path = root.path.clone();
+    tokio::spawn(async move {
+        let outcome = match crate::run_scan(db, id.clone(), path, progress.clone()).await {
+            Ok(r) => crate::state::ScanOutcome {
+                root: id,
+                indexed: r.indexed,
+                hashed: r.hashed,
+                removed: r.removed,
+                finished_at: chrono::Utc::now().to_rfc3339(),
+                error: None,
+            },
+            Err(e) => {
+                tracing::error!(root = %id, error = %e, "scan failed");
+                crate::state::ScanOutcome {
+                    root: id,
+                    indexed: 0,
+                    hashed: 0,
+                    removed: 0,
+                    finished_at: chrono::Utc::now().to_rfc3339(),
+                    error: Some(e.to_string()),
+                }
+            }
+        };
+        if let Ok(mut slot) = progress.last.lock() {
+            *slot = Some(outcome);
+        }
+    });
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(json!({ "started": true, "root": root_id })),
+    ))
 }
 
 // ---------- playlists ----------

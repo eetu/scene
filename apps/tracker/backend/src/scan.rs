@@ -21,6 +21,49 @@ use walkdir::{DirEntry, WalkDir};
 
 use crate::state::ScanProgress;
 
+/// The pool the stat-and-hash pass runs in.
+///
+/// Rayon's default pool is sized to CPU cores, which suits CPU-bound work. This
+/// pass isn't: over a network mount it's dominated by per-file round-trip
+/// latency, so throughput follows how many requests are in flight rather than
+/// how many cores can run.
+///
+/// Measured, warm (stat-only) pass over 8,301 modules on the SMB mount:
+///
+/// ```text
+///   1 thread   28.07  25.30  23.88   mean 25.8s
+///  16 threads  18.75  19.03  19.06   mean 18.9s
+/// ```
+///
+/// ~1.37×, and far steadier — a 0.3s spread against 4s. Worth saying that a
+/// single run of each showed the opposite; the effect only separates from the
+/// noise with repeats. 8, 16 and 32 were indistinguishable, so the exact number
+/// matters much less than not being 1. The remaining ~19s is serial work this
+/// pool can't touch (the directory walk and the SQLite write pass).
+///
+/// A dedicated pool rather than resizing rayon's global one, which is shared
+/// with anything else in the process that uses rayon. `TRACKER_SCAN_THREADS`
+/// overrides the default of cores × 4, capped at 32.
+fn scan_pool() -> &'static rayon::ThreadPool {
+    static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        let cores = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+        let threads = std::env::var("TRACKER_SCAN_THREADS")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .filter(|n| *n > 0)
+            .unwrap_or_else(|| (cores * 4).min(32));
+        tracing::info!(threads, cores, "scan thread pool");
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .thread_name(|i| format!("scan-{i}"))
+            .build()
+            .expect("build scan thread pool")
+    })
+}
+
 /// Module extensions libopenmpt can open. Generous on purpose — the collection
 /// has obscure legacy formats; unknown extensions are simply skipped. Lowercase.
 pub const MODULE_EXTS: &[&str] = &[
@@ -261,79 +304,83 @@ pub fn scan_into(
         /// Parsed PSID/RSID header, for the SID files among the candidates.
         sid: Option<crate::sid::SidInfo>,
     }
-    let resolved: Vec<Resolved> = cands
-        .par_iter()
-        .filter_map(|(path, rel_path, name, ext)| {
-            let meta = match std::fs::metadata(path) {
-                Ok(m) => m,
-                Err(e) => {
-                    tracing::warn!(path = %rel_path, error = %e, "stat failed; skipping");
-                    return None;
-                }
-            };
-            let size = meta.len() as i64;
-            let mtime = meta
-                .modified()
-                .ok()
-                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0);
-            // Reuse the cached hashes if nothing changed *and* the md5 backfill is
-            // already done; otherwise read + hash (computes both digests).
-            let (hash, md5, hashed, head) = match cache.get(rel_path) {
-                Some(c) if c.size == size && c.mtime == mtime && c.md5.is_some() => {
-                    (c.hash.clone(), c.md5.clone().unwrap(), false, Vec::new())
-                }
-                _ => match hash_file(path) {
-                    Ok((sha, m, head)) => {
-                        progress.hashed.fetch_add(1, Ordering::Relaxed);
-                        (sha, m, true, head)
-                    }
+    // `install` blocks until the pass finishes, so the closure can borrow the
+    // candidate list and the hash cache rather than taking ownership.
+    let resolved: Vec<Resolved> = scan_pool().install(|| {
+        cands
+            .par_iter()
+            .filter_map(|(path, rel_path, name, ext)| {
+                let meta = match std::fs::metadata(path) {
+                    Ok(m) => m,
                     Err(e) => {
-                        tracing::warn!(path = %rel_path, error = %e, "hash failed; skipping");
+                        tracing::warn!(path = %rel_path, error = %e, "stat failed; skipping");
                         return None;
                     }
-                },
-            };
-            // Parse the SID header off the bytes we just read. Only for a file
-            // we actually (re)hashed — an unchanged one already has its rows.
-            let sid = (crate::sid::is_sid_ext(ext) && hashed)
-                .then(|| crate::sid::parse(&head))
-                .flatten();
-            // A `.sid` without a SID header isn't music. The old sidplay v1
-            // "SIDPLAY INFOFILE" is a *text sidecar* — it describes a separate
-            // C64 binary (`ADDRESS=`, `SONGS=`, `NAME=`…) and carries no tune
-            // data at all, so on its own there is nothing any engine could play.
-            // Collections that passed through sidplay1 are littered with them,
-            // usually orphaned from the data file they described.
-            //
-            // Skip rather than index: a row that can only ever fail to play is
-            // worse than no row. Decided only when we actually read the header,
-            // which is guaranteed for a file that has never been indexed.
-            if crate::sid::is_sid_ext(ext) && hashed && sid.is_none() {
-                tracing::info!(
-                    path = %rel_path,
-                    "skipping .sid with no PSID/RSID header (sidplay info file?)"
-                );
-                return None;
-            }
-            progress.processed.fetch_add(1, Ordering::Relaxed);
-            let artist = artist_from_path(rel_path);
-            Some(Resolved {
-                rel_path: rel_path.clone(),
-                grp: String::new(),
-                artist,
-                name: name.clone(),
-                ext: ext.clone(),
-                size,
-                mtime,
-                hash,
-                md5,
-                hashed,
-                sid,
+                };
+                let size = meta.len() as i64;
+                let mtime = meta
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs() as i64)
+                    .unwrap_or(0);
+                // Reuse the cached hashes if nothing changed *and* the md5 backfill is
+                // already done; otherwise read + hash (computes both digests).
+                let (hash, md5, hashed, head) = match cache.get(rel_path) {
+                    Some(c) if c.size == size && c.mtime == mtime && c.md5.is_some() => {
+                        (c.hash.clone(), c.md5.clone().unwrap(), false, Vec::new())
+                    }
+                    _ => match hash_file(path) {
+                        Ok((sha, m, head)) => {
+                            progress.hashed.fetch_add(1, Ordering::Relaxed);
+                            (sha, m, true, head)
+                        }
+                        Err(e) => {
+                            tracing::warn!(path = %rel_path, error = %e, "hash failed; skipping");
+                            return None;
+                        }
+                    },
+                };
+                // Parse the SID header off the bytes we just read. Only for a file
+                // we actually (re)hashed — an unchanged one already has its rows.
+                let sid = (crate::sid::is_sid_ext(ext) && hashed)
+                    .then(|| crate::sid::parse(&head))
+                    .flatten();
+                // A `.sid` without a SID header isn't music. The old sidplay v1
+                // "SIDPLAY INFOFILE" is a *text sidecar* — it describes a separate
+                // C64 binary (`ADDRESS=`, `SONGS=`, `NAME=`…) and carries no tune
+                // data at all, so on its own there is nothing any engine could play.
+                // Collections that passed through sidplay1 are littered with them,
+                // usually orphaned from the data file they described.
+                //
+                // Skip rather than index: a row that can only ever fail to play is
+                // worse than no row. Decided only when we actually read the header,
+                // which is guaranteed for a file that has never been indexed.
+                if crate::sid::is_sid_ext(ext) && hashed && sid.is_none() {
+                    tracing::info!(
+                        path = %rel_path,
+                        "skipping .sid with no PSID/RSID header (sidplay info file?)"
+                    );
+                    return None;
+                }
+                progress.processed.fetch_add(1, Ordering::Relaxed);
+                let artist = artist_from_path(rel_path);
+                Some(Resolved {
+                    rel_path: rel_path.clone(),
+                    grp: String::new(),
+                    artist,
+                    name: name.clone(),
+                    ext: ext.clone(),
+                    size,
+                    mtime,
+                    hash,
+                    md5,
+                    hashed,
+                    sid,
+                })
             })
-        })
-        .collect();
+            .collect()
+    });
     result.hashed = resolved.iter().filter(|r| r.hashed).count();
 
     // 3) Write the index sequentially (SQLite is single-connection): upsert every

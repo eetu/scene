@@ -297,3 +297,58 @@ async fn delete_rejects_path_escape_and_unknown() {
     assert!(s.root.join("Coder/song.mod").is_file());
     assert_eq!(s.tracks().await.len(), 3);
 }
+
+/// Scanning a network mount is minutes of work, so the request that starts it
+/// must not be the thing that reports it finished: one dropped connection — a UI
+/// reload, a proxy timeout — used to look like a failure while the scan carried
+/// on regardless, with no way to tell the difference.
+#[tokio::test]
+#[ignore]
+async fn rescan_is_accepted_and_reports_its_outcome_afterwards() {
+    let s = Stack::start().await.unwrap();
+
+    let r = s.post_empty("/api/rescan").await;
+    assert_eq!(r.status(), 202, "the scan is started, not awaited");
+    let body: serde_json::Value = r.json().await.unwrap();
+    assert_eq!(body["started"], true);
+
+    // The flag is claimed before the response, so progress is observable
+    // immediately rather than after some window in which nothing is happening.
+    let during = s.get_json("/status").await;
+    assert_eq!(during["scanning"], true, "status: {during}");
+
+    // A 202 has no counts to give, so the outcome surfaces on /status instead —
+    // otherwise a failed scan would be indistinguishable from one that found
+    // nothing. Waited for, not re-POSTed: the scan already running would refuse
+    // a second one.
+    let last = s.await_scan().await;
+    assert_eq!(last["indexed"], 3, "last_scan: {last}");
+    assert!(last["error"].is_null(), "unexpected error: {last}");
+    assert_eq!(last["root"], "mods");
+    assert!(!last["finished_at"].as_str().unwrap_or("").is_empty());
+}
+
+/// Two scans would serialise on the single SQLite connection anyway, but they
+/// would also interleave their writes to the shared progress counters — so
+/// /status would report a meaningless blend of the two runs.
+#[tokio::test]
+#[ignore]
+async fn a_second_rescan_is_refused_while_one_runs() {
+    let s = Stack::start().await.unwrap();
+    // Enough files that the scan is still going when the second request lands —
+    // the bare fixture finishes faster than a round-trip. ~800 files is around
+    // 100ms of scanning against a sub-millisecond local round trip, which is a
+    // wide enough margin without loading the machine the other tests share.
+    s.seed_bulk(800);
+
+    let first = s.post_empty("/api/rescan").await;
+    assert_eq!(first.status(), 202);
+
+    let second = s.post_empty("/api/rescan").await;
+    assert_eq!(second.status(), 409, "a concurrent scan must be refused");
+
+    // …and once it finishes, scanning is possible again.
+    s.await_scan().await;
+    assert_eq!(s.post_empty("/api/rescan").await.status(), 202);
+    s.await_scan().await;
+}

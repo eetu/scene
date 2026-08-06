@@ -121,6 +121,7 @@ export async function mockLibrary(context: BrowserContext, opts: MockLibraryOpti
         scan_total: 0,
         scan_processed: 0,
         scan_hashed: 0,
+        last_scan: null,
       },
     }),
   );

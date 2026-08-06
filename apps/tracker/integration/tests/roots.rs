@@ -15,8 +15,7 @@ use tracker_integration::Stack;
 async fn same_rel_path_in_two_roots_stays_distinct() -> anyhow::Result<()> {
     let s = Stack::start_with_second_root("extra", "scan").await?;
     s.rescan().await;
-    let r = s.post_empty("/api/rescan/extra").await;
-    assert!(r.status().is_success(), "per-root rescan: {}", r.status());
+    s.rescan_root("extra").await;
 
     let tracks = s.tracks().await;
     let songs: Vec<_> = tracks

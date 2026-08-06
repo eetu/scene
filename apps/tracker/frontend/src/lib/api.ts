@@ -111,12 +111,34 @@ export type StatusResponse = {
   scan_total: number;
   scan_processed: number;
   scan_hashed: number;
+  /** Outcome of the last finished scan; null until one has run. */
+  last_scan: ScanOutcome | null;
 };
 
-export type RescanResult = {
+/** What the last finished scan did, from `/status`.
+ *
+ *  A walked root's rescan answers 202 and reports nothing, so this is the only
+ *  place its counts — or its failure — appear. */
+export type ScanOutcome = {
+  root: string;
   indexed: number;
   hashed: number;
   removed: number;
+  finished_at: string;
+  /** Set when the scan failed; the counts are 0 then, so a failure can't be
+   *  mistaken for "scanned, found nothing". */
+  error: string | null;
+};
+
+export type RescanResult = {
+  /** Walked roots: the scan was accepted (202) and runs in the background.
+   *  Follow it via `/status.scanning`, then read `/status.last_scan`. */
+  started?: boolean;
+  root?: string;
+  /** HVSC reindex only — it finishes in seconds, so it answers 200 with counts. */
+  indexed?: number;
+  hashed?: number;
+  removed?: number;
   /** HVSC reindex only — one row per subtune, so it exceeds `indexed`. */
   subtunes?: number;
 };
@@ -472,6 +494,8 @@ export const api = STANDALONE
         // No HVSC in the browser-local build: it's a mounted collection, and
         // there's nothing to mount. Empty keeps the feature flag off.
         hvsc: {},
+        // Nothing scans here either — the library is whatever was dropped in.
+        last_scan: null,
         roots: [
           {
             id: "mods",

@@ -151,31 +151,39 @@ function bootBackend() {
             throw e;
           }
         }),
-        // Kick a (synchronous) rescan; poll /status in parallel for the progress
-        // bar; resolve once it's done. loadingTracks reloads the fresh index after.
+        // Start a scan and follow it to completion.
+        //
+        // The POST answers 202 and returns immediately — a walk of a network
+        // mount is minutes, far longer than any request should be held open —
+        // so "done" is what /status says, not when the request resolves. The
+        // server claims its `scanning` flag before answering, so the first poll
+        // can't observe "not scanning" and finish early.
+        //
+        // Only then does the machine move to loadingTracks, which is what keeps
+        // the client off /api/library while the scan holds the DB.
         rescan: fromPromise(async () => {
           library.error = null;
-          let done = false;
-          const poller = (async () => {
-            while (!done) {
-              try {
-                library.status = await api.status();
-              } catch {
-                /* transient */
-              }
-              await sleep(700);
-            }
-          })();
           try {
             await api.rescan();
           } catch (e) {
             library.error = msg(e);
-            done = true;
-            await poller;
             throw e;
           }
-          done = true;
-          await poller;
+          for (;;) {
+            await sleep(700);
+            try {
+              library.status = await api.status();
+            } catch {
+              continue; // transient — the scan is still running regardless
+            }
+            if (!library.status?.scanning) break;
+          }
+          // A 202 had no counts to report, so a failure surfaces here instead.
+          const failed = library.status?.last_scan?.error;
+          if (failed) {
+            library.error = failed;
+            throw new Error(failed);
+          }
         }),
       },
     }),
