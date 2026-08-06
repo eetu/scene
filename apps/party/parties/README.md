@@ -472,20 +472,29 @@ Key rules:
   - Editing any of these values yields a **new** cache entry rather than the previous
     mux (the recipe is hashed into the `derived` ledger key), so retuning is just
     edit → `POST /api/rescan` → reload.
-- **A DOS demo that needs a specific CPU** — `FileCfg.cputype`, keyed by the
-  executable's party-relative path. The default js-dos core (plain DOSBox) tops out
-  at a Pentium *without* MMX, so an MMX demo CPUID-gates and aborts before drawing
-  anything (`bestofthebest.json` → `pc/11 - byterapers - protocode0x28/PROT0X28.EXE`:
-  `"cputype": "pentium_mmx"`). Setting it to anything the light core can't do
-  switches that bundle to the **DOSBox-X** core — a 7.9 MB download and no JIT, so
-  set it only where a demo actually needs it. Write the standard DOSBox-X spelling
-  (`pentium_mmx`, `pentium_ii`, `486old`, …); `party.rs`'s `cpu_target` picks the
-  core and the value the core actually wants. An unrecognised value is logged at
-  startup and ignored — but a key that matches *no file* is silent, so **renaming
-  the entry folder unpins the CPU** (tidying `11 - byterapers - protocode0x28` to
-  `11 - Byterapers - Protocode 0x28` did exactly that): move the key with the folder,
-  and note the rename also changes the production's id, so reload the SPA rather
-  than trusting an open tab.
+- **A DOS demo that needs a specific CPU** — `FileCfg.cputype`, keyed by the demo's
+  **entry folder** (the one `files` key that isn't per-file: a CPU belongs to the
+  production, so every build inside inherits it — the fix, the v2, the extender a
+  visitor might click). The default js-dos core (plain DOSBox) tops out at a Pentium
+  *without* MMX, so an MMX demo CPUID-gates and aborts before drawing anything:
+
+  ```jsonc
+  "files": {
+    "pc/11 - Byterapers - Protocode 0x28": { "cputype": "pentium_mmx" }
+  }
+  ```
+
+  Setting it to anything the light core can't do switches that demo's bundle to the
+  **DOSBox-X** core — a 7.9 MB download and no JIT, so set it only where a demo
+  actually needs it. Write the standard DOSBox-X spelling (`pentium_mmx`,
+  `pentium_ii`, `486old`, …); `party.rs`'s `cpu_target` picks the core and the value
+  the core actually wants. Naming a specific exe still works and beats the folder,
+  for the rare prod whose two builds want different CPUs. An unrecognised value is
+  logged at startup and ignored — but a key that matches *nothing* is silent, so
+  **renaming the entry folder unpins the CPU** (tidying `11 - byterapers -
+  protocode0x28` to `11 - Byterapers - Protocode 0x28` did exactly that): move the
+  key with the folder, and note the rename also changes the production's id, so
+  reload the SPA rather than trusting an open tab.
   - **Neither MMX spelling of DOSBox-X-in-js-dos gives you MMX**, which is why that
     one value is remapped: `cputype=pentium_mmx` logs `not supported (using pentium
     instead)`, and the fork's own `jsdos_pentium_mmx` logs `pentium_mmx is enabled`
