@@ -150,10 +150,9 @@
   .reindex {
     margin-left: auto;
   }
-  /* …but only where there's room to push it. Inside the scrolling row a phone
-     gets, `margin-left: auto` puts it past the right edge, reachable only by
-     scrolling a row with no scrollbar — so on narrow screens it simply follows
-     the chips. */
+  /* …but only where there's room to push it. On a phone the row is tight
+     enough that pushing it to the far edge either overflows or strands it alone
+     on a wrapped second line, so there it simply follows the chips. */
   @media (max-width: 640px) {
     .reindex {
       margin-left: 4px;
@@ -167,8 +166,16 @@
   @media (max-width: 640px) {
     .sources {
       padding: 4px 10px;
-      overflow-x: auto;
-      scrollbar-width: none;
+      /* Wrap rather than scroll.
+         This used to be `overflow-x: auto`, which made a handful of chips into a
+         scrolling container: `scrollbar-width: none` hides that on Firefox but
+         does nothing on WebKit, so a phone got a scrollbar across the row —
+         eating its height and clipping the labels. A scroll region also hides
+         whatever is past the edge with no affordance saying so.
+         There are only ever a few chips, so on the rare occasion they don't fit
+         (many roots, a long label) a second line is the honest answer. */
+      flex-wrap: wrap;
+      row-gap: 4px;
     }
     .sources button {
       flex: 0 0 auto;

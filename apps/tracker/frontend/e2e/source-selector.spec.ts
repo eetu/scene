@@ -183,11 +183,18 @@ test.describe("on a phone", () => {
     await page.getByRole("button", { name: /^HVSC/ }).click();
     await expect(page.getByRole("button", { name: "Reindex" })).toBeVisible();
 
+    // Not scrollable in either axis. A scrolling row was the original bug: it
+    // put a scrollbar across the chips on WebKit (where `scrollbar-width: none`
+    // does nothing), which ate the row's height and clipped the labels.
     const nav = page.locator("nav.sources");
-    expect(
-      await nav.evaluate((n) => n.scrollWidth - n.clientWidth),
-      "the source row overflows its own width",
-    ).toBe(0);
+    const over = await nav.evaluate((n) => ({
+      x: n.scrollWidth - n.clientWidth,
+      y: n.scrollHeight - n.clientHeight,
+      overflowX: getComputedStyle(n).overflowX,
+    }));
+    expect(over.x, "the source row overflows its own width").toBe(0);
+    expect(over.y, "the source row overflows its own height").toBe(0);
+    expect(over.overflowX, "the source row must not be a scroll container").toBe("visible");
 
     const box = (await nav.boundingBox())!;
     for (const name of [/^Mods/, /^HVSC/, "All", "Reindex"] as const) {
