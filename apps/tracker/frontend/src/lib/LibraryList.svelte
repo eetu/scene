@@ -32,6 +32,7 @@
   import PlaylistsTab from "$lib/PlaylistsTab.svelte";
   import { STANDALONE } from "$lib/standalone";
   import { remove as removeLocal } from "$lib/standalone/store.svelte";
+  import { hydrate, peek } from "$lib/tracks.svelte";
   import { view } from "$lib/view.svelte";
 
   let {
@@ -99,8 +100,14 @@
   // grouped header+track stream. (lib.flatTracks is the single favourites bucket
   // flattened when favView, so it's already deduped + track-sorted.)
   const rows = $derived<LibRow[]>(
-    lib.favView ? flatRows(lib.flatTracks) : buildRows(lib.groups, isOpen),
+    lib.favView ? flatRows(lib.flatIds) : buildRows(lib.groups, isOpen),
   );
+
+  // How many rows the backend has indexed at all — the "nothing here yet, go
+  // rescan" signal. It can't come from the row stream any more: with a backend
+  // the browser never holds the whole index, and an empty *shaped* list usually
+  // just means the filters exclude everything.
+  const indexed = $derived(STANDALONE ? library.tracks.length : (library.status?.track_count ?? 0));
 
   // ≤640px: track rows stay ONE line (title/artist + duration), a touch taller
   // for a comfortable tap target; playcount is dropped and the name ellipsises
@@ -164,6 +171,20 @@
       $virtualizer.measure();
     });
   });
+  // Hydrate the rows about to be painted. The row stream is ids; the track data
+  // for a window arrives from /api/tracks/batch and lands in the reactive cache,
+  // which re-renders exactly those rows. Overscan means we fetch slightly ahead
+  // of the viewport, and `hydrate` de-duplicates against what's already in
+  // flight, so this is safe to run on every scroll tick.
+  $effect(() => {
+    const ids = $virtualizer
+      .getVirtualItems()
+      .map((v) => rows[v.index])
+      .filter((r) => r?.kind === "track")
+      .map((r) => (r as { id: number }).id);
+    if (ids.length) void hydrate(ids);
+  });
+
   // When the grouping/filter changes, the row stream is a different list — jump
   // back to the top so the virtualizer can't hold an out-of-range scroll offset
   // from the previous (often longer) grouping. Without this, switching e.g.
@@ -216,13 +237,15 @@
   });
 
   async function revealCurrent() {
-    const path = playback.current?.path;
-    if (!path || !scrollEl || !lib.listView) return;
+    // Match on the queue id, not the path: the row stream is ids, and the rows
+    // off-screen have no track data to compare a path against.
+    const id = playback.current?.id;
+    if (!id || !scrollEl || !lib.listView) return;
     // Open the group holding the current track — but only if the active
     // grouping/filter still lists it (a query or facet may exclude it).
     let inList = false;
-    for (const [name, items] of lib.groups) {
-      if (items.some((t) => t.path === path)) {
+    for (const [name, ids] of lib.groups) {
+      if (ids.includes(id)) {
         inList = true;
         if (!isOpen(name)) groupOverride.set(name, true);
         break;
@@ -232,7 +255,7 @@
     // Let the (possibly) opened group flow through the derived row list and the
     // virtualizer's count/measure effect before we resolve the row index.
     await tick();
-    const idx = rows.findIndex((r) => r.kind === "track" && r.track.path === path);
+    const idx = rows.findIndex((r) => r.kind === "track" && r.id === id);
     if (idx < 0) return;
     // Skip the scroll when the row is already comfortably on screen, so a track
     // that's already in view doesn't get a pointless re-centre jump.
@@ -251,7 +274,7 @@
   >
     {#if view.tab === "playlists"}
       <PlaylistsTab {playlists} onRefresh={onRefreshPlaylists} onPlay={onPlayList} {onToast} />
-    {:else if library.scanning && library.tracks.length === 0}
+    {:else if library.scanning && indexed === 0}
       <div class="scan-panel">
         <div class="boing"><BoingBall /></div>
         <p>Scanning the collection…</p>
@@ -270,23 +293,27 @@
       </div>
     {:else if library.loading}
       <p class="msg">loading library…</p>
-    {:else if library.error && library.tracks.length === 0}
+    {:else if library.error && indexed === 0}
       <!-- Cold failure (no library to fall back to): show the error full-width
            with a retry, instead of a dead-end error string. -->
       <div class="msg err">
         <p>{library.error}</p>
         <button class="link" onclick={rescanLibrary}>retry</button>
       </div>
-    {:else if library.tracks.length === 0 && !STANDALONE}
+    {:else if indexed === 0 && !STANDALONE}
       <p class="msg">
         No modules indexed yet — try <button class="link" onclick={rescanLibrary}>rescan</button>.
       </p>
-    {:else if library.tracks.length === 0}
+    {:else if indexed === 0}
       <!-- Standalone (backend-less): the StandaloneIntake hero overlays this
            empty region with the drop zone, so the list itself stays blank. -->
       <div class="vlist"></div>
-    {:else if lib.favView && lib.flatTracks.length === 0}
+    {:else if lib.favView && lib.total === 0}
       <p class="msg">No favourites yet — tap the ☆ on any track.</p>
+    {:else if lib.total === 0}
+      <!-- Indexed, but nothing matches — a filter or the source scope excludes
+           everything. Distinct from "nothing indexed", which needs a rescan. -->
+      <p class="msg">Nothing matches the current filters.</p>
     {:else}
       <div class="vlist" style:height="{$virtualizer.getTotalSize()}px">
         {#each $virtualizer.getVirtualItems() as v (v.key)}
@@ -314,8 +341,8 @@
                 {#if isGroupless}<span class="grp-tag">no group</span>{/if}
                 <span class="grp-count">{row.count}</span>
               </button>
-            {:else if row?.kind === "track"}
-              {@const t = row.track}
+            {:else if row?.kind === "track" && peek(row.id)}
+              {@const t = peek(row.id)!}
               {@const isCurrent = playback.current?.path === t.path}
               {@const sub = lib.favView
                 ? favSubLabel(t, manifestIndex())
@@ -374,6 +401,13 @@
                   </button>
                 {/if}
               </div>
+            {:else if row?.kind === "track"}
+              <!-- The row exists (the server shaped it) but its data hasn't
+                   landed yet. A same-height skeleton keeps the virtualizer's
+                   offsets exact, so nothing shifts when it fills in. -->
+              <div class="card li skeleton" class:first={v.index === 0} class:last={row.last}>
+                <span class="bar"></span>
+              </div>
             {/if}
           </div>
         {/each}
@@ -383,7 +417,7 @@
   {#if showRail}
     <AlphabetRail items={railItems} onJump={jumpToRow} />
   {/if}
-  {#if library.error && library.tracks.length > 0}
+  {#if library.error && indexed > 0}
     <!-- A rescan failed but we still have the previously-loaded library — keep it
          visible and surface the failure non-destructively (fixed overlay, so it
          doesn't offset the virtualizer's scroll math) with retry + dismiss. -->

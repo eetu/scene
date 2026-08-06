@@ -4,6 +4,8 @@
 //
 // In the backend-less GitHub Pages build (STANDALONE) the playable half of `api`
 // is swapped for a browser-local implementation — see the branch at the bottom.
+import type { TrackNote } from "@scene/player";
+
 import { STANDALONE } from "$lib/standalone";
 import * as local from "$lib/standalone/store.svelte";
 
@@ -11,9 +13,21 @@ import * as local from "$lib/standalone/store.svelte";
  *  from the metadata cache and are null until enrichment fills them. `md5` is
  *  the portable id shared with playlists / external services. */
 export type Track = {
+  /** The playable track's id: the file's surrogate id with its subtune folded
+   *  in. The key the shaped library streams and the client hydrates, queues and
+   *  plays by — a SID file holding twelve tunes is twelve entries. */
+  id: number;
+  /** Which subtune of the file this is (0 for a module, and for a single-tune
+   *  file). The engine selects it after loading the bytes. */
+  subsong: number;
+  /** How many subtunes the file holds; 0 when it isn't multi-tune. */
+  subsongs: number;
   hash: string;
   md5: string | null;
   path: string;
+  /** The configured root this file lives in (`mods`, `hvsc`, …) — the axis the
+   *  library's source selector filters on. */
+  collection: string;
   group: string;
   artist: string | null;
   filename: string;
@@ -30,12 +44,68 @@ export type Track = {
   play_count: number;
 };
 
+/** The library query the backend shapes on — mirrors `library::Query` (Rust).
+ *  Every field is optional here; the backend defaults each one. */
+export type LibraryQuery = {
+  collection?: string;
+  fav?: boolean;
+  fmt?: string;
+  tracker?: string;
+  q?: string;
+  group_by?: "group" | "artist" | "ext" | "album";
+  track_sort?: "name" | "duration" | "channels" | "plays";
+  group_sort?: "name" | "plays" | "size";
+};
+
+/** One bucket of the shaped library: a header name plus its track ids in order. */
+export type LibraryBucket = { name: string; ids: number[] };
+
+/** The shaped library. The ids across all buckets, in order, are the play queue
+ *  — the client permutes *indices* into this for shuffle, which is what keeps
+ *  `prev` retracing the same history and the order surviving a reload. */
+export type ShapedLibrary = {
+  groups: LibraryBucket[];
+  total: number;
+  formats: string[];
+  trackers: string[];
+};
+
+/** One configured collection root, as reported by `/status`. */
+export type Root = {
+  id: string;
+  label: string;
+  kind: "scan" | "hvsc";
+  path: string;
+  /** Indexed tracks in this root; null while a scan holds the DB. */
+  count: number | null;
+};
+
+/** What an HVSC root knows about itself, from its own DOCUMENTS/. `null` for a
+ *  root that is configured but not yet indexed — which is a real state (the
+ *  collection may still be copying), and reads differently from "not HVSC". */
+export type HvscState = {
+  /** Release number off the HVSC.txt banner; null when it couldn't be read. */
+  version: number | null;
+  tunes: number;
+  subtunes: number;
+  indexed_at: string;
+} | null;
+
 export type StatusResponse = {
   service: string;
   version: string;
   db_healthy: boolean;
   track_count: number | null;
+  /** The primary root's path. Kept for display; `roots` is the real list. */
   root: string;
+  roots: Root[];
+  /** Per-root HVSC facts, keyed by root id. Empty when no HVSC root is
+   *  configured — that absence is the feature flag the UI keys off, so nothing
+   *  HVSC-specific renders on an install without a collection. */
+  hvsc: Record<string, HvscState>;
+  /** Seconds to play a SID with no known length. A fallback for playback only —
+   *  never displayed as if it were the tune's real duration. */
+  sid_default_length: number;
   // Live scan progress (lock-free counters; safe to poll during a scan).
   scanning: boolean;
   scan_total: number;
@@ -47,11 +117,15 @@ export type RescanResult = {
   indexed: number;
   hashed: number;
   removed: number;
+  /** HVSC reindex only — one row per subtune, so it exceeds `indexed`. */
+  subtunes?: number;
 };
 
 /** Rename / move a module: edit its group / artist / filename segments. */
 export type RenameRequest = {
   from: string;
+  /** The track's collection; omitted → the backend's primary root. */
+  root?: string;
   group: string;
   artist: string | null;
   filename: string;
@@ -113,6 +187,8 @@ export type PlaylistItem = {
   samples: number | null;
   favorite: boolean;
   play_count: number;
+  /** Root of the local file this resolved to; null when not present locally. */
+  collection: string | null;
 };
 
 export type PlaylistDetail = {
@@ -159,7 +235,8 @@ export type DupeFile = {
 };
 
 export type DupesReport = {
-  exact: { md5: string; paths: string[] }[];
+  /** Identical bytes at several paths — one content hash for the whole set. */
+  exact: { md5: string; hash: string; paths: string[] }[];
   likely: { filename: string; files: DupeFile[] }[];
 };
 
@@ -185,9 +262,16 @@ export type SongIn = { forGroup?: string | null; with?: string[]; year?: number 
 /** A present playlist item carries every field a Track needs for playback. */
 export function itemToTrack(i: PlaylistItem): Track {
   return {
+    // A playlist item carries no `files.id`; 0 marks "not an index row", which
+    // is honest — an absent item has no library row to hydrate or resolve.
+    id: 0,
+    subsong: 0,
+    subsongs: 0,
     hash: i.hash ?? "",
     md5: i.md5,
     path: i.path ?? "",
+    // Null for an item with no local file — it belongs to no collection yet.
+    collection: i.collection ?? "",
     group: i.group ?? "",
     artist: i.artist,
     filename: i.filename ?? "",
@@ -224,7 +308,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!res.ok) {
-    throw new ApiError(res.status, `${init?.method ?? "GET"} ${path} → ${res.status}`);
+    // Prefer the backend's own words. Its 4xx bodies are written to be read
+    // ("root \"hvsc\" has no DOCUMENTS/Songlengths.md5"), and the standalone
+    // store already throws ApiError with human-facing messages — so a toast
+    // showing `POST /api/… → 400` was throwing away the useful half. Falls back
+    // to the method/status form for an empty body or an HTML error page from a
+    // proxy, neither of which says anything a user can act on.
+    let detail = "";
+    try {
+      const body = (await res.text()).trim();
+      if (body && !body.startsWith("<") && body.length <= 300) detail = body;
+    } catch {
+      /* body already consumed or unreadable — the fallback still holds */
+    }
+    throw new ApiError(res.status, detail || `${init?.method ?? "GET"} ${path} → ${res.status}`);
   }
   if (res.status === 204) {
     return undefined as T;
@@ -235,7 +332,43 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const httpApi = {
   status: () => request<StatusResponse>("/status"),
   tracks: () => request<{ tracks: Track[] }>("/api/tracks").then((r) => r.tracks),
+  /** The shaped library: an ordered id stream grouped into buckets. Replaces
+   *  pulling the whole index client-side, which stops scaling once HVSC is in. */
+  libraryIds: (q: LibraryQuery = {}) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(q)) {
+      if (v !== undefined && v !== "" && v !== false) p.set(k, String(v));
+    }
+    const qs = p.toString();
+    return request<ShapedLibrary>(`/api/library/ids${qs ? `?${qs}` : ""}`);
+  },
+  /** A page of tracks still lacking parsed metadata, plus the total outstanding.
+   *  SIDs are excluded server-side (their header is parsed in Rust). */
+  unenriched: () => request<{ count: number; tracks: Track[] }>("/api/library/unenriched"),
+  /** One track by content hash — the `?t=` deep-link restore, which can't search
+   *  a list the browser no longer holds. Null when it isn't indexed. */
+  trackByHash: (hash: string) =>
+    request<{ track: Track }>(`/api/track/${hash}`)
+      .then((r) => r.track)
+      .catch(() => null),
+  /** Hydrate a window of the id stream. Rows come back in the requested order. */
+  tracksBatch: (ids: number[]) =>
+    ids.length
+      ? request<{ tracks: Track[] }>(`/api/tracks/batch?ids=${ids.join(",")}`).then((r) => r.tracks)
+      : Promise.resolve([]),
+  /** Curator notes for a track (STIL). Its own call rather than a track column:
+   *  the notes run to paragraphs and only the player pane wants them, once per
+   *  tune played. Failures resolve to none — it's decoration. */
+  stil: (id: number) =>
+    request<{ notes: TrackNote[] }>(`/api/stil/${id}`)
+      .then((r) => r.notes)
+      .catch(() => []),
   rescan: () => request<RescanResult>("/api/rescan", { method: "POST" }),
+  /** Reindex one root. For an HVSC root this rebuilds from its own catalogue —
+   *  a single 5MB read, not a walk — which is why it's safe as a UI button at a
+   *  scale where a filesystem rescan wouldn't be. */
+  rescanRoot: (root: string) =>
+    request<RescanResult>(`/api/rescan/${encodeURIComponent(root)}`, { method: "POST" }),
   putMeta: (hash: string, meta: MetaIn) =>
     request<void>(`/api/meta/${hash}`, { method: "POST", body: JSON.stringify(meta) }),
   rename: (req: RenameRequest) =>
@@ -245,12 +378,21 @@ const httpApi = {
       method: "POST",
       body: JSON.stringify({ path }),
     }),
-  setFavorite: (hash: string, favorite: boolean) =>
+  // Both are per-subtune: a SID's tunes are favourited and counted separately,
+  // so the hash alone no longer identifies the thing being written.
+  setFavorite: (hash: string, favorite: boolean, subsong = 0) =>
     request<void>(`/api/favorite/${hash}`, {
       method: "POST",
-      body: JSON.stringify({ favorite }),
+      body: JSON.stringify({ favorite, subsong }),
     }),
-  play: (hash: string) => request<{ play_count: number }>(`/api/play/${hash}`, { method: "POST" }),
+  play: (hash: string, subsong = 0) =>
+    request<{ play_count: number }>(`/api/play/${hash}?subsong=${subsong}`, { method: "POST" }),
+  /** Record a subtune's real length, or clear it (null) to fall back again. */
+  setSongLength: (hash: string, subsong: number, duration: number | null) =>
+    request<void>(`/api/song-length/${hash}`, {
+      method: "POST",
+      body: JSON.stringify({ subsong, duration }),
+    }),
 
   // Playlists (md5-keyed)
   playlists: () => request<{ playlists: Playlist[] }>("/api/playlists").then((r) => r.playlists),
@@ -327,6 +469,19 @@ export const api = STANDALONE
         db_healthy: true,
         track_count: local.tracks.length,
         root: "(browser)",
+        // No HVSC in the browser-local build: it's a mounted collection, and
+        // there's nothing to mount. Empty keeps the feature flag off.
+        hvsc: {},
+        roots: [
+          {
+            id: "mods",
+            label: "Mods",
+            kind: "scan",
+            path: "(browser)",
+            count: local.tracks.length,
+          },
+        ],
+        sid_default_length: 180,
         scanning: false,
         scan_total: 0,
         scan_processed: 0,

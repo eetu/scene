@@ -142,7 +142,7 @@
               library.status?.scan_total ?? 0
             ).toLocaleString()}{/if}
         {:else}
-          {library.tracks.length.toLocaleString()} modules{#if unEnriched() > 0}
+          {(library.status?.track_count ?? 0).toLocaleString()} modules{#if unEnriched() > 0}
             · {unEnriched().toLocaleString()} need metadata{/if}
         {/if}
       </span>

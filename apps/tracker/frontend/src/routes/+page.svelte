@@ -1,11 +1,12 @@
 <script lang="ts">
   import { CircleHelp, FolderPlus, Settings, SlidersHorizontal, X } from "@lucide/svelte";
   import {
-    cueInOrder,
+    cueRefs,
     playback,
     playInOrder,
     playNext,
     playPrev,
+    playRefs,
     seekSeconds,
     setEditing,
     setJamLevel,
@@ -21,17 +22,20 @@
   import CurateModal from "$lib/CurateModal.svelte";
   import DupesPanel from "$lib/DupesPanel.svelte";
   import FacetBar from "$lib/FacetBar.svelte";
-  import { library } from "$lib/library.svelte";
+  import { library, reshapeIfChanged } from "$lib/library.svelte";
   import { lib } from "$lib/library-view.svelte";
   import LibraryList from "$lib/LibraryList.svelte";
   import Modal from "$lib/Modal.svelte";
   import { pv } from "$lib/player-view.svelte";
   import PlayerView from "$lib/PlayerView.svelte";
+  import { settings } from "$lib/settings.svelte";
   import SettingsPanel from "$lib/SettingsPanel.svelte";
+  import SourceSelector from "$lib/SourceSelector.svelte";
   import { STANDALONE } from "$lib/standalone";
   import { pickFiles } from "$lib/standalone/intake";
   import StandaloneIntake from "$lib/StandaloneIntake.svelte";
   import Toasts from "$lib/Toasts.svelte";
+  import { put } from "$lib/tracks.svelte";
   import { parsePos } from "$lib/url-state";
   import { bucketNoun, controlsActive, setTab, view } from "$lib/view.svelte";
 
@@ -66,11 +70,24 @@
     const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
     const apply = () => {
       isDesktop = mq.matches;
-      if (!mq.matches && playback.editing) setEditing(false);
+      // Leave edit mode on a touch device (no editor UI there) — and whenever
+      // the editor is flagged off, so no path can strand the app in a mode whose
+      // controls aren't rendered.
+      if ((!mq.matches || !settings.editor) && playback.editing) setEditing(false);
     };
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
+  });
+
+  // Re-shape the library whenever the view changes. With a backend the filter /
+  // group / sort runs server-side, so a facet change is a fetch rather than a
+  // re-derive — `reshapeIfChanged` no-ops when the query is unchanged, and
+  // supersedes an in-flight fetch when it isn't (typing in the search box).
+  // STANDALONE shapes in the browser and needs none of this.
+  $effect(() => {
+    if (STANDALONE) return;
+    reshapeIfChanged(lib.query);
   });
 
   // Library data + scan lifecycle live in the shared library store (driven by
@@ -78,6 +95,9 @@
   const tracks = $derived(library.tracks);
   const status = $derived(library.status);
   const scanning = $derived(library.scanning);
+  /** The library is ready to be queried against — the shaped stream has landed
+   *  (or, in the backend-less build, the in-memory list has). */
+  const libraryReady = $derived(STANDALONE ? tracks.length > 0 : library.shaped !== null);
 
   // The topbar filter input (query lives in the view store; this ref lets
   // type-to-filter focus it).
@@ -112,7 +132,7 @@
   // Restore the bookmarked / pre-HMR track once the library has loaded. Runs
   // once.
   $effect(() => {
-    if (urlRestored || !tracks.length) return;
+    if (urlRestored || !libraryReady) return;
     urlRestored = true;
     if (!initialTrackHash) return;
     // The decoded pattern data survived intact (a component-only HMR keeps the
@@ -125,14 +145,19 @@
     // (no gesture needed) so the grid fills in, but do NOT autoplay: the browser
     // blocks audio on a cold load without a gesture, so the transport shows ▶ and
     // audio starts on the first tap. A shared ?pos seeks once decoded (below).
-    const t = tracks.find((x) => x.hash === initialTrackHash);
-    if (t) {
-      cueInOrder(
-        untrack(() => lib.flatTracks),
-        t,
-      );
+    // The deep-linked track isn't necessarily in the visible list (a stored
+    // filter may exclude it), so fetch it by hash rather than searching a list
+    // the browser no longer holds in full.
+    void api.trackByHash(initialTrackHash).then((t) => {
+      if (!t) return;
+      put(t);
+      const ids = untrack(() => lib.flatIds);
+      const idx = ids.indexOf(t.id);
+      // Not in the current view → cue it as a queue of one, so the transport
+      // still works rather than silently doing nothing.
+      cueRefs(idx >= 0 ? ids : [t.id], idx >= 0 ? idx : 0, t);
       showPattern = true;
-    }
+    });
   });
 
   // Write ?t as the current track changes (gated until restore has consumed the
@@ -212,8 +237,17 @@
     // yet (e.g. mid-load): opening the pattern view on an un-decoded module would
     // freeze on "decoding pattern…". An already-loaded same track just reopens
     // the view (no rewind).
-    if (playback.current?.path !== t.path || !playback.song) void playInOrder(lib.flatTracks, t);
+    if (playback.current?.path !== t.path || !playback.song) playFromList(t);
     showPattern = true;
+  }
+
+  /** Play `t` as part of the visible order. The queue is the shaped id stream,
+   *  so the player resolves the rest on demand rather than holding the rows. */
+  function playFromList(t: Track) {
+    put(t); // the queue's own entry never needs a round trip
+    const ids = lib.flatIds;
+    const idx = ids.indexOf(t.id);
+    void (idx >= 0 ? playRefs(ids, idx) : playRefs([t.id], 0));
   }
 
   // Expand the current track into the full pattern view. A track that's only
@@ -221,7 +255,7 @@
   // doesn't load — so load it here, else the grid freezes on "decoding pattern…".
   function openPlayerView() {
     const cur = playback.current;
-    if (cur && !playback.song) void playInOrder(lib.flatTracks, cur);
+    if (cur && !playback.song) playFromList(cur as Track);
     showPattern = true;
   }
 
@@ -408,8 +442,8 @@
     {:else if view.tab === "playlists"}
       {playlists.length} {playlists.length === 1 ? "playlist" : "playlists"}
     {:else if status}
-      {lib.filtered.length}{#if !lib.favView}
-        / {tracks.length}{/if}
+      {lib.total.toLocaleString()}{#if !lib.favView}
+        / {(status.track_count ?? 0).toLocaleString()}{/if}
       {lib.favView ? "favourites" : "modules"}{#if !lib.favView}
         · {lib.groups.length}
         {bucketNoun()}{/if}
@@ -463,6 +497,7 @@
 </nav>
 
 {#if lib.listView}
+  <SourceSelector onToast={showToast} />
   <div class="facetwrap" class:open={facetsOpen}>
     <FacetBar />
   </div>

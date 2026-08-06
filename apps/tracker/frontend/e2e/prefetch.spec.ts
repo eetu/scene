@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 import { FIXTURE_XM } from "../../../../packages/player/testing/playback-smoke";
+import type { Track } from "../src/lib/api";
+import { mockLibrary } from "./mock-api";
 
 const BYTES = readFileSync(FIXTURE_XM);
 
@@ -33,27 +35,13 @@ test("prefetches the next track's bytes after the current one settles", async ({
   page,
 }) => {
   const fetched = new Set<string>();
-  await context.route("**/api/tracks", (r) =>
-    r.fulfill({ json: { tracks: [mk("aaa", "a-first.xm"), mk("bbb", "b-second.xm")] } }),
-  );
+  await mockLibrary(context, [
+    mk("aaa", "a-first.xm"),
+    mk("bbb", "b-second.xm"),
+  ] as unknown as Track[]);
   await context.route("**/api/playlists", (r) => r.fulfill({ json: { playlists: [] } }));
   await context.route("**/api/play/*", (r) => r.fulfill({ json: { play_count: 1 } }));
   await context.route("**/api/meta/*", (r) => r.fulfill({ status: 204, body: "" }));
-  await context.route("**/status", (r) =>
-    r.fulfill({
-      json: {
-        service: "tracker",
-        version: "e2e",
-        db_healthy: true,
-        track_count: 2,
-        root: "/x",
-        scanning: false,
-        scan_total: 0,
-        scan_processed: 0,
-        scan_hashed: 0,
-      },
-    }),
-  );
   await context.route("**/api/file/*", (route) => {
     fetched.add(new URL(route.request().url()).pathname.split("/").pop() ?? "");
     return route.fulfill({ contentType: "application/octet-stream", body: BYTES });

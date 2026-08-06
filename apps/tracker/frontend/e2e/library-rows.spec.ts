@@ -9,6 +9,8 @@ import { readFileSync } from "node:fs";
 import { expect, type Locator, test } from "@playwright/test";
 
 import { FIXTURE_XM } from "../../../../packages/player/testing/playback-smoke";
+import type { Track } from "../src/lib/api";
+import { mockLibrary } from "./mock-api";
 
 const B = readFileSync(FIXTURE_XM);
 const tracks = Array.from({ length: 6 }, (_, i) => ({
@@ -35,23 +37,8 @@ test("track rows are one line (title + duration); playcount hidden on mobile", a
   context,
   page,
 }) => {
-  await context.route("**/api/tracks", (r) => r.fulfill({ json: { tracks } }));
+  await mockLibrary(context, tracks as unknown as Track[]);
   await context.route("**/api/playlists", (r) => r.fulfill({ json: { playlists: [] } }));
-  await context.route("**/status", (r) =>
-    r.fulfill({
-      json: {
-        service: "t",
-        version: "x",
-        db_healthy: true,
-        track_count: tracks.length,
-        root: "/x",
-        scanning: false,
-        scan_total: 0,
-        scan_processed: 0,
-        scan_hashed: 0,
-      },
-    }),
-  );
 
   // Title + duration share one visual row (centres aligned), never stacked —
   // asserted by geometry, not a pixel-exact row height.
