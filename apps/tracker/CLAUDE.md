@@ -9,7 +9,7 @@ homebrew family ([represent](../represent), [scribe](../scribe),
 ## Layout
 
 ```
-backend/    Rust axum 0.8 — scans TRACKER_ROOT, SQLite cache, serves bytes + SPA
+backend/    Rust axum 0.8 — indexes TRACKER_ROOTS, SQLite cache, serves bytes + SPA
 frontend/   Svelte 5 + SvelteKit (adapter-static) — library browser + (todo) FT2 UI
 integration/ spawned-binary integration tests (temp root + SQLite, real HTTP)
 ```
@@ -18,8 +18,122 @@ Cargo workspace = `backend` + `integration`.
 
 ## Conventions
 
+- **Multiple collection roots.** `TRACKER_ROOTS=id:kind:path[,…]` declares named
+  roots; `TRACKER_ROOT` remains sugar for a single `mods` root. `kind` is `scan`
+  (walk + hash — the module pipeline) or `hvsc` (the High Voltage SID Collection,
+  indexed from its own `DOCUMENTS/Songlengths.md5` rather than a filesystem walk;
+  read-only, so rename/delete are refused). Index identity is **`(root_id,
+  rel_path)`** — the same relative path can exist in two roots — plus a stable
+  surrogate `files.id` that is the API's track id. Every filesystem access
+  resolves against *the row's own* root (`resolve_in_root`), never a default: a
+  row whose root left the config resolves to nothing rather than being
+  reinterpreted against another tree. The first declared root is primary — it
+  owns `library.json` and receives Modland fetches. `POST /api/rescan/{root}`
+  scans one root; `/api/rescan` is the primary. `/status` lists the roots.
+- **SID is indexed, and a subtune is a track.** `.sid`/`.psid`/`.rsid` go through
+  the ordinary scan, but their metadata is parsed **in Rust** from the PSID/RSID
+  header (`sid.rs`) — no decoder needed, so SIDs never touch the browser's
+  libopenmpt enrichment path (which at HVSC scale would mean handing 61k
+  unreadable files to a WASM decoder). The header comes free: `hash_file` returns
+  the first 124 bytes alongside the digests, so there's no second open, and only
+  a file that was actually (re)hashed is re-parsed.
+  A SID holds 1..256 subtunes and **each is its own library entry** — its own id,
+  favourite, play count and queue slot. `songs` holds one row per subtune (keyed
+  by content hash, like `meta`/`stats`, so it follows a move); `stats` gained
+  `subsong` in its primary key; and a track id folds the subtune in
+  (`library::track_id` = `files.id * 256 + subsong`), so one integer names one
+  playable thing. Rows show `Tune 3/12` so twelve entries aren't twelve identical
+  lines. `parse` is validated against **all 61,157 HVSC #85 tunes**, cross-checked
+  against `Songlengths.md5`'s independently-authored subtune counts
+  (`sid::tests::agrees_with_hvsc`, `#[ignore]`d — needs `HVSC_DIR`).
+  **A `.sid` without a SID header is not indexed.** Collections that passed
+  through sidplay v1 contain `SIDPLAY INFOFILE` files: plain text describing a
+  *separate* C64 binary (`ADDRESS=`, `SONGS=`, `NAME=`…), carrying no tune data,
+  and usually orphaned from the data file they described. There's nothing any
+  engine can play, so the scanner skips them with a log line rather than
+  indexing a row that can only fail. The decoder also reports a load failure
+  properly, so a corrupt or unrecognised file surfaces as the transport's error
+  state instead of an unhandled promise rejection.
+  **Song length is honest.** A SID header carries no duration, so a scanned SID's
+  `duration` stays **null** and the listing shows nothing rather than claiming
+  every SID is three minutes. Playback falls back to `TRACKER_SID_DEFAULT_LENGTH`
+  (180s, the sidplayfp convention) via the host's `playLength` hook, so the
+  transport and auto-advance have a window. You establish the real length by
+  listening — the player view's timer button stores the current position via
+  `POST /api/song-length/{hash}` into `songs.duration`, the same column an HVSC
+  index fills from Songlengths, so both sources agree.
+- **SID plays through the same pipeline, on a second decoder.** No custom WASM
+  build: `libsidplayfp-wasm` (npm, GPL-2.0-or-later, **residfp** artifact for the
+  cycle-accurate 6581/8580 filters) already exposes everything needed —
+  `getSidStatus()` for the 32 chip registers, per-voice `mute()`, cycle-stamped
+  register write traces, `getCia1TimerA()`, `selectSong()`. The plan's
+  from-source emscripten build was based on a wrong premise and was dropped.
+  The **worklet is format-agnostic** — it drains `{frames, left, right, pos, …}`
+  chunks and knows nothing about libopenmpt — so SID reuses the whole hand-tuned
+  pipe (credit-based flow control, jitter buffer, underrun/drift telemetry) and
+  only the decoder differs: `src/sid/sid.worker.ts` speaks the same protocol.
+  It's *bundled* TypeScript, not a vendored static asset (it has an npm import),
+  hence `chiptune3.js` taking a `workerFactory` alongside `workerUrl`.
+  `createEngine(cfg, kind)` picks the decoder from the track's extension and
+  `ensurePlayer` rebuilds the graph when the queue crosses formats. The subtune
+  travels **with** the load so opening a tune can't race selecting its subtune.
+  C64 ROMs are served from `TRACKER_ROMS_DIR` via `GET /api/roms/{kernal|basic|
+  chargen}` — a fixed allowlist matched by filename prefix (any KERNAL revision
+  works) with a size check, since a wrong-sized ROM would otherwise emulate
+  subtly wrong rather than fail. Unconfigured is a supported, degraded state:
+  libsidplayfp falls back to built-in images and most tunes still play, but a
+  BASIC-driven RSID goes near-silent (measured peak 5732 → 817).
+- **The SID player pane is the voice monitor, not a pattern grid.** With
+  `hasPatterns` false the pattern/samples tabs are replaced by **voices**
+  (`VoiceMonitor.svelte`): per voice the oscillator (frequency + note, pulse
+  width), waveform select as lamps (combined waveforms are a real technique, so
+  they're flags not a choice), gate/sync/ring/test, the ADSR envelope as four
+  bars, filter routing and the VU level — plus per-chip cutoff, resonance, filter
+  modes and master volume. It's read from the **live chip registers**, which ride
+  the same audio-synced relay as position and VU (`ProgressMsg.regs` →
+  `playback.sidRegs`), so it matches what you hear rather than what was decoded.
+  Decoding lives in `sid/registers.ts` — pure, unit-tested, and the only place
+  that knows the register layout.
+  **Beat comes from onset detection** for SID: there are no rows to count, and
+  the chip's ~50Hz interrupt is a *tick* rate, not a musical beat. `BeatTracker`
+  gained `energy()`, an adaptive bass-band onset detector with a refractory
+  window (SID levels vary hugely between tunes, and without the window a drum's
+  decay retriggers and the visualisers strobe). `playback.vu` needs no
+  substitute — the SID worker derives per-voice levels from the same registers.
+- **HVSC indexes itself, and is never modified.** An `hvsc` root is built from
+  the collection's own `DOCUMENTS/Songlengths.md5` (`hvsc.rs`): one ~5 MB read
+  yields every tune's path, content MD5 and per-subtune length — **61,157 tunes
+  / 87,868 subtunes in well under a second**, with no walk, no stat and no
+  hashing. The published MD5 becomes the row's `content_hash` (that column is
+  just "the key content-addressed metadata hangs off"; 32 hex chars vs a
+  scanned file's 64, so they can't collide). The tree is only ever *read*, so it
+  can be a read-only mount or image — an integration test snapshots the whole
+  directory and asserts indexing changed nothing.
+  Everything learned about a release lives in `hvsc_state` (version, tune
+  counts, and a size+mtime stamp of the songlengths file). That stamp makes the
+  boot check one stat: unchanged → nothing happens; a newly mounted release →
+  reindexed automatically. `POST /api/rescan/{root}` on an HVSC root reindexes
+  rather than walks, and returns 400 if the path isn't actually a collection.
+  **The feature flag is the root itself**: with none configured, `/status`
+  reports no `hvsc` facts at all, so the SPA shows nothing HVSC-specific.
+  Note `artist_from_path` here is HVSC-specific — `MUSICIANS/<letter>/<Artist>/`
+  names the composer, but `DEMOS/`/`GAMES/` start with a *category*, so the
+  generic seg[0] rule would file ~4,600 tunes under "DEMOS".
+  Two traps, both found only by testing against a real release: HVSC's documents
+  are **Latin-1**, so `read_to_string` fails on the whole file (which silently
+  cost the version number), and the banner reads `Release 85` — a bare `#` scan
+  would match the prose "Tunes #1" and report version 1.
+- **The source scope is sticky, and defaults to one collection.** A
+  `Mods · HVSC · All` selector (`SourceSelector.svelte`) sits between the view
+  tabs and the facet bar — deliberately *not* a fourth tab, since favourites and
+  playlists cut across sources rather than sitting beside them. It's hidden
+  while only one root is configured. The whole filter set (collection, group-by,
+  sorts, facets — not the free-text query) persists in `localStorage`, so a
+  collection you didn't pick stays out of the list and therefore out of the play
+  queue; `All` mixes on purpose. `/status` reports a per-root track count to
+  label it.
 - **Filesystem is the source of truth, artist-primary.**
-  `TRACKER_ROOT/artist/song.ext`. The first path segment is the artist (a file at
+  `<root>/artist/song.ext`. The first path segment is the artist (a file at
   the root has none); there is **no path-group** — groups/aliases/albums come from
   `library.json` (the manifest), joined onto the artist in the frontend. This is
   unconditional; there is no layout switch (the legacy `group/artist` mode was
@@ -60,6 +174,22 @@ Cargo workspace = `backend` + `integration`.
   state, no own login. `DEV_AUTH=1` bypasses for local work. `/status` is unauth.
 - **CSP** allows `'wasm-unsafe-eval'` + `worker-src blob:` for the WASM player,
   and hashes SvelteKit's inline bootstrap script at boot (no `'unsafe-inline'`).
+- **The library index lives server-side.** The SPA no longer holds every track:
+  it fetches a shaped, ordered **id stream** (`/api/library/ids`) and hydrates
+  visible windows through `$lib/tracks.svelte` (a `SvelteMap` cache keyed by
+  `files.id`, filled by `/api/tracks/batch` from the virtualizer's scroll
+  effect). Rows in the stream can exist before their data arrives — the list
+  renders a fixed-height skeleton so offsets stay exact. The **queue is refs,
+  not tracks**: `@scene/player` takes `playRefs(ids, index)` / `cueRefs` and
+  resolves each id through the host (`peekTrack` for cache hits, `resolveTrack`
+  to fetch), so shuffle still permutes *indices* and its reproducibility,
+  prev-history and reload-survival are untouched. Party keeps the in-memory
+  `playInOrder(list, track)` form; both go through one code path.
+  **The backend-less (Pages) build shapes in the browser** with the same pure
+  helpers in `$lib/library`, then seeds the same cache — so every consumer reads
+  rows identically. Anything that used to scan `library.tracks` (facet options,
+  un-enriched counts, empty states, dupe playback, deep-link restore) now asks
+  the backend instead; with a backend that array is empty by design.
 - **Type sharing is manual**: `frontend/src/lib/api.ts` mirrors
   `backend/src/routes.rs` structs by hand.
 - **Design.** Icons are **Lucide** (`@lucide/svelte`), squared (CSS overrides the
@@ -86,12 +216,32 @@ Cargo workspace = `backend` + `integration`.
 
 - `GET /status` — unauth liveness `{service, version, db_healthy, track_count, root}`.
 - `GET /api/tracks` — full library index (path-derived + cached meta, LEFT JOIN).
+  Fine at module scale; **does not scale to HVSC** (~91k tracks is tens of MB) —
+  new code should use the shaped endpoints below.
+- `GET /api/library/ids?collection&fav&fmt&tracker&q&group_by&track_sort&group_sort`
+  — the **shaped library**: `{groups:[{name,ids}], total, formats, trackers}`.
+  Filter/group/sort run server-side in `library.rs` (the Rust twin of the SPA's
+  `lib/library.ts`), and the ids across all buckets in order *are* the play
+  queue. Deterministic for a given query, which is what lets the client keep
+  permuting **indices** for its seeded shuffle (so `prev` retraces the same
+  history and the order survives a reload).
+- `GET /api/tracks/batch?ids=1,2,3` — hydrate a window of that id stream, echoed
+  back in the requested order (SQL `IN` guarantees none). Capped at 1000 ids;
+  unknown ids are skipped, not fatal.
+- `GET /api/track/{hash}` — one track by content hash, for the `?t=` deep-link
+  restore (which can't search a list the browser no longer holds, and whose
+  target may be excluded by a stored filter anyway).
+- `GET /api/library/unenriched` — a page of tracks with no parsed metadata plus
+  the total, driving the bulk-enrich button and its run. Excludes `.sid` (parsed
+  server-side from the PSID header, so libopenmpt must never see them).
 - `GET /api/file/{hash}` — raw module bytes (player + WASM parse).
 - `POST /api/meta/{hash}` — store enrichment parsed in the browser.
 - `POST /api/rename` — rename / move a module by editing its group/artist/
   filename segments (validates safe segments, refuses overwrite, moves on disk,
   updates the index row in place; metadata follows by hash).
-- `POST /api/rescan` — re-walk the tree (synchronous; returns counts).
+- `POST /api/rescan` — re-walk the primary root (synchronous; returns counts).
+- `POST /api/rescan/{root}` — re-walk one named root (400 for an `hvsc` root,
+  which is indexed from its own catalogue rather than walked).
 - `GET /status` also reports live scan progress (`scanning`, `scan_total`,
   `scan_processed`, `scan_hashed`) from lock-free counters, so the UI can show a
   progress bar without touching the scan-locked DB.
@@ -116,14 +266,14 @@ Cargo workspace = `backend` + `integration`.
 ## Working on this repo
 
 - Backend `:3010` (`TRACKER_BIND`): `cd backend && cp .env.example .env`, set
-  `TRACKER_ROOT` (dev: `/Volumes/scene/mods` NAS mount), then `cargo run`. Boot only
+  `TRACKER_ROOT` / `TRACKER_ROOTS` (dev: `/Volumes/scene/mods` NAS mount), then `cargo run`. Boot only
   scans when the cache is **empty** (first run); a normal restart serves the
   persisted index instantly without re-walking the NAS. `/api/rescan` (synchronous)
   picks up on-disk changes.
 - Frontend dev `:5173`: `cd frontend && yarn install && yarn dev`; Vite proxies
   `/api` + `/status` to `:3010`. `yarn validate` = typecheck + lint + format.
 - integration: `cargo build -p tracker-backend && cargo test -p tracker-integration -- --ignored`.
-- Key env: `TRACKER_ROOT` (required), `TRACKER_BIND`, `TRACKER_DB_PATH`,
+- Key env: `TRACKER_ROOTS` or `TRACKER_ROOT` (one required), `TRACKER_BIND`, `TRACKER_DB_PATH`,
   `STATIC_DIR`, `DEV_AUTH`. See `backend/src/config.rs`.
 
 ## Status / roadmap
@@ -231,6 +381,19 @@ Cargo workspace = `backend` + `integration`.
   Mod Archive "Top Favourites" chart was dropped in favour of this curated
   import + Modland fetch path — there is no `modarchive` client or `/api/top/*`.)
 - **Backlog (ideas):**
+  - **HVSC as a versioned data image** — deferred: the SMB mount works well
+    enough, and the licensing makes a *public* image the wrong shape. Every tune
+    is separately copyrighted and `DOCUMENTS/Disclaimer.txt` states the HVSC crew
+    "do not have (and neither do they claim) the legal authority to grant
+    licences"; bulk redistribution wants their permission (`HVSC.faq` [25]:
+    email, non-profit only). A private image is fine, but if this comes back the
+    cleaner shape is a pyinfra task fetching a pinned release from an official
+    mirror at deploy time — no redistribution at all.
+  - **HVSC update-available check** — deferred with the image. `hvsc.c64.org`
+    publishes no feed or API (verified: JS SPA with a catch-all redirect), so it
+    would mean polling CSDb's RSS for `High Voltage SID Collection #NN` and
+    comparing to the indexed version. Best-effort on a fragile source; the
+    version chip and the manual reindex already exist and cover the need.
   - **Installable offline PWA** — service worker caching the shell + chiptune
     WASM (+ recently-played module bytes) for offline foreground playback.
   - **Resume last session** — persist current track + queue + position to

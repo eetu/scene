@@ -41,6 +41,16 @@ does not place this project's own code under the GPL.)
   modified source lives in this repository. libopenmpt's BSD copyright notice is
   retained.
 
+### libsidplayfp (C64 SID) — GPL-2.0-or-later
+
+- Via `libsidplayfp-wasm` (npm) — <https://github.com/chrisgleissner/libsidplayfp-wasm>,
+  an independent WebAssembly distribution of libsidplayfp
+  (<https://github.com/libsidplayfp/libsidplayfp>) including reSIDfp.
+- Bundled into the tracker SPA's SID decode worker; corresponding source is the
+  upstream repository at the published version (the package also ships a
+  `complete-source.tar.gz`).
+- **C64 system ROMs are NOT included** — see below.
+
 ## Fonts
 
 ### Inter — SIL Open Font License 1.1
@@ -63,6 +73,11 @@ does not place this project's own code under the GPL.)
 
 ## Deliberately NOT included
 
+- **C64 system ROMs (KERNAL / BASIC / CHARGEN).** Not distributed with this
+  project. Copyrighted by Commodore; the operator supplies them at runtime
+  (`TRACKER_ROMS_DIR`, served via `/api/roms/*`) and they must never be committed
+  or baked into any published image. Without them libsidplayfp falls back to
+  built-in images — most tunes still play; BASIC-driven RSIDs do not.
 - **Amiga Kickstart ROM.** Not distributed with this project. The Amiga emulator
   defaults to PUAE's bundled free **AROS** ROM. A real Kickstart (e.g. 3.1 /
   A1200) is copyrighted by Cloanto and must be supplied by the operator at

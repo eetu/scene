@@ -782,9 +782,11 @@ __metadata:
     "@sveltejs/vite-plugin-svelte": "npm:^7.2.0"
     "@types/three": "npm:^0.185.1"
     "@vitest/browser-playwright": "npm:^4.1.10"
+    libsidplayfp-wasm: "npm:^1.0.1"
     playwright: "npm:^1.61.1"
     svelte: "npm:^5.56.8"
     three: "npm:^0.185.1"
+    typescript: "npm:^6.0.2"
     vite: "npm:^8.1.5"
     vitest: "npm:^4.1.10"
     vitest-browser-svelte: "npm:^3.0.0"
@@ -2166,6 +2168,13 @@ __metadata:
     prelude-ls: "npm:^1.2.1"
     type-check: "npm:~0.4.0"
   checksum: 10/2e4720ff79f21ae08d42374b0a5c2f664c5be8b6c8f565bb4e1315c96ed3a8acaa9de788ffed82d7f2378cf36958573de07ef92336cb5255ed74d08b8318c9ee
+  languageName: node
+  linkType: hard
+
+"libsidplayfp-wasm@npm:^1.0.1":
+  version: 1.0.1
+  resolution: "libsidplayfp-wasm@npm:1.0.1"
+  checksum: 10/30e4dcb46a48ab8d4412539bb83f6fe5d8ab244adb4fd15d383beb2a685ec9ad18dbfdf6af99ed9e1358d89d31840ac08c59ff90f531dd63334bbaab86f8acdc
   languageName: node
   linkType: hard
 
