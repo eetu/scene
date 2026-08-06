@@ -18,6 +18,7 @@
     Settings,
     Square,
     Star,
+    Timer,
     X,
   } from "@lucide/svelte";
   import {
@@ -52,14 +53,18 @@
     Starfield,
     toggleCrt,
     Tunnel,
+    VoiceMonitor,
+    VoiceTrace,
     VuMeters,
   } from "@scene/player";
 
-  import type { Track } from "$lib/api";
+  import { api, type Track } from "$lib/api";
+  import { isSid } from "$lib/library";
   import { library, toggleFavorite } from "$lib/library.svelte";
   import PatternViewScroll from "$lib/PatternViewScroll.svelte";
   import { pv, VIZ } from "$lib/player-view.svelte";
   import { settings } from "$lib/settings.svelte";
+  import { patch, peek } from "$lib/tracks.svelte";
   import { buildShareUrl } from "$lib/url-state";
 
   let {
@@ -95,7 +100,21 @@
   const currentTrack = $derived.by(() => {
     const c = playback.current;
     if (!c) return null;
-    return library.tracks.find((t) => t.path === c.path) ?? null;
+    // The queue resolves through the hydration cache, so the full row for the
+    // playing track is already there — keyed by id, not searched by path.
+    return (c.id ? peek(c.id) : null) ?? library.tracks.find((t) => t.path === c.path) ?? null;
+  });
+
+  // Keep the open tab valid for the loaded format: arriving on a SID with the
+  // pattern tab selected (the persisted default) would otherwise show a grid
+  // that can never fill in.
+  $effect(() => {
+    // A SID has no sample list, so `samples` is the one tab that can strand you.
+    // `pattern` is valid for both — for a module it's the score, for a SID the
+    // reconstructed trace of what the chip was told.
+    if (!playback.hasPatterns && pv.tab === "samples") pv.tab = "pattern";
+    // …and the reverse, so returning to a module never strands you on `voices`.
+    if (playback.hasPatterns && pv.tab === "voices") pv.tab = "pattern";
   });
 
   // Loudest channel VU drives the Boing-ball visualizer energy.
@@ -122,6 +141,22 @@
     const on = el.querySelectorAll<HTMLElement>(".ord")[o];
     if (on) el.scrollLeft = on.offsetLeft - el.clientWidth / 2 + on.offsetWidth / 2;
   });
+
+  // A SID's length isn't in the file, so it's established by listening: this
+  // stores the position you're at as the tune's real length (and clicking again
+  // clears it, back to the configured fallback). Written to the same column an
+  // HVSC index fills from Songlengths, so the two sources agree.
+  async function setLengthHere(t: Track) {
+    const next = t.duration != null ? null : Math.round(playback.position);
+    if (next !== null && next <= 0) return;
+    try {
+      await api.setSongLength(t.hash, t.subsong, next);
+      patch(t.id, { duration: next });
+      onToast(next === null ? "Length cleared" : `Length set to ${fmtTime(next)}`);
+    } catch (e) {
+      onToast(e instanceof Error ? e.message : String(e), "err");
+    }
+  }
 
   // Copy a deep-link to the current track at the current position (?t=&pos=),
   // YouTube-style — the only thing that ever writes ?pos. Copies to the
@@ -255,16 +290,33 @@
 <div class="pattern-overlay">
   <div class="pv-bar">
     <div class="pv-tabs">
-      <button class:on={pv.tab === "pattern"} onclick={() => (pv.tab = "pattern")}>pattern</button>
-      <button class:on={pv.tab === "samples"} onclick={() => (pv.tab = "samples")}>samples</button>
+      <!-- A SID has no sample list, and no pattern data to seek within: it's
+           6502 code driving chip registers. So `samples` is hidden rather than
+           shown empty, and `pattern` becomes a *recording* of the chip — one row
+           per raster frame, reconstructed from the register writes — rather than
+           a score. `voices` is the same state as a live meter. -->
+      {#if playback.hasPatterns}
+        <button class:on={pv.tab === "pattern"} onclick={() => (pv.tab = "pattern")}>pattern</button
+        >
+        <button class:on={pv.tab === "samples"} onclick={() => (pv.tab = "samples")}>samples</button
+        >
+      {:else}
+        <button class:on={pv.tab === "pattern"} onclick={() => (pv.tab = "pattern")}>pattern</button
+        >
+        <button class:on={pv.tab === "voices"} onclick={() => (pv.tab = "voices")}>voices</button>
+      {/if}
       <button class:on={pv.tab === "viz"} onclick={() => (pv.tab = "viz")}>viz</button>
     </div>
-    {#if pv.tab === "pattern" && playback.canReadCells && isDesktop && !isMobile}
+    {#if settings.editor && pv.tab === "pattern" && playback.canReadCells && isDesktop && !isMobile}
       <!-- Pattern surface mode: view vs edit (a mode of the pattern tab, kept
            clear of the file-action pencil in the right cluster). Editing is
            keyboard-first, so it's gated to pointer+keyboard devices — and
            hidden on narrow viewports too (no mobile editor UI yet; it would
-           also crowd the header). -->
+           also crowd the header).
+
+           `settings.editor` hides the whole thing by default: the editor is
+           unfinished (no save, no undo), and a visible edit button promises
+           something the app can't deliver. See settings.svelte.ts. -->
       <div class="pv-mode" role="group" aria-label="pattern mode">
         <button class:on={!playback.editing} onclick={() => setEditing(false)}>view</button>
         <button class:on={playback.editing} onclick={() => setEditing(true)}>edit</button>
@@ -311,6 +363,22 @@
         >
           <Link2 size={16} />
         </button>
+        <!-- Only for a tune whose length isn't known — i.e. a SID outside HVSC,
+             since the format carries no duration. Setting it from where you are
+             is the natural gesture: you hear the tune end, you tap. -->
+        {#if isSid(ct)}
+          <button
+            class="icon-btn"
+            class:faved={ct.duration != null}
+            onclick={() => setLengthHere(ct)}
+            title={ct.duration != null
+              ? `length ${fmtTime(ct.duration)} — click to clear`
+              : "set the tune's length to the current time"}
+            aria-label="set tune length"
+          >
+            <Timer size={16} />
+          </button>
+        {/if}
         <button
           class="icon-btn pv-rename"
           onclick={() => onEdit(ct)}
@@ -331,7 +399,20 @@
     </div>
   </div>
   <div class="pv-wrap" style:padding-bottom="{transportH}px">
-    {#if pv.tab === "pattern"}
+    {#if pv.tab === "voices"}
+      <!-- The SID pane: master scope over the live per-voice chip state. -->
+      {#if settings.scope}
+        <div class="scope-strip"><Scope /></div>
+      {/if}
+      <VoiceMonitor />
+    {:else if pv.tab === "pattern" && !playback.hasPatterns}
+      <!-- The SID's pattern equivalent: a recording of the chip, one row per
+           raster frame. No order list — there are no orders to jump to. -->
+      {#if settings.scope}
+        <div class="scope-strip"><Scope /></div>
+      {/if}
+      <VoiceTrace />
+    {:else if pv.tab === "pattern"}
       {#if settings.scope}
         <div class="scope-strip"><Scope /></div>
       {/if}
@@ -351,7 +432,7 @@
           {/each}
         </div>
       {/if}
-      {#if playback.editing}
+      {#if settings.editor && playback.editing}
         <div class="editbar">
           <span class="lab">oct</span>
           <button onclick={() => setEditOctave(playback.editOctave - 1)} aria-label="octave down"

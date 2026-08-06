@@ -1,8 +1,13 @@
+import { fileURLToPath } from "node:url";
+
 import { sveltekit } from "@sveltejs/kit/vite";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 import { playwright } from "@vitest/browser-playwright";
 import { qrcode } from "vite-plugin-qrcode";
 import { defineConfig } from "vitest/config";
+
+// The monorepo root. Shared code lives in packages/*, outside this app.
+const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 
 // `yarn dev:host` (or `just dev tracker host`) exposes the dev server on the LAN
 // over HTTPS and prints the network URL (+ a QR to scan), so another device on
@@ -15,6 +20,13 @@ export default defineConfig({
   plugins: [sveltekit(), ...(exposeHost ? [basicSsl(), qrcode()] : [])],
   server: {
     ...(exposeHost ? { host: true } : {}),
+    // Let the dev server read packages/* — @scene/player lives outside this
+    // app's root. Most of it arrives through the module graph and needs no
+    // permission, but a bundled worker doesn't: `new Worker(new URL(...))` makes
+    // the *browser* fetch the raw file over /@fs/, which the default allow list
+    // refuses with a 403 (only in dev — a build inlines it as a hashed chunk, so
+    // the production e2e can't catch this).
+    fs: { allow: [REPO_ROOT] },
     // Dev: proxy the backend so the SPA is same-origin in dev as in prod.
     // The backend listens on 3010 (TRACKER_BIND default). The proxy runs on this
     // machine, so `localhost` still resolves to the backend even from a phone.

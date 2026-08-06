@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 
 use axum::extract::{Path, State};
@@ -31,7 +32,15 @@ pub fn router(state: AppState) -> Router {
         .route("/api/rename", post(api_rename))
         .route("/api/delete", post(api_delete))
         // Re-walk the collection (e.g. after moving files around).
+        .route("/api/library/ids", get(api_library_ids))
+        .route("/api/tracks/batch", get(api_tracks_batch))
+        .route("/api/track/{hash}", get(api_track_by_hash))
+        .route("/api/library/unenriched", get(api_unenriched))
+        .route("/api/song-length/{hash}", post(api_song_length))
+        .route("/api/stil/{id}", get(api_stil))
+        .route("/api/roms/{which}", get(api_rom))
         .route("/api/rescan", post(api_rescan))
+        .route("/api/rescan/{root}", post(api_rescan_root))
         // Playlists: list/create, fetch/rename/delete one, manage its items.
         .route(
             "/api/playlists",
@@ -131,16 +140,93 @@ async fn status(State(state): State<AppState>) -> Json<Value> {
             .await
             .ok()
     };
+    // Per-root counts, so the source selector can label each collection. Same
+    // scanning caveat as above; the UI simply omits the count until it's known.
+    let counts: std::collections::HashMap<String, i64> = if scanning {
+        std::collections::HashMap::new()
+    } else {
+        state
+            .db
+            .with(|c| {
+                let mut s = c.prepare("SELECT root_id, COUNT(*) FROM files GROUP BY root_id")?;
+                let rows = s
+                    .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(rows.into_iter().collect())
+            })
+            .await
+            .unwrap_or_default()
+    };
+    // HVSC facts, per root. Absent entirely when no HVSC root is configured —
+    // that absence *is* the feature flag: the SPA shows nothing HVSC-specific
+    // unless a collection is actually mounted.
+    let hvsc: HashMap<String, Value> = if scanning {
+        HashMap::new()
+    } else {
+        let ids: Vec<String> = state
+            .cfg
+            .roots
+            .iter()
+            .filter(|r| r.kind == crate::config::RootKind::Hvsc)
+            .map(|r| r.id.clone())
+            .collect();
+        if ids.is_empty() {
+            HashMap::new()
+        } else {
+            state
+                .db
+                .with(move |c| {
+                    let mut out = HashMap::new();
+                    let mut s = c.prepare(
+                        "SELECT version, tunes, subtunes, indexed_at FROM hvsc_state
+                         WHERE root_id = ?1",
+                    )?;
+                    for id in ids {
+                        let row = s
+                            .query_row([&id], |r| {
+                                Ok(json!({
+                                    "version": r.get::<_, Option<i64>>(0)?,
+                                    "tunes": r.get::<_, i64>(1)?,
+                                    "subtunes": r.get::<_, i64>(2)?,
+                                    "indexed_at": r.get::<_, String>(3)?,
+                                }))
+                            })
+                            .optional()?;
+                        // A configured-but-unindexed root still appears, so the
+                        // UI can say "not indexed yet" rather than nothing.
+                        out.insert(id, row.unwrap_or(Value::Null));
+                    }
+                    Ok(out)
+                })
+                .await
+                .unwrap_or_default()
+        }
+    };
+
     Json(json!({
         "service": "tracker",
         "version": env!("CARGO_PKG_VERSION"),
         "db_healthy": scanning || track_count.is_some(),
         "track_count": track_count,
-        "root": state.cfg.root.display().to_string(),
+        "root": state.cfg.primary().path.display().to_string(),
+        "roots": state.cfg.roots.iter().map(|r| json!({
+            "id": r.id,
+            "label": r.label(),
+            "kind": if r.kind.writable() { "scan" } else { "hvsc" },
+            "path": r.path.display().to_string(),
+            "count": counts.get(&r.id).copied(),
+        })).collect::<Vec<_>>(),
+        // Playback fallback for a SID with no known length (see Config).
+        "sid_default_length": state.cfg.sid_default_length,
+        "hvsc": hvsc,
         "scanning": scanning,
         "scan_total": state.scan.total.load(Ordering::Relaxed),
         "scan_processed": state.scan.processed.load(Ordering::Relaxed),
         "scan_hashed": state.scan.hashed.load(Ordering::Relaxed),
+        // What the last finished scan did. `POST /api/rescan` answers 202 before
+        // there's anything to report, so this is where the counts (or the
+        // failure) surface. Null until one has run in this process.
+        "last_scan": state.scan.last.lock().ok().and_then(|s| s.clone()),
     }))
 }
 
@@ -150,9 +236,22 @@ async fn status(State(state): State<AppState>) -> Json<Value> {
 /// from the `meta` cache (LEFT JOIN) and are null until enrichment fills them.
 #[derive(Serialize)]
 struct Track {
+    /// The playable track's id: the file's surrogate id with its subtune folded
+    /// in (see `library::track_id`). The key the shaped library streams and the
+    /// client hydrates, queues and plays by.
+    id: i64,
+    /// Which subtune of the file this is (0 for a module, and for a SID holding
+    /// only one). The engine needs it to select the tune after loading.
+    subsong: i64,
+    /// How many subtunes the file holds; 0 for anything that isn't multi-tune.
+    /// Drives the `Tune 3/12` sub-label.
+    subsongs: i64,
     hash: String,
     md5: Option<String>,
     path: String,
+    /// The configured root this file lives in (`config::Root::id`) — the axis
+    /// the library's source selector filters on.
+    collection: String,
     group: String,
     artist: Option<String>,
     filename: String,
@@ -169,20 +268,38 @@ struct Track {
     play_count: i64,
 }
 
-/// The `Track` projection (16 columns, in struct field order), assuming `files`
-/// aliased `f`, `meta` `m`, `stats` `s`. Shared by `api_tracks` and the playlist
-/// detail query so the row mapper [`track_from_row`] works for both.
+/// The `Track` projection, assuming `files` aliased `f`, `meta` `m`, `stats` `s`.
+/// Shared by `api_tracks` and the playlist detail query so the row mapper
+/// [`track_from_row`] works for both.
+///
+/// Column order here and the offsets in [`track_from_row`] are coupled by
+/// position, and the mapper reads some columns out of struct-field order — so
+/// **append new columns at the end** rather than inserting. `projection_matches_mapper`
+/// guards the pairing.
 const TRACK_COLS: &str = "f.content_hash, f.rel_path, f.grp, f.artist, f.filename, f.ext, f.size,
-    m.title, m.type_long, m.tracker, m.duration, m.channels, m.instruments, m.samples,
-    COALESCE(s.favorite, 0), COALESCE(s.play_count, 0), f.md5";
+    COALESCE(sg.title, m.title), m.type_long, m.tracker,
+    COALESCE(sg.duration, m.duration), m.channels, m.instruments, m.samples,
+    COALESCE(s.favorite, 0), COALESCE(s.play_count, 0), f.md5, f.root_id, f.id,
+    COALESCE(sg.subsong, 0),
+    (SELECT COUNT(*) FROM songs s2 WHERE s2.content_hash = f.content_hash)";
+
+/// Number of columns [`TRACK_COLS`] projects. Only the guard test needs it —
+/// it catches a column added to the list without a matching mapper offset.
+#[cfg(test)]
+const TRACK_COL_COUNT: usize = 21;
 
 /// Map a row projected by [`TRACK_COLS`] (optionally with leading extra columns,
 /// hence `base` offset) into a [`Track`].
 fn track_from_row(r: &rusqlite::Row, base: usize) -> rusqlite::Result<Track> {
+    let subsong: i64 = r.get(base + 19)?;
     Ok(Track {
+        id: crate::library::track_id(r.get(base + 18)?, subsong),
+        subsong,
+        subsongs: r.get(base + 20)?,
         hash: r.get(base)?,
         md5: r.get(base + 16)?,
         path: r.get(base + 1)?,
+        collection: r.get(base + 17)?,
         group: r.get(base + 2)?,
         artist: r.get(base + 3)?,
         filename: r.get(base + 4)?,
@@ -207,8 +324,7 @@ async fn api_tracks(_auth: Auth, State(state): State<AppState>) -> AppResult<Jso
             let mut stmt = c.prepare(&format!(
                 "SELECT {TRACK_COLS}
                  FROM files f
-                 LEFT JOIN meta m ON m.content_hash = f.content_hash
-                 LEFT JOIN stats s ON s.content_hash = f.content_hash
+                 {TRACK_JOINS}
                  ORDER BY f.grp COLLATE NOCASE, f.artist COLLATE NOCASE, f.filename COLLATE NOCASE",
             ))?;
             let rows = stmt.query_map([], |r| track_from_row(r, 0))?;
@@ -218,33 +334,400 @@ async fn api_tracks(_auth: Auth, State(state): State<AppState>) -> AppResult<Jso
     Ok(Json(json!({ "tracks": tracks })))
 }
 
+/// The lean projection the shaper works over — every indexed row, but only the
+/// columns filtering / grouping / sorting need. Ordered A-Z, which is the base
+/// order the shaper's stable sorts tie-break to.
+/// Joins `songs`, so a file holding several subtunes yields one row per subtune
+/// and a plain module (no `songs` rows) yields exactly one. Per-subtune title
+/// and duration win over the file-level ones.
+const SHAPE_COLS: &str = "f.id, f.root_id, f.rel_path, f.grp, f.artist, f.filename, f.ext, f.md5,
+    COALESCE(sg.title, m.title), m.type_long, m.tracker,
+    COALESCE(sg.duration, m.duration), m.channels,
+    COALESCE(s.favorite, 0), COALESCE(s.play_count, 0), COALESCE(sg.subsong, 0)";
+
+/// The joins every track projection needs. `songs` is LEFT so modules survive it.
+const TRACK_JOINS: &str = "LEFT JOIN songs sg ON sg.content_hash = f.content_hash
+     LEFT JOIN meta  m  ON m.content_hash = f.content_hash
+     LEFT JOIN stats s  ON s.content_hash = f.content_hash AND s.subsong = COALESCE(sg.subsong, 0)";
+
+fn shape_row(r: &rusqlite::Row) -> rusqlite::Result<crate::library::Row> {
+    let file_id: i64 = r.get(0)?;
+    let subsong: i64 = r.get(15)?;
+    Ok(crate::library::Row {
+        id: crate::library::track_id(file_id, subsong),
+        collection: r.get(1)?,
+        path: r.get(2)?,
+        group: r.get(3)?,
+        artist: r.get(4)?,
+        filename: r.get(5)?,
+        ext: r.get(6)?,
+        md5: r.get(7)?,
+        title: r.get(8)?,
+        type_long: r.get(9)?,
+        tracker: r.get(10)?,
+        duration: r.get(11)?,
+        channels: r.get(12)?,
+        favorite: r.get::<_, i64>(13)? != 0,
+        play_count: r.get(14)?,
+    })
+}
+
+/// The shaped library: an ordered id stream grouped into buckets, plus the facet
+/// options. This replaces shipping the whole index to the browser — at ~91k
+/// tracks the old `/api/tracks` payload is tens of megabytes.
+///
+/// The client renders headers + rows from this and hydrates only the visible
+/// window via [`api_tracks_batch`]. Crucially it stays an *ordered list*, so the
+/// seeded shuffle keeps permuting indices into it exactly as it did over the
+/// client-side flattened list — `prev` still walks the same history, and the
+/// order still survives a reload.
+async fn api_library_ids(
+    _auth: Auth,
+    State(state): State<AppState>,
+    axum::extract::Query(q): axum::extract::Query<crate::library::Query>,
+) -> AppResult<Json<crate::library::Shaped>> {
+    let idx = state.manifest.get();
+    let shaped = state
+        .db
+        .with(move |c| {
+            let mut stmt = c.prepare(&format!(
+                "SELECT {SHAPE_COLS}
+                 FROM files f
+                 {TRACK_JOINS}
+                 ORDER BY f.grp COLLATE NOCASE, f.artist COLLATE NOCASE,
+                          f.filename COLLATE NOCASE, COALESCE(sg.subsong, 0)",
+            ))?;
+            let rows = stmt
+                .query_map([], shape_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(crate::library::shape(&rows, &q, &idx))
+        })
+        .await?;
+    Ok(Json(shaped))
+}
+
+/// Tracks with no parsed metadata yet, plus the total outstanding.
+///
+/// Bulk enrichment decodes each module in the browser (libopenmpt WASM) and
+/// POSTs the result back, so it needs the actual rows — and it can no longer
+/// filter them out of a full index the browser holds. Returns a page at a time;
+/// the run loops until the count reaches zero.
+///
+/// `sid` files are excluded: their metadata is parsed server-side from the PSID
+/// header, so handing 61k of them to libopenmpt would be pure waste.
+async fn api_unenriched(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
+    const PAGE: usize = 500;
+    let (count, tracks) = state
+        .db
+        .with(move |c| {
+            let count: i64 = c.query_row(
+                "SELECT COUNT(*) FROM files f
+                 LEFT JOIN meta m ON m.content_hash = f.content_hash
+                 WHERE m.type_long IS NULL AND f.ext NOT IN ('sid','psid','rsid')",
+                [],
+                |r| r.get(0),
+            )?;
+            let mut stmt = c.prepare(&format!(
+                "SELECT {TRACK_COLS}
+                 FROM files f
+                 {TRACK_JOINS}
+                 WHERE m.type_long IS NULL AND f.ext NOT IN ('sid','psid','rsid')
+                 LIMIT {PAGE}"
+            ))?;
+            let rows = stmt
+                .query_map([], |r| track_from_row(r, 0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok((count, rows))
+        })
+        .await?;
+    Ok(Json(json!({ "count": count, "tracks": tracks })))
+}
+
+#[derive(Deserialize)]
+struct SongLengthIn {
+    #[serde(default)]
+    subsong: i64,
+    /// Seconds, or null to forget the override and fall back to the default.
+    duration: Option<f64>,
+}
+
+/// Set (or clear) one subtune's known length.
+///
+/// SID headers carry no duration, and HVSC's Songlengths database only covers
+/// HVSC. So a hand-curated SID's length is something you establish by listening
+/// — the UI writes here with the position you stopped at. Stored in `songs`,
+/// the same column an HVSC index fills, so both sources agree afterwards.
+async fn api_song_length(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(hash): Path<String>,
+    Json(req): Json<SongLengthIn>,
+) -> AppResult<StatusCode> {
+    if req.subsong < 0 || req.subsong >= crate::library::SUBSONG_SLOTS {
+        return Err(AppError::BadRequest("subsong out of range".into()));
+    }
+    if req.duration.is_some_and(|d| !d.is_finite() || d <= 0.0) {
+        return Err(AppError::BadRequest("duration must be positive".into()));
+    }
+    state
+        .db
+        .with(move |c| {
+            c.execute(
+                "INSERT INTO songs (content_hash, subsong, duration) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(content_hash, subsong) DO UPDATE SET duration = excluded.duration",
+                rusqlite::params![hash, req.subsong, req.duration],
+            )
+        })
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Serve one C64 system ROM to the SID decoder.
+///
+/// `which` is a fixed allowlist (`kernal` | `basic` | `chargen`) matched against
+/// the *start* of the filename, so any KERNAL revision works —
+/// `kernal-901227-03.bin` is what VICE calls rev 3, but rev 1 or a regional
+/// variant would serve just as well. Nothing from the request reaches the
+/// filesystem, so there is no traversal surface here at all.
+///
+/// The size check is the real guard: a truncated or wrong-machine ROM would
+/// otherwise be accepted and produce a subtly broken emulation rather than an
+/// error. 404 when unconfigured or absent — the engine then uses its built-in
+/// images, which is a degraded but working state.
+async fn api_rom(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(which): Path<String>,
+) -> AppResult<impl IntoResponse> {
+    let expect_len = match which.as_str() {
+        "kernal" | "basic" => 8192,
+        "chargen" => 4096,
+        _ => return Err(AppError::NotFound),
+    };
+    let dir = state.cfg.roms_dir.as_ref().ok_or(AppError::NotFound)?;
+    let entries = std::fs::read_dir(dir).map_err(|_| AppError::NotFound)?;
+    for e in entries.flatten() {
+        let name = e.file_name().to_string_lossy().to_lowercase();
+        if !name.starts_with(&which) {
+            continue;
+        }
+        let bytes = match std::fs::read(e.path()) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        if bytes.len() != expect_len {
+            tracing::warn!(
+                file = %name, len = bytes.len(), expect_len,
+                "ignoring ROM of the wrong size"
+            );
+            continue;
+        }
+        return Ok((
+            [
+                (header::CONTENT_TYPE, "application/octet-stream".to_string()),
+                // Content-addressed by name + immutable in practice.
+                (header::CACHE_CONTROL, "private, max-age=86400".to_string()),
+            ],
+            bytes,
+        ));
+    }
+    Err(AppError::NotFound)
+}
+
+/// One track by content hash — the deep-link (`?t=<hash>`) restore path. The
+/// client can't search for it any more: the browser no longer holds the index,
+/// and a stored filter may exclude the bookmarked track from the visible list
+/// entirely, so it has to be fetchable on its own.
+async fn api_track_by_hash(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(hash): Path<String>,
+) -> AppResult<Json<Value>> {
+    let track = state
+        .db
+        .with(move |c| {
+            c.query_row(
+                &format!(
+                    // A deep link names a file, not a subtune — take its first.
+                    "SELECT {TRACK_COLS}
+                     FROM files f
+                     {TRACK_JOINS}
+                     WHERE f.content_hash = ?1
+                     ORDER BY COALESCE(sg.subsong, 0) LIMIT 1"
+                ),
+                [&hash],
+                |r| track_from_row(r, 0),
+            )
+            .optional()
+        })
+        .await?
+        .ok_or(AppError::NotFound)?;
+    Ok(Json(json!({ "track": track })))
+}
+
+/// The STIL notes for one track — HVSC's curator commentary.
+///
+/// Its own endpoint rather than a column on the track projection: the notes run
+/// to paragraphs (one tune in #85 carries a 60-line essay), and the library list
+/// never shows them. Only the player pane asks, once per tune played, where it
+/// substitutes for the instrument/sample name text a module supplies.
+///
+/// Returns both the file-scope record and the subtune's, in that order — a tune
+/// commonly has a general note plus a per-subtune credit. Empty for anything
+/// with no notes, which is most of the collection and not an error.
+async fn api_stil(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> AppResult<Json<Value>> {
+    let (file_id, subsong) = crate::library::split_track_id(id);
+    let notes = state
+        .db
+        .with(move |c| {
+            let Some((root_id, rel_path)) = c
+                .query_row(
+                    "SELECT root_id, rel_path FROM files WHERE id = ?1",
+                    [file_id],
+                    |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+                )
+                .optional()?
+            else {
+                return Ok(Vec::new());
+            };
+            let mut s = c.prepare(
+                "SELECT subsong, comment, title, artist, name, author FROM stil
+                 WHERE root_id = ?1 AND rel_path = ?2 AND subsong IN (-1, ?3)
+                 ORDER BY subsong",
+            )?;
+            let rows = s.query_map(rusqlite::params![root_id, rel_path, subsong], |r| {
+                Ok(json!({
+                    "subsong": r.get::<_, i64>(0)?,
+                    "comment": r.get::<_, Option<String>>(1)?,
+                    "title": r.get::<_, Option<String>>(2)?,
+                    "artist": r.get::<_, Option<String>>(3)?,
+                    "name": r.get::<_, Option<String>>(4)?,
+                    "author": r.get::<_, Option<String>>(5)?,
+                }))
+            })?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()
+        })
+        .await?;
+    Ok(Json(json!({ "notes": notes })))
+}
+
+/// Hydrate a window of the id stream. Ids are echoed back in the order the
+/// caller asked for, so the virtualizer can splice rows without re-sorting.
+#[derive(Deserialize)]
+struct BatchQuery {
+    /// Comma-separated `files.id` list.
+    ids: String,
+}
+
+/// Cap on one hydration request — a viewport is tens of rows, so this is only a
+/// guard against a caller asking for the whole 91k-row library in one go.
+const BATCH_MAX: usize = 1000;
+
+async fn api_tracks_batch(
+    _auth: Auth,
+    State(state): State<AppState>,
+    axum::extract::Query(q): axum::extract::Query<BatchQuery>,
+) -> AppResult<Json<Value>> {
+    let ids: Vec<i64> = q
+        .ids
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.parse::<i64>())
+        .collect::<Result<_, _>>()
+        .map_err(|_| AppError::BadRequest("ids must be integers".into()))?;
+    if ids.len() > BATCH_MAX {
+        return Err(AppError::BadRequest(format!(
+            "at most {BATCH_MAX} ids per request"
+        )));
+    }
+    if ids.is_empty() {
+        return Ok(Json(json!({ "tracks": [] })));
+    }
+
+    // Track ids fold the subtune in, so query the *files* they name and let the
+    // `songs` join expand each back into its subtunes; the map below then picks
+    // out exactly the ones asked for. A window over a multi-tune file therefore
+    // costs one row per requested subtune, not one query per subtune.
+    let mut file_ids: Vec<i64> = ids
+        .iter()
+        .map(|id| crate::library::split_track_id(*id).0)
+        .collect();
+    file_ids.sort_unstable();
+    file_ids.dedup();
+
+    let placeholders = std::iter::repeat_n("?", file_ids.len())
+        .collect::<Vec<_>>()
+        .join(",");
+    let wanted = file_ids;
+    let tracks = state
+        .db
+        .with(move |c| {
+            let mut stmt = c.prepare(&format!(
+                "SELECT {TRACK_COLS}
+                 FROM files f
+                 {TRACK_JOINS}
+                 WHERE f.id IN ({placeholders})",
+            ))?;
+            let params = rusqlite::params_from_iter(wanted.iter());
+            let out = stmt
+                .query_map(params, |r| track_from_row(r, 0))?
+                .collect::<rusqlite::Result<Vec<_>>>();
+            out
+        })
+        .await?;
+
+    // Restore the requested order — SQL's `IN` says nothing about it.
+    let by_id: std::collections::HashMap<i64, Track> =
+        tracks.into_iter().map(|t| (t.id, t)).collect();
+    let ordered: Vec<&Track> = ids.iter().filter_map(|id| by_id.get(id)).collect();
+    Ok(Json(json!({ "tracks": ordered })))
+}
+
+/// Resolve an index pair `(root_id, rel_path)` to a real file on disk.
+///
+/// Both halves matter. `root_id` must name a *currently configured* root, so a
+/// row left behind by a root that was removed from the config resolves to
+/// nothing rather than being reinterpreted against some other root's tree. And
+/// the canonicalized result must still sit inside that root, so a symlink or a
+/// `..` that slipped past the scan can't escape it. Returns `None` on any
+/// failure — callers map that to 404 rather than leaking which check failed.
+fn resolve_in_root(
+    cfg: &crate::config::Config,
+    root_id: &str,
+    rel_path: &str,
+) -> Option<std::path::PathBuf> {
+    let root = cfg.root(root_id)?;
+    let canon = root.path.join(rel_path).canonicalize().ok()?;
+    let canon_root = root.path.canonicalize().ok()?;
+    (canon.starts_with(&canon_root) && canon.is_file()).then_some(canon)
+}
+
 async fn api_file(
     _auth: Auth,
     State(state): State<AppState>,
     Path(hash): Path<String>,
 ) -> AppResult<impl IntoResponse> {
-    // Any path with these bytes will do — duplicates share a hash.
-    let rel_path: String = state
+    // Any path with these bytes will do — duplicates share a hash. The root
+    // comes from the row, not from a default: two roots can hold the same bytes.
+    let (root_id, rel_path): (String, String) = state
         .db
         .with(|c| {
             c.query_row(
-                "SELECT rel_path FROM files WHERE content_hash = ?1 LIMIT 1",
+                "SELECT root_id, rel_path FROM files WHERE content_hash = ?1 LIMIT 1",
                 [&hash],
-                |r| r.get(0),
+                |r| Ok((r.get(0)?, r.get(1)?)),
             )
         })
         .await
         .map_err(|_| AppError::NotFound)?;
 
     // rel_path comes from our own scan, but canonicalize + prefix-check anyway.
-    let full = state.cfg.root.join(&rel_path);
-    let (canon, canon_root) = match (full.canonicalize(), state.cfg.root.canonicalize()) {
-        (Ok(a), Ok(b)) => (a, b),
-        _ => return Err(AppError::NotFound),
-    };
-    if !canon.starts_with(&canon_root) || !canon.is_file() {
-        return Err(AppError::NotFound);
-    }
+    let canon = resolve_in_root(&state.cfg, &root_id, &rel_path).ok_or(AppError::NotFound)?;
 
     let bytes = tokio::fs::read(&canon).await?;
     Ok((
@@ -313,6 +796,17 @@ async fn api_meta(
 #[derive(Deserialize)]
 struct FavoriteIn {
     favorite: bool,
+    /// Which subtune — a SID's tunes are favourited separately. Absent → 0,
+    /// which is every module and every single-tune file.
+    #[serde(default)]
+    subsong: i64,
+}
+
+/// The subtune a play/meta write applies to, as `?subsong=N`. Defaults to 0.
+#[derive(Deserialize, Default)]
+struct SubsongQuery {
+    #[serde(default)]
+    subsong: i64,
 }
 
 /// Toggle a tune's favourite flag (keyed by content hash, so it survives moves).
@@ -326,9 +820,9 @@ async fn api_favorite(
         .db
         .with(move |c| {
             c.execute(
-                "INSERT INTO stats (content_hash, favorite) VALUES (?1, ?2)
-                 ON CONFLICT(content_hash) DO UPDATE SET favorite = excluded.favorite",
-                rusqlite::params![hash, req.favorite as i64],
+                "INSERT INTO stats (content_hash, subsong, favorite) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(content_hash, subsong) DO UPDATE SET favorite = excluded.favorite",
+                rusqlite::params![hash, req.subsong, req.favorite as i64],
             )
         })
         .await?;
@@ -340,20 +834,22 @@ async fn api_play(
     _auth: Auth,
     State(state): State<AppState>,
     Path(hash): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<SubsongQuery>,
 ) -> AppResult<Json<Value>> {
     let now = chrono::Utc::now().to_rfc3339();
     let count: i64 = state
         .db
         .with(move |c| {
             c.execute(
-                "INSERT INTO stats (content_hash, play_count, last_played) VALUES (?1, 1, ?2)
-                 ON CONFLICT(content_hash) DO UPDATE SET
+                "INSERT INTO stats (content_hash, subsong, play_count, last_played)
+                 VALUES (?1, ?2, 1, ?3)
+                 ON CONFLICT(content_hash, subsong) DO UPDATE SET
                    play_count = play_count + 1, last_played = excluded.last_played",
-                rusqlite::params![hash, now],
+                rusqlite::params![hash, q.subsong, now],
             )?;
             c.query_row(
-                "SELECT play_count FROM stats WHERE content_hash = ?1",
-                [&hash],
+                "SELECT play_count FROM stats WHERE content_hash = ?1 AND subsong = ?2",
+                rusqlite::params![hash, q.subsong],
                 |r| r.get(0),
             )
         })
@@ -371,9 +867,36 @@ async fn api_play(
 struct RenameIn {
     /// Current relative path under the root (the track's `path`).
     from: String,
+    /// The collection the file belongs to (the track's `collection`). Omitted
+    /// by older callers → the primary root.
+    #[serde(default)]
+    root: Option<String>,
     group: String,
     artist: Option<String>,
     filename: String,
+}
+
+/// Resolve a mutating request's target root and refuse the ones that are
+/// read-only by nature. An `hvsc` root is a versioned upstream distribution —
+/// renaming or deleting inside it would desync it from its own index and be
+/// undone by the next release, so it is never writable.
+fn writable_root<'a>(
+    cfg: &'a crate::config::Config,
+    root: Option<&str>,
+) -> AppResult<&'a crate::config::Root> {
+    let root = match root {
+        Some(id) => cfg
+            .root(id)
+            .ok_or_else(|| AppError::BadRequest(format!("unknown root {id:?}")))?,
+        None => cfg.primary(),
+    };
+    if !root.kind.writable() {
+        return Err(AppError::BadRequest(format!(
+            "root {:?} is read-only",
+            root.id
+        )));
+    }
+    Ok(root)
 }
 
 /// A single safe path segment: non-empty, not `.`/`..`, and free of separators
@@ -438,16 +961,10 @@ async fn api_rename(
         ));
     }
 
-    let root = state.cfg.root.clone();
+    let target = writable_root(&state.cfg, req.root.as_deref())?;
+    let (root_id, root) = (target.id.clone(), target.path.clone());
     // Validate the source is a real file inside the root (rejects `..` escapes).
-    let from_abs = root.join(&from_rel);
-    let (from_canon, root_canon) = match (from_abs.canonicalize(), root.canonicalize()) {
-        (Ok(a), Ok(b)) => (a, b),
-        _ => return Err(AppError::NotFound),
-    };
-    if !from_canon.starts_with(&root_canon) || !from_canon.is_file() {
-        return Err(AppError::NotFound);
-    }
+    let from_canon = resolve_in_root(&state.cfg, &root_id, &from_rel).ok_or(AppError::NotFound)?;
     // to_rel is built from clean segments, so it can't escape the root.
     let to_abs = root.join(&to_rel);
 
@@ -484,8 +1001,8 @@ async fn api_rename(
         .with(move |c| {
             c.execute(
                 "UPDATE files SET rel_path=?1, grp=?2, artist=?3, filename=?4, ext=?5
-                 WHERE rel_path=?6",
-                rusqlite::params![to_for_db, grp, art, fname, ext, from_rel],
+                 WHERE root_id=?6 AND rel_path=?7",
+                rusqlite::params![to_for_db, grp, art, fname, ext, root_id, from_rel],
             )
         })
         .await?;
@@ -505,6 +1022,9 @@ struct DeleteIn {
     /// Relative path under the root (the track's `path`) — as stored in the
     /// index, which is where the dupes report's paths come from.
     path: String,
+    /// The collection the file belongs to; omitted → the primary root.
+    #[serde(default)]
+    root: Option<String>,
 }
 
 /// Permanently delete a module file (primarily to clean up duplicates). Removes
@@ -517,17 +1037,10 @@ async fn api_delete(
     State(state): State<AppState>,
     Json(req): Json<DeleteIn>,
 ) -> AppResult<Json<Value>> {
-    let root = state.cfg.root.clone();
+    let root_id = writable_root(&state.cfg, req.root.as_deref())?.id.clone();
     let rel = req.path.clone();
     // Validate the target is a real file inside the root (rejects `..` escapes).
-    let abs = root.join(&rel);
-    let (canon, root_canon) = match (abs.canonicalize(), root.canonicalize()) {
-        (Ok(a), Ok(b)) => (a, b),
-        _ => return Err(AppError::NotFound),
-    };
-    if !canon.starts_with(&root_canon) || !canon.is_file() {
-        return Err(AppError::NotFound);
-    }
+    let canon = resolve_in_root(&state.cfg, &root_id, &rel).ok_or(AppError::NotFound)?;
 
     // Remove the file on a blocking thread.
     let for_fs = canon.clone();
@@ -539,25 +1052,151 @@ async fn api_delete(
             _ => AppError::Internal(e.into()),
         })?;
 
-    // Drop the index row (rel_path is unique; the path came from the index).
+    // Drop the index row ((root_id, rel_path) is unique; both came from the index).
     let for_db = rel.clone();
     let removed = state
         .db
-        .with(move |c| c.execute("DELETE FROM files WHERE rel_path=?1", [for_db]))
+        .with(move |c| {
+            c.execute(
+                "DELETE FROM files WHERE root_id=?1 AND rel_path=?2",
+                rusqlite::params![root_id, for_db],
+            )
+        })
         .await?;
 
     Ok(Json(json!({ "path": rel, "removed": removed })))
 }
 
-async fn api_rescan(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
-    let result = crate::run_scan(state.db.clone(), state.cfg.root.clone(), state.scan.clone())
+/// Rescan the primary root. Kept for callers that predate multiple roots.
+async fn api_rescan(
+    _auth: Auth,
+    State(state): State<AppState>,
+) -> AppResult<(StatusCode, Json<Value>)> {
+    let id = state.cfg.primary().id.clone();
+    rescan_root(&state, &id).await
+}
+
+/// Rescan one named root, leaving the others' rows alone.
+async fn api_rescan_root(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(root): Path<String>,
+) -> AppResult<(StatusCode, Json<Value>)> {
+    rescan_root(&state, &root).await
+}
+
+/// Walked roots answer `202` and scan in the background; an HVSC root answers
+/// `200` with its counts, because reindexing one is a single catalogue read that
+/// finishes in seconds — detaching it would trade a useful synchronous result
+/// for nothing.
+async fn rescan_root(state: &AppState, root_id: &str) -> AppResult<(StatusCode, Json<Value>)> {
+    let root = state
+        .cfg
+        .root(root_id)
+        .ok_or_else(|| AppError::BadRequest(format!("unknown root {root_id:?}")))?;
+    // An HVSC root rebuilds from its own catalogue rather than being walked, so
+    // "rescan" means "reindex" — one 5MB read instead of 61k stats and hashes.
+    if root.kind == crate::config::RootKind::Hvsc {
+        // Configured as HVSC but not actually one. That's a misconfigured path,
+        // not a server fault, so say so plainly instead of surfacing an IO error
+        // as a 500.
+        if !crate::hvsc::looks_like_hvsc(&root.path) {
+            return Err(AppError::BadRequest(format!(
+                "root {root_id:?} has no DOCUMENTS/Songlengths.md5 — not an HVSC collection"
+            )));
+        }
+        let r = crate::run_hvsc_index(
+            state.db.clone(),
+            root.id.clone(),
+            root.path.clone(),
+            state.scan.clone(),
+        )
         .await
         .map_err(AppError::Internal)?;
-    Ok(Json(json!({
-        "indexed": result.indexed,
-        "hashed": result.hashed,
-        "removed": result.removed,
-    })))
+        return Ok((
+            StatusCode::OK,
+            Json(json!({
+                "indexed": r.tunes,
+                "subtunes": r.subtunes,
+                "removed": r.removed,
+                "notes": r.notes,
+                "hashed": 0,
+            })),
+        ));
+    }
+    if root.kind != crate::config::RootKind::Scan {
+        return Err(AppError::BadRequest(format!(
+            "root {root_id:?} is not walked — it is indexed from its own catalogue"
+        )));
+    }
+
+    // One at a time. Two scans would serialise on the single SQLite connection
+    // anyway, but they'd also interleave their writes to the shared progress
+    // counters, so `/status` would report a meaningless blend of the two.
+    //
+    // Claimed with compare-exchange rather than a load-then-store: now that the
+    // request returns before the scan starts, two arriving together would both
+    // pass a plain check. `run_scan` sets the same flag again (harmlessly) and
+    // its drop guard is what clears it, on any exit including a panic.
+    if state
+        .scan
+        .scanning
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err(AppError::Conflict("a scan is already running".into()));
+    }
+
+    // Answer immediately and walk in the background.
+    //
+    // A scan of the module root is minutes of stat-and-hash over a network
+    // mount. Holding the request open for that meant one dropped connection —
+    // a UI reload, a proxy timeout, a phone locking — looked like a failure
+    // while the scan carried on regardless, and nothing could tell the
+    // difference. The work was always detached in practice (`spawn_blocking`
+    // runs to completion whether or not anyone is awaiting it); this just makes
+    // the API say so.
+    //
+    // Progress is already reportable without the DB: the scanner writes
+    // lock-free counters that `/status` reads, which is what the client polls.
+    // The outcome lands in `scan.last` for the same reason — a 202 has nothing
+    // to report yet, and dropping the counts entirely would make a failed scan
+    // indistinguishable from one that found nothing.
+    let db = state.db.clone();
+    let progress = state.scan.clone();
+    let id = root.id.clone();
+    let path = root.path.clone();
+    tokio::spawn(async move {
+        let outcome = match crate::run_scan(db, id.clone(), path, progress.clone()).await {
+            Ok(r) => crate::state::ScanOutcome {
+                root: id,
+                indexed: r.indexed,
+                hashed: r.hashed,
+                removed: r.removed,
+                finished_at: chrono::Utc::now().to_rfc3339(),
+                error: None,
+            },
+            Err(e) => {
+                tracing::error!(root = %id, error = %e, "scan failed");
+                crate::state::ScanOutcome {
+                    root: id,
+                    indexed: 0,
+                    hashed: 0,
+                    removed: 0,
+                    finished_at: chrono::Utc::now().to_rfc3339(),
+                    error: Some(e.to_string()),
+                }
+            }
+        };
+        if let Ok(mut slot) = progress.last.lock() {
+            *slot = Some(outcome);
+        }
+    });
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(json!({ "started": true, "root": root_id })),
+    ))
 }
 
 // ---------- playlists ----------
@@ -599,6 +1238,9 @@ struct PlaylistTrack {
     samples: Option<i64>,
     favorite: bool,
     play_count: i64,
+    /// The root of the local file this item resolved to; null when the item
+    /// isn't present locally (nothing to serve, nothing to filter).
+    collection: Option<String>,
 }
 
 /// A URL/id-safe slug from a playlist name (lowercase alphanumerics, single
@@ -718,17 +1360,20 @@ async fn api_playlist(
             // several `files` rows (duplicate files), GROUP BY collapses to one.
             // Display fields prefer the local data, falling back to the cached
             // import metadata (pi.title/artist/format/filename) when missing.
+            // Join on the surrogate `files.id`: rel_path is only unique within a
+            // root, so matching on it would collapse same-named files from two
+            // collections onto each other.
             let mut stmt = c.prepare(
                 "SELECT pi.id, pi.position, pi.md5,
                         f.content_hash, f.rel_path, f.grp, f.artist, f.filename, f.ext, f.size,
                         m.title, m.type_long, m.tracker, m.duration, m.channels,
                         m.instruments, m.samples,
                         COALESCE(s.favorite, 0), COALESCE(s.play_count, 0),
-                        pi.title, pi.artist, pi.format, pi.filename
+                        pi.title, pi.artist, pi.format, pi.filename, f.root_id
                  FROM playlist_items pi
-                 LEFT JOIN files f ON f.rel_path = COALESCE(
-                     (SELECT rel_path FROM files WHERE md5 = pi.md5 LIMIT 1),
-                     (SELECT rel_path FROM files WHERE LOWER(filename) = LOWER(pi.filename)
+                 LEFT JOIN files f ON f.id = COALESCE(
+                     (SELECT id FROM files WHERE md5 = pi.md5 LIMIT 1),
+                     (SELECT id FROM files WHERE LOWER(filename) = LOWER(pi.filename)
                       LIMIT 1))
                  LEFT JOIN meta  m ON m.content_hash = f.content_hash
                  LEFT JOIN stats s ON s.content_hash = f.content_hash
@@ -768,6 +1413,7 @@ async fn api_playlist(
                         samples: r.get(16)?,
                         favorite: r.get::<_, i64>(17)? != 0,
                         play_count: r.get(18)?,
+                        collection: r.get(23)?,
                     })
                 })?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -1602,8 +2248,13 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
             .is_some();
         if !have {
             let (artist, filename) = place_download(m);
-            if let Err(e) =
-                write_module(&state.cfg.root, artist.as_deref(), &filename, &bytes).await
+            if let Err(e) = write_module(
+                &state.cfg.primary().path,
+                artist.as_deref(),
+                &filename,
+                &bytes,
+            )
+            .await
             {
                 tracing::warn!(file = %filename, error = %e, "write failed");
                 state.fetch.failed.fetch_add(1, Ordering::Relaxed);
@@ -1629,7 +2280,13 @@ async fn run_fetch_missing(state: &AppState, id: &str) -> anyhow::Result<()> {
 
     // Index the new files so their md5s exist → playlist items resolve as present.
     if wrote_any {
-        crate::run_scan(state.db.clone(), state.cfg.root.clone(), state.scan.clone()).await?;
+        crate::run_scan(
+            state.db.clone(),
+            state.cfg.primary().id.clone(),
+            state.cfg.primary().path.clone(),
+            state.scan.clone(),
+        )
+        .await?;
     }
     tracing::info!(
         fetched = state.fetch.fetched.load(Ordering::Relaxed),
@@ -1714,10 +2371,13 @@ async fn api_dupes(_auth: Auth, State(state): State<AppState>) -> AppResult<Json
         .db
         .with(|c| {
             // Exact: same md5, multiple files.
-            let mut by_md5: BTreeMap<String, Vec<String>> = BTreeMap::new();
+            // The content hash comes along so the UI can play a copy: identical
+            // bytes share one hash by definition, and the browser no longer holds
+            // an index it could look the path up in.
+            let mut by_md5: BTreeMap<String, (String, Vec<String>)> = BTreeMap::new();
             {
                 let mut s = c.prepare(
-                    "SELECT md5, rel_path FROM files
+                    "SELECT md5, rel_path, content_hash FROM files
                      WHERE md5 IS NOT NULL AND md5 IN (
                        SELECT md5 FROM files WHERE md5 IS NOT NULL
                        GROUP BY md5 HAVING COUNT(*) > 1)
@@ -1725,7 +2385,9 @@ async fn api_dupes(_auth: Auth, State(state): State<AppState>) -> AppResult<Json
                 )?;
                 let mut rows = s.query([])?;
                 while let Some(r) = rows.next()? {
-                    by_md5.entry(r.get(0)?).or_default().push(r.get(1)?);
+                    let (md5, path, hash): (String, String, String) =
+                        (r.get(0)?, r.get(1)?, r.get(2)?);
+                    by_md5.entry(md5).or_insert((hash, Vec::new())).1.push(path);
                 }
             }
             // Likely: same filename, >1 distinct md5. Each file carries its
@@ -1766,7 +2428,7 @@ async fn api_dupes(_auth: Auth, State(state): State<AppState>) -> AppResult<Json
             }
             let exact: Vec<Value> = by_md5
                 .into_iter()
-                .map(|(md5, paths)| json!({ "md5": md5, "paths": paths }))
+                .map(|(md5, (hash, paths))| json!({ "md5": md5, "hash": hash, "paths": paths }))
                 .collect();
             let likely: Vec<Value> = by_name
                 .into_iter()
@@ -1781,6 +2443,90 @@ async fn api_dupes(_auth: Auth, State(state): State<AppState>) -> AppResult<Json
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `TRACK_COLS` and `track_from_row` are coupled by column position, with
+    /// `md5`/`root_id` appended out of struct order — inserting a column in the
+    /// middle would silently mis-map every field after it. Project the real
+    /// columns over a real row and assert each landed in the right field.
+    #[test]
+    fn projection_matches_mapper() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(crate::db::schema_sql()).unwrap();
+        conn.execute(
+            "INSERT INTO files (root_id, rel_path, grp, artist, filename, ext, size, mtime,
+                                content_hash, md5)
+             VALUES ('hvsc', 'MUSICIANS/H/Hubbard_Rob/Commando.sid', '', 'Hubbard_Rob',
+                     'Commando.sid', 'sid', 4242, 0, 'sha-here', 'md5-here')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO meta (content_hash, title, type_long, tracker, duration, channels,
+                               instruments, samples, n_orders, n_patterns, updated_at)
+             VALUES ('sha-here', 'Commando', 'PSID', 'Rob Hubbard', 213.5, 3, 0, 0, 0, 0, '')",
+            [],
+        )
+        .unwrap();
+        // Three subtunes, and the favourite belongs to the middle one only —
+        // per-subtune stats are the point of the composite key.
+        conn.execute(
+            "INSERT INTO songs (content_hash, subsong, title, author, duration)
+             VALUES ('sha-here', 0, 'Tune One', 'Rob Hubbard', 60.0),
+                    ('sha-here', 1, 'Tune Two', 'Rob Hubbard', 90.0),
+                    ('sha-here', 2, 'Tune Three', 'Rob Hubbard', 30.0)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO stats (content_hash, subsong, favorite, play_count)
+             VALUES ('sha-here', 1, 1, 7)",
+            [],
+        )
+        .unwrap();
+
+        let sql = format!("SELECT {TRACK_COLS} FROM files f {TRACK_JOINS} WHERE sg.subsong = 1");
+        let mut stmt = conn.prepare(&sql).unwrap();
+        assert_eq!(
+            stmt.column_count(),
+            TRACK_COL_COUNT,
+            "TRACK_COL_COUNT is out of date with TRACK_COLS"
+        );
+        let t = stmt.query_row([], |r| track_from_row(r, 0)).unwrap();
+
+        // The subtune's own title and duration win over the file-level ones.
+        assert_eq!(t.title.as_deref(), Some("Tune Two"));
+        assert_eq!(t.duration, Some(90.0));
+        assert_eq!(t.subsong, 1);
+        assert_eq!(t.subsongs, 3);
+        assert_eq!(t.id, crate::library::track_id(t.id / 256, 1));
+        assert_eq!(t.hash, "sha-here");
+        assert_eq!(t.md5.as_deref(), Some("md5-here"));
+        assert_eq!(t.path, "MUSICIANS/H/Hubbard_Rob/Commando.sid");
+        assert_eq!(t.collection, "hvsc");
+        assert_eq!(t.group, "");
+        assert_eq!(t.artist.as_deref(), Some("Hubbard_Rob"));
+        assert_eq!(t.filename, "Commando.sid");
+        assert_eq!(t.ext, "sid");
+        assert_eq!(t.size, 4242);
+        assert_eq!(t.type_long.as_deref(), Some("PSID"));
+        assert_eq!(t.tracker.as_deref(), Some("Rob Hubbard"));
+        assert_eq!(t.channels, Some(3));
+        assert!(t.favorite);
+        assert_eq!(t.play_count, 7);
+
+        // The *other* subtunes carry their own titles and none of subtune 1's
+        // listener state — a favourite on one tune is not a favourite on twelve.
+        let sql = format!("SELECT {TRACK_COLS} FROM files f {TRACK_JOINS} WHERE sg.subsong = 2");
+        let other = conn
+            .prepare(&sql)
+            .unwrap()
+            .query_row([], |r| track_from_row(r, 0))
+            .unwrap();
+        assert_eq!(other.title.as_deref(), Some("Tune Three"));
+        assert!(!other.favorite);
+        assert_eq!(other.play_count, 0);
+        assert_ne!(other.id, t.id, "each subtune is its own track");
+    }
 
     fn missing(path: Option<&str>, url: Option<&str>, artist: Option<&str>) -> Missing {
         Missing {

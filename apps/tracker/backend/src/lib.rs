@@ -3,11 +3,14 @@ pub mod config;
 pub mod db;
 pub mod enrich;
 pub mod error;
+pub mod hvsc;
+pub mod library;
 pub mod manifest;
 pub mod migrate;
 pub mod modland;
 pub mod routes;
 pub mod scan;
+pub mod sid;
 pub mod state;
 
 use std::path::PathBuf;
@@ -81,11 +84,12 @@ fn inline_script_hashes(html: &str) -> Vec<String> {
     out
 }
 
-/// Run a full scan on a blocking thread (hashing new files can take minutes
-/// over CIFS) and return the reconciliation counts. Flips the `scanning` flag
-/// so `/status` can report live progress without touching the (locked) DB.
+/// Run a full scan of one root on a blocking thread (hashing new files can take
+/// minutes over CIFS) and return the reconciliation counts. Flips the `scanning`
+/// flag so `/status` can report live progress without touching the (locked) DB.
 pub async fn run_scan(
     db: Db,
+    root_id: String,
     root: PathBuf,
     progress: Arc<ScanProgress>,
 ) -> anyhow::Result<ScanResult> {
@@ -99,7 +103,25 @@ pub async fn run_scan(
         progress.scanning.store(true, Ordering::Relaxed);
         let _done = ScanFlagGuard(progress.clone());
         let mut conn = db.blocking_lock();
-        scan::scan_into(&mut conn, &root, &progress)
+        scan::scan_into(&mut conn, &root_id, &root, &progress)
+    })
+    .await?
+}
+
+/// Index one HVSC root from its own songlengths database. Blocking (one 5 MB
+/// read plus a transaction), so it runs on the blocking pool like a scan, and
+/// flips the same `scanning` flag so `/status` reports it.
+pub async fn run_hvsc_index(
+    db: Db,
+    root_id: String,
+    root: PathBuf,
+    progress: Arc<ScanProgress>,
+) -> anyhow::Result<hvsc::IndexResult> {
+    tokio::task::spawn_blocking(move || {
+        progress.scanning.store(true, Ordering::Relaxed);
+        let _done = ScanFlagGuard(progress.clone());
+        let mut conn = db.blocking_lock();
+        hvsc::index_into(&mut conn, &root_id, &root)
     })
     .await?
 }
@@ -144,11 +166,12 @@ pub async fn run_server() -> anyhow::Result<()> {
         .unwrap_or(0);
     if track_count == 0 {
         let db = state.db.clone();
-        let root = state.cfg.root.clone();
+        let root_id = state.cfg.primary().id.clone();
+        let root = state.cfg.primary().path.clone();
         let progress = state.scan.clone();
         tokio::spawn(async move {
             tracing::info!(root = %root.display(), "empty index — initial scan started");
-            match run_scan(db, root, progress).await {
+            match run_scan(db, root_id, root, progress).await {
                 Ok(r) => tracing::info!(
                     indexed = r.indexed,
                     hashed = r.hashed,
@@ -157,11 +180,55 @@ pub async fn run_server() -> anyhow::Result<()> {
                 Err(e) => tracing::error!(error = %e, "initial scan failed"),
             }
         });
+        // (falls through to the HVSC check below)
     } else {
         tracing::info!(
             track_count,
             "serving cached index; POST /api/rescan to refresh"
         );
+    }
+
+    // HVSC roots index themselves from their own catalogue, which costs one
+    // stat to check and seconds to redo — so unlike a filesystem scan this can
+    // run at every boot. Unchanged release → nothing happens; a newly mounted
+    // one is picked up without anyone pressing a button.
+    for root in state
+        .cfg
+        .roots
+        .iter()
+        .filter(|r| r.kind == config::RootKind::Hvsc)
+    {
+        let (id, path) = (root.id.clone(), root.path.clone());
+        if !hvsc::looks_like_hvsc(&path) {
+            tracing::warn!(
+                root = %id, path = %path.display(),
+                "root is configured as hvsc but has no DOCUMENTS/Songlengths.md5 — skipping"
+            );
+            continue;
+        }
+        let current = state
+            .db
+            .with({
+                let (id, path) = (id.clone(), path.clone());
+                move |c| Ok(hvsc::is_current(c, &id, &path))
+            })
+            .await
+            .unwrap_or(false);
+        if current {
+            tracing::info!(root = %id, "HVSC index is current");
+            continue;
+        }
+        let (db, progress) = (state.db.clone(), state.scan.clone());
+        tokio::spawn(async move {
+            tracing::info!(root = %id, "indexing HVSC from its songlengths database");
+            match run_hvsc_index(db, id.clone(), path, progress).await {
+                Ok(r) => tracing::info!(
+                    root = %id, tunes = r.tunes, subtunes = r.subtunes, removed = r.removed,
+                    "HVSC index complete"
+                ),
+                Err(e) => tracing::error!(root = %id, error = %e, "HVSC index failed"),
+            }
+        });
     }
 
     // Hash the SPA's inline bootstrap script(s) so the CSP can allow exactly

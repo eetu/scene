@@ -1,26 +1,27 @@
 <script lang="ts">
   // Library facet/sort toolbar. Fully shared-state driven — no props: reads the
-  // view store (group-by / sorts / facet filters) + the library store (tracks for
-  // the facet options, scanning to disable). Grouping/filter logic itself lives in
-  // $lib/library; this is just the controls.
-  import { facetFormats, facetTrackers } from "$lib/library";
+  // view store (group-by / sorts / facet filters) + the derived view (facet
+  // options, server-supplied) and the library store (scanning, to disable).
+  // Grouping/filter logic lives server-side now; this is just the controls.
   import { library } from "$lib/library.svelte";
-  import { bucketNoun, controlsActive, resetControls, view } from "$lib/view.svelte";
+  import { lib } from "$lib/library-view.svelte";
+  import { bucketNoun, controlsActive, resetControls, saveView, view } from "$lib/view.svelte";
 
-  const favView = $derived(view.tab === "favourites");
-  const facetBase = $derived(favView ? library.tracks.filter((t) => t.favorite) : library.tracks);
-  const formats = $derived(facetFormats(facetBase));
-  const trackers = $derived(facetTrackers(facetBase));
+  // Facet options come from the shaped library: with a backend the browser never
+  // sees the whole index, so it can't enumerate the formats itself. Scoped to
+  // the selected collection server-side, so browsing HVSC can't offer MOD.
+  const formats = $derived(lib.formats);
+  const trackers = $derived(lib.trackers);
 </script>
 
 <div class="controls" aria-label="library controls">
   <!-- Cluster 1 — how the list is organised: bucket dimension + bucket order.
        Hidden on favourites, which render as one flat song list (no buckets). -->
-  {#if !favView}
+  {#if !lib.favView}
     <div class="cgroup">
       <label class="groupby">
         group by
-        <select bind:value={view.groupBy} disabled={library.scanning}>
+        <select bind:value={view.groupBy} onchange={saveView} disabled={library.scanning}>
           <option value="group">group</option>
           <option value="artist">artist</option>
           <option value="album">album</option>
@@ -31,6 +32,7 @@
         {bucketNoun()}
         <select
           bind:value={view.groupSort}
+          onchange={saveView}
           disabled={library.scanning}
           aria-label="order {bucketNoun()}"
         >
@@ -45,7 +47,7 @@
   <div class="cgroup">
     <label class="groupby">
       sort
-      <select bind:value={view.trackSort} disabled={library.scanning}>
+      <select bind:value={view.trackSort} onchange={saveView} disabled={library.scanning}>
         <option value="name">name</option>
         <option value="duration">duration</option>
         <option value="channels">channels</option>
@@ -57,7 +59,7 @@
   <div class="cgroup">
     <label class="groupby">
       format
-      <select bind:value={view.fmtFilter} disabled={library.scanning}>
+      <select bind:value={view.fmtFilter} onchange={saveView} disabled={library.scanning}>
         <option value="">all</option>
         {#each formats as f (f)}
           <option value={f}>{f}</option>
@@ -66,7 +68,7 @@
     </label>
     <label class="groupby opt">
       tracker
-      <select bind:value={view.trackerFilter} disabled={library.scanning}>
+      <select bind:value={view.trackerFilter} onchange={saveView} disabled={library.scanning}>
         <option value="">all</option>
         {#each trackers as tr (tr)}
           <option value={tr}>{tr}</option>

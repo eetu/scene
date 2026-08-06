@@ -14,19 +14,25 @@ import {
   keysOf,
   letterRowMap,
   NO_ALBUM,
+  playLength,
   railLetter,
   rowKey,
   sortFlatTracks,
   subLabel,
+  tuneLabel,
 } from "$lib/library";
 import { buildIndex } from "$lib/manifest";
 
 /** A Track with sensible defaults; override the fields a test cares about. */
 function track(p: Partial<Track>): Track {
   return {
+    id: p.id ?? 0,
+    subsong: p.subsong ?? 0,
+    subsongs: p.subsongs ?? 0,
     hash: p.path ?? p.hash ?? "h",
     md5: null,
     path: p.path ?? "p",
+    collection: p.collection ?? "mods",
     group: p.group ?? "G",
     artist: p.artist ?? null,
     filename: p.filename ?? "song.mod",
@@ -129,14 +135,20 @@ describe("groupTracks", () => {
   });
 });
 
+/** Grouped tracks reduced to the id buckets the row stream is built from —
+ *  the shape `/api/library/ids` returns, so the same rows are produced whether
+ *  the shaping ran here or on the server. */
+const idBuckets = (groups: [string, Track[]][]): [string, number[]][] =>
+  groups.map(([name, items]) => [name, items.map((t) => t.id)]);
+
 describe("buildRows", () => {
   test("emits a header per group + track rows only for open groups", () => {
     const groups = groupTracks(
-      [track({ path: "1", group: "A" }), track({ path: "2", group: "B" })],
+      [track({ id: 1, path: "1", group: "A" }), track({ id: 2, path: "2", group: "B" })],
       { groupBy: "group", trackSort: "name", groupSort: "name" },
     );
-    const rows = buildRows(groups, (name) => name === "A"); // only A open
-    expect(rows.map((r) => (r.kind === "header" ? `H:${r.name}` : `T:${r.track.path}`))).toEqual([
+    const rows = buildRows(idBuckets(groups), (name) => name === "A"); // only A open
+    expect(rows.map((r) => (r.kind === "header" ? `H:${r.name}` : `T:${r.id}`))).toEqual([
       "H:A",
       "T:1",
       "H:B",
@@ -161,10 +173,37 @@ describe("rail math", () => {
       ],
       { groupBy: "group", trackSort: "name", groupSort: "name" },
     );
-    const rows = buildRows(groups, () => true);
+    const rows = buildRows(idBuckets(groups), () => true);
     const map = letterRowMap(rows);
     expect(map.get("A")).toBe(0); // first "A…" header
     expect(map.get("B")).toBeGreaterThan(map.get("A")!);
+  });
+});
+
+describe("song length", () => {
+  test("a known duration is used as-is, whatever the format", () => {
+    expect(playLength(track({ ext: "mod", duration: 210 }), 180)).toBe(210);
+    expect(playLength(track({ ext: "sid", duration: 97 }), 180)).toBe(97);
+  });
+
+  test("an unknown-length SID falls back so it can be played at all", () => {
+    // The format carries no duration; without a window there'd be nothing for
+    // the transport or auto-advance to work against.
+    expect(playLength(track({ ext: "sid", duration: null }), 180)).toBe(180);
+    expect(playLength(track({ ext: "psid", duration: null }), 240)).toBe(240);
+  });
+
+  test("a module with no duration yet does NOT get the SID fallback", () => {
+    // The engine reports a module's real length once it decodes, so inventing
+    // one here would only fight it.
+    expect(playLength(track({ ext: "mod", duration: null }), 180)).toBe(0);
+  });
+
+  test("tuneLabel only appears for genuinely multi-tune files", () => {
+    expect(tuneLabel(track({ subsong: 0, subsongs: 0 }))).toBe("");
+    expect(tuneLabel(track({ subsong: 0, subsongs: 1 }))).toBe("");
+    // 1-based for display; the stored index is 0-based.
+    expect(tuneLabel(track({ subsong: 2, subsongs: 12 }))).toBe("Tune 3/12");
   });
 });
 
@@ -224,7 +263,7 @@ describe("manifest-driven facets", () => {
 
   test("a multi-bucket track gets a unique row key per bucket", () => {
     const groups = groupTracks(
-      [track({ path: "p1", artist: "Skaven" })],
+      [track({ id: 7, path: "p1", artist: "Skaven" })],
       {
         groupBy: "group",
         trackSort: "name",
@@ -232,10 +271,11 @@ describe("manifest-driven facets", () => {
       },
       idx,
     );
-    const rows = buildRows(groups, () => true);
+    const rows = buildRows(idBuckets(groups), () => true);
     const keys = rows.filter((r) => r.kind === "track").map(rowKey);
-    expect(new Set(keys).size).toBe(keys.length); // all unique
-    expect(keys).toEqual(["t:Epileptic Gängbang:p1", "t:Future Crew:p1"]);
+    // One track, two buckets: the bucket name is what keeps the keys distinct.
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys).toEqual(["t:Epileptic Gängbang:7", "t:Future Crew:7"]);
   });
 
   test("credit lookup is md5 case-insensitive", () => {
@@ -301,7 +341,7 @@ describe("flat favourites view", () => {
   });
 
   test("flatRows emits track rows only (no headers), last flag on the final row", () => {
-    const rows = flatRows([track({ path: "a" }), track({ path: "b" }), track({ path: "c" })]);
+    const rows = flatRows([1, 2, 3]);
     expect(rows.every((r) => r.kind === "track")).toBe(true);
     expect(rows.map((r) => (r.kind === "track" ? r.last : null))).toEqual([false, false, true]);
     const keys = rows.map(rowKey);

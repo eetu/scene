@@ -9,7 +9,7 @@
   import { onMount } from "svelte";
 
   import { api, type DupeFile, type DupesReport } from "$lib/api";
-  import { library, removeTrackLocal } from "$lib/library.svelte";
+  import { removeTrackLocal } from "$lib/library.svelte";
   import Modal from "$lib/Modal.svelte";
 
   let {
@@ -46,14 +46,18 @@
   // from the (full) library index by path. Plays without opening the pattern
   // view, so the dialog stays up; clicking the current track toggles play/pause.
   const isPlaying = (path: string) => playback.current?.path === path;
-  function onFile(path: string) {
+  function onFile(path: string, hash: string) {
     if (isPlaying(path)) {
       transportToggle();
       return;
     }
-    const t = library.tracks.find((x) => x.path === path);
-    if (t) void playInOrder([t], t);
-    else onToast("couldn't find that file in the library index", "err");
+    // The report carries the content hash but not a full row, and the index
+    // lives server-side now — fetch the one track rather than searching a list
+    // the browser doesn't hold.
+    void api.trackByHash(hash).then((t) => {
+      if (t) void playInOrder([t], t);
+      else onToast("couldn't find that file in the library index", "err");
+    });
   }
 
   // Drop the just-deleted path from the local report so the list updates without
@@ -87,10 +91,10 @@
   }
 </script>
 
-{#snippet fileRow(path: string, file?: DupeFile)}
+{#snippet fileRow(path: string, hash: string, file?: DupeFile)}
   {@const orphan = file && !file.favorite && file.play_count === 0 && file.playlists.length === 0}
   <li title={path} class:current={isPlaying(path)} class:orphan>
-    <button class="f" onclick={() => onFile(path)} title="play {nameOf(path)}">
+    <button class="f" onclick={() => onFile(path, hash)} title="play {nameOf(path)}">
       {#if dirOf(path)}<span class="dir">{dirOf(path)} / </span>{/if}<span class="name"
         >{nameOf(path)}</span
       >
@@ -153,7 +157,7 @@
         {#each report.exact as g (g.md5)}
           <ul class="set">
             {#each g.paths as p (p)}
-              {@render fileRow(p)}
+              {@render fileRow(p, g.hash)}
             {/each}
           </ul>
         {/each}
@@ -167,7 +171,7 @@
             <div class="setname">{g.filename}</div>
             <ul>
               {#each g.files as f (f.path)}
-                {@render fileRow(f.path, f)}
+                {@render fileRow(f.path, f.hash, f)}
               {/each}
             </ul>
           </div>

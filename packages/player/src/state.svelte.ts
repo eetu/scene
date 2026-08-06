@@ -3,7 +3,7 @@
 // (jam sampler, editor sequencer, …) all read/write, without them having to
 // import from the big player.svelte.ts orchestration file.
 
-import type { Track } from "./host";
+import type { Track, TrackNote } from "./host";
 import type { Song } from "./player.svelte";
 
 /**
@@ -23,6 +23,12 @@ export function initialVolume(raw: string | null): number {
   const v = Number(raw);
   return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 1;
 }
+
+/** Raster frames of SID trace kept for the grid — about 20 seconds at 50 Hz.
+ *
+ *  Enough to scroll back over the phrase you just heard, which is what the view
+ *  is for, without the store growing without bound over a 10-minute tune. */
+export const TRACE_ROWS = 1024;
 
 // Playback is a small state machine over one loaded module:
 //   stopped: playing=false            (transport shows ▶; play restarts from top)
@@ -65,9 +71,35 @@ export const playback = $state({
   seqSpeed: 6,
   beat: 0, // bumps once per musical beat (see noteRow) — a reactive on-beat tick
   vu: [] as number[],
+  /** Live SID chip registers (32 per installed chip, concatenated), sampled at
+   *  the start of the chunk currently playing. Empty for module playback. */
+  sidRegs: [] as number[],
+  /** The SID trace: one entry per PAL raster frame, oldest first, each a full
+   *  register snapshot (`chips × 32`) reconstructed from that frame's writes.
+   *
+   *  This is the SID's answer to pattern rows. It reaches ~1.5s past the
+   *  playhead, because the decoder renders that far ahead of the worklet — so
+   *  the grid can show incoming notes, not just what's been played. Still not a
+   *  score: nothing exists until it's been decoded, so there's no seeking within
+   *  it and nothing to edit. Capped at [`TRACE_ROWS`]. */
+  sidTrace: [] as Uint8Array[],
+  /** When each `sidTrace` frame is due, seconds into the tune. Parallel array
+   *  rather than a field on the row so the rows stay plain `Uint8Array` views
+   *  over the decoder's buffer — they're the cache key for the row decoder. */
+  sidTraceAt: [] as number[],
+  /** This tune writes far more per frame than notes require — it's streaming
+   *  samples through the volume register, not playing a score. One row per frame
+   *  can't represent that, so the grid says so rather than implying its rows are
+   *  the whole story. */
+  sidTraceDense: false,
   song: null as Song | null,
   samples: [] as string[],
   instruments: [] as string[],
+  /** Curator notes on the current track (STIL, for HVSC tunes). The text
+   *  visualisers' substitute for the sample-slot prose a SID doesn't have.
+   *  Fetched after load, so it arrives a beat late and the display just
+   *  re-renders — never gating playback on it. */
+  notes: [] as TrackNote[],
   muted: false,
   // Downmix output to mono (accessibility). Persisted; applied once the engine
   // is ready. Read at startup so the choice survives reloads.
@@ -97,6 +129,10 @@ export const playback = $state({
   // shim; party's stock build doesn't). Set once the engine reports ready. UI
   // (keyboard, waveform pane) gates on it so the shared package degrades.
   canReadSamples: false,
+  /** Does the loaded format have a pattern grid at all? False for SID, whose
+   *  music is 6502 code driving chip registers — there is no grid, sample list
+   *  or order table to show, so those panes are replaced rather than emptied. */
+  hasPatterns: true,
   // Custom-build capabilities for the editor: per-channel mute/solo and structured
   // pattern cells. Both false on party's stock build (UI hides accordingly).
   canMuteChannels: false,

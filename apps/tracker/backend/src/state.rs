@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicBool, AtomicUsize};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::config::Config;
 use crate::db::Db;
@@ -15,6 +15,28 @@ pub struct ScanProgress {
     pub total: AtomicUsize,
     pub processed: AtomicUsize,
     pub hashed: AtomicUsize,
+    /// What the most recent finished scan did.
+    ///
+    /// A scan is started with `POST /api/rescan…`, which answers `202` and
+    /// returns before there is anything to report — so without this the outcome
+    /// would be dropped on the floor and a caller could only ever learn *that*
+    /// scanning stopped, never what it found or that it failed. Written once per
+    /// run, read by `/status`.
+    pub last: Mutex<Option<ScanOutcome>>,
+}
+
+/// The result of one finished scan, for `/status`.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct ScanOutcome {
+    pub root: String,
+    pub indexed: usize,
+    pub hashed: usize,
+    pub removed: usize,
+    /// RFC-3339, so "how stale is this" is answerable client-side.
+    pub finished_at: String,
+    /// Set when the scan failed. `indexed`/`hashed`/`removed` are 0 then — a
+    /// failure must not read as "scanned, found nothing".
+    pub error: Option<String>,
 }
 
 /// Live progress for a playlist "fetch missing" run (download missing md5s via

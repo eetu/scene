@@ -53,9 +53,16 @@ export class ChiptuneJsPlayer {
 		}
 		const workletUrl = this.config.workletUrl;
 		const workerUrl = this.config.workerUrl;
+		// A second decoder (SID, via sid.worker.ts) supplies its own Worker
+		// instead of a URL: it's bundled TypeScript with an npm dependency, not a
+		// vendored static asset, so only Vite can construct it. The audio graph,
+		// the worklet and the whole PCM/credit protocol are shared either way —
+		// the worklet is format-agnostic, it just drains tagged chunks.
+		const workerFactory = this.config.workerFactory;
 		delete this.config.context;
 		delete this.config.workletUrl;
 		delete this.config.workerUrl;
+		delete this.config.workerFactory;
 
 		this.gain = this.context.createGain();
 		this.gain.gain.value = 1;
@@ -98,7 +105,7 @@ export class ChiptuneJsPlayer {
 		this.workerReadyPromise = new Promise((res) => (this._resolveWorkerReady = res));
 
 		// Decoder Worker (module worker → can `import` the libopenmpt glue).
-		this.worker = new Worker(workerUrl, { type: 'module' });
+		this.worker = workerFactory ? workerFactory() : new Worker(workerUrl, { type: 'module' });
 		this.worker.onmessage = (e) => this.handleWorkerMessage_(e.data);
 		this.worker.onerror = () => this.fireEvent('onError', { type: 'Worker' });
 
@@ -148,6 +155,14 @@ export class ChiptuneJsPlayer {
 		switch (d.cmd) {
 			case 'renderload':
 				this.fireEvent('onRenderLoad', d);
+				break;
+			case 'rows':
+				// SID trace rows, straight from the decoder (ahead of playback).
+				// A batch from before a seek or a track change describes a
+				// timeline that no longer exists — dropped here, where `gen`
+				// already lives, so consumers never see one.
+				if (d.gen !== this.gen) break;
+				this.fireEvent('onTraceRows', d);
 				break;
 			case 'ready':
 				this.workerReady = true;
@@ -256,6 +271,12 @@ export class ChiptuneJsPlayer {
 	onRenderLoad(h) {
 		this.addHandler('onRenderLoad', h);
 	}
+	/** SID only: whole raster frames of reconstructed chip state, sent as they are
+	 *  decoded — which is ahead of playback by the jitter buffer, so the trace grid
+	 *  can show what's coming. Each row carries the playback time it belongs to. */
+	onTraceRows(h) {
+		this.addHandler('onTraceRows', h);
+	}
 	onError(h) {
 		this.addHandler('onError', h);
 	}
@@ -273,17 +294,21 @@ export class ChiptuneJsPlayer {
 	}
 
 	// --- transport --------------------------------------------------------
-	load(url) {
+	// `subsong` rides along with the load rather than following it: a
+	// multi-tune file (SID) would otherwise race — the worker's load is async,
+	// so a separate selectSubsong could land while the tune is still opening and
+	// be undone by it. 0 is every module and every single-tune file.
+	load(url, subsong = 0) {
 		fetch(url)
 			.then((r) => r.arrayBuffer())
-			.then((ab) => this.play(ab))
+			.then((ab) => this.play(ab, subsong))
 			.catch(() => this.fireEvent('onError', { type: 'Load' }));
 	}
-	play(buffer) {
+	play(buffer, subsong = 0) {
 		this.gen++;
 		// New song: flush the worklet's queue, then hand the bytes to the worker.
 		this.processNode?.port.postMessage({ cmd: 'flush', gen: this.gen });
-		this.worker.postMessage({ cmd: 'load', bytes: buffer, gen: this.gen }, [buffer]);
+		this.worker.postMessage({ cmd: 'load', bytes: buffer, gen: this.gen, subsong }, [buffer]);
 	}
 	stop() {
 		this.worker.postMessage({ cmd: 'stop' });

@@ -11,6 +11,8 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 import { FIXTURE_XM } from "../../../../packages/player/testing/playback-smoke";
+import type { Track } from "../src/lib/api";
+import { mockLibrary } from "./mock-api";
 
 const B = readFileSync(FIXTURE_XM);
 
@@ -54,28 +56,13 @@ test("reveal-current: closing the player opens + scrolls to the playing track", 
   context,
   page,
 }) => {
-  await context.route("**/api/tracks", (r) => r.fulfill({ json: { tracks } }));
+  await mockLibrary(context, tracks as unknown as Track[]);
   await context.route("**/api/playlists", (r) => r.fulfill({ json: { playlists: [] } }));
   await context.route("**/api/file/*", (r) =>
     r.fulfill({ contentType: "application/octet-stream", body: B }),
   );
   await context.route("**/api/play/*", (r) => r.fulfill({ json: { play_count: 1 } }));
   await context.route("**/api/meta/*", (r) => r.fulfill({ status: 204, body: "" }));
-  await context.route("**/status", (r) =>
-    r.fulfill({
-      json: {
-        service: "t",
-        version: "x",
-        db_healthy: true,
-        track_count: tracks.length,
-        root: "/x",
-        scanning: false,
-        scan_total: 0,
-        scan_processed: 0,
-        scan_hashed: 0,
-      },
-    }),
-  );
 
   await page.setViewportSize({ width: 1100, height: 700 });
 

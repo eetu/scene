@@ -8,6 +8,8 @@ import { readFileSync } from "node:fs";
 import { expect, type Locator, test } from "@playwright/test";
 
 import { FIXTURE_XM } from "../../../../packages/player/testing/playback-smoke";
+import type { Track } from "../src/lib/api";
+import { mockLibrary } from "./mock-api";
 
 const B = readFileSync(FIXTURE_XM);
 
@@ -54,25 +56,10 @@ test("playlist item rows are one line (title + duration) at both breakpoints", a
   context,
   page,
 }) => {
-  await context.route("**/api/tracks", (r) => r.fulfill({ json: { tracks: [] } }));
+  await mockLibrary(context, [] as unknown as Track[]);
   await context.route("**/api/playlists", (r) => r.fulfill({ json: { playlists: [playlist] } }));
   // Registered after the list route so it wins for the detail URL.
   await context.route("**/api/playlists/pl1", (r) => r.fulfill({ json: { playlist, items } }));
-  await context.route("**/status", (r) =>
-    r.fulfill({
-      json: {
-        service: "t",
-        version: "x",
-        db_healthy: true,
-        track_count: 0,
-        root: "/x",
-        scanning: false,
-        scan_total: 0,
-        scan_processed: 0,
-        scan_hashed: 0,
-      },
-    }),
-  );
 
   // The name and the duration share one visual row (centres aligned) — the
   // property that broke when the metadata wrapped underneath.

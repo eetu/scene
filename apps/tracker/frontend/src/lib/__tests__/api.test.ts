@@ -49,6 +49,7 @@ describe("itemToTrack", () => {
       samples: null,
       favorite: false,
       play_count: 3,
+      collection: null,
     } satisfies PlaylistItem;
 
     const track = itemToTrack(item);
@@ -78,7 +79,9 @@ describe("api request layer", () => {
     const fetchMock = mockFetch({ play_count: 5 });
     await api.play("deadbeef");
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("/api/play/deadbeef");
+    // The subtune rides along: a SID's tunes are counted separately, and 0 is
+    // simply what every module and single-tune file is.
+    expect(url).toBe("/api/play/deadbeef?subsong=0");
     expect(init).toMatchObject({ method: "POST" });
   });
 

@@ -55,13 +55,23 @@ async function sha256(buf: ArrayBuffer): Promise<string> {
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// The backend's `files.id` has no counterpart here, but Track requires one and
+// the queue keys on it. A monotonic counter is enough: ids only need to be
+// unique and stable for the session (nothing persists them).
+let nextId = 1;
+
 function makeTrack(relPath: string, hash: string, size: number): Track {
   const parts = relPath.split("/").filter(Boolean);
   const filename = parts.pop() ?? relPath;
   return {
+    id: nextId++,
+    // A browser-local library has no multi-tune formats: one file, one track.
+    subsong: 0,
+    subsongs: 0,
     hash,
     md5: hash, // stable key; playlists are md5-keyed and this ties them to bytes
     path: relPath,
+    collection: "mods", // the browser-local build has exactly one collection
     group: parts[0] ?? "",
     artist: parts.length > 1 ? parts[1] : null,
     filename,
@@ -408,6 +418,7 @@ function resolveItem(it: LItem, pos: number): PlaylistItem {
     present: !!t,
     hash: t?.hash ?? null,
     path: t?.path ?? null,
+    collection: t?.collection ?? null,
     group: t?.group ?? null,
     artist: t?.artist ?? it.artist ?? null,
     filename: t?.filename ?? it.filename ?? null,

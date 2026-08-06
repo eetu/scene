@@ -3,7 +3,9 @@
 // settings) so the PlayerView overlay and +page's global key handler both read
 // it without prop-drilling. In-memory only — it resets on reload, like the
 // overlay's open state.
-export type PvTab = "pattern" | "samples" | "viz";
+/** `voices` replaces `pattern`/`samples` for a SID, which has neither — see
+ *  `playback.hasPatterns`. */
+export type PvTab = "pattern" | "samples" | "viz" | "voices";
 
 export type VizMode =
   | "vu"

@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 import { FIXTURE_XM } from "../../../../packages/player/testing/playback-smoke";
+import type { Track } from "../src/lib/api";
+import { mockLibrary } from "./mock-api";
 
 const BYTES = readFileSync(FIXTURE_XM);
 
@@ -33,23 +35,8 @@ function track(hash: string, group: string, ext: string) {
 const tracks = [track("a", "Alpha", "mod"), track("b", "Beta", "mod"), track("c", "Gamma", "xm")];
 
 async function mock(context: import("@playwright/test").BrowserContext) {
-  await context.route("**/api/tracks", (r) => r.fulfill({ json: { tracks } }));
+  await mockLibrary(context, tracks as unknown as Track[]);
   await context.route("**/api/playlists", (r) => r.fulfill({ json: { playlists: [] } }));
-  await context.route("**/status", (r) =>
-    r.fulfill({
-      json: {
-        service: "t",
-        version: "x",
-        db_healthy: true,
-        track_count: tracks.length,
-        root: "/x",
-        scanning: false,
-        scan_total: 0,
-        scan_processed: 0,
-        scan_hashed: 0,
-      },
-    }),
-  );
 }
 
 test("group-by control re-buckets the list", async ({ context, page }) => {

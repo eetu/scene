@@ -13,6 +13,11 @@ test("editor: the sequencer plays the edited pattern and the playhead advances",
   page,
 }) => {
   await mockLibrary(context);
+  // The editor is hidden behind a flag while it's unfinished (no save, no undo,
+  // no mobile surface) — see settings.svelte.ts. This spec exists to keep the
+  // machinery working while it's shelved, so it turns the flag on rather than
+  // being deleted along with the UI.
+  await context.addInitScript(() => localStorage.setItem("tracker:editor", "1"));
   await page.goto("/");
   await page.locator("button.row").first().click();
   const overlay = page.locator(".pattern-overlay");
@@ -33,7 +38,7 @@ test("editor: the sequencer plays the edited pattern and the playhead advances",
 
   // The playhead marks the currently-sounding row (seqRow); it must advance to a
   // different row as the scheduler steps.
-  const playhead = overlay.locator(".prow.playhead");
+  const playhead = overlay.locator(".trow.playhead");
   await expect(playhead).toBeVisible({ timeout: 5000 });
   const firstRow = await playhead.getAttribute("data-r");
   await expect(async () => {
@@ -42,4 +47,22 @@ test("editor: the sequencer plays the edited pattern and the playhead advances",
   }).toPass({ timeout: 6000, intervals: [150, 300, 600] });
 
   await seq.click(); // stop
+});
+
+test("the editor is hidden by default while it is unfinished", async ({ context, page }) => {
+  // No flag set: nothing about editing should be reachable. A visible "edit"
+  // button promises save/undo the app doesn't have.
+  await mockLibrary(context);
+  await page.goto("/");
+  await page.locator("button.row").first().click();
+  const overlay = page.locator(".pattern-overlay");
+  await expect(overlay).toBeVisible();
+  // The pattern grid itself is still there — only the editing surface is gone.
+  await expect(overlay.locator(".trow").first()).toBeVisible({ timeout: 15000 });
+
+  await expect(overlay.getByRole("button", { name: "edit", exact: true })).toHaveCount(0);
+  await expect(overlay.getByRole("button", { name: "view", exact: true })).toHaveCount(0);
+  await expect(
+    overlay.getByRole("button", { name: "play or stop the edited pattern" }),
+  ).toHaveCount(0);
 });

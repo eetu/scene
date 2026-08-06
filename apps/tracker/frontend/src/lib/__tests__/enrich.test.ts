@@ -6,9 +6,13 @@ import { enrichTracks, toMeta } from "$lib/enrich";
 
 function track(hash: string): Track {
   return {
+    id: 1,
+    subsong: 0,
+    subsongs: 0,
     hash,
     md5: null,
     path: hash,
+    collection: "mods",
     group: "G",
     artist: null,
     filename: "s.mod",

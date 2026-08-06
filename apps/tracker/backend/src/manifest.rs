@@ -196,6 +196,25 @@ impl Resolved {
             .unwrap_or_default()
     }
 
+    /// Album *display labels* a song belongs to — the album's title, falling
+    /// back to its id. These are the bucket names when grouping by album, so
+    /// they must match what the SPA's `buildIndex` produces for the same data.
+    pub fn album_labels(&self, md5: &str) -> Vec<String> {
+        self.albums_of(md5)
+            .into_iter()
+            .map(|id| {
+                self.manifest
+                    .albums
+                    .get(&id)
+                    .and_then(|a| a.title.as_deref())
+                    .map(str::trim)
+                    .filter(|t| !t.is_empty())
+                    .map(str::to_string)
+                    .unwrap_or(id)
+            })
+            .collect()
+    }
+
     /// A song's credit (by md5), if annotated.
     pub fn credit(&self, md5: &str) -> Option<&SongCredit> {
         self.song_credits.get(&norm(md5))

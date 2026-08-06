@@ -1,0 +1,30 @@
+{
+  // Type-checks the SID decode worker, which nothing else does.
+  //
+  // The worker is instantiated as `new Worker(new URL("./sid/sid.worker.ts",
+  // import.meta.url))`, so no `import` statement points at it — it isn't in the
+  // apps' svelte-check graph, and this package ships source with no build step.
+  // The result was a file that compiled in nobody's head: it shipped calls to
+  // `getAndClearSidWriteTracesPacked()` and `getDroppedSidWriteTraceCount()`,
+  // which exist on libsidplayfp's low-level SidPlayerContext but NOT on the
+  // SidAudioEngine the worker actually holds. Playback broke and only the e2e
+  // suite noticed.
+  //
+  // Its own config rather than a shared one because a worker needs the
+  // WebWorker lib and must NOT see the DOM lib — `self` means different things
+  // in each, and mixing them is how you get a `self.postMessage` that
+  // type-checks against the wrong signature.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "WebWorker"],
+    "types": [],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src/sid/sid.worker.ts"]
+}

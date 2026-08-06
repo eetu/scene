@@ -13,6 +13,21 @@ export type PatternMode = "locked" | "scroll";
 const PATTERN_MODE_KEY = "tracker:patternMode";
 const FRAME_RATE_KEY = "tracker:frameRate";
 const SCOPE_KEY = "tracker:scope";
+/**
+ * The pattern editor — off, and deliberately not exposed in the UI.
+ *
+ * It half-works: notes go in and the Web Audio sequencer plays them back, but
+ * nothing is saved, undo doesn't exist, and there's no mobile surface at all.
+ * Shipping a visible "edit" button for that promises something the app can't
+ * keep, so the whole feature hides behind this until it's finished rather than
+ * being deleted and rebuilt later.
+ *
+ * There's no settings toggle on purpose — a switch for an unfinished feature is
+ * still shipping it. To work on the editor, from the browser console:
+ *
+ *     localStorage.setItem("tracker:editor", "1")  // then reload
+ */
+const EDITOR_KEY = "tracker:editor";
 
 function read(key: string): string | null {
   return typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
@@ -32,6 +47,10 @@ export const settings = $state({
   /** Master oscilloscope strip on the pattern tab. On by default; opt-out to
    *  save the per-frame canvas draw while playing. */
   scope: read(SCOPE_KEY) !== "0",
+  /** Pattern editor. Off unless explicitly enabled — see EDITOR_KEY. Read once
+   *  at startup, so flipping it takes a reload; that's fine for a dev flag and
+   *  keeps every gate a plain boolean read. */
+  editor: read(EDITOR_KEY) === "1",
 });
 
 export function setPatternMode(m: PatternMode) {

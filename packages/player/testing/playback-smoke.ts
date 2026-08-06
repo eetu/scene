@@ -21,13 +21,23 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const FIXTURE_XM = resolve(here, "fixtures/test.xm");
 const FIXTURE_BYTES = readFileSync(FIXTURE_XM);
 
+/** A 158-byte synthetic PSID that genuinely sounds: its init routine gates a
+ *  sawtooth on voice 1 and the play routine is a bare RTS, so a sustained tone
+ *  comes out. Synthetic on purpose — HVSC tunes are their authors' copyright and
+ *  can't live in the repo, and a header with no 6502 behind it would prove
+ *  nothing about playback. Regenerate with `node fixtures/make-test-tone.mjs`. */
+export const FIXTURE_SID = resolve(here, "fixtures/test-tone.sid");
+
 /** Minimal shape of a library track — matches the backend JSON the SPA reads
  *  (hand-written, like the app's own api.ts; no cross-app type import). */
 function fixtureTrack(hash: string) {
   return {
+    // The index's surrogate id — the queue's ref and the hydration key.
+    id: 1,
     hash,
     md5: hash,
     path: "Test/test.xm",
+    collection: "mods",
     group: "Test",
     artist: null,
     filename: "test.xm",
@@ -69,7 +79,31 @@ export async function mockLibrary(context: BrowserContext, opts: MockLibraryOpti
   const track = fixtureTrack(hash);
 
   await context.route("**/api/tracks", (route) => route.fulfill({ json: { tracks: [track] } }));
+  // Tracker's library index lives server-side: the SPA asks for a *shaped*
+  // ordered id stream and hydrates windows of it, rather than pulling the whole
+  // listing. One track means one bucket, so the shaping here is trivial — the
+  // richer fixtures in tracker's own e2e/mock-api.ts run the real transforms.
+  // (Party still lists from its own party API, so these are simply unused there.)
+  await context.route("**/api/library/ids*", (route) =>
+    route.fulfill({
+      json: {
+        groups: [{ name: track.group, ids: [track.id] }],
+        total: 1,
+        formats: [track.ext.toUpperCase()],
+        trackers: [],
+      },
+    }),
+  );
+  await context.route("**/api/tracks/batch*", (route) =>
+    route.fulfill({ json: { tracks: [track] } }),
+  );
+  await context.route("**/api/track/*", (route) => route.fulfill({ json: { track } }));
+  await context.route("**/api/library/unenriched", (route) =>
+    route.fulfill({ json: { count: 0, tracks: [] } }),
+  );
   await context.route("**/api/playlists", (route) => route.fulfill({ json: { playlists: [] } }));
+  // Curator notes — only HVSC tunes have any, and no fixture is one.
+  await context.route("**/api/stil/*", (route) => route.fulfill({ json: { notes: [] } }));
   await mockModuleFile(context);
   await context.route("**/api/play/*", (route) => route.fulfill({ json: { play_count: 1 } }));
   await context.route("**/api/meta/*", (route) => route.fulfill({ status: 204, body: "" }));
@@ -81,10 +115,13 @@ export async function mockLibrary(context: BrowserContext, opts: MockLibraryOpti
         db_healthy: true,
         track_count: 1,
         root: "/fixtures",
+        roots: [{ id: "mods", label: "Mods", kind: "scan", path: "/fixtures" }],
+        hvsc: {},
         scanning: false,
         scan_total: 0,
         scan_processed: 0,
         scan_hashed: 0,
+        last_scan: null,
       },
     }),
   );

@@ -5,6 +5,7 @@
   "type": "module",
   "svelte": "./src/index.ts",
   "scripts": {
+    "typecheck": "tsc -p tsconfig.worker.json",
     "test": "vitest run --project unit --project browser",
     "test:visual": "vitest run --project visual",
     "test:unit": "vitest run --project unit",
@@ -24,6 +25,7 @@
     "@glowbox/svelte": "^1.10.0",
     "@glowbox/vfd": "^1.10.0",
     "@scene/design": "workspace:*",
+    "libsidplayfp-wasm": "^1.0.1",
     "three": "^0.185.1",
     "xstate": "^5.32.5"
   },
@@ -36,6 +38,7 @@
     "@vitest/browser-playwright": "^4.1.10",
     "playwright": "^1.61.1",
     "svelte": "^5.56.8",
+    "typescript": "^6.0.2",
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
     "vitest-browser-svelte": "^3.0.0"

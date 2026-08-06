@@ -13,6 +13,7 @@ export class BeatTracker {
   private lastPattern = -1;
   private lastBeatAt = 0; // timestamp of the last beat onset (0 = none yet)
   private interval = 500; // eased ms between beats, for the phase ramp
+  private avg = 0; // running mean energy, for the onset detector below
 
   reset() {
     this.lastRow = -1;
@@ -20,6 +21,7 @@ export class BeatTracker {
     this.lastPattern = -1;
     this.lastBeatAt = 0;
     this.interval = 500;
+    this.avg = 0;
   }
 
   /** Feed the currently-playing (order, pattern, row) at time `now`. Returns true
@@ -37,6 +39,31 @@ export class BeatTracker {
       const dt = now - this.lastBeatAt;
       // Ease the interval toward the latest gap, ignoring seeks/stalls (out of a
       // plausible 30ms–2s beat range) so the phase ramp stays smooth.
+      if (dt > 30 && dt < 2000) this.interval += (dt - this.interval) * 0.25;
+    }
+    this.lastBeatAt = now;
+    return true;
+  }
+
+  /** Feed a low-band energy sample at `now`, for formats with no pattern grid.
+   *
+   *  A SID has no rows to count — its music is 6502 code, and the chip exposes
+   *  only a ~50Hz interrupt rate, which is a *tick* rate and not a musical beat.
+   *  So the beat has to come from the audio: this is an onset detector on the
+   *  bass band, firing when energy jumps well above its own running average.
+   *
+   *  Adaptive rather than a fixed threshold, because SID output levels vary
+   *  enormously between tunes; and rate-limited, because without a refractory
+   *  window a single drum hit's decay retriggers for several frames and the
+   *  visualisers strobe. */
+  energy(level: number, now: number): boolean {
+    // Running mean of recent energy — the "normal" this sample is judged against.
+    this.avg += (level - this.avg) * 0.1;
+    const loud = level > this.avg * 1.35 && level > 0.02;
+    const settled = now - this.lastBeatAt > Math.max(120, this.interval * 0.4);
+    if (!loud || !settled) return false;
+    if (this.lastBeatAt > 0) {
+      const dt = now - this.lastBeatAt;
       if (dt > 30 && dt < 2000) this.interval += (dt - this.interval) * 0.25;
     }
     this.lastBeatAt = now;

@@ -126,7 +126,18 @@ class MPT extends AudioWorkletProcessor {
 					order: head.order,
 					pattern: head.pattern,
 					row: head.row,
-					vu: head.vu
+					vu: head.vu,
+					// Chip state at this chunk's start, when the decoder supplies
+					// it (SID does; libopenmpt has no equivalent). Relayed here
+					// rather than sent straight from the worker so the voice
+					// monitor is synced to the audio you are hearing, exactly
+					// like the position and VU beside it.
+					//
+					// The SID trace grid's rows deliberately do NOT come through
+					// here: they are sent straight from the worker so the view
+					// gets the decoder's ~1.5s of lookahead, and each row carries
+					// its own playback time instead of borrowing this one's.
+					regs: head.regs
 				});
 				this.lastReported = head;
 			}

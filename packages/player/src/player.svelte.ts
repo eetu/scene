@@ -17,13 +17,13 @@ import {
 } from "./background";
 import { BeatTracker } from "./beat";
 import { attachEditor, clearEdits, seqStop, seqToggle } from "./editor.svelte";
-import { createEngine } from "./engine";
-import { host, type Track } from "./host";
+import { createEngine, type Engine, type EngineKind, type TraceRowsMsg } from "./engine";
+import { host, type QueueRef, type Track } from "./host";
 import { attachJam, resetJam } from "./jam";
 import { syncNowPlaying, syncPosition, wirePlatformIntegration } from "./platform";
 import { plannedNext, plannedPrev, shuffledOrder } from "./queue";
-import { SCOPE_SIZE, setScopeSource } from "./scope";
-import { playback } from "./state.svelte";
+import { sampleBands, SCOPE_SIZE, setScopeSource } from "./scope";
+import { playback, TRACE_ROWS } from "./state.svelte";
 import { transportMachine } from "./transport-machine";
 import { buildWav } from "./wav";
 
@@ -68,6 +68,9 @@ export type ProgressMsg = {
   pattern?: number;
   row?: number;
   vu?: number[];
+  /** Every installed SID chip's 32 registers, concatenated. Absent for
+   *  libopenmpt, which has no chip to read. */
+  regs?: number[];
 };
 
 /** Per-pattern data from the (patched) worklet: each row is one formatted
@@ -134,8 +137,18 @@ export type ParsedMeta = {
   patterns?: number;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let player: any = null;
+// The live engine, typed through the `Engine` facade: every method the store
+// calls is part of that contract, so a second backend cannot type-check while
+// silently omitting one. (It used to be `any`, which let four telemetry hooks
+// live outside the interface entirely.)
+//
+// Physically null before the first play — the AudioContext is created inside a
+// user gesture — but declared non-null: every path that touches it runs after
+// `ensurePlayer`, and threading `| null` through would put a non-null assertion
+// on ~40 call sites for one genuinely-unreachable state. The cast is named so
+// the compromise is visible in both places that use it.
+const NO_ENGINE = null as unknown as Engine;
+let player: Engine = NO_ENGINE;
 let ready: Promise<void> | null = null;
 let parseId = 0;
 
@@ -193,6 +206,13 @@ function noteRow(order: number, pattern: number, row: number) {
   if (beat.row(order, pattern, row, performance.now())) playback.beat++;
 }
 
+/** Beat for a format with no pattern grid (SID): onset-detect it from the bass
+ *  band instead of counting rows. Called on the same audio-synced cadence as
+ *  `noteRow`, so ~7 visualisers keep their pulse either way. */
+function noteEnergy() {
+  if (beat.energy(sampleBands().bass, performance.now())) playback.beat++;
+}
+
 /** A 0→1 ramp since the last beat (clamped at 1, and 0 until the first beat).
  *  Lets a viz pulse on-beat without re-deriving timing from the raw row. */
 export function beatPhase(now = performance.now()): number {
@@ -209,7 +229,53 @@ export function beatBpm(): number {
 // below so the public API + component imports from "./player.svelte" are
 // unchanged.
 
-let queue: Track[] = [];
+// The queue is an ordered list of *refs*, not tracks. A host whose library is
+// entirely in memory (party) queues the tracks and they land in `queueCache`
+// straight away; a host whose library lives server-side (tracker, once the index
+// is too large to ship) queues ids and resolves them a window at a time.
+//
+// Indices into `queueRefs` are what shuffle permutes, so the seeded-permutation
+// guarantees are untouched by where the track data comes from.
+let queueRefs: QueueRef[] = [];
+const queueCache = new Map<QueueRef, Track>();
+
+/** Identity for queueing: `path ?? hash` — tracker has duplicate-content modules
+ *  at distinct paths; party tracks are hash-only. */
+function refOf(t: Track): QueueRef {
+  return t.path ?? t.hash;
+}
+
+/** The track at a queue index if it's already known — cache first, then the
+ *  host's own cache. Null when it still needs fetching. */
+function trackAt(i: number): Track | null {
+  const ref = queueRefs[i];
+  if (ref === undefined) return null;
+  return queueCache.get(ref) ?? host().peekTrack?.(ref) ?? null;
+}
+
+/** The track at a queue index, fetching it if needed. */
+async function resolveAt(i: number): Promise<Track | null> {
+  const known = trackAt(i);
+  if (known) return known;
+  const ref = queueRefs[i];
+  if (ref === undefined) return null;
+  const t = (await host().resolveTrack?.(ref)) ?? null;
+  if (t) queueCache.set(ref, t);
+  return t;
+}
+
+/** Replace the queue. `refs` is the play order; `known` seeds the cache for
+ *  hosts that already hold the tracks. The cache is cleared so a stale entry
+ *  from a previous queue can't shadow a re-fetch. */
+function setQueue(refs: QueueRef[], known?: Track[]) {
+  queueRefs = refs;
+  queueCache.clear();
+  if (known) for (const t of known) queueCache.set(refOf(t), t);
+  playback.queueLength = refs.length;
+  // Length changed → the permutation must be rebuilt before the next roll.
+  shuffleOrder = [];
+}
+
 // Deterministic shuffle: a seeded permutation of the queue (see queue.ts). The
 // seed is persisted so random mode + its exact order survive a reload; a fresh
 // seed is rolled each time shuffle is switched on. Rebuilt lazily in rollNext when
@@ -229,7 +295,7 @@ function loadShuffleSeed(): number {
   return newShuffleSeed();
 }
 function buildShuffleOrder() {
-  shuffleOrder = queue.length ? shuffledOrder(queue.length, shuffleSeed) : [];
+  shuffleOrder = queueRefs.length ? shuffledOrder(queueRefs.length, shuffleSeed) : [];
 }
 // Pre-rolled next queue index: chosen when a track *starts*, so the next song is
 // deterministic (and thus prefetchable) rather than picked at the moment of
@@ -263,7 +329,17 @@ const transport = createActor(
       decode: fromPromise(async () => {
         const t = pendingTrack;
         if (!t) return;
-        ensurePlayer(); // create the engine (its worker starts loading libopenmpt)
+        const kind = kindFor(t);
+        ensurePlayer(kind); // create the engine (its worker starts loading its WASM)
+        // Nothing to pre-decode for a SID: its music is 6502 code driving chip
+        // registers, so there is no pattern grid to have ready before the play
+        // gesture. Settle straight away.
+        //
+        // Not merely an optimisation — this actor used to build the *module*
+        // engine unconditionally, so cueing a SID fed its bytes to libopenmpt,
+        // which failed inside the WASM ("error loading file") instead of
+        // declining, and left the transport stuck in its error state.
+        if (kind === "sid") return;
         await player.whenWorkerReady(); // WASM ready — independent of the audio worklet
         const buf = await fetch(host().fileUrl(t.hash)).then((r) => r.arrayBuffer());
         if (pendingTrack !== t) return; // superseded by a newer cue/load
@@ -355,13 +431,13 @@ function wireGlobalsOnce(): void {
 // leaving a context state="running" but its audio unit dead — resume()/setPos
 // are no-ops on it). Runs inside a play gesture so iOS allows the new context;
 // reloads the current track at its position. See lastProgressAt / the tap hooks.
-async function recreateEngine(): Promise<void> {
-  const cur = playback.current;
-  const pos = playback.position;
+/** Drop the current engine and its audio graph. Shared by the iOS
+ *  stalled-context recovery and by switching decoders mid-queue. */
+function teardownEngine(): void {
   const old = player;
-  recreating = true;
-  player = null;
+  player = NO_ENGINE;
   ready = null;
+  engineKind = null;
   resetBackgroundRoute(); // drop the stale <audio>/stream so the new graph rebuilds it
   try {
     old?.stop?.();
@@ -369,6 +445,13 @@ async function recreateEngine(): Promise<void> {
   } catch {
     /* already gone */
   }
+}
+
+async function recreateEngine(): Promise<void> {
+  const cur = playback.current;
+  const pos = playback.position;
+  recreating = true;
+  teardownEngine();
   resumeSeek = pos > 1 ? Math.floor(pos) : null;
   lastProgressAt = performance.now();
   try {
@@ -401,10 +484,25 @@ function tapRecreatesStalled(): boolean {
   return false;
 }
 
-function ensurePlayer(): Promise<void> {
-  if (player) return ready as Promise<void>;
+/** The decoder a track needs. SID is a different engine entirely — libsidplayfp
+ *  emulating a 6502 plus the chip, where libopenmpt renders a pattern grid. */
+function kindFor(track: Track): EngineKind {
+  const ext = (track.ext ?? "").toLowerCase();
+  return ext === "sid" || ext === "psid" || ext === "rsid" ? "sid" : "module";
+}
+
+/** Which engine is currently built. Null until the first play. */
+let engineKind: EngineKind | null = null;
+
+function ensurePlayer(kind: EngineKind = "module"): Promise<void> {
+  if (player && engineKind === kind) return ready as Promise<void>;
+  // Switching formats means a different decoder behind the same graph, so tear
+  // the old one down first. Cheap and rare: it happens when you cross from
+  // modules to SIDs in the queue, not on every track.
+  if (player) teardownEngine();
+  engineKind = kind;
   // Synchronous `new AudioContext()` keeps us inside the click gesture.
-  player = createEngine({ repeatCount: 0 });
+  player = createEngine({ repeatCount: 0, romBase: host().romBase?.() }, kind);
   attachBackground(player); // wire background routing + wakeAudio to this engine
   wireGlobalsOnce(); // one-time timers (survive an engine recreate)
   attachJam(player, wakeAudio); // wire the Web Audio sampler to this engine
@@ -457,6 +555,9 @@ function ensurePlayer(): Promise<void> {
       );
       playback.canMuteChannels = player.capabilities?.canMuteChannels ?? false;
       playback.canReadCells = player.capabilities?.canReadCells ?? false;
+      // Modules default true; the SID engine reports false and the player swaps
+      // its pattern/samples panes for the voice monitor.
+      playback.hasPatterns = player.capabilities?.hasPatterns ?? true;
       if (playback.mono) player.setMono(true); // restore persisted mono downmix
       // …and the persisted level. The gain node defaults to 1, so without this a saved
       // volume is silently ignored until something touches the control.
@@ -479,7 +580,9 @@ function ensurePlayer(): Promise<void> {
     playback.pattern = d.pattern ?? 0;
     playback.row = d.row ?? 0;
     playback.vu = d.vu ?? [];
-    noteRow(playback.order, playback.pattern, playback.row);
+    if (d.regs) playback.sidRegs = d.regs;
+    if (playback.hasPatterns) noteRow(playback.order, playback.pattern, playback.row);
+    else noteEnergy();
     maybeCountPlay(d.pos ?? 0);
     // Keep the OS scrubber roughly in step (throttled to ~1s of playback).
     syncPosition();
@@ -503,7 +606,7 @@ function ensurePlayer(): Promise<void> {
     // to the next queue entry — random when shuffling — else fall to stopped.
     const canNext =
       playback.queueIndex >= 0 &&
-      (playback.shuffle ? queue.length > 1 : playback.queueIndex + 1 < queue.length);
+      (playback.shuffle ? queueRefs.length > 1 : playback.queueIndex + 1 < queueRefs.length);
     if (canNext) playNext();
     else {
       transport.send({ type: "ENDED" });
@@ -517,7 +620,7 @@ function ensurePlayer(): Promise<void> {
   // how long the stall actually lasts, which is what the jitter buffer has to be sized
   // to outlast (decoder.worker.js TARGET). The worklet reports at most once a second and
   // only when frames were lost, so a healthy stream is silent.
-  player.onUnderrun((d: { events: number; lostMs: number; sinceMs: number }) => {
+  player.onUnderrun((d) => {
     playback.underruns = d.events;
     playback.underrunMs = d.lostMs;
     console.warn(
@@ -535,7 +638,13 @@ function ensurePlayer(): Promise<void> {
   // close to the edge and those knobs matter. Logged once, not continuously: it is a
   // property of the module and the settings, not something that drifts.
   let renderLoadLogged = false;
-  player.onRenderLoad((d: { percent: number; perChunkMs: number }) => {
+  // SID trace frames, straight from the decoder and therefore ahead of the
+  // audio. Stale batches (from before a seek) are dropped by the wrapper.
+  player.onTraceRows((d) => {
+    pushTrace(d);
+    if (d.dense) playback.sidTraceDense = true;
+  });
+  player.onRenderLoad((d) => {
     if (renderLoadLogged) return;
     renderLoadLogged = true;
     console.info(
@@ -548,13 +657,13 @@ function ensurePlayer(): Promise<void> {
   // A positive figure means the device consumed audio slower than nominal, i.e. pitch
   // fell; that is the OS or the audio device, not the decoder, which has been measured
   // with ~28x headroom.
-  player.onRateDrift((d: { percent: number; windowMs: number }) => {
+  player.onRateDrift((d) => {
     console.warn(
       `[audio] playback rate off by ${d.percent}% over ${d.windowMs}ms ` +
         `(${document.hidden ? "hidden" : "visible"}) — pitch/tempo wobble`,
     );
   });
-  player.onLoadGap((d: { ms: number }) => {
+  player.onLoadGap((d) => {
     playback.loadGapMs = d.ms;
     // Only when it is long enough to be worth a look. Measured gaps run 100-400ms — the
     // fetch, parse and first render — so a 60ms bar meant this printed on virtually every
@@ -577,8 +686,8 @@ function ensurePlayer(): Promise<void> {
     const canAdvance =
       !fatal &&
       playback.queueIndex >= 0 &&
-      (playback.shuffle ? queue.length > 1 : playback.queueIndex + 1 < queue.length);
-    if (canAdvance && consecutiveErrors <= queue.length) {
+      (playback.shuffle ? queueRefs.length > 1 : playback.queueIndex + 1 < queueRefs.length);
+    if (canAdvance && consecutiveErrors <= queueRefs.length) {
       setTimeout(() => {
         if (playback.error) playNext();
       }, 900);
@@ -608,6 +717,64 @@ function ensurePlayer(): Promise<void> {
 // into wirePlatformIntegration from ensurePlayer. Background playback (media-
 // element route) + wakeAudio live in ./background. Both imported above.
 
+/** Append this chunk's reconstructed frames to the trace ring.
+ *
+ *  Rows arrive flattened; they're split into zero-copy views over the same
+ *  buffer rather than copied out, so the whole per-chunk cost is a few
+ *  `subarray` calls. Trimmed from the front once past [`TRACE_ROWS`] — the grid
+ *  shows the recent past, not the whole tune. */
+/** Drop the recorded frames. The trace is a recording of one tune's playback,
+ *  so it must not survive into the next — a grid still showing the last tune's
+ *  notes while a new one plays is worse than an empty one. */
+function resetTrace() {
+  playback.sidTrace = [];
+  playback.sidTraceAt = [];
+  playback.sidTraceDense = false;
+}
+
+/** Append a batch of decoded raster frames.
+ *
+ *  Rows arrive flattened; they're split into zero-copy views over the same
+ *  buffer rather than copied out, so the whole per-batch cost is a few
+ *  `subarray` calls. Trimmed from the front once past [`TRACE_ROWS`] — the grid
+ *  shows the recent past and the near future, not the whole tune. */
+function pushTrace(d: TraceRowsMsg) {
+  const n = Math.floor(d.rows.length / d.stride);
+  for (let i = 0; i < n; i++) {
+    playback.sidTrace.push(d.rows.subarray(i * d.stride, (i + 1) * d.stride));
+    playback.sidTraceAt.push(d.times[i]);
+  }
+  const over = playback.sidTrace.length - TRACE_ROWS;
+  if (over > 0) {
+    playback.sidTrace.splice(0, over);
+    playback.sidTraceAt.splice(0, over);
+  }
+}
+
+/** Generation counter for the notes fetch: skipping through tracks fires
+ *  several, and a slow one landing after a later track was selected would
+ *  caption the wrong tune. */
+let notesGen = 0;
+
+/** Fetch the current track's curator notes (STIL) for the text visualisers.
+ *
+ *  Best-effort and deliberately off the critical path: playback never waits on
+ *  it, and a failure just means no notes — the display already handles a track
+ *  that has none, which is most of them. */
+function loadNotes(track: Track) {
+  const gen = ++notesGen;
+  playback.notes = [];
+  const fetchNotes = host().trackNotes;
+  if (!fetchNotes) return;
+  void fetchNotes(track)
+    .then((n) => {
+      if (gen === notesGen) playback.notes = n;
+    })
+    .catch(() => {
+      /* decoration — a failed fetch shows no notes, not an error */
+    });
+}
+
 /** Reflect a module's decoded metadata + song onto the store — used by both the
  *  play path (onMetadata) and the cold-restore decode (cueInOrder). */
 function applyMeta(meta: Meta) {
@@ -629,10 +796,12 @@ export async function playTrack(track: Track) {
   resetJam(); // drop cached sample buffers + any live jam voices from the old module
   playback.error = null;
   playback.current = track;
+  resetTrace(); // the previous tune's frames are not this one's
+  loadNotes(track); // in parallel with engine init — nothing waits on it
   pendingTrack = track;
   transport.send({ type: "LOAD" }); // → loading; the subscription flips the transport to ⏸
   playback.position = 0;
-  playback.duration = track.duration ?? 0;
+  playback.duration = host().playLength?.(track) ?? track.duration ?? 0;
   playback.song = null;
   playback.row = 0;
   playback.order = 0;
@@ -640,7 +809,7 @@ export async function playTrack(track: Track) {
   playback.channelMutes = []; // repopulated when this module's metadata arrives
   clearEdits(); // drop editor buffer + stop the editor sequencer
   resetBeat();
-  const p = ensurePlayer();
+  const p = ensurePlayer(kindFor(track));
   // Resume the context BEFORE awaiting init. A track cued on a cold reload created
   // the AudioContext suspended (no gesture), and the worklet won't finish
   // initialising — so `await p` would hang — until the context runs. We're inside
@@ -658,7 +827,7 @@ export async function playTrack(track: Track) {
   // Move output onto the media element (best-effort) so it survives the page
   // being backgrounded / the screen locking. Triggered from the play gesture.
   void routeAudioToElement();
-  player.load(host().fileUrl(track.hash));
+  player.load(host().fileUrl(track.hash), track.subsong ?? 0);
   syncNowPlaying();
   // Arm play-count gating for this track; the count fires from onProgress once
   // it's been listened to past the threshold (not on a fast skip).
@@ -703,29 +872,43 @@ function maybeCountPlay(pos: number) {
  *  will actually be heard rather than in list order. */
 export function upcoming(n: number): Track[] {
   const out: Track[] = [];
-  if (!queue.length || playback.queueIndex < 0) return out;
-  if (playback.shuffle && shuffleOrder.length !== queue.length) buildShuffleOrder();
+  const len = queueRefs.length;
+  if (!len || playback.queueIndex < 0) return out;
+  if (playback.shuffle && shuffleOrder.length !== len) buildShuffleOrder();
   let idx: number | null = playback.queueIndex;
   // Shuffle wraps endlessly, so stop on a repeat rather than circling forever.
   const seen = new Set<number>();
   while (idx !== null && out.length < n && !seen.has(idx)) {
     seen.add(idx);
-    const t = queue[idx];
+    // Sync-only: an un-hydrated entry is skipped rather than awaited, so this
+    // stays usable from a `$derived`. The window just reads shorter until the
+    // host has that page cached.
+    const t = trackAt(idx);
     if (t) out.push(t);
-    idx = plannedNext(queue.length, idx, playback.shuffle, shuffleOrder);
+    idx = plannedNext(len, idx, playback.shuffle, shuffleOrder);
   }
   return out;
 }
 
-/** Play `track` as part of an ordered `list` (enables next/prev + auto-advance). */
+/** Play `track` as part of an ordered `list` (enables next/prev + auto-advance).
+ *  For hosts that hold their whole library in memory. */
 export async function playInOrder(list: Track[], track: Track) {
-  queue = list;
-  playback.queueLength = list.length;
-  // Identity = path ?? hash: tracker has duplicate-content modules at distinct
-  // paths; party tracks are hash-only (path undefined).
-  const key = (t: Track) => t.path ?? t.hash;
-  playback.queueIndex = list.findIndex((t) => key(t) === key(track));
+  setQueue(list.map(refOf), list);
+  playback.queueIndex = list.findIndex((t) => refOf(t) === refOf(track));
   await playTrack(track);
+}
+
+/** Play the entry at `index` of an ordered ref list — the server-side-library
+ *  form of {@link playInOrder}. The host resolves refs to tracks on demand. */
+export async function playRefs(refs: QueueRef[], index: number) {
+  setQueue(refs);
+  playback.queueIndex = index;
+  const t = await resolveAt(index);
+  if (!t) {
+    playback.error = "track unavailable";
+    return;
+  }
+  await playTrack(t);
 }
 
 /** Restore a selection (e.g. from `?t=` on a cold reload) WITHOUT starting audio:
@@ -733,14 +916,27 @@ export async function playInOrder(list: Track[], track: Track) {
  *  grid fills in), and leave the transport in a ready (▶) state. Audio starts on
  *  the first user gesture (the play button), which the browser requires anyway. */
 export function cueInOrder(list: Track[], track: Track) {
-  queue = list;
-  playback.queueLength = list.length;
-  const key = (t: Track) => t.path ?? t.hash;
-  playback.queueIndex = list.findIndex((t) => key(t) === key(track));
+  setQueue(list.map(refOf), list);
+  playback.queueIndex = list.findIndex((t) => refOf(t) === refOf(track));
+  cueTrack(track);
+}
+
+/** {@link cueInOrder} for a ref queue: cue `track` (already in hand, from the
+ *  deep link) at `index` of `refs`, without resolving the rest. */
+export function cueRefs(refs: QueueRef[], index: number, track: Track) {
+  setQueue(refs);
+  queueCache.set(refs[index] ?? refOf(track), track);
+  playback.queueIndex = index;
+  cueTrack(track);
+}
+
+function cueTrack(track: Track) {
   playback.error = null;
   playback.current = track;
+  resetTrace();
+  loadNotes(track);
   playback.position = 0;
-  playback.duration = track.duration ?? 0;
+  playback.duration = host().playLength?.(track) ?? track.duration ?? 0;
   playback.song = null;
   playback.row = 0;
   playback.order = 0;
@@ -757,8 +953,9 @@ export function cueInOrder(list: Track[], track: Track) {
  *  a random pick ≠ current, chosen NOW so the next song is fixed ahead of the
  *  transition (deterministic, prefetchable) instead of at the moment we advance. */
 function rollNext() {
-  if (playback.shuffle && shuffleOrder.length !== queue.length) buildShuffleOrder();
-  plannedNextIdx = plannedNext(queue.length, playback.queueIndex, playback.shuffle, shuffleOrder);
+  const len = queueRefs.length;
+  if (playback.shuffle && shuffleOrder.length !== len) buildShuffleOrder();
+  plannedNextIdx = plannedNext(len, playback.queueIndex, playback.shuffle, shuffleOrder);
 }
 
 /** Warm the browser HTTP cache with the pre-rolled next track's bytes, so the
@@ -769,14 +966,18 @@ function schedulePrefetch() {
   if (prefetchTimer) clearTimeout(prefetchTimer);
   prefetchTimer = setTimeout(() => {
     prefetchTimer = null;
-    if (plannedNextIdx == null) return;
-    const t = queue[plannedNextIdx];
-    if (!t) return;
-    const url = host().fileUrl(t.hash);
-    if (url === prefetchedUrl) return; // already warmed
-    prefetchedUrl = url;
-    void fetch(url).catch(() => {
-      prefetchedUrl = null; // let a later attempt retry
+    const idx = plannedNextIdx;
+    if (idx == null) return;
+    // Resolving here doubles as a hydration warm-up: by the time the track is
+    // needed, both its row data and its bytes are in hand.
+    void resolveAt(idx).then((t) => {
+      if (!t || plannedNextIdx !== idx) return;
+      const url = host().fileUrl(t.hash);
+      if (url === prefetchedUrl) return; // already warmed
+      prefetchedUrl = url;
+      void fetch(url).catch(() => {
+        prefetchedUrl = null; // let a later attempt retry
+      });
     });
   }, 1200);
 }
@@ -785,7 +986,9 @@ export function playNext() {
   if (plannedNextIdx == null) return;
   const idx = plannedNextIdx;
   playback.queueIndex = idx;
-  void playTrack(queue[idx]);
+  void resolveAt(idx).then((t) => {
+    if (t) void playTrack(t);
+  });
 }
 
 // Seconds into a track past which "previous" restarts it instead of stepping
@@ -794,14 +997,19 @@ export function playNext() {
 const PREV_RESTART_SEC = 10;
 
 export function playPrev() {
-  const prev = plannedPrev(queue.length, playback.queueIndex, playback.shuffle, shuffleOrder);
+  const prev = plannedPrev(queueRefs.length, playback.queueIndex, playback.shuffle, shuffleOrder);
   // Past the threshold, or nowhere to step back to → restart the current track.
   // (Shuffle wraps, so prev is null only at the start of a sequential queue.)
   if (playback.position > PREV_RESTART_SEC || prev == null) {
     seekSeconds(0);
     return;
   }
-  void playInOrder(queue, queue[prev]);
+  // Step within the existing queue — don't rebuild it, or the seeded order (and
+  // therefore the history `prev` is retracing) would be thrown away.
+  playback.queueIndex = prev;
+  void resolveAt(prev).then((t) => {
+    if (t) void playTrack(t);
+  });
 }
 
 export function toggleShuffle() {
@@ -897,12 +1105,15 @@ export function stop() {
  *  a track that no longer exists. */
 export function eject() {
   stop();
-  queue = [];
+  setQueue([]);
   plannedNextIdx = null;
   playback.current = null;
   playback.song = null;
   playback.samples = [];
   playback.instruments = [];
+  playback.notes = [];
+  notesGen++; // an in-flight fetch must not repopulate after an eject
+  resetTrace();
   playback.duration = 0;
   playback.position = 0;
   playback.queueIndex = -1;
