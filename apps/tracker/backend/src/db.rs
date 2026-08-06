@@ -86,6 +86,37 @@ impl Db {
         if table_exists(conn, "playlist_items") && !has_column(conn, "playlist_items", "path") {
             conn.execute("DROP TABLE playlist_items", [])?;
         }
+        // `files` gained `root_id` (multi-root) and a surrogate `id` at the same
+        // time, changing its primary key — not expressible as ADD COLUMN. Drop a
+        // pre-multi-root table and let SCHEMA recreate it: `files` is a pure path
+        // index, so the cost is one rescan, and the things worth keeping
+        // (`meta`, `stats`) are keyed by content hash, not by a files row.
+        if table_exists(conn, "files") && !has_column(conn, "files", "root_id") {
+            tracing::info!("migrating `files` to multi-root layout — a rescan will refill it");
+            conn.execute("DROP TABLE files", [])?;
+        }
+        // `stats` gained `subsong` as part of its primary key (a SID's subtunes
+        // are favourited and counted separately). Unlike `files` this is real
+        // user data, so it is *migrated*, not dropped — SQLite can't alter a
+        // primary key, hence the copy-and-rename. Existing rows are modules, so
+        // they take subsong 0.
+        if table_exists(conn, "stats") && !has_column(conn, "stats", "subsong") {
+            tracing::info!("migrating `stats` to per-subtune keys (favourites preserved)");
+            conn.execute_batch(
+                "CREATE TABLE stats_migrating (
+                   content_hash TEXT NOT NULL,
+                   subsong      INTEGER NOT NULL DEFAULT 0,
+                   favorite     INTEGER NOT NULL DEFAULT 0,
+                   play_count   INTEGER NOT NULL DEFAULT 0,
+                   last_played  TEXT,
+                   PRIMARY KEY (content_hash, subsong)
+                 );
+                 INSERT INTO stats_migrating (content_hash, subsong, favorite, play_count, last_played)
+                   SELECT content_hash, 0, favorite, play_count, last_played FROM stats;
+                 DROP TABLE stats;
+                 ALTER TABLE stats_migrating RENAME TO stats;",
+            )?;
+        }
         conn.execute_batch(SCHEMA)?;
         // `CREATE TABLE IF NOT EXISTS` won't add a new column to a `files` table
         // that already exists from a pre-md5 boot. Add it idempotently: SQLite
@@ -143,14 +174,21 @@ const SCHEMA: &str = r#"
 -- Path index of the collection. Rebuilt on each scan, but rows persist between
 -- scans so a cached content_hash can be reused when (size, mtime) are
 -- unchanged — avoids re-reading the whole NAS over CIFS every scan.
+-- `root_id` is the configured collection root (see config::Root); a rel_path is
+-- only unique *within* a root, so identity is the pair. `id` is a stable
+-- surrogate — it is the API's track id (and, with a subsong index folded in,
+-- the file-serving key), so it must not be recycled: AUTOINCREMENT.
 -- `grp` (not `group`, a SQL keyword) is the first path segment under the root.
 -- `md5` is the MD5 of the file bytes (alongside the SHA-256 `content_hash`):
 -- The Mod Archive identifies modules by MD5, so it's how top-list entries are
--- matched against the local collection. Nullable so a pre-md5 row triggers a
--- one-time re-hash on the next scan (see scan.rs). `content_hash` stays the
--- canonical key for meta/stats/playlists.
+-- matched against the local collection — and HVSC's Songlengths database keys
+-- on the very same digest. Nullable so a pre-md5 row triggers a one-time
+-- re-hash on the next scan (see scan.rs). `content_hash` stays the canonical
+-- key for meta/stats/playlists.
 CREATE TABLE IF NOT EXISTS files (
-  rel_path     TEXT PRIMARY KEY,
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  root_id      TEXT NOT NULL,
+  rel_path     TEXT NOT NULL,
   grp          TEXT NOT NULL,
   artist       TEXT,
   filename     TEXT NOT NULL,
@@ -158,10 +196,12 @@ CREATE TABLE IF NOT EXISTS files (
   size         INTEGER NOT NULL,
   mtime        INTEGER NOT NULL,
   content_hash TEXT NOT NULL,
-  md5          TEXT
+  md5          TEXT,
+  UNIQUE(root_id, rel_path)
 );
 CREATE INDEX IF NOT EXISTS idx_files_hash ON files(content_hash);
 CREATE INDEX IF NOT EXISTS idx_files_grp ON files(grp);
+CREATE INDEX IF NOT EXISTS idx_files_root ON files(root_id);
 -- Case-insensitive filename lookup, so a playlist item resolves to a local file
 -- by name (the md5-or-filename fallback in the detail query) without scanning
 -- the whole `files` table per item.
@@ -186,14 +226,73 @@ CREATE TABLE IF NOT EXISTS meta (
   updated_at   TEXT NOT NULL
 );
 
+-- Per-subtune metadata. A tracker module is one song and gets no row here; a
+-- SID file holds 1..256 subtunes, each of which is its own library entry, so it
+-- gets one row per subtune. Keyed by content hash like `meta`/`stats`, so the
+-- rows follow the bytes across a move or rename.
+--
+-- Filled by the scanner from the PSID/RSID header (title/author/released — no
+-- decoder needed) and, for an HVSC root, by the Songlengths database (duration,
+-- which a SID header does not carry at all).
+CREATE TABLE IF NOT EXISTS songs (
+  content_hash TEXT NOT NULL,
+  subsong      INTEGER NOT NULL,   -- 0-based
+  title        TEXT,
+  author       TEXT,
+  released     TEXT,
+  duration     REAL,
+  PRIMARY KEY (content_hash, subsong)
+);
+
+-- What we know about each mounted HVSC release. The collection itself is never
+-- modified — it can be a read-only mount — so everything we learn about it
+-- lives here. `sl_size`/`sl_mtime` stamp `DOCUMENTS/Songlengths.md5`: unchanged
+-- means the index is current and boot does nothing, changed means a new release
+-- was mounted and the (seconds-long) reindex runs.
+CREATE TABLE IF NOT EXISTS hvsc_state (
+  root_id    TEXT PRIMARY KEY,
+  version    INTEGER,
+  sl_size    INTEGER NOT NULL,
+  sl_mtime   INTEGER NOT NULL,
+  tunes      INTEGER NOT NULL,
+  subtunes   INTEGER NOT NULL,
+  indexed_at TEXT NOT NULL
+);
+
+-- STIL: the curators' notes on an HVSC tune (DOCUMENTS/STIL.txt). Keyed by path
+-- rather than content hash because that's how STIL itself is keyed, and it's
+-- read in the same pass as Songlengths.
+--
+-- `subsong` is -1 for the file-scope record — notes that apply to every subtune
+-- — and 0-based otherwise, matching `songs`. A tune commonly has both.
+--
+-- `title`/`artist` are the *original* a tune covers, not its own title and
+-- author (those are `name`/`author`); keeping them apart is why this isn't
+-- merged into `songs`.
+CREATE TABLE IF NOT EXISTS stil (
+  root_id  TEXT NOT NULL,
+  rel_path TEXT NOT NULL,
+  subsong  INTEGER NOT NULL,
+  comment  TEXT,
+  title    TEXT,
+  artist   TEXT,
+  name     TEXT,
+  author   TEXT,
+  PRIMARY KEY (root_id, rel_path, subsong)
+);
+
 -- Per-tune listener state, keyed by content hash (so a favourite / play count
 -- follows the file across moves, like meta). Global, not per-user — the library
 -- is a single shared collection behind edge auth.
+-- `subsong` because a SID file's twelve tunes are twelve separate things to
+-- favourite and count. Modules are always subsong 0.
 CREATE TABLE IF NOT EXISTS stats (
-  content_hash TEXT PRIMARY KEY,
+  content_hash TEXT NOT NULL,
+  subsong      INTEGER NOT NULL DEFAULT 0,
   favorite     INTEGER NOT NULL DEFAULT 0,
   play_count   INTEGER NOT NULL DEFAULT 0,
-  last_played  TEXT
+  last_played  TEXT,
+  PRIMARY KEY (content_hash, subsong)
 );
 
 -- User-curated playlists, plus the synthesised 'top_favourites' list mirroring

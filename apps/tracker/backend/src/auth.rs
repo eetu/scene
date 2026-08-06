@@ -52,11 +52,17 @@ mod tests {
         let cfg = Config {
             bind: String::new(),
             dev_auth,
-            root: PathBuf::new(),
+            roots: vec![crate::config::Root {
+                id: "mods".into(),
+                kind: crate::config::RootKind::Scan,
+                path: PathBuf::new(),
+            }],
             db_path: PathBuf::new(),
             static_dir: PathBuf::new(),
             modland_base: String::new(),
             manifest_path: PathBuf::new(),
+            sid_default_length: 180,
+            roms_dir: None,
         };
         AppState::new(cfg, Db::open_in_memory().unwrap())
     }
