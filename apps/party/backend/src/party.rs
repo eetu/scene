@@ -43,10 +43,16 @@ pub struct EntryMeta {
     pub title: Option<String>,
 }
 
-/// Playback overrides for one file, keyed in [`PartyCfg::files`] by its path
-/// relative to the party folder. The escape hatch for archive quirks no scan can
-/// infer — currently all about the Assembly animation compos, whose entries are
-/// silent video-only MPEG-1 streams that also mis-declare their frame rate.
+/// Overrides for one file, keyed in [`PartyCfg::files`] by its path relative to
+/// the party folder. The escape hatch for archive quirks no scan can infer — the
+/// Assembly animation compos, whose entries are silent video-only MPEG-1 streams
+/// that also mis-declare their frame rate, plus [`FileCfg::cputype`].
+///
+/// [`FileCfg::cputype`] is the one field that may also be keyed on an **entry
+/// folder** rather than a file: a CPU belongs to the whole demo, so pinning it
+/// once on `pc/11 - Byterapers - Protocode 0x28` covers every build inside
+/// (see [`PartyCfg::cpu`]). The playback fields stay per-file — a frame rate or a
+/// soundtrack sidecar only means anything for one specific video.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileCfg {
     /// Authored playback rate, overriding the container's own (wrong) header.
@@ -76,13 +82,13 @@ pub struct FileCfg {
     /// Channel count, defaults to mono.
     #[serde(default)]
     pub audio_channels: Option<u32>,
-    /// DOSBox `cputype` for a DOS executable that needs a specific CPU. Anything
-    /// the light core can't do (`pentium_mmx` and up — Byterapers' protocode0x28
-    /// CPUID-gates on MMX and aborts without it) switches the whole bundle to the
-    /// DOSBox-X core: a 7.9 MB download and a slower interpreter, hence per-file
-    /// rather than global. See [`cpu_target`] for the accepted values and for why
-    /// `pentium_mmx` resolves to a Pentium II; an unknown value is warned about at
-    /// load and ignored.
+    /// DOSBox `cputype` for a demo that needs a specific CPU — normally authored
+    /// on the entry folder. Anything the light core can't do (`pentium_mmx` and up
+    /// — Byterapers' protocode0x28 CPUID-gates on MMX and aborts without it)
+    /// switches that demo's bundle to the DOSBox-X core: a 7.9 MB download and a
+    /// slower interpreter, hence per-demo rather than global. See [`cpu_target`]
+    /// for the accepted values and for why `pentium_mmx` resolves to a Pentium II;
+    /// an unknown value is warned about at load and ignored.
     #[serde(default)]
     pub cputype: Option<String>,
 }
@@ -180,8 +186,9 @@ pub struct PartyCfg {
     /// display order in the SPA.
     #[serde(default)]
     pub categories: IndexMap<String, CategoryCfg>,
-    /// Per-file playback overrides, keyed by path relative to the party folder
-    /// (e.g. `anim/01 - Jaco - Flow/flow.mpg`). Empty for most parties.
+    /// Per-file overrides, keyed by path relative to the party folder (e.g.
+    /// `anim/01 - Jaco - Flow/flow.mpg`), or — for `cputype` — by entry folder
+    /// (`pc/11 - Byterapers - Protocode 0x28`). Empty for most parties.
     #[serde(default)]
     pub files: IndexMap<String, FileCfg>,
 }
@@ -242,10 +249,22 @@ impl PartyCfg {
     }
 
     /// The js-dos core and DOSBox `cputype` for a DOS executable, by its
-    /// party-relative path. `None` when the file has no authored `cputype` (the
-    /// default core and `cputype=auto`) or when the value isn't recognised.
+    /// party-relative path: the exe's own key if the config names it, else the
+    /// nearest ancestor folder's. Pinning a demo means pinning its entry folder,
+    /// so every build inside — the fix, the v2, the extender the user might click
+    /// — runs on the same CPU; naming an exe outright still wins, for the rare
+    /// prod whose two builds want different ones.
+    ///
+    /// `None` when nothing on the path is pinned (the default core at
+    /// `cputype=auto`), or when the pin's value isn't recognised.
     pub fn cpu(&self, party_rel: &str) -> Option<(&'static str, &'static str)> {
-        cpu_target(self.file(party_rel)?.cputype.as_deref()?)
+        let mut path = party_rel;
+        loop {
+            if let Some(cputype) = self.file(path).and_then(|f| f.cputype.as_deref()) {
+                return cpu_target(cputype);
+            }
+            path = path.rsplit_once('/')?.0;
+        }
     }
 
     /// Position of a category in the JSON `categories` map — the SPA sorts compos
@@ -392,7 +411,7 @@ mod tests {
     fn cputype_selects_the_core() {
         let cfg: PartyCfg = serde_json::from_str(
             r#"{"slug":"botb","name":"B",
-                "files":{"pc/11 - byterapers - protocode0x28/PROT0X28.EXE":
+                "files":{"pc/11 - Byterapers - Protocode 0x28":
                            {"cputype":"pentium_mmx"},
                          "pc/slowdemo/SLOW.EXE":{"cputype":"386_slow"},
                          "pc/typo/T.EXE":{"cputype":"pentum_mmx"}}}"#,
@@ -400,7 +419,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            cfg.cpu("pc/11 - byterapers - protocode0x28/PROT0X28.EXE"),
+            cfg.cpu("pc/11 - Byterapers - Protocode 0x28/PROT0X28.EXE"),
             Some(("dosboxX", "pentium_ii"))
         );
         // The fork's own mode stays reachable, but only if asked for by name.
@@ -414,8 +433,44 @@ mod tests {
         );
         // Unknown value → no override at all (warned about at load).
         assert_eq!(cfg.cpu("pc/typo/T.EXE"), None);
-        // A file with overrides but no cputype stays on the default core.
+        // Nothing on the path is pinned → the default core.
         assert_eq!(cfg.cpu("pc/unlisted/U.EXE"), None);
+    }
+
+    /// A demo is pinned once, on its entry folder: every build inside inherits
+    /// (the fix, the v2, the DOS extender a user might click), and nothing
+    /// outside the folder is touched.
+    #[test]
+    fn cputype_pins_a_whole_entry_folder() {
+        let cfg: PartyCfg = serde_json::from_str(
+            r#"{"slug":"botb","name":"B",
+                "files":{"pc/11 - Byterapers - Protocode 0x28":{"cputype":"pentium_mmx"},
+                         "pc/11 - Byterapers - Protocode 0x28/OLD.EXE":
+                           {"cputype":"pentium_slow"}}}"#,
+        )
+        .unwrap();
+
+        let mmx = Some(("dosboxX", "pentium_ii"));
+        assert_eq!(
+            cfg.cpu("pc/11 - Byterapers - Protocode 0x28/PROT0X28.EXE"),
+            mmx
+        );
+        assert_eq!(
+            cfg.cpu("pc/11 - Byterapers - Protocode 0x28/CWSDPMI.EXE"),
+            mmx
+        );
+        // Nested deeper than the pinned folder still inherits it.
+        assert_eq!(
+            cfg.cpu("pc/11 - Byterapers - Protocode 0x28/fix/RUN.EXE"),
+            mmx
+        );
+        // Naming an exe outright beats the folder, for a prod whose builds differ.
+        assert_eq!(
+            cfg.cpu("pc/11 - Byterapers - Protocode 0x28/OLD.EXE"),
+            Some(("dosbox", "pentium_slow"))
+        );
+        // The neighbouring entry is unaffected.
+        assert_eq!(cfg.cpu("pc/10 - Acme - 303/DEMO.EXE"), None);
     }
 
     #[test]
