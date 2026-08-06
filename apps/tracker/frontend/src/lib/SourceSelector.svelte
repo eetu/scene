@@ -150,6 +150,15 @@
   .reindex {
     margin-left: auto;
   }
+  /* …but only where there's room to push it. Inside the scrolling row a phone
+     gets, `margin-left: auto` puts it past the right edge, reachable only by
+     scrolling a row with no scrollbar — so on narrow screens it simply follows
+     the chips. */
+  @media (max-width: 640px) {
+    .reindex {
+      margin-left: 4px;
+    }
+  }
   .reindex:disabled {
     opacity: 0.5;
     cursor: default;
@@ -163,6 +172,14 @@
     }
     .sources button {
       flex: 0 0 auto;
+    }
+    /* The counts are the widest thing here and the least load-bearing: on a
+       phone what matters is which source is active and being able to switch.
+       Keeping them pushed `Reindex` off a 320px screen — and wider still in
+       locales that separate thousands with a space (`61 157`), which is how
+       this surfaced. The numbers stay in the chip's title. */
+    .cnt {
+      display: none;
     }
   }
 </style>

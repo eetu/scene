@@ -160,3 +160,52 @@ test("nothing HVSC-specific renders without a configured HVSC root", async ({ co
   await page.getByRole("button", { name: /^Extra/ }).click();
   await expect(page.getByRole("button", { name: "Reindex" })).toHaveCount(0);
 });
+
+test.describe("on a phone", () => {
+  // A locale that separates thousands with a space (`61 157`) — the widest the
+  // counts ever render, and the condition the overflow was first seen under.
+  test.use({ viewport: { width: 320, height: 568 }, locale: "fi-FI" });
+
+  test("every control fits on screen, none scrolled out of reach", async ({ context, page }) => {
+    // The row scrolls horizontally with no scrollbar, so anything past the edge
+    // is both invisible and silent — which is where `Reindex` ended up: the
+    // counts pushed the row to 352px inside a 320px viewport.
+    await mock(context, {
+      roots: [
+        { id: "mods", label: "Mods", kind: "scan", path: "/mods", count: 6478 },
+        { id: "hvsc", label: "HVSC", kind: "hvsc", path: "/hvsc", count: 61157 },
+      ],
+      hvsc: {
+        hvsc: { version: 85, tunes: 61157, subtunes: 87868, indexed_at: "2026-08-05T10:00:00Z" },
+      },
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: /^HVSC/ }).click();
+    await expect(page.getByRole("button", { name: "Reindex" })).toBeVisible();
+
+    const nav = page.locator("nav.sources");
+    expect(
+      await nav.evaluate((n) => n.scrollWidth - n.clientWidth),
+      "the source row overflows its own width",
+    ).toBe(0);
+
+    const box = (await nav.boundingBox())!;
+    for (const name of [/^Mods/, /^HVSC/, "All", "Reindex"] as const) {
+      const r = await page.getByRole("button", { name }).boundingBox();
+      expect(r, `${name} has no box`).not.toBeNull();
+      expect(r!.x, `${name} starts off the left edge`).toBeGreaterThanOrEqual(0);
+      expect(r!.x + r!.width, `${name} runs past the right edge`).toBeLessThanOrEqual(
+        box.x + box.width + 1,
+      );
+    }
+  });
+
+  test("the chips still say which collection, and which release", async ({ context, page }) => {
+    // What dropping the counts had to preserve: each source is still
+    // identifiable, and HVSC still shows what it's a release of.
+    await mock(context);
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: /^Mods/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^HVSC/ })).toContainText("#85");
+  });
+});
