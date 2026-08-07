@@ -306,6 +306,11 @@ async fn delete_rejects_path_escape_and_unknown() {
 #[ignore]
 async fn rescan_is_accepted_and_reports_its_outcome_afterwards() {
     let s = Stack::start().await.unwrap();
+    s.await_boot_scan().await;
+    // Enough files that the scan is still running when the next request lands.
+    // Three finish faster than an HTTP round-trip on a quick machine, so
+    // "scanning is observable" was a coin toss — green locally, red on CI.
+    s.seed_bulk(800);
 
     let r = s.post_empty("/api/rescan").await;
     assert_eq!(r.status(), 202, "the scan is started, not awaited");
@@ -322,7 +327,7 @@ async fn rescan_is_accepted_and_reports_its_outcome_afterwards() {
     // nothing. Waited for, not re-POSTed: the scan already running would refuse
     // a second one.
     let last = s.await_scan().await;
-    assert_eq!(last["indexed"], 3, "last_scan: {last}");
+    assert_eq!(last["indexed"], 803, "last_scan: {last}");
     assert!(last["error"].is_null(), "unexpected error: {last}");
     assert_eq!(last["root"], "mods");
     assert!(!last["finished_at"].as_str().unwrap_or("").is_empty());
@@ -335,19 +340,7 @@ async fn rescan_is_accepted_and_reports_its_outcome_afterwards() {
 #[ignore]
 async fn the_boot_scan_records_its_outcome_as_well() {
     let s = Stack::start().await.unwrap();
-    // Waiting for `scanning` to go false isn't enough here: the boot scan is
-    // spawned, so it may not have *started* when the first poll lands — and
-    // "not scanning, nothing finished yet" is a truthful state, not a bug. Wait
-    // for the outcome itself.
-    let mut last = serde_json::Value::Null;
-    for _ in 0..600 {
-        let st = s.get_json("/status").await;
-        if !st["last_scan"].is_null() {
-            last = st["last_scan"].clone();
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    }
+    let last = s.await_boot_scan().await;
     assert_eq!(last["indexed"], 3, "last_scan: {last}");
     assert_eq!(last["root"], "mods");
     assert!(last["error"].is_null());
@@ -365,7 +358,7 @@ async fn the_boot_scan_records_its_outcome_as_well() {
 #[ignore]
 async fn the_outcome_is_readable_the_instant_scanning_stops() {
     let s = Stack::start().await.unwrap();
-    s.await_scan().await; // let the boot scan settle
+    s.await_boot_scan().await;
 
     for _ in 0..5 {
         assert_eq!(s.post_empty("/api/rescan").await.status(), 202);

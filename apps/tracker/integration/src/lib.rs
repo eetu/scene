@@ -246,6 +246,23 @@ impl Stack {
         self.await_scan().await
     }
 
+    /// Wait for the scan the backend runs at boot to report an outcome.
+    ///
+    /// Not the same as [`Self::await_scan`]: the boot scan is spawned, so it may
+    /// not have *started* when the first poll lands, and "not scanning, nothing
+    /// finished yet" is a truthful state to observe. Waits for the outcome
+    /// itself, which only appears once a scan has actually completed.
+    pub async fn await_boot_scan(&self) -> serde_json::Value {
+        for _ in 0..600 {
+            let s = self.get_json("/status").await;
+            if !s["last_scan"].is_null() {
+                return s["last_scan"].clone();
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        panic!("the boot scan never reported an outcome");
+    }
+
     /// Wait for any running scan to finish, and return what it did. Separate
     /// from starting one, so a test can start a scan, observe the server while
     /// it runs, and then wait — without a second POST being refused by the
