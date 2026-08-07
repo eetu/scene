@@ -46,6 +46,25 @@ const tracks = [0, 1].map((subsong) => ({
   play_count: 0,
 })) as unknown as Track[];
 
+/** Correctly-sized stand-ins for the three C64 ROMs.
+ *
+ *  The real images are operator-supplied and gitignored — they're copyrighted,
+ *  and deliberately never in the repo — so a committed test cannot read them.
+ *  This used to point at an absolute path on one machine: green there, and
+ *  impossible anywhere else, which is exactly how it failed the first time CI
+ *  ran on it.
+ *
+ *  What these specs need from the ROMs is the *transport* — that the app fetches
+ *  three of them and hands them to the decoder — not their contents. A PSID
+ *  never executes KERNAL code (libsidplayfp calls its init and play routines
+ *  directly), so stand-ins exercise that path without changing what comes out of
+ *  the speaker. Filled with `RTS` rather than zeroes so that if anything ever
+ *  does jump in, it returns instead of running whatever `brk` would do.
+ *
+ *  The genuinely ROM-less case has its own test below. */
+const ROM_BYTES: Record<string, number> = { kernal: 8192, basic: 8192, chargen: 4096 };
+const RTS = 0x60;
+
 async function mock(context: import("@playwright/test").BrowserContext, opts = { roms: true }) {
   await mockLibrary(context, tracks);
   await context.route("**/api/playlists", (r) => r.fulfill({ json: { playlists: [] } }));
@@ -55,22 +74,14 @@ async function mock(context: import("@playwright/test").BrowserContext, opts = {
   await context.route("**/api/play/*", (r) => r.fulfill({ json: { play_count: 1 } }));
   await context.route("**/api/meta/*", (r) => r.fulfill({ status: 204, body: "" }));
   // The ROMs are operator-supplied; 404 is a supported state (built-in images).
-  await context.route("**/api/roms/*", (r) =>
-    opts.roms
-      ? r.fulfill({
-          contentType: "application/octet-stream",
-          body: readFileSync(
-            `/Users/eetu/dev/scene/data/roms/${
-              r.request().url().endsWith("kernal")
-                ? "kernal-901227-03.bin"
-                : r.request().url().endsWith("basic")
-                  ? "basic-901226-01.bin"
-                  : "chargen-901225-01.bin"
-            }`,
-          ),
-        })
-      : r.fulfill({ status: 404, body: "" }),
-  );
+  await context.route("**/api/roms/*", (r) => {
+    if (!opts.roms) return r.fulfill({ status: 404, body: "" });
+    const which = new URL(r.request().url()).pathname.split("/").pop() ?? "";
+    return r.fulfill({
+      contentType: "application/octet-stream",
+      body: Buffer.alloc(ROM_BYTES[which] ?? 8192, RTS),
+    });
+  });
 }
 
 test("plays a SID: libsidplayfp decodes and the transport clock advances", async ({
