@@ -34,8 +34,27 @@ use state::{AppState, ScanProgress};
 /// SvelteKit inlines its bootstrap `<script>` in index.html with a per-build
 /// hash, so we hash whatever inline scripts the built index.html contains at
 /// boot and allow exactly those — no `'unsafe-inline'` for scripts.
+///
+/// **`'unsafe-eval'` is required by the SID engine, and only by it.**
+/// libsidplayfp is bound through Emscripten's Embind, which builds its invoker
+/// functions with the `Function` constructor — string evaluation, which
+/// `'wasm-unsafe-eval'` does not cover (that permits wasm compilation and
+/// nothing else). libopenmpt reaches its C API through `cwrap` and needs none
+/// of this, which is why modules played and SIDs died with "Couldn't play this
+/// module" only once the app was served by *this* backend — `vite preview`,
+/// which the e2e suite runs against, sends no CSP at all.
+///
+/// Neither shipped artifact avoids it (residfp and sidlite both use Embind),
+/// and a worker cannot relax an inherited policy — a dedicated worker's CSP is
+/// the union of its own and its owner's. So the choice is this or no SID
+/// playback. Narrowing it would mean rebuilding the wasm with
+/// `-sDYNAMIC_EXECUTION=0`, which is upstream work.
+///
+/// Everything else stays strict: no `'unsafe-inline'` for scripts, the inline
+/// bootstrap is hashed, and `connect-src`/`img-src`/`frame-ancestors` are
+/// unchanged.
 fn build_csp(script_hashes: &[String]) -> String {
-    let mut script_src = String::from("'self' 'wasm-unsafe-eval'");
+    let mut script_src = String::from("'self' 'wasm-unsafe-eval' 'unsafe-eval'");
     for h in script_hashes {
         script_src.push(' ');
         script_src.push_str(h);
@@ -307,8 +326,22 @@ mod tests {
     #[test]
     fn csp_allows_wasm_and_workers() {
         let csp = build_csp(&["'sha256-X'".into()]);
-        assert!(csp.contains("script-src 'self' 'wasm-unsafe-eval' 'sha256-X'"));
+        assert!(csp.contains("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' 'sha256-X'"));
         assert!(csp.contains("worker-src 'self' blob:"));
         assert!(!csp.contains("script-src 'self' 'unsafe-inline'"));
+    }
+
+    /// `'unsafe-eval'` looks like something to tighten, and tightening it breaks
+    /// SID playback with an error that names the CSP but not the cause — and no
+    /// test catches it, because the e2e suite runs against `vite preview`, which
+    /// sends no CSP. Embind builds libsidplayfp's invokers with the `Function`
+    /// constructor; `'wasm-unsafe-eval'` does not cover string evaluation.
+    #[test]
+    fn csp_keeps_unsafe_eval_for_embind() {
+        let csp = build_csp(&[]);
+        assert!(
+            csp.contains("'unsafe-eval'"),
+            "removing this silently disables SID playback: {csp}"
+        );
     }
 }
