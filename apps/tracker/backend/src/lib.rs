@@ -103,7 +103,41 @@ pub async fn run_scan(
         progress.scanning.store(true, Ordering::Relaxed);
         let _done = ScanFlagGuard(progress.clone());
         let mut conn = db.blocking_lock();
-        scan::scan_into(&mut conn, &root_id, &root, &progress)
+        let result = scan::scan_into(&mut conn, &root_id, &root, &progress);
+
+        // Publish the outcome *here*, inside the blocking task, so it is written
+        // before `_done` clears `scanning`.
+        //
+        // The caller used to record it after awaiting this future, which left a
+        // window where `/status` said `scanning: false` while `last_scan` was
+        // still the previous run's — or null. That is precisely what a client
+        // polling "wait for scanning to go false, then read the result" hits,
+        // which is what the SPA does and what caught this in CI.
+        //
+        // Doing it here also means the boot scan records its outcome, which the
+        // caller-side version never did: `last_scan` is now an invariant of "a
+        // scan finished", not of "someone asked for one over HTTP".
+        if let Ok(mut slot) = progress.last.lock() {
+            *slot = Some(match &result {
+                Ok(r) => state::ScanOutcome {
+                    root: root_id.clone(),
+                    indexed: r.indexed,
+                    hashed: r.hashed,
+                    removed: r.removed,
+                    finished_at: chrono::Utc::now().to_rfc3339(),
+                    error: None,
+                },
+                Err(e) => state::ScanOutcome {
+                    root: root_id.clone(),
+                    indexed: 0,
+                    hashed: 0,
+                    removed: 0,
+                    finished_at: chrono::Utc::now().to_rfc3339(),
+                    error: Some(e.to_string()),
+                },
+            });
+        }
+        result
     })
     .await?
 }

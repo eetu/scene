@@ -328,6 +328,63 @@ async fn rescan_is_accepted_and_reports_its_outcome_afterwards() {
     assert!(!last["finished_at"].as_str().unwrap_or("").is_empty());
 }
 
+/// `last_scan` describes the last scan that *finished*, not the last one
+/// somebody asked for over HTTP — so the scan the backend runs at boot records
+/// its outcome too.
+#[tokio::test]
+#[ignore]
+async fn the_boot_scan_records_its_outcome_as_well() {
+    let s = Stack::start().await.unwrap();
+    // Waiting for `scanning` to go false isn't enough here: the boot scan is
+    // spawned, so it may not have *started* when the first poll lands — and
+    // "not scanning, nothing finished yet" is a truthful state, not a bug. Wait
+    // for the outcome itself.
+    let mut last = serde_json::Value::Null;
+    for _ in 0..600 {
+        let st = s.get_json("/status").await;
+        if !st["last_scan"].is_null() {
+            last = st["last_scan"].clone();
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    assert_eq!(last["indexed"], 3, "last_scan: {last}");
+    assert_eq!(last["root"], "mods");
+    assert!(last["error"].is_null());
+}
+
+/// The invariant behind that: when `/status` says scanning stopped, the outcome
+/// is already there to read.
+///
+/// It wasn't, briefly — the flag was cleared by a drop guard inside the blocking
+/// scan while the outcome was written afterwards by the task awaiting it, so a
+/// client polling "wait for scanning to go false, then read last_scan" could see
+/// the gap. Which is exactly what the SPA does. Local runs won the race; CI lost
+/// it. `run_scan` now publishes the outcome before releasing the flag.
+#[tokio::test]
+#[ignore]
+async fn the_outcome_is_readable_the_instant_scanning_stops() {
+    let s = Stack::start().await.unwrap();
+    s.await_scan().await; // let the boot scan settle
+
+    for _ in 0..5 {
+        assert_eq!(s.post_empty("/api/rescan").await.status(), 202);
+        // Poll as tightly as possible, so the first observation of
+        // `scanning: false` is as close to the transition as it can be.
+        loop {
+            let st = s.get_json("/status").await;
+            if st["scanning"] == false {
+                assert!(
+                    !st["last_scan"].is_null(),
+                    "scanning stopped before the outcome was published: {st}"
+                );
+                assert_eq!(st["last_scan"]["indexed"], 3, "status: {st}");
+                break;
+            }
+        }
+    }
+}
+
 /// Two scans would serialise on the single SQLite connection anyway, but they
 /// would also interleave their writes to the shared progress counters — so
 /// /status would report a meaningless blend of the two runs.

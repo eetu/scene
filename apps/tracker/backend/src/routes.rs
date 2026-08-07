@@ -1162,34 +1162,16 @@ async fn rescan_root(state: &AppState, root_id: &str) -> AppResult<(StatusCode, 
     // The outcome lands in `scan.last` for the same reason — a 202 has nothing
     // to report yet, and dropping the counts entirely would make a failed scan
     // indistinguishable from one that found nothing.
+    // `run_scan` records the outcome in `scan.last` itself, before it clears the
+    // `scanning` flag — so a client polling "wait for scanning to go false, then
+    // read last_scan" can't observe the gap between the two.
     let db = state.db.clone();
     let progress = state.scan.clone();
     let id = root.id.clone();
     let path = root.path.clone();
     tokio::spawn(async move {
-        let outcome = match crate::run_scan(db, id.clone(), path, progress.clone()).await {
-            Ok(r) => crate::state::ScanOutcome {
-                root: id,
-                indexed: r.indexed,
-                hashed: r.hashed,
-                removed: r.removed,
-                finished_at: chrono::Utc::now().to_rfc3339(),
-                error: None,
-            },
-            Err(e) => {
-                tracing::error!(root = %id, error = %e, "scan failed");
-                crate::state::ScanOutcome {
-                    root: id,
-                    indexed: 0,
-                    hashed: 0,
-                    removed: 0,
-                    finished_at: chrono::Utc::now().to_rfc3339(),
-                    error: Some(e.to_string()),
-                }
-            }
-        };
-        if let Ok(mut slot) = progress.last.lock() {
-            *slot = Some(outcome);
+        if let Err(e) = crate::run_scan(db, id.clone(), path, progress).await {
+            tracing::error!(root = %id, error = %e, "scan failed");
         }
     });
 
