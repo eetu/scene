@@ -8,29 +8,15 @@ modules** from the mod archives and de-messes old **CD-dump rips**.
 
 ## The model (read this first)
 
-Two layers, deliberately separate:
+**Artist-primary** — `TRACKER_ROOT/<artist>/<song.ext>`, unknown author →
+`_unknown/`, **no group level**. `library.json` at the mount root holds the graph
+(aliases, groups, albums, per-song credits); group/album are facets built from it,
+never directories. Identity is the content hash, so moves are lossless —
+meta/stats/playlists follow the bytes. Full model: `apps/tracker/CLAUDE.md`.
 
-- **The filesystem — one axis: the artist.** `TRACKER_ROOT/<artist>/<song.ext>`.
-  A tune has exactly one home, under its (canonical) author. Unknown author →
-  `_unknown/`. That's the whole on-disk structure — **no group level**.
-- **`library.json` at the mount root — the relational graph.** Everything that
-  isn't a single-artist fact: an artist's other handles (`aka`), the groups they
-  were in (`groups`), named `albums` (ordered sets of song md5s), and per-song
-  credits (`forGroup` / co-authors / `year`). **Group and album are facets built
-  from this file, never directories** — a tune can be in many groups/albums, and
-  a tree can't hold that; a graph can.
-
-Why the split: the filesystem is a tree, but artist↔group↔alias↔album is a graph.
-Encoding the graph in the path forced either duplicates (the md5 dupes we had) or
-a lie (pick one group). Identity is the **content hash** — `/api/file/{hash}`, and
-hash/md5-keyed `meta` / `stats` / playlists — so **moving files around is
-lossless**: favourites, play counts, enrichment and playlist membership all follow
-the bytes. Reorganising is a pure filing decision.
-
-**Durability rule:** anything you can't recompute from the bytes must live in
-`library.json` (aliases, groups, albums, credits). The SQLite DB is a cache — lose
-it, rescan. Lose `library.json` and you lose the graph, so it lives on the mount
-and is the thing to back up.
+**Durability rule:** anything not recomputable from the bytes lives in
+`library.json` — the SQLite DB is a cache (lose it, rescan); `library.json` is the
+thing to back up.
 
 ## Adding a module (the 30-second version)
 
@@ -94,42 +80,6 @@ Albums (in `library.json`) are the **durable, ships-with-the-archive** counterpa
 playlists are personal/ephemeral. Use an album for "belongs to the collection" (a
 demo soundtrack, an SFX pack, a SID set); a playlist for a listening queue.
 
-## Status / migration (2026-07)
-
-Landing incrementally (plan: `~/.claude/plans/tracker-library-manifest.md`).
-**Live now:** the manifest core (`library.json` load + `GET /api/manifest` +
-`POST /api/library/reload`), the **curation write API** (artist / album / song
-endpoints), the **manifest-driven facets** (browse by group / artist / album with
-alias folding), the in-app **curation UI** (`CurateModal`), and the **offline
-seeder** (below).
-
-The physical **tree migration** to `artist/song` has run: the mount is
-`<artist>/song.ext` and the backend is **artist-primary unconditionally** (no
-layout switch). Groups / aliases / albums come from `library.json`, joined onto
-the path-derived artist in the frontend.
-
-### Seed `library.json` from a snapshot
-
-`tracker-migrate` reads an `md5<TAB>size<TAB>relpath` snapshot of the collection
-and writes a seeded `library.json` (+ `dupes.json` / `alias-candidates.json`)
-**without touching the mount** — safe to run while the archive is being edited:
-
-```
-cargo run -p tracker-backend --bin tracker-migrate -- <md5-manifest.tsv> [out-dir]
-```
-
-It infers each artist's `groups[]` from the group segments their files sit under,
-flags exact md5 duplicates (the dedup worklist) and **alias candidates** (identical
-bytes under two artist folders → same person, two handles — review, don't
-auto-merge). Apply by copying `library.seed.json` to `<TRACKER_ROOT>/library.json`
-and `POST /api/library/reload` — **no file moves, no rescan**. (First real run:
-8352 files → 608 artists / 480 groups, 67 multi-group artists, 22 exact-dupe sets,
-3 alias candidates, 0 unknown-author.)
-
-The physical `group/artist → artist` moves are the separate, gated step, run
-against a **fresh** snapshot once the gap-filling session is done — **do not
-hand-move the whole tree** meanwhile.
-
 ## Enriching the manifest (filling metadata)
 
 Two kinds of metadata (per the durability rule): **derivable** (title / duration /
@@ -172,24 +122,6 @@ for the whole library. Do this first.
   and the keyless module page returns Cloudflare 503. Needs a modarchive.org API
   key; a by-md5 pass would then cover the whole collection.
 
-### Done so far (2026-07)
-enrich-all (titles/durations); text-triage workflow → **68 artists**; Demozoo
-workflow → **100 artists** (+326 groups, +73 aka). Manifest ≈ 774 artists with
-entries. ~340 remain group-less (no own-signature + no confident Demozoo match).
-Per-song year/genre still unfilled (needs a TMA key). Backups + corpora +
-proposals live in `~/tmp` (`library.before-*.json`, `enrich-corpus.jsonl`,
-`proposals*.json`, `demozoo-candidates.jsonl`).
-
-## Sourcing & cleaning techniques (unchanged)
-
-Everything below is how to *find, disambiguate and clean* module bytes — still
-exactly right. Only the **filing target** changed: where these say "file under
-`<Group>/<Artist>/`", now file under **`<Artist>/`** and record the group in
-`library.json` (`artists.<name>.groups`). Workflow D (reading the group out of a
-module's sample text) is now how you fill `groups` / `aka`, not how you pick a
-directory. Consolidating an artist's aliases (Workflow B) becomes an `aka` list
-rather than a physical merge.
-
 ## Sources (in priority order)
 
 - **Modland** — `https://ftp.modland.com/pub/modules/<Format>/<Author>/`. Canonical,
@@ -221,22 +153,23 @@ rather than a physical merge.
    (fast); AMP for anyone not on Modland.
 3. Disambiguate identity (below) before trusting any author dir.
 4. Dedup vs what's already there (md5 + normalized title); file survivors under
-   `<Group>/<Musician>/`. `POST /api/rescan`.
+   `<Musician>/` and record the membership in `library.json`
+   (`artists.<name>.groups`). `POST /api/rescan`, then `POST /api/library/reload`.
 
 ## Workflow B — consolidate a scattered artist (e.g. Jogeir, Necros)
 
-Prolific artists get split across many folders (by-format dirs + a top-level author
-dir + several group dirs) with duplicated/renamed rips.
+Prolific artists get split across many folders (alias-named dirs + old rip dirs)
+with duplicated/renamed rips.
 
 1. Find every location: `find /Volumes/scene/mods -maxdepth 3 -type d -iname "<name>"`.
-2. Pick the home group — the biggest/most notable group the artist is actually in
-   (ask the user; Jogeir→Fairlight, Lizardking→Razor 1911, Bruno→Anarchy).
-3. Pool all their files + their full Modland catalog; dedup by identity key
+2. Pool all their files + their full Modland catalog; dedup by identity key
    `(normalized-title, format-ext)`, keeping ONE per key: prefer the clean Modland
    file, fall back to the user's file (name de-mangled) for tunes not on Modland.
    Cross-format variants (`.mod` + `.xm`) kept separately.
-4. Verify zero loss (below) before deleting anything.
-5. Place under `<HomeGroup>/<Artist>/`, remove the old locations, `POST /api/rescan`.
+3. Verify zero loss (below) before deleting anything.
+4. Place under `<Artist>/` (the canonical handle); fold the other handles into
+   `artists.<name>.aka` — an alias merge is a manifest edit, not a physical one.
+   Remove the old locations, `POST /api/rescan`.
 
 ## Workflow C — clean CD-dump filenames
 
@@ -266,27 +199,24 @@ placed.
 - **Watch for mislabeled folders** — the content may be a *different* artist
   entirely (`Merge/` held Laxity/Kefrens tunes, `Prophet/` held Subject's,
   `Breeze/` held Megaman's). Relocate to the real artist, don't blind-move.
-- **No signature? -> `_groupless`** (see below). Game/soundtrack composers (Richard
-  Joseph, Barry Leitch, Karsten Obarski) and solo/netlabel chip artists legitimately
-  have no demogroup.
+- **No signature? -> no `groups` entry** (see below). Game/soundtrack composers
+  (Richard Joseph, Barry Leitch, Karsten Obarski) and solo/netlabel chip artists
+  legitimately have no demogroup.
 
 Feed the extracted text to the LLM in batches; it reliably picks the own-group,
 flags multi-group (pick the primary/biggest), and separates soloists.
 
-## The `_groupless` / `_unknown` bucket
+## The `_unknown` bucket
 
 A **non-dot sentinel** on purpose: a `.`-prefixed name would be skipped by the
 scanner (`scan.rs` `is_hidden_dir` drops any dir starting with `.`) and vanish from
 the library. It's indexed like a normal folder, sorts near the top, and the
 frontend renders it distinctly.
 
-- **New (artist-primary) model:** unknown *author* → `_unknown/<song.ext>`. There
-  is no "ungrouped" bucket, because groups aren't directories — an artist simply
-  has no `groups` entry in `library.json`. (Game/soundtrack composers, solo/chip
-  artists: no `groups`, and that's correct, not missing data.)
-- **Legacy model (until migration):** ungrouped artists live in
-  `/Volumes/scene/mods/_groupless/<artist>/`, shown as "Ungrouped". The migration folds
-  `_groupless/<artist>/…` into `<artist>/…`.
+Unknown *author* → `_unknown/<song.ext>`. There is no "ungrouped" bucket, because
+groups aren't directories — an artist simply has no `groups` entry in
+`library.json`. (Game/soundtrack composers, solo/chip artists: no `groups`, and
+that's correct, not missing data.)
 
 ## Identity disambiguation (critical)
 
@@ -339,32 +269,3 @@ trust an author dir by name alone:
 - **Destructive deletes are gated** by the harness safety classifier. Verify coverage
   (0-loss), show the removal list, get explicit confirmation — then delete (or have
   the user run `rm` via the `!` prefix).
-- **Untracked files in this repo can vanish** on a branch switch by another session
-  — commit docs like this one.
-
-## Done so far (reference runs)
-
-- **Groups built:** CNCD (759 files, 9 musicians), Orange (531, 10).
-- **Artist consolidations:** Jogeir -> `Fairlight` (311, +Modland +AMP), Bruno ->
-  `Anarchy` (69); batches: Necros->Five Musicians, Lizardking->Razor 1911,
-  Skaven->Future Crew, Moby->Sanity, Chromag->Rebels, Audiomonster->Anarchy,
-  Strobo->Stellar, Clawz->Oxygene, Basehead->Five Musicians, Supernao->Lemon,
-  Paso->U.D.O, Gromour->Nordic Line, XTD->Mystic, Radix->The Black Lotus,
-  Romeo Knight->TRSI, Mantronix->Fairlight, Deetsay->Orange, ...
-- **Crud pass:** ~1,140 `._` purged (one-off), 218 empty dirs, `~N` names normalized
-  (363 renamed, dup drops, variants kept).
-- **`NA` -> `_groupless`** (~500 artists), shown as "Ungrouped" in the UI.
-- **Format dirs fully dismantled** via Workflow D: `Protracker` (123),
-  `Fasttracker 2` (69), `Impulsetracker` (16), `Screamtracker 3` (6),
-  `Soundtracker` (2) all reigned into groups or `_groupless` and removed. The
-  library is now purely `group/artist` + `_groupless` (~473 group folders,
-  ~524 groupless). Notable: Purple Motion->Future Crew, Drax & Jeroen Tel->Maniacs
-  of Noise, mislabeled folders relocated to the real artist.
-- **Qualified artist folders** (a `(qualifier)` suffix = a reused handle already
-  taken by someone else in the tree, Modland's own `Xerxes (SE)` convention):
-  - `Xerxes (Brainstorm)` — signs `xerxes/brainstorm` + xerxes-music.com, Demozoo
-    scener 552. Plain `Xerxes` is scener 4164 (Voice/Cycron, aka Fix, Amiga).
-  - `Probe (Affection)` — Modland files him under an author dir named `Affection`,
-    but both tunes there read "Composed By Probe / Affection/Oxylon": that dir is a
-    **group**, and the manifest already knew it (Roadrunner is an Affection member).
-    Plain `Probe` is the vd&tbl / Razor 1911 one.

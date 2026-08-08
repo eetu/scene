@@ -242,9 +242,8 @@ test("a portrait pane gets the personal stereo instead", { timeout: 120000 }, as
   // The body keeps its proportions rather than filling the pane — a personal stereo
   // stretched to a pane is a slab, not an object.
   expect(l.body.w / l.body.h).toBeCloseTo(BODY_ASPECT, 2);
-  // The cassette has to fill the lid in BOTH directions. The first version sized the lid as
-  // a fraction of the body and the turned cassette only used 55% of its width, which left
-  // it floating between two bands of dark — the thing this whole layout exists to avoid.
+  // The cassette has to fill the lid in BOTH directions: a lid the tape only part-fills
+  // leaves it floating between bands of dark — the thing this layout exists to avoid.
   expect(l.cass.w / l.well.h, "the cassette does not fill the lid lengthways").toBeGreaterThan(
     0.88,
   );
@@ -370,11 +369,9 @@ test(
   "the stack fills a narrow landscape pane once the speakers drop out",
   { timeout: 120000 },
   async () => {
-    // A phone-shaped viz pane. Below ~1.5:1 there is no width to stand a cabinet either side
-    // that still reads as a cabinet, so the stack takes the whole pane instead — and the
-    // thing that must not happen is the stack keeping its wide proportions and leaving two
-    // empty columns where the speakers used to be.
-    // Landscape, but too narrow for cabinets — the stack still, without them.
+    // Landscape, but below ~1.5:1 there is no width to stand a cabinet either side that
+    // still reads as a cabinet, so the stack takes the whole pane — and must not keep its
+    // wide proportions, leaving two empty columns where the speakers would stand.
     const PANE: [number, number] = [520, 400];
     await page.viewport(...PANE);
     installTheme("dark");
@@ -416,9 +413,8 @@ test("the pane can shrink in BOTH directions inside a flex host", { timeout: 120
   // once at 960 it could never be narrower than 960, so the ResizeObserver never saw a width
   // change and the stack never gave way to the walkman however small the window got.
   //
-  // Reproduced here rather than asserted about: the earlier probes used a COLUMN flex, where
-  // `min-width: auto` does not apply, and shrank happily in both directions — which is why
-  // the first two attempts to find this concluded there was nothing wrong.
+  // Reproduced in a ROW flex host: in a COLUMN flex `min-width: auto` does not apply and
+  // the pane shrinks happily in both directions, hiding the bug.
   await page.viewport(960, 560);
   installTheme("dark");
   const feed = startVizFeed();
@@ -464,9 +460,8 @@ test(
   { timeout: 120000 },
   async () => {
     // The frame driver tears its rAF loop down entirely once the music stops (raf.ts), and a
-    // resize sets the canvas's backing store, which CLEARS it. So on a paused or stopped pane
-    // a resize used to leave the visualiser blank until playback resumed — and a theme switch
-    // repainted nothing at all, because the cached layers bake the palette.
+    // resize sets the canvas's backing store, which CLEARS it — so a stopped pane must
+    // repaint on resize, and on a theme switch too, because the cached layers bake the palette.
     await page.viewport(960, 560);
     installTheme("dark");
     vfdView.face = "spectrum";
@@ -486,9 +481,8 @@ test(
       const loc = (page as unknown as { elementLocator: (e: Element) => unknown }).elementLocator(
         host,
       );
-      // Which machine the COMPONENT thinks it is drawing, read off the controls it published
-      // rather than off `chassisMode` — calling the pure function only proves the pure
-      // function works, which was never in doubt.
+      // Which machine the COMPONENT thinks it is drawing, read off the controls it
+      // published rather than off the pure `chassisMode`.
       const machine = () => {
         const ids = [...host.querySelectorAll<HTMLButtonElement>("button.hw")]
           .map((b) => b.getAttribute("aria-label") ?? "")

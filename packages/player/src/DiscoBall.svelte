@@ -8,6 +8,7 @@
   //
   // Intentionally dark: a self-lit neon room, not a themed panel — it does NOT
   // follow the app's light/dark theme.
+  import { createQuadProgram } from "./gl";
   import { beatBpm, playback, sampleBands } from "./player.svelte";
   import { driveFrames } from "./raf";
 
@@ -222,60 +223,18 @@
     const cv = canvas;
     if (!cv) return;
     const el: HTMLCanvasElement = cv;
-    // preserveDrawingBuffer: the CRT screen samples this canvas as a texture from its own
-    // rAF, and Safari discards a drawing buffer as soon as it has composited it — so
-    // without this the screen reads an empty buffer and the tube goes black there (Chrome
-    // happens to keep it around, which is why it only showed up on Safari). Costs the
-    // driver some freedom to discard, which is the price of being compositable.
-    const ctx = el.getContext("webgl", {
+    // fwidth() needs the derivatives extension on WebGL1, and the pragma must
+    // precede the precision line — inject it here so fwidth() is available
+    // (crisp grid lines).
+    const quad = createQuadProgram(el, {
+      label: "DiscoBall",
+      vert: VERT,
+      frag: "#extension GL_OES_standard_derivatives : enable\n" + FRAG,
       antialias: true,
-      alpha: false,
-      preserveDrawingBuffer: true,
+      extensions: ["OES_standard_derivatives"],
     });
-    if (!ctx) {
-      console.warn("DiscoBall: WebGL unavailable");
-      return;
-    }
-    const gl: WebGLRenderingContext = ctx;
-    // fwidth() needs the derivatives extension on WebGL1.
-    gl.getExtension("OES_standard_derivatives");
-
-    function compile(type: number, src: string): WebGLShader | null {
-      const sh = gl.createShader(type);
-      if (!sh) return null;
-      gl.shaderSource(sh, src);
-      gl.compileShader(sh);
-      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-        console.warn("DiscoBall shader:", gl.getShaderInfoLog(sh));
-        gl.deleteShader(sh);
-        return null;
-      }
-      return sh;
-    }
-    // GLSL_derivatives pragma must precede the precision line — inject it here so
-    // fwidth() is available (crisp grid lines).
-    const fs = compile(
-      gl.FRAGMENT_SHADER,
-      "#extension GL_OES_standard_derivatives : enable\n" + FRAG,
-    );
-    const vs = compile(gl.VERTEX_SHADER, VERT);
-    const prog = gl.createProgram();
-    if (!vs || !fs || !prog) return;
-    gl.attachShader(prog, vs);
-    gl.attachShader(prog, fs);
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.warn("DiscoBall link:", gl.getProgramInfoLog(prog));
-      return;
-    }
-    gl.useProgram(prog);
-
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    const aPos = gl.getAttribLocation(prog, "a_pos");
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    if (!quad) return;
+    const { gl, prog } = quad;
 
     const u = (n: string) => gl.getUniformLocation(prog, n);
     const uRes = u("uRes"),
@@ -287,18 +246,6 @@
       uTreble = u("uTreble"),
       uBurst = u("uBurst"),
       uLight = u("uLight");
-
-    // Cap the backing resolution at 1.5× rather than the full 2× retina: a
-    // raymarched ball is all smooth gradients, so 1.5× is visually identical but
-    // ~44% fewer fragment-shader invocations per frame (the main heat lever).
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    const ro = new ResizeObserver(() => {
-      const rect = el.getBoundingClientRect();
-      el.width = Math.max(1, Math.round(rect.width * dpr));
-      el.height = Math.max(1, Math.round(rect.height * dpr));
-      gl.viewport(0, 0, el.width, el.height);
-    });
-    ro.observe(el);
 
     // Accessibility: honour prefers-reduced-motion by damping the ball's spin
     // acceleration and the light's drift to a calm fraction. Read once at mount.
@@ -420,16 +367,11 @@
 
     return () => {
       stop();
-      ro.disconnect();
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerup", onUp);
       el.removeEventListener("pointercancel", onUp);
-      gl.deleteProgram(prog);
-      gl.deleteShader(vs);
-      gl.deleteShader(fs);
-      gl.deleteBuffer(buf);
-      gl.getExtension("WEBGL_lose_context")?.loseContext();
+      quad.destroy();
     };
   });
 </script>

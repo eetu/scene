@@ -40,7 +40,7 @@ let lastQueryKey = "";
 let reshapeGen = 0;
 
 /** Re-fetch the shaped library for `q` (defaults to the current view). */
-export async function reshape(q: LibraryQuery = queryFromView()): Promise<void> {
+async function reshape(q: LibraryQuery = queryFromView()): Promise<void> {
   lastQueryKey = JSON.stringify(q);
   const gen = ++reshapeGen;
   const shaped = await api.libraryIds(q);
@@ -88,7 +88,7 @@ export function unEnriched(): number {
 }
 
 /** Re-read the outstanding-enrichment count. */
-export async function refreshUnenriched(): Promise<void> {
+async function refreshUnenriched(): Promise<void> {
   if (STANDALONE) return;
   try {
     library.unenriched = (await api.unenriched()).count;

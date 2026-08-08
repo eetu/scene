@@ -1122,6 +1122,7 @@ dependencies = [
  "rayon",
  "reqwest",
  "rusqlite",
+ "scene-backend",
  "serde",
  "serde_json",
  "sha2",
@@ -1521,6 +1522,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "scene-backend"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.23.1",
+ "mime_guess",
+ "reqwest",
+ "rusqlite",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2044,6 +2062,7 @@ dependencies = [
  "rayon",
  "reqwest",
  "rusqlite",
+ "scene-backend",
  "serde",
  "serde_json",
  "sha2",

@@ -86,8 +86,7 @@ async function loadRoms(base: string): Promise<void> {
  *  This is the whole voice model: per voice, `$00-$01` frequency, `$02-$03`
  *  pulse width, `$04` control (waveform select + gate/sync/ring), `$05-$06`
  *  attack/decay + sustain/release; then `$15-$18` filter cutoff, resonance,
- *  routing and master volume. libsidplayfp exposes it directly, which is why
- *  the plan's custom emscripten shim turned out to be unnecessary. */
+ *  routing and master volume. libsidplayfp exposes it directly. */
 function readRegisters(): number[] {
   if (!engine) return [];
   const out: number[] = [];

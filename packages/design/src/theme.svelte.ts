@@ -39,9 +39,3 @@ export function setAccent(accent: Accent) {
   theme.accent = accent;
   if (typeof localStorage !== "undefined") localStorage.setItem(ACCENT_KEY, accent);
 }
-
-// Cycle order for the single toolbar button: dark → light → auto → dark.
-const ORDER: ThemeMode[] = ["dark", "light", "auto"];
-export function cycleTheme() {
-  setTheme(ORDER[(ORDER.indexOf(theme.mode) + 1) % ORDER.length]);
-}

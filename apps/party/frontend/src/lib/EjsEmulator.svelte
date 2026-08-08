@@ -3,6 +3,8 @@
   // and Amiga (puae). EmulatorJS shows its own themed "Start Game" button and
   // only downloads the core on that click, so it's already lazy + provides the
   // audio gesture — no separate launch button needed. We add Fullscreen + Stop.
+  import "./emu-bar.css";
+
   import { Cpu, Maximize, Power, Sparkles, Trash2, Upload } from "@lucide/svelte";
   import { onDestroy, onMount, tick } from "svelte";
 
@@ -111,7 +113,7 @@
   let controlsHidden = $state(false);
   let scriptEl: HTMLScriptElement | null = null;
 
-  // --- Boot watchdog ------------------------------------------------------
+  // Boot watchdog.
   // EmulatorJS builds its (disabled) virtual-gamepad overlay in the SAME
   // constructor step that, on a degraded load, can throw before the Launch
   // button is ever created — stranding the user on a dead controller overlay
@@ -241,26 +243,10 @@
     g.EJS_volume = 1;
     g.EJS_color = cssVar("--accent", "#f78f08");
     g.EJS_backgroundColor = cssVar("--bg", "#0f0f0f");
-    // Core option defaults (the INITIAL value; once the user changes an option
-    // in the settings menu their choice persists in localStorage and wins,
-    // unless "Recommended" above forces these):
-    // - Amiga: A1200 (AGA), authentic 68020, CPU compatibility 'normal' (the faster,
-    //   non-cycle-exact CPU emulation); immediate blits + no collision (demos don't
-    //   use it) save CPU. This is the stock EmulatorJS PUAE core, a plain
-    //   interpreter. 020 is the default and lightest to emulate; demos that REQUIRE an
-    //   accelerator (an 030/040/FPU to boot) can be bumped to an A4000/030 or /040 per
-    //   demo via the CPU control, but a heavier CPU emulates slower on the interpreter.
-    //   Cycle-exact timing is used only for the A500/OCS class (68000 demos need it).
-    // - C64: drive-sound emulation off by default. VICE models the 1541's
-    //   motor/stepper noise faithfully, and many demos keep the drive spinning,
-    //   so the sound runs on under the demo (unlike Amiga, whose floppy noise
-    //   stops with the motor). Re-enable it in the settings menu if wanted.
-    //   autostart_warp: warp the machine while the (slow) 1541 loads, then drop
-    //   back to 1× — keeps true drive emulation on (demos' fastloaders still
-    //   work), only the load is sped up.
-    // - virtual-gamepad off: EmulatorJS defaults it to "enabled" on mobile, but
-    //   these are keyboard/non-interactive demos, so the touch d-pad just covers
-    //   the screen with nothing useful. Still re-enableable in the settings menu.
+    // Core option defaults — the INITIAL value only; a user's settings-menu
+    // choice persists in localStorage and wins, unless "Recommended" above
+    // forces these.
+    //
     // Force the modern WebGL2 core build. EmulatorJS picks the "-legacy" (WebGL1)
     // core whenever `webgl2Enabled` is falsy, and that value defaults to null unless
     // a saved setting or the core's report JSON (options.defaultWebGL2) supplies one
@@ -270,6 +256,8 @@
     // localhost's localStorage happened to have WebGL2 persisted. preGetSetting reads
     // this default when there's no saved value, so this pins WebGL2 on everywhere.
     const opts: Record<string, string> = {
+      // Mobile default is "enabled", but these are keyboard/non-interactive
+      // demos — the touch d-pad just covers the screen.
       "virtual-gamepad": "disabled",
       webgl2Enabled: "enabled",
     };
@@ -317,7 +305,11 @@
         opts.puae_sound_filter = "off";
       }
     } else if (core === "c64") {
+      // VICE models the 1541's motor noise faithfully and many demos keep the
+      // drive spinning, so the sound would run on under the demo.
       opts.vice_drive_sound_emulation = "disabled";
+      // Warp only while the (slow) 1541 loads, then drop to 1× — true drive
+      // emulation stays on, so demos' fastloaders still work.
       opts.vice_autostart_warp = "enabled";
     }
     g.EJS_defaultOptions = opts;
@@ -680,21 +672,7 @@
     gap: 6px;
     flex-wrap: wrap;
   }
-  .bar button {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--panel);
-    color: var(--text);
-    font-size: 12px;
-    cursor: pointer;
-  }
-  .bar button:hover {
-    border-color: var(--accent);
-  }
+  /* Button chrome comes from the shared emu-bar.css. */
   /* Toggles read as switches: dotted when off, solid-filled when on. */
   .bar button.tgl {
     border-style: dashed;
@@ -735,10 +713,6 @@
     color: var(--bg);
     position: relative;
     z-index: 1;
-  }
-  .bar button.exit:hover {
-    border-color: #ff4136;
-    color: #ff4136;
   }
   /* "Provide ROM" stands out (a required action), like the on-toggle accent. */
   .bar button.rom-need {

@@ -10,7 +10,7 @@
     Upload,
     X,
   } from "@lucide/svelte";
-  import { playback } from "@scene/player";
+  import { fmtTime, playback } from "@scene/player";
 
   import {
     api,
@@ -172,7 +172,7 @@
     }
   }
 
-  // ---- import / export (JSON documents — see api.ImportDoc) ----
+  // Import / export: JSON documents — see api.ImportDoc.
   async function onImportFile(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
@@ -213,12 +213,6 @@
   // sub-label so a mod reads the same in every list view.
   function sub(i: PlaylistItem): string {
     return [i.group, i.artist].filter(Boolean).join(" · ");
-  }
-  function fmtTime(sec: number): string {
-    if (!sec || !isFinite(sec)) return "0:00";
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s.toString().padStart(2, "0")}`;
   }
 </script>
 

@@ -7,25 +7,7 @@
  *  `playback.hasPatterns`. */
 export type PvTab = "pattern" | "samples" | "viz" | "voices";
 
-export type VizMode =
-  | "vu"
-  | "flip"
-  | "board"
-  | "hifi"
-  | "harmony"
-  | "cube"
-  | "wave"
-  | "stars"
-  | "copper"
-  | "plasma"
-  | "tunnel"
-  | "disco"
-  | "paint"
-  | "tubes"
-  | "dancer"
-  | "ball";
-
-export const VIZ: VizMode[] = [
+export const VIZ = [
   "vu",
   "flip",
   "board",
@@ -42,7 +24,8 @@ export const VIZ: VizMode[] = [
   "tubes",
   "dancer",
   "ball",
-];
+] as const;
+export type VizMode = (typeof VIZ)[number];
 
 export const pv = $state({
   tab: "pattern" as PvTab,

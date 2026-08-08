@@ -13,16 +13,13 @@
 //   - the counter runs fast at the start of a side and slow at the end, because it is
 //     geared off the take-up hub rather than off a clock. Anyone who ever tried to find a
 //     song again by its counter number knows this one.
-//
-// Drawing a cassette with two equal reels turning at one speed is the tell that it was
-// drawn from memory. This module is why this one isn't.
 
 /** Hub radius, in the same units as the pack radii below (millimetres). */
 export const HUB_R = 11;
 /** Pack radius with a full C-90 side wound on. */
 export const FULL_R = 24;
 /** Standard tape speed, mm/s. */
-export const TAPE_SPEED = 47.6;
+const TAPE_SPEED = 47.6;
 /** The corner guide rollers the tape is turned around, radius in mm. Tiny, so they spin
  *  many times faster than the hubs — which is most of what makes them worth drawing. */
 export const GUIDE_R = 2.5;

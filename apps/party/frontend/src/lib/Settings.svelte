@@ -5,6 +5,8 @@
   // lives here (not just the landing header), it can be triggered from inside a
   // party view too. `onRescanned` lets the host refresh its list when a scan
   // finishes (the landing passes its loader; the party view can omit it).
+  import "@scene/design/modal.css";
+
   import { Monitor, Moon, RefreshCw, Settings as Gear, Sun } from "@lucide/svelte";
   import { setTheme, theme, trapFocus } from "@scene/design";
 
@@ -132,51 +134,7 @@
   .gear:hover {
     border-color: var(--accent);
   }
-  .modal-bg {
-    position: fixed;
-    inset: 0;
-    z-index: 20;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-  }
-  .modal-scrim {
-    position: absolute;
-    inset: 0;
-    border: none;
-    background: rgba(0, 0, 0, 0.5);
-    cursor: pointer;
-  }
-  .modal {
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    max-width: 420px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  /* Fill the viewport on phones instead of a cramped centred card (safe-area
-     aware, scrolls if tall). */
-  @media (max-width: 640px) {
-    .modal-bg {
-      padding: 0;
-    }
-    .modal {
-      max-width: none;
-      height: 100%;
-      border: 0;
-      border-radius: 0;
-      overflow-y: auto;
-      padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
-        calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
-    }
-  }
+  /* Shell (scrim + card + phone-fullscreen) comes from @scene/design/modal.css. */
   .modal h3 {
     margin: 0;
     font-size: 14px;

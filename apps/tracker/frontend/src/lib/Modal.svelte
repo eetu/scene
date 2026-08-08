@@ -4,6 +4,8 @@
   // children; generic content chrome (h3 / label / input / .modal-actions) is
   // styled here via :global so slotted markup picks it up (the themed button/
   // select base is global, in +layout); panel-specific styles stay in the panel.
+  import "@scene/design/modal.css";
+
   import { trapFocus } from "@scene/design";
   import type { Snippet } from "svelte";
 
@@ -19,35 +21,10 @@
 </div>
 
 <style>
+  /* Shell (scrim + card + phone-fullscreen) comes from @scene/design/modal.css;
+     only the stacking layer is this app's own. */
   .modal-bg {
-    position: fixed;
-    inset: 0;
-    z-index: 6;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-  }
-  .modal-scrim {
-    position: absolute;
-    inset: 0;
-    border: none;
-    border-radius: 0;
-    background: rgba(0, 0, 0, 0.5);
-    cursor: pointer;
-  }
-  .modal {
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    max-width: 420px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    --modal-z: 6;
   }
   /* Generic content chrome — styles the slotted panel markup. */
   .modal :global(h3) {
@@ -82,22 +59,5 @@
   .modal :global(.ok) {
     border-color: var(--accent);
     color: var(--accent);
-  }
-  /* On phones a centred 420px card wastes space and crowds its content — fill the
-     viewport instead (edge to edge, no radius), honouring the safe-area insets,
-     and scroll if the content is tall. */
-  @media (max-width: 640px) {
-    .modal-bg {
-      padding: 0;
-    }
-    .modal {
-      max-width: none;
-      height: 100%;
-      border: 0;
-      border-radius: 0;
-      overflow-y: auto;
-      padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
-        calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
-    }
   }
 </style>

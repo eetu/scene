@@ -6,9 +6,20 @@
 // personal stereo that portrait panes get instead. What they share is everything below —
 // most importantly the cassette, which is the point of the visualiser and has to be exactly
 // the same object in both, turned on its side in one of them.
+import { accentColor, type RGB } from "./accent";
 import { type DeckState, GUIDE_R, HUB_R, reelState } from "./cassette";
 
 export type Rect = { x: number; y: number; w: number; h: number };
+
+/** Fractional coordinates within `c`: `px` scales a fraction of the width to
+ *  pixels, `cx`/`cy` map 0..1 across the rect. */
+function frac(c: Rect) {
+  return {
+    px: (v: number) => v * c.w,
+    cx: (f: number) => c.x + f * c.w,
+    cy: (f: number) => c.y + f * c.h,
+  };
+}
 
 /** Every control on the front that does something when you press it. */
 export type HifiButtonId =
@@ -35,15 +46,10 @@ export type HifiButton = {
   inert?: boolean;
 };
 
-// Charcoal brushed aluminium with a champagne trim line: the late-golden-age look, when
-// the silver-faced separates had gone black but the gold anodising stayed on as a stripe.
 /**
- * The two finishes this hardware came in.
- *
- * Not a light-mode tint of a dark-mode palette: they are the two eras. Black-faced charcoal
- * with a champagne stripe is the late-golden-age separates look; brushed silver with the
- * same gold stripe is what the decade started in, and what a light room wants. Both are
- * real, so both get real colours rather than one being a washed-out copy of the other.
+ * The two finishes this hardware came in: black-faced charcoal with a champagne stripe,
+ * and brushed silver with the same gold stripe. Both are real eras, so both get real
+ * colours rather than one being a washed-out copy of the other.
  *
  * Two things do NOT follow the theme, on purpose:
  *   - the display recess, because a vacuum-fluorescent tube is a dark hole behind smoked
@@ -51,11 +57,8 @@ export type HifiButton = {
  *   - the speaker drivers, because cones were black on silver cabinets too. Their shading
  *     is fixed as well, not just their colour — see DRIVER in hifi-chassis.ts.
  *
- * The cassette DOES follow it. "A cassette is a cassette" holds for any single tape and not
- * for the shelf: smoke-grey and ivory shells were both ordinary, and a black one lying in
- * the well of a silver deck is the last thing on screen still lit for the other room. So the
- * shell changes with the finish and the label does not, because the label was printed by
- * whoever owned the tape.
+ * The cassette DOES follow it: the shell changes with the finish, and the label does not,
+ * because the label was printed by whoever owned the tape.
  */
 const PALETTES = {
   dark: {
@@ -68,22 +71,18 @@ const PALETTES = {
     print: "#8b9099",
     printDim: "#5b6068",
     glassWell: "#050607",
-    /** Cabinet, and the recessed baffle the drivers bolt to. */
     cabTop: "#1c1d21",
     cabBot: "#0b0c0e",
     baffle: "#121316",
-    /** Grille cloth, and the two thread tones its weave is made of. */
     cloth: "#0e0f12",
     threadHi: "rgba(255,255,255,0.055)",
     threadLo: "rgba(0,0,0,0.55)",
-    /** The cassette's shell, top to bottom, and the bulkier bottom moulding under it. */
     shellHi: "#3c3e46",
     shellMid: "#25272d",
     shellLo: "#15161a",
     mouldHi: "#33353c",
     mouldMid: "#2a2c33",
     mouldLo: "#191a1e",
-    /** Key caps and small buttons. */
     keyTop: "#3a3d44",
     keyMid: "#23262b",
     keyBot: "#14161a",
@@ -93,7 +92,6 @@ const PALETTES = {
     knobDot: "#c8ae6a",
     btn: "#262930",
     notch: "#1b1d21",
-    /** Holes: the cassette well and the door surround. */
     recess: "#0d0e11",
     /** The floor of the well, behind the cassette, and the hole a VU meter's dial sits in.
      *  Both are openings in the FACEPLATE rather than driver hardware, so unlike the cones
@@ -130,9 +128,7 @@ const PALETTES = {
     cloth: "#8d9199",
     threadHi: "rgba(255,255,255,0.30)",
     threadLo: "rgba(0,0,0,0.22)",
-    // An ivory shell. Smoke-grey is the cassette everyone pictures, but the white-bodied
-    // tapes were just as real — TDK's D, BASF's ferro, the Maxell URs — and a black one in
-    // the well of a silver deck was the last object still lit for the other room.
+    // An ivory shell — the white-bodied blanks were as period-real as smoke-grey.
     shellHi: "#f2efe7",
     shellMid: "#dedbd2",
     shellLo: "#c3c0b7",
@@ -150,10 +146,8 @@ const PALETTES = {
     // a patch of the same grey.
     wellFloor: "#5c616a",
     meterWell: "#787d86",
-    // Barely tinted. The door is the same smoked acrylic in either room, but a tint heavy
-    // enough to read as smoke against a black deck simply put the ivory cassette back in
-    // the dark — the shell is what you are meant to be looking at, and the door is in front
-    // of it. A lit room does not push that much grey through a window either.
+    // Barely tinted: a tint heavy enough to read as smoke would put the ivory cassette
+    // back in the dark, and the shell is what you are meant to be looking at.
     doorTop: "rgba(74,82,92,0.26)",
     doorMid: "rgba(64,72,82,0.14)",
     doorBot: "rgba(54,62,72,0.3)",
@@ -168,13 +162,8 @@ const PALETTES = {
   },
 } as const;
 
-/**
- * The live palette.
- *
- * A mutable object rather than a swapped reference, so every `INK.face` in the two chassis
- * modules keeps working and there is exactly one place the theme is held. There is only ever
- * one theme on a page, which is what makes module-level state the right shape here.
- */
+/** The live palette — mutated in place rather than swapped, so every `INK.face` in the two
+ *  chassis modules keeps working and there is exactly one place the theme is held. */
 export const INK: Record<keyof (typeof PALETTES)["dark"], string> = { ...PALETTES.dark };
 
 export type ChassisTheme = keyof typeof PALETTES;
@@ -192,30 +181,13 @@ export function setChassisTheme(t: ChassisTheme) {
 /** Label paper, in the off-whites blank inlays were printed on. A tape's identity was its
  *  label, so these still vary per track — but only in the paper, since the band that carries
  *  the colour now comes from the app's accent (see `labelStock`). */
-export const PAPERS = [
+const PAPERS = [
   { paper: "#ece6d8", ink: "#2a2320" },
   { paper: "#e8e9ec", ink: "#1c232e" },
   { paper: "#eae7dc", ink: "#26241f" },
   { paper: "#e6ead9", ink: "#22291f" },
   { paper: "#efe6d4", ink: "#2e2418" },
 ];
-
-type RGB = [number, number, number];
-
-function parseHex(s: string): RGB {
-  const t = s.trim();
-  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(t);
-  if (m) {
-    const h = m[1].length === 3 ? m[1].replace(/./g, (ch) => ch + ch) : m[1];
-    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
-  }
-  const rgb = /rgba?\(([^)]+)\)/i.exec(t);
-  if (rgb) {
-    const n = rgb[1].split(",").map((v) => parseFloat(v));
-    return [n[0] || 0, n[1] || 0, n[2] || 0];
-  }
-  return [247, 143, 8]; // the family's warm orange
-}
 
 const css = (c: RGB) => `rgb(${c.map((v) => Math.round(Math.max(0, Math.min(255, v)))).join(",")})`;
 const mix = (a: RGB, b: RGB, t: number): RGB => [
@@ -224,27 +196,13 @@ const mix = (a: RGB, b: RGB, t: number): RGB => [
   a[2] + (b[2] - a[2]) * t,
 ];
 
-/** The app's accent, as the visualisers read it. */
-export function accentColor(): RGB {
-  if (typeof document === "undefined" || typeof getComputedStyle !== "function") {
-    return [247, 143, 8];
-  }
-  return parseHex(getComputedStyle(document.documentElement).getPropertyValue("--accent"));
-}
-
 /**
- * One tape's label colours.
- *
- * The band used to be a fixed set of the real brands' own colours — TDK burgundy, Sony blue,
- * BASF green. Handsome, but it left the cassette as the one object in the visualiser that
- * ignored the app's accent, and it is the object the eye goes to.
- *
- * So the band is the accent now, and the per-track variety that made every module arrive on
- * its own tape moved into two places that can carry it without fighting the theme: five
- * treatments of that one colour, and the paper it is printed on. A re-themed accent takes the
- * whole tape library with it, which is the point.
+ * One tape's label colours. The band is synthesized from the app's accent rather than the
+ * real brands' colours: the cassette is the object the eye goes to, and it must not be the
+ * one thing in the visualiser that ignores a re-themed accent. Per-track variety comes from
+ * five treatments of that one colour, and from the paper it is printed on.
  */
-export function labelStock(seed: number) {
+function labelStock(seed: number) {
   const i = Math.abs(seed) % PAPERS.length;
   const a = accentColor();
   const black: RGB = [16, 16, 18];
@@ -289,7 +247,7 @@ export function rr(
 }
 
 /** A vertical two-stop fill, the shape of light falling on a horizontal brushed panel. */
-export function vgrad(ctx: CanvasRenderingContext2D, r: Rect, top: string, bottom: string) {
+function vgrad(ctx: CanvasRenderingContext2D, r: Rect, top: string, bottom: string) {
   const g = ctx.createLinearGradient(0, r.y, 0, r.y + r.h);
   g.addColorStop(0, top);
   g.addColorStop(1, bottom);
@@ -355,12 +313,9 @@ export function fitted(
   return `${s}…`;
 }
 
-// ─── grille covers ─────────────────────────────────────────────────────────────────────
-//
-// The cloth-covered frames that clip onto the front of the cabinets. Drawn every frame
-// rather than baked into the static layer, because they are the one thing here that sits
-// IN FRONT of something moving: the woofer breathes underneath and shows faintly through
-// the weave, which is exactly what a real grille does and the reason people take them off.
+// The grille covers: cloth-covered frames that clip onto the front of the cabinets. Drawn
+// every frame rather than baked into the static layer, because they sit IN FRONT of
+// something moving: the woofer breathes underneath and shows faintly through the weave.
 //
 // The weave is a repeat pattern built once, so the per-frame cost of all that texture is a
 // single fillRect. Rebuilt when the device pixel ratio or the finish changes, since the
@@ -410,7 +365,7 @@ function clothPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
 
 /** Where a cabinet's cover sits: nearly the whole front, with the cabinet's own edge showing
  *  round it the way a clip-on frame leaves a margin. */
-export function grilleOf(r: Rect): Rect {
+function grilleOf(r: Rect): Rect {
   return { x: r.x + r.w * 0.05, y: r.y + r.h * 0.035, w: r.w * 0.9, h: r.h * 0.93 };
 }
 
@@ -478,19 +433,15 @@ function paintGrilleBadge(ctx: CanvasRenderingContext2D, c: Rect) {
   paintWordmark(ctx, c.x + c.w / 2, c.y + c.h - Math.max(3, c.h * 0.05), size);
 }
 
-// ─── the maker's mark ──────────────────────────────────────────────────────────────────
-
 const MARK_FONT = `"Snell Roundhand", "Apple Chancery", "Segoe Script", "Brush Script MT", cursive`;
 
 /**
- * A gold script E — the one piece of branding on the whole system, and it lives on the
- * grille covers and nowhere else. A badge on the cloth is where a maker's mark belongs on a
- * system like this; repeating it on every faceplate would turn a detail into livery.
+ * The maker's mark: a gold script E, on the grille covers and nowhere else.
  *
  * Stamped rather than printed: a dark impression under the metal, then the metal over it
  * with its own fall from polished at the top to shadowed at the bottom. That is what makes
- * it sit ON the cloth instead of in it, and it is why the shadow stays dark on the silver
- * finish too — a gold badge on grey cloth still casts.
+ * it sit ON the cloth instead of in it, and why the shadow stays dark on the silver finish
+ * too — a gold badge on grey cloth still casts.
  */
 function paintWordmark(
   ctx: CanvasRenderingContext2D,
@@ -515,10 +466,8 @@ function paintWordmark(
   ctx.restore();
 }
 
-// ─── the cassette ──────────────────────────────────────────────────────────────────────
-//
-// Everything below is in the cassette's own 0..1 space, so the geometry reads as fractions
-// of a real shell rather than as pixel numbers that mean nothing.
+// The cassette. Everything below is in its own 0..1 space, so the geometry reads as
+// fractions of a real shell rather than as pixel numbers.
 
 /** A cassette's own proportions: 100.5 × 63.8 mm. */
 export const CASS_ASPECT = 100.5 / 63.8;
@@ -526,10 +475,10 @@ export const CASS_ASPECT = 100.5 / 63.8;
 /** Hub centres: 42 mm apart on a 100.5 mm shell. Vertically they have to clear a full
  *  24 mm pack at the top and leave the tape path room along the bottom, which lands them
  *  a little above the middle of the shell — 42 mm apart and 30 mm down. */
-export const HUB_X = [0.5 - 21 / 100.5, 0.5 + 21 / 100.5];
-export const HUB_Y = 28 / 63.8;
+const HUB_X = [0.5 - 21 / 100.5, 0.5 + 21 / 100.5];
+const HUB_Y = 28 / 63.8;
 /** Pack radii as a fraction of shell WIDTH (the units cassette.ts works in are mm). */
-export const R_SCALE = 1 / 100.5;
+const R_SCALE = 1 / 100.5;
 /** The window cut through the front. It clips the packs top and bottom, as a real one
  *  does — the label covers their crowns and the bottom edge is the moulding below.
  *
@@ -538,21 +487,18 @@ export const R_SCALE = 1 / 100.5;
 export const WIN = { x: 0.035, y: 0.3, w: 0.93 };
 /** The bulkier bottom moulding's top edge — see the note in `paintCassette`.
  *
- *  Not a straight line across, which is why the window is no longer a rectangle. Only the
- *  MIDDLE of the shell is bulkier — that is where the head, the capstan and the pinch roller
- *  press in and the shell needs the material. Out at the sides there is no thick section at
- *  all: the face runs straight down to the bottom wall, so the window does too and the corner
- *  guide rollers and the run of tape into them stay in plain sight. The window bends around
- *  the raised centre between them.
+ *  Only the MIDDLE of the shell is bulkier — that is where the head, the capstan and the
+ *  pinch roller press in and the shell needs the material. Out at the sides there is no
+ *  thick section at all: the face runs straight down to the bottom wall, so the window does
+ *  too and the corner guide rollers and the run of tape into them stay in plain sight.
  *
  *  `side` stops a hair short of 1 for the shell's own bottom wall — the aperture is a cutout
  *  in a face, not a bite out of its edge.
  *
  *  A TRAPEZOID, not a step: `foot0`/`foot1` are where its walls meet the shell's bottom edge
  *  and `x0`/`x1` where they arrive at the flat top, so the flanks splay outward on the way
- *  down. It is a moulding drafted for release from a tool, which is why every one of these
- *  has that shape — straight walls read as a slab dropped on the shell. */
-export const BAND = { side: 0.96, mid: 0.8, x0: 0.2, x1: 0.8, foot0: 0.155, foot1: 0.845 };
+ *  down — a moulding drafted for release from a tool. */
+const BAND = { side: 0.96, mid: 0.8, x0: 0.2, x1: 0.8, foot0: 0.155, foot1: 0.845 };
 
 /** The guide lugs on the shell's two short sides: how far down they start, how tall they
  *  are as a fraction of the shell's height, and how far they stand proud of its width.
@@ -560,21 +506,16 @@ export const BAND = { side: 0.96, mid: 0.8, x0: 0.2, x1: 0.8, foot0: 0.155, foot
  *  Their bottom edge lands 5mm up from the shell's own bottom — 5/63.8 of the height, which
  *  is where it is on the real part: down near the mechanism they locate the shell into,
  *  rather than adrift in the middle of the side. */
-export const LUG = { y: 1 - 5 / 63.8 - 0.22, h: 0.22, w: 0.011 };
+const LUG = { y: 1 - 5 / 63.8 - 0.22, h: 0.22, w: 0.011 };
 
 /**
  * The openings through the moulding, as fractions of the shell.
  *
  * The outer pair is ROUND — the holes the deck's guide posts come up through — and sits
- * lower, out at the tape line. The inner pair is SQUARE and sits a little higher.
- *
- * Small, and they stay small. It is tempting to open them out into one window per transport
- * part, on the theory that a part needs a hole to come through — it does, but that hole is in
- * the shell's bottom EDGE and this is the label face, so the windows buy nothing except
- * gouges out of the moulding. The parts are drawn in the bay below the cassette instead; see
- * `drawTransport`.
+ * lower, out at the tape line. The inner pair is SQUARE and sits a little higher. The
+ * transport parts themselves are drawn in the bay below the cassette; see `drawTransport`.
  */
-export const OPENINGS = {
+const OPENINGS = {
   postX: [0.26, 0.74],
   postY: 0.925,
   postR: 0.02,
@@ -584,13 +525,6 @@ export const OPENINGS = {
   slotH: 0.02,
 };
 
-/**
- * Where the transport's three parts sit across the cassette, as fractions of its width.
- *
- * Deliberately NOT the same thing as `OPENINGS`. These are the mechanism's own layout — what
- * is bolted to the head carriage under the tape — and the moulding's holes are the shell's.
- * Tying them together is what produced the three-window version.
- */
 /** The strip of bay under the cassette's bottom edge, as a fraction of the shell's HEIGHT —
  *  where the head carriage is seen. One number, because the empty well and the loaded one
  *  have to agree about it or the mechanism jumps as the tape comes out. */
@@ -598,22 +532,19 @@ export const BAY = 0.045;
 
 /** How far the pinch roller's arm swings between released and engaged, in radians. Small,
  *  because the arm is long — but far enough that the tyre finishes ON the rod coming up
- *  through the guide hole rather than a hair short of it. Stopping short is invisible as
- *  geometry and obvious as a picture: a roller not touching anything is not pinching. */
+ *  through the guide hole: a roller not touching anything is not pinching. */
 const PINCH_SWING = 0.46;
 
-export const TRANSPORT = {
-  // Out on the guide-post holes, both of them, and that is mechanics rather than spacing.
-  // A steel rod comes up through each of those holes — the capstan on the right — and the
-  // pinch roller traps the tape against it. So the roller has to be ON that hole, not
-  // inboard of it: pinching against nothing is what it was doing before. The erase head
-  // mirrors it about the centre, on its own pivot, because that is where its rod is.
+// The mechanism's own layout across the cassette (fractions of its width) — deliberately
+// NOT `OPENINGS`, which are the shell's holes.
+const TRANSPORT = {
+  // Out on the guide-post holes, both of them: a steel rod comes up through each — the
+  // capstan on the right — and the pinch roller traps the tape against it, so the roller
+  // has to be ON that hole, not inboard of it. The erase head mirrors it about the centre.
   erase: { x: 0.26, w: 0.07 },
   // Widths are fractions of the shell's 100.5mm, so this head is a hair under 12mm across.
   head: { x: 0.5, w: 0.117 },
-  // A shade narrower than the head — the roller's DIAMETER is about a head's width, which is
-  // what makes it read as a wheel of a believable size. Sizing it off its own slot got a
-  // tyre half that big.
+  // A shade narrower than the head — the roller's DIAMETER is about a head's width.
   pinch: { x: 0.74, w: 0.092 },
 };
 
@@ -627,51 +558,31 @@ function bandFoot(c: Rect, left: boolean): number {
 }
 /** The paper inlay above it, inset far enough to leave the corner screws showing — the
  *  label never covered them, because you had to be able to get the shell apart. */
-export const LBL = { x: 0.09, y: 0.04, w: 0.82, h: 0.225 };
+const LBL = { x: 0.09, y: 0.04, w: 0.82, h: 0.225 };
 /** The corner guide rollers.
  *
- *  Right out at the shell's bottom corners, which is where they are on a real cassette and
- *  is the whole reason the tape leaves the packs from their OUTER edges: the rollers sit
- *  outboard of the hubs, so the tape has to clear each pack's widest point to reach one.
- *  Tucked in beside the reels instead, the path reads as tape falling off the bottom of a
- *  hub rather than being carried around a corner.
+ *  Right out at the shell's bottom corners, outboard of the hubs — which is why the tape
+ *  leaves each pack from its OUTER edge: it has to clear the pack's widest point to reach
+ *  a roller.
  *
- *  Measured off the Wikimedia playback-path schematic
+ *  Measured off the rendered Wikimedia playback-path schematic
  *  (Cassette_playback_mode_-_2head_1capstan_ITA.svg): 10.4mm in from each side and 59.2mm
- *  down, i.e. tucked right against the bottom edge, well below the hubs and only a little
- *  inboard of the corners.
- *
- *  Measured off the RENDERED diagram, note, not off its source coordinates. Reading the SVG's
- *  numbers gave a confident-looking 6.5mm × 52.5mm that was wrong in the vertical, because
- *  the file has no shell rectangle to anchor against and the arithmetic ended up hanging off
- *  this drawing's own hub position rather than the diagram's. Rendering it and measuring the
- *  shell's four edges has nothing to assume.
- *
- *  Clearance is worth checking in millimetres rather than by eye. A full 24mm pack on a hub
- *  29.25mm from the left edge leaves very little room: an early pass had the roller 1.9mm off
- *  the pack, which is touching at any size that matters. These positions give 9.8mm.
- *
- *  The vertical is then cheated up by about a millimetre off the measured 59.2mm, which is
- *  the one liberty taken with this drawing. At the true height the roller's bottom edge is
- *  clipped by the window and you get most of a circle with a flat on it — and half a roller
- *  reads as a rendering fault rather than as a part, which defeats the point of having gone
- *  and measured it. A millimetre buys the whole part. */
-export const GUIDE = { x: 0.103, y: 0.908 };
+ *  down, which leaves 9.8mm of clearance to a full 24mm pack. The vertical is then cheated
+ *  up by about a millimetre: at the true height the window clips the roller's bottom edge
+ *  to a flat, which reads as a rendering fault rather than as a part. */
+const GUIDE = { x: 0.103, y: 0.908 };
 
 /** Traces the moulding's top edge, left to right, as a path — the shallow run at each side and
  *  the raised centre between them, with every turn rounded. Plastic has no sharp inside
  *  corners, and the aperture that follows this line is a moulded edge, not a cut one. */
 function bandCrest(ctx: CanvasRenderingContext2D, c: Rect) {
-  const cx = (f: number) => c.x + f * c.w;
-  const cy = (f: number) => c.y + f * c.h;
+  const { cx, cy } = frac(c);
   const rB = c.w * 0.02;
   const yMid = cy(BAND.mid);
   const bottom = c.y + c.h;
   // Up the splayed left flank, over the flat top, down the right — and nothing across the
-  // sides, because out there the moulding does not exist. Its walls run all the way DOWN to
-  // the shell's bottom edge rather than tapering off into a full-width strip. Filling the
-  // thin band beside them would put the bulky section back out to the corners, which is the
-  // whole thing this shape exists to avoid.
+  // sides, because out there the moulding does not exist: its walls run all the way DOWN to
+  // the shell's bottom edge.
   ctx.moveTo(cx(BAND.foot0), bottom);
   ctx.arcTo(cx(BAND.x0), yMid, cx(BAND.x1), yMid, rB);
   ctx.arcTo(cx(BAND.x1), yMid, cx(BAND.foot1), bottom, rB);
@@ -680,15 +591,14 @@ function bandCrest(ctx: CanvasRenderingContext2D, c: Rect) {
 
 /** The window aperture. Square across the top, and along the bottom it follows `bandCrest` —
  *  the moulding is opaque, so the opening bends around it rather than being covered by it. */
-export function windowPath(ctx: CanvasRenderingContext2D, c: Rect) {
+function windowPath(ctx: CanvasRenderingContext2D, c: Rect) {
   ctx.beginPath();
   windowOutline(ctx, c);
 }
 
 /** The same outline as a subpath, for when it has to share a path with something else. */
 function windowOutline(ctx: CanvasRenderingContext2D, c: Rect) {
-  const cx = (f: number) => c.x + f * c.w;
-  const cy = (f: number) => c.y + f * c.h;
+  const { cx, cy } = frac(c);
   const rT = c.w * 0.02;
   const rB = c.w * 0.02;
   const l = cx(WIN.x);
@@ -724,8 +634,6 @@ function bandPath(ctx: CanvasRenderingContext2D, c: Rect) {
   ctx.closePath();
 }
 
-/** The tape packs, hubs and the tape between them — the only part of the cassette that
- *  moves, and therefore the only part drawn every frame. */
 /**
  * The transport itself — what is under a cassette, and what you see when the lid is open and
  * the well is empty.
@@ -736,9 +644,7 @@ function bandPath(ctx: CanvasRenderingContext2D, c: Rect) {
  * fractions in another file would drift out of register the first time either moved.
  */
 export function drawMechanism(ctx: CanvasRenderingContext2D, c: Rect) {
-  const px = (v: number) => v * c.w;
-  const cx = (f: number) => c.x + f * c.w;
-  const cy = (f: number) => c.y + f * c.h;
+  const { px, cx, cy } = frac(c);
 
   // The bay floor: a dark moulding, lighter than the cavity so the parts read against it.
   ctx.fillStyle = "#1a1c20";
@@ -754,8 +660,7 @@ export function drawMechanism(ctx: CanvasRenderingContext2D, c: Rect) {
     ctx.beginPath();
     ctx.arc(x, y + r * 0.18, r * 1.25, 0, TAU);
     ctx.fill();
-    // Dark grey, not brass. Gold made them the brightest, warmest thing in an otherwise
-    // black bay, so the eye went straight to two ornaments instead of to the mechanism.
+    // Dark grey, not brass — a bright spindle pulls the eye off the mechanism.
     const g = ctx.createRadialGradient(x - r * 0.4, y - r * 0.4, 0, x, y, r);
     g.addColorStop(0, "#6b7079");
     g.addColorStop(0.6, "#3c4046");
@@ -774,16 +679,14 @@ export function drawMechanism(ctx: CanvasRenderingContext2D, c: Rect) {
     }
   }
 
-  // The compartment lamp, and here it is the one place you see the whole of it: with the lid
-  // open there is no tape in front of it and no shell edge cutting it off. Same panel as the
-  // one behind the reels, brighter, because nothing is standing between it and you.
+  // The compartment lamp — same panel as the one behind the reels, brighter, because with
+  // the lid open nothing is standing between it and you.
   wellLamp(ctx, c, 0.44);
 
   // The capstan: a thin polished rod up through the bay floor, standing exactly where the
-  // cassette's right guide hole will be. It is not near that hole, it is IN it — the hole is
-  // moulded for this rod to pass through, and the pinch roller closes on the far side to trap
-  // the tape between the two. Both come off `OPENINGS` for that reason: a position of its own
-  // puts the rod through solid plastic and leaves the roller pinching against nothing.
+  // cassette's right guide hole will be — IN the hole, not near it; the pinch roller closes
+  // on the far side to trap the tape. Both come off `OPENINGS` so rod and roller cannot
+  // drift apart.
   const capX = cx(OPENINGS.postX[1]);
   const capY = cy(OPENINGS.postY);
   ctx.fillStyle = "#0f1114";
@@ -805,15 +708,10 @@ export function drawMechanism(ctx: CanvasRenderingContext2D, c: Rect) {
   ctx.arc(cx(OPENINGS.postX[0]), capY, px(OPENINGS.postR * 0.42), 0, TAU);
   ctx.fill();
 
-  // The head carriage, at rest on the bay floor. It does not come forward until play is
-  // pressed, but it is bolted to this plate the whole time — and an empty bay is the one view
-  // in which the parts can be seen properly rather than as tips at the edge of a window,
-  // which is what "idle with the lid open" looks like.
-  //
-  // Same floor and same gap as the loaded view, which is what BAY exists for: give this one a
-  // fatter gap and the carriage jumps as the tape comes out. Only `reveal` differs — with no
-  // cassette in front of it you see the parts' bodies rather than their tips, but they have
-  // not moved a pixel.
+  // The head carriage, at rest on the bay floor. Same floor and same gap as the loaded
+  // view, which is what BAY exists for: give this one a fatter gap and the carriage jumps
+  // as the tape comes out. Only `reveal` differs — with no cassette in front of it you see
+  // the parts' bodies rather than their tips, but they have not moved a pixel.
   const bay = c.h * BAY;
   drawTransport(ctx, c, c.y + c.h + bay, bay, 0, c.h * 0.3);
 }
@@ -822,23 +720,12 @@ export function drawMechanism(ctx: CanvasRenderingContext2D, c: Rect) {
  * The compartment lamp: a frosted panel behind the tape, which every deck with a window had.
  *
  * Feathered by stacking the panel several times, each one a little larger and a little
- * fainter, because canvas has no blur for a fill and the alternatives all failed:
- *
- *   - a radial gradient inside a rounded rect leaves a hard rectangular edge wherever the
- *     falloff has not reached zero by the time it meets the rect;
- *   - a shadow drawn behind a visible rect softens only the outside — the panel itself stays
- *     a pasted rectangle;
- *   - casting ONLY a shadow, with the shape that throws it pushed off-screen and the offset
- *     bringing it back, does give a properly soft panel — but `shadowOffsetX/Y` are in canvas
- *     coordinates and are NOT put through the current transform. Under the walkman's quarter
- *     turn the caster moved one way and its shadow the other, and the lamp landed somewhere
- *     off in the chassis — correct on the deck, wrong on the walkman, from one code path.
- *
- * Stacking is transform-safe, which is what this has to be: both machines draw this through
- * their own matrix.
+ * fainter — canvas has no blur for a fill, and shadow tricks are out because
+ * `shadowOffsetX/Y` are NOT put through the current transform. Stacking is transform-safe,
+ * which this has to be: both machines draw it through their own matrix.
  */
-export function wellLamp(ctx: CanvasRenderingContext2D, c: Rect, strength = 0.4) {
-  const px = (v: number) => v * c.w;
+function wellLamp(ctx: CanvasRenderingContext2D, c: Rect, strength = 0.4) {
+  const { px } = frac(c);
   const lw = px(0.25);
   const lh = c.h * 0.34;
   const lx = c.x + c.w / 2 - lw / 2;
@@ -858,6 +745,8 @@ export function wellLamp(ctx: CanvasRenderingContext2D, c: Rect, strength = 0.4)
   }
 }
 
+/** The tape packs, hubs and the tape between them — the only part of the cassette that
+ *  moves, and therefore the only part drawn every frame. */
 export function drawReels(
   ctx: CanvasRenderingContext2D,
   c: Rect,
@@ -867,17 +756,14 @@ export function drawReels(
     takeupR: number;
   },
 ) {
-  const px = (v: number) => v * c.w;
-  const cx = (f: number) => c.x + f * c.w;
-  const cy = (f: number) => c.y + f * c.h;
+  const { px, cx, cy } = frac(c);
 
   ctx.save();
   // Everything the reels do is seen through the window; the shell hides the rest.
   windowPath(ctx, c);
   ctx.clip();
 
-  // The cavity behind the tape. Squared off down to the lowest the aperture reaches — the
-  // clip above is the real shape, so there is nothing to be gained by tracing it twice.
+  // The cavity behind the tape — squared off; the clip above is the real shape.
   const winH = (BAND.side - WIN.y) * c.h;
   ctx.fillStyle = "#0a0a0c";
   ctx.fillRect(cx(WIN.x), cy(WIN.y), px(WIN.w), winH);
@@ -888,11 +774,8 @@ export function drawReels(
   // they catch light in bands rather than lying flat.
   const sheetTop = cy(WIN.y);
   const sheetH = winH;
-  //
-  // Kept dark. The first pass used paper white at 20% and turned the whole window into a
-  // pale field the tape packs could barely be picked out of — but the liner is graphitized
-  // film BEHIND the reels, so what it should do is lift the black slightly and catch a couple
-  // of edges, not light the place up. Lighting the compartment is the lamp's job, below.
+  // Dim on purpose: the liner is graphitized film BEHIND the reels, so it lifts the black
+  // slightly and catches a couple of edges. Lighting the compartment is the lamp's job.
   const sheet = ctx.createLinearGradient(0, sheetTop, 0, sheetTop + sheetH);
   sheet.addColorStop(0, "rgba(150,148,140,0.13)");
   sheet.addColorStop(0.5, "rgba(120,119,114,0.08)");
@@ -908,14 +791,10 @@ export function drawReels(
     ctx.stroke();
   }
 
-  // The compartment lamp: a small diffuser panel behind the tape, which every deck with a
-  // window had and this one was missing. It is what the window is FOR — an unlit cavity
-  // behind a smoked shell is a black rectangle, and the reels were being read off their own
-  // shading alone. Warm, because it is a filament bulb behind frosted plastic.
-  //
+  // The compartment lamp: warm, because it is a filament bulb behind frosted plastic.
   // Drawn here rather than on the well floor because the cavity fill above would bury it,
   // and it belongs behind the packs: they are opaque, so the light comes through the gaps
-  // around and between them, which is exactly how a lit compartment reads.
+  // around and between them.
   wellLamp(ctx, c);
 
   const packs = [radii.supplyR, radii.takeupR];
@@ -938,10 +817,6 @@ export function drawReels(
     ctx.arc(x, y, rPack, 0, TAU);
     ctx.fill();
 
-    // No witness mark across the pack. There was a radial line here, added because a smooth
-    // annulus turning is indistinguishable from a still one and something had to carry the
-    // rotation. The hub's anchor slot does that job now — it is a real part, it turns with
-    // everything else, and it is far more legible than a hairline drawn over the oxide.
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(ang);
@@ -958,10 +833,6 @@ export function drawReels(
     ctx.restore();
   }
 
-  // The tape leaving each pack. It comes off the BOTTOM of the pack heading outward, to a
-  // guide roller in the shell's corner that turns it back the other way — which is why
-  // both hubs turn clockwise even though the tape's net travel is left to right, and why
-  // there is no tape visible spanning the middle of the window.
   // The tape path. It comes off the OUTER edge of each pack — the guides are in the bottom
   // corners, outboard of the hubs, so the tape has to clear the pack's widest point to
   // reach them — drops to a corner roller, and runs left-to-right along the bottom past the
@@ -1028,16 +899,10 @@ export function drawReels(
     }
   }
 
-  // The hubs and their leader, in a SECOND pass — after the tape path, so they sit on top.
-  //
-  // The tape leaves a nearly-empty pack from a tangent point millimetres off the hub, so a
-  // line of tape-thickness drawn afterwards crossed the hub's rim and its teeth. Drawing
-  // the reel over the tape is both the easy fix and the true one: the flange stands proud
-  // of the pack, so the tape passes BEHIND it.
-  //
-  // The LEADER belongs in this pass too: it is wound a whisker outside the hub, so moving
-  // only the hub leaves a ring of pale polyester for the tape to cross instead — the same
-  // defect a millimetre further out.
+  // The hubs and their leader, in a SECOND pass — after the tape path, so they sit on top:
+  // the tape leaves a nearly-empty pack from a tangent point millimetres off the hub, and
+  // the flange stands proud of the pack, so the tape passes BEHIND it. The LEADER is wound
+  // a whisker outside the hub, so it belongs in this pass too.
   for (let i = 0; i < 2; i++) {
     const x = cx(HUB_X[i]);
     const y = cy(HUB_Y);
@@ -1051,8 +916,7 @@ export function drawReels(
     ctx.beginPath();
     ctx.arc(x, y, rHub * 1.07, 0, TAU);
     ctx.stroke();
-    // The hub: a splined plastic ring. Six teeth, and they are what the eye actually
-    // tracks — the pack is nearly uniform, the teeth are not.
+    // The hub: a splined plastic ring. Six teeth — what the eye actually tracks.
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(ang);
@@ -1076,9 +940,8 @@ export function drawReels(
       ctx.fillRect(rHub * 0.34, -rHub * 0.09, rHub * 0.3, rHub * 0.18);
       ctx.restore();
     }
-    // The anchor slot: the C-clamp that pins the leader's end into the hub. One notch in the
-    // rim, and it turns with everything else — a second thing on the hub for the eye to
-    // track, which is worth having when the pack itself is nearly featureless.
+    // The anchor slot: the C-clamp that pins the leader's end into the hub — a second thing
+    // on the hub for the eye to track.
     ctx.fillStyle = "#2b2f36";
     ctx.fillRect(rHub * 0.66, -rHub * 0.16, rHub * 0.34, rHub * 0.32);
     ctx.restore();
@@ -1090,26 +953,20 @@ export function drawReels(
 /**
  * The head carriage coming up into the cassette.
  *
- * WHERE it is drawn is the whole problem. The openings the head goes through are cut into
- * the shell's BOTTOM EDGE, and this view is of the label face — so a head rising into a
- * window drawn on that face is a head coming up through the plastic, which could never touch
- * the tape. Same trap as the pressure pad; see the note in `paintCassette`.
- *
- * What a front-loading deck actually shows you is the strip of bay between the bottom of the
- * cassette and the floor of the well. The carriage rises in THAT, and its tips vanish into
- * the shell's bottom edge — so this is drawn BEFORE the cassette is blitted over the well,
- * and the shell occluding the parts is what sells them as going inside it rather than
- * sitting in front of it.
+ * The openings the head goes through are cut into the shell's BOTTOM EDGE, and this view is
+ * of the label face — so what a front-loading deck shows you is the strip of bay between
+ * the bottom of the cassette and the floor of the well. The carriage rises in THAT, and its
+ * tips vanish into the shell's bottom edge: drawn BEFORE the cassette is blitted over the
+ * well, so the shell occludes the parts (see the note in `paintCassette`).
  *
  * Three parts, and only two of them move:
  *
- *   - the ERASE head is left of centre and stays parked. It comes up to record, and nothing
- *     here records — the same reason the REC key is inert. Drawn all the same: the one that
- *     stays down is what makes the other two read as having moved.
+ *   - the ERASE head is left of centre and stays parked — it comes up to record, and
+ *     nothing here records. Drawn all the same: the one that stays down is what makes the
+ *     other two read as having moved.
  *   - the RECORD/PLAY head rises in the middle.
- *   - the PINCH ROLLER rises on the right, and is a WHEEL, not a post. Its axle points at
- *     you, so what you see below the cassette is the bottom of a rubber tyre — the first
- *     version drew it as a rod, which is the capstan's shape, not the roller's.
+ *   - the PINCH ROLLER rises on the right, and is a WHEEL, not a post: its axle points at
+ *     you, so what you see below the cassette is the bottom of a rubber tyre.
  */
 export function drawTransport(
   ctx: CanvasRenderingContext2D,
@@ -1152,37 +1009,23 @@ export function drawTransport(
     const w = c.w * o.w * 0.92;
     const x = c.x + o.x * c.w - w / 2;
     // Parked, the crown just clears the bay's floor; engaged, it has gone up past the
-    // shell's bottom edge and is cut off by it — which is what "into the cassette" looks
-    // like from the front.
-    //
-    // A few millimetres, which is all a real carriage moves — but it has to END somewhere
-    // past the shell's bottom edge, or the head goes up, stops in the open bay and touches
-    // nothing. That is a constraint on the WELL rather than on the travel: with a bay only a
-    // couple of millimetres deep, a couple of millimetres of throw puts the head inside the
-    // cassette where it belongs.
-    //
-    // The head slides. The ROLLER does not — see below.
-    //
-    // The block runs a long way past the bay's floor so its own bottom edge is never in
-    // shot. At exactly a bay's height it rises to reveal a rectangle with daylight under it,
-    // which reads as a tile floating in the opening rather than as the top of something
-    // standing up out of the machine.
+    // shell's bottom edge and is cut off by it. The travel has to END past that edge, or
+    // the head stops in the open bay touching nothing. The head slides; the ROLLER pivots —
+    // see below. The block runs a long way past the bay's floor so its own bottom edge is
+    // never in shot with daylight under it.
     const h = gap * 3.2;
     const y = floor - gap * 0.22 - gap * 1.05 * lift;
 
     if (kind === "pinch") {
-      // A rubber tyre on a pressed-steel yoke. A circle, because the axle points at the
-      // viewer — a rod would be the capstan's shape, not this one's.
+      // A rubber tyre on a pressed-steel yoke: a circle, because the axle points at the viewer.
       const rad = Math.max(2, w / 2);
       const ccx = x + w / 2;
       // Parked, the tyre is nearly all below the bay's floor with its crown just breaking
       // it — the same story as the head, and for the same reason.
       const ccy = floor + rad * 0.85;
 
-      // The roller PIVOTS. It is pinned to the end of an arm and the arm turns on a bearing
-      // off to its right, so the tyre comes up on an arc and the yoke visibly tilts as it
-      // goes. Slid straight up it reads as a wheel pushed AT the capstan rather than swung
-      // onto it, and the tilt is most of what says there is a lever in there at all.
+      // The roller PIVOTS: pinned to the end of an arm turning on a bearing off to its
+      // right, so the tyre comes up on an arc and the yoke visibly tilts as it goes.
       ctx.save();
       const pivotX = ccx + rad * 2.4;
       const pivotY = ccy + rad * 0.5;
@@ -1190,9 +1033,8 @@ export function drawTransport(
       ctx.rotate(lift * PINCH_SWING);
       ctx.translate(-pivotX, -pivotY);
 
-      // The yoke first, so the tyre sits in it. It is a plate the roller is pinned through,
-      // carrying on to the right as the arm that swings it against the capstan — and that
-      // arm is why the part reads as sprung against something rather than as a loose wheel.
+      // The yoke first, so the tyre sits in it: a plate the roller is pinned through,
+      // carrying on to the right as the arm that swings it against the capstan.
       ctx.fillStyle = "#767c86";
       rr(ctx, ccx, ccy - rad * 0.62, rad * 2.1, rad * 1.24, rad * 0.3);
       ctx.fill();
@@ -1239,12 +1081,10 @@ export function drawTransport(
         ctx.fill();
       }
 
-      // A head: a chromed block with a polished face and, down its middle, the gap between
-      // the two pole pieces. That hairline IS the head — it is the gap the tape's field
-      // crosses — so it is drawn even at sizes where it comes out one pixel wide.
-      // Kept well down the scale: a head is polished, but it is polished metal at the bottom
-      // of an unlit bay behind a smoked door. At its true chrome it is the brightest thing on
-      // the deck, which is not where the eye belongs.
+      // A head: a chromed block with, down its middle, the gap between the two pole pieces.
+      // That hairline IS the head — the gap the tape's field crosses — so it is drawn even
+      // at sizes where it comes out one pixel wide. Kept well down the brightness scale:
+      // polished metal at the bottom of an unlit bay, not the brightest thing on the deck.
       const hg = ctx.createLinearGradient(x, 0, x + w, 0);
       hg.addColorStop(0, "#4e535c");
       hg.addColorStop(0.28, "#8d939f");
@@ -1280,18 +1120,12 @@ export function paintCassette(
   seed: number,
 ) {
   const stock = labelStock(seed);
-  const px = (v: number) => v * c.w;
-  const cx = (f: number) => c.x + f * c.w;
-  const cy = (f: number) => c.y + f * c.h;
+  const { px, cx, cy } = frac(c);
   const r = px(0.022);
 
-  // The body. Drawn as a single path with the window as a counter-wound hole, so one fill
-  // leaves the window clear instead of needing a punch-out pass.
-  //
-  // Not quite opaque on the smoke shell, which is what makes it smoke: the packs sitting
-  // behind it ghost through the plastic outside the window. The ivory one is opaque, and
-  // has to be — white plastic with the reels showing through it does not read as
-  // translucent, it reads as dirty.
+  // The body. Not quite opaque on the smoke shell, which is what makes it smoke: the packs
+  // behind it ghost through the plastic outside the window. The ivory one has to be opaque —
+  // white plastic with the reels showing through reads as dirty, not translucent.
   ctx.save();
   ctx.globalAlpha = currentTheme() === "light" ? 1 : 0.9;
   const bg = ctx.createLinearGradient(0, c.y, 0, c.y + c.h);
@@ -1300,13 +1134,9 @@ export function paintCassette(
   bg.addColorStop(1, INK.shellLo);
   ctx.fillStyle = bg;
 
-  // The guide lugs first, so the body's own edge lands on top of them and they read as part
-  // of the moulding rather than as two things stuck to it.
-  //
-  // These are what actually locates a cassette in a deck: the shell is a loose fit in the
-  // well, and it is these two ribs on the short sides that the mechanism's jaws close on to
-  // pull it square and hold it there. Drawn a shade darker because they are a side face
-  // turned away from the room's light.
+  // The guide lugs first, so the body's own edge lands on top of them. These are what
+  // locates a cassette in a deck: the mechanism's jaws close on these two ribs to pull the
+  // shell square. A shade darker because they are a side face turned from the room's light.
   const lugY = c.y + c.h * LUG.y;
   const lugH = c.h * LUG.h;
   const lugW = px(LUG.w);
@@ -1356,7 +1186,6 @@ export function paintCassette(
   ctx.stroke();
   ctx.restore();
 
-  // ── the paper inlay ──
   const lx = cx(LBL.x);
   const ly = cy(LBL.y);
   const lw = px(LBL.w);
@@ -1421,43 +1250,18 @@ export function paintCassette(
   label(ctx, fitted(ctx, artist || "", ww, artistPx), wx, row2, artistPx, stock.ink);
   ctx.globalAlpha = 1;
 
-  // Nothing along the bottom edge.
-  //
-  // There were three dark openings here for the erase head, the record/playback head and the
-  // capstan to reach through — correctly placed, as it happens: mapping the Wikimedia
-  // schematic put the capstan at 74.8mm across, right where the third one was. They came out
-  // for the same reason as the pressure pad and the write-protect tabs. Those openings are
-  // cut into the shell's bottom EDGE, this view is of the label face, and the plastic in
-  // front of them is not transparent — so three dark rectangles sitting on it were three
-  // holes painted onto a solid surface.
-  //
-  // The mechanism they exist for is still drawn, in drawMechanism, where it belongs: visible
-  // through the door when the lid is up and the tape is out.
+  // Nothing along the bottom edge: no head/capstan openings, pressure pad or write-protect
+  // tabs. Those are all cut into the shell's bottom EDGE (the tabs into the rear top edge),
+  // and this view is of the label face — the plastic in front of them is opaque, so marks
+  // here read as holes painted onto a solid surface. The mechanism is drawn in
+  // drawMechanism, visible through the door when the lid is up and the tape is out.
 
-  // No pressure pad. It was drawn here — felt on a copper leaf spring, in the centre
-  // opening — because it is one of the parts the article lists and one the sound genuinely
-  // depends on. It came out because it cannot be seen from this angle: these openings are
-  // cut into the shell's bottom EDGE, and this view is of the label face, so what is behind
-  // them here is opaque plastic. A part drawn where it could not be looked at reads as a
-  // sticker, which is the opposite of what all this detail is for. (The spring was also
-  // bowing the wrong way, which is how it got noticed.)
-
-  // No write-protect tabs either, and for the same reason as the pressure pad: they are
-  // recesses in the shell's REAR top edge, and this is the label face. Drawn on the front
-  // they were two marks on opaque plastic with nothing behind them.
-
-  // The bulkier bottom moulding.
-  //
-  // A cassette is not one flat slab: the label face is a thin front panel, and below it the
-  // shell thickens into a separate, deeper section that the deck's mechanism presses into —
-  // the head, the capstan and pinch roller, the guide pins, the sensors. On a real one it
-  // stands visibly proud of the label face, with a shoulder where the two meet and a row of
-  // round holes through it for the posts to pass.
-  //
-  // It is opaque and solid — no window over it — so the aperture bends around it instead of
-  // being covered by it: straight down at the shell's corners, where there is no thick
-  // section at all, and up over the trapezoid across the middle. That is `BAND`, and
-  // `windowPath` shares the same outline, so the two edges are one edge and cannot drift.
+  // The bulkier bottom moulding. A cassette is not one flat slab: the label face is a thin
+  // front panel, and below it the shell thickens into a separate, deeper section that the
+  // deck's mechanism presses into, standing proud with a shoulder where the two meet. It is
+  // opaque and solid — no window over it — so the aperture bends around it instead of being
+  // covered by it. That is `BAND`, and `windowPath` shares the same outline, so the two
+  // edges are one edge and cannot drift.
   const bandTop = cy(BAND.mid);
   const bandDepth = c.y + c.h - bandTop;
   ctx.save();

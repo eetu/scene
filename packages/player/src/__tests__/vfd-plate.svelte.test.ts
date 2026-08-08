@@ -87,9 +87,8 @@ test("the segment repertoires, big", { timeout: 300000 }, async () => {
     "ABCDEFGHIJKLM",
     "NOPQRSTUVWXYZ",
     "0123456789+-*",
-    // The letters built from diagonals, which are the ones a 14/16-segment face gets wrong
-    // and the ones a 13-across sheet is too small to judge. V has been drawn as a Λ, as a Y
-    // and as a checkmark across three releases; each time the small sheet looked plausible.
+    // The letters built from diagonals: the ones a 14/16-segment face gets wrong, and the
+    // ones a 13-across sheet is too small to judge.
     "  UVWXY  ",
   ];
   for (const glyphs of ["14seg", "16seg", "7seg"] as const) {

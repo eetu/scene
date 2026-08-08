@@ -72,7 +72,7 @@
   }
   const visible = $derived(files.filter((f) => !hidden(f)));
 
-  // --- Folder tree ---------------------------------------------------------
+  // Folder tree.
   // Files carry their full rel_path (from PARTY_ROOT). Strip the shared prod-root
   // prefix so the tree shows only the production's own directory structure
   // (e.g. GFX/ANIM/FRAK001.GIF), then group into a collapsible tree.

@@ -3,14 +3,11 @@ import { describe, expect, test } from "vitest";
 import type { Manifest, Track } from "$lib/api";
 import {
   buildRows,
-  facetFormats,
-  facetTrackers,
   favSubLabel,
   filterTracks,
   flatRows,
   GROUPLESS,
   groupTracks,
-  keyOf,
   keysOf,
   letterRowMap,
   NO_ALBUM,
@@ -51,12 +48,12 @@ function track(p: Partial<Track>): Track {
   };
 }
 
-describe("keyOf / subLabel", () => {
-  test("keyOf buckets by the active dimension; empty group → groupless", () => {
-    expect(keyOf(track({ group: "Acme" }), "group")).toBe("Acme");
-    expect(keyOf(track({ group: "" }), "group")).toBe(GROUPLESS);
-    expect(keyOf(track({ artist: null }), "artist")).toBe("(unknown artist)");
-    expect(keyOf(track({ ext: "xm" }), "ext")).toBe("XM");
+describe("keysOf / subLabel", () => {
+  test("keysOf buckets by the active dimension; empty group → groupless", () => {
+    expect(keysOf(track({ group: "Acme" }), "group")).toEqual(["Acme"]);
+    expect(keysOf(track({ group: "" }), "group")).toEqual([GROUPLESS]);
+    expect(keysOf(track({ artist: null }), "artist")).toEqual(["(unknown artist)"]);
+    expect(keysOf(track({ ext: "xm" }), "ext")).toEqual(["XM"]);
   });
 
   test("subLabel shows the other dimension, hiding the groupless sentinel", () => {
@@ -207,20 +204,6 @@ describe("song length", () => {
   });
 });
 
-describe("facets", () => {
-  const base = [
-    track({ ext: "mod", tracker: "PT" }),
-    track({ ext: "xm", tracker: "FT2" }),
-    track({ ext: "mod", tracker: null }),
-  ];
-  test("formats are unique, upper-cased, sorted", () => {
-    expect(facetFormats(base)).toEqual(["MOD", "XM"]);
-  });
-  test("trackers are unique, non-null, sorted", () => {
-    expect(facetTrackers(base)).toEqual(["FT2", "PT"]);
-  });
-});
-
 describe("manifest-driven facets", () => {
   const manifest: Manifest = {
     artists: {
@@ -239,7 +222,7 @@ describe("manifest-driven facets", () => {
     // A track whose folder is the alias "PM" buckets under "Purple Motion".
     expect(keysOf(track({ artist: "PM" }), "artist", idx)).toEqual(["Purple Motion"]);
     // Case-insensitive.
-    expect(keyOf(track({ artist: "peter hajba" }), "artist", idx)).toBe("Skaven");
+    expect(keysOf(track({ artist: "peter hajba" }), "artist", idx)).toEqual(["Skaven"]);
   });
 
   test("group-by group uses manifest membership (many-to-many)", () => {

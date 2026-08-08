@@ -16,6 +16,8 @@
     VolumeX,
   } from "@lucide/svelte";
 
+  import { fmtTime } from "./format";
+  import type { Track } from "./host";
   import {
     playback,
     playNext,
@@ -52,13 +54,6 @@
   const playActive = $derived(
     playback.editing ? playback.seqPlaying : playback.playing && !playback.paused,
   );
-
-  function fmtTime(sec: number): string {
-    if (!sec || !isFinite(sec)) return "0:00";
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  }
 
   // Draggable seek head. Pointer events cover mouse + touch; while dragging we
   // preview the position locally (dragFrac) and commit the seek on release, so a
@@ -104,6 +99,15 @@
   }
 </script>
 
+{#snippet trackTitle(t: Track)}
+  <span class="t-title">{t.title || t.filename}</span>
+{/snippet}
+{#snippet trackMeta(t: Track)}
+  <span class="t-meta">
+    {t.group ?? ""}{t.artist ? ` · ${t.artist}` : ""}
+  </span>
+{/snippet}
+
 {#if playback.current}
   <div class="transport">
     <div
@@ -147,23 +151,15 @@
           aria-label="open player view"
         >
           <span class="t-title-row">
-            <span class="t-title">{playback.current.title || playback.current.filename}</span>
+            {@render trackTitle(playback.current)}
             <span class="t-open" aria-hidden="true"><Maximize2 size={12} /></span>
           </span>
-          <span class="t-meta">
-            {playback.current.group ?? ""}{playback.current.artist
-              ? ` · ${playback.current.artist}`
-              : ""}
-          </span>
+          {@render trackMeta(playback.current)}
         </button>
       {:else}
         <div class="t-info">
-          <span class="t-title">{playback.current.title || playback.current.filename}</span>
-          <span class="t-meta">
-            {playback.current.group ?? ""}{playback.current.artist
-              ? ` · ${playback.current.artist}`
-              : ""}
-          </span>
+          {@render trackTitle(playback.current)}
+          {@render trackMeta(playback.current)}
         </div>
       {/if}
       <button

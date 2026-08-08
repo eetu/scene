@@ -6,7 +6,6 @@ pub mod error;
 pub mod hvsc;
 pub mod library;
 pub mod manifest;
-pub mod migrate;
 pub mod modland;
 pub mod routes;
 pub mod scan;
@@ -14,7 +13,6 @@ pub mod sid;
 pub mod state;
 
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -24,84 +22,6 @@ use config::Config;
 use db::Db;
 use scan::ScanResult;
 use state::{AppState, ScanProgress};
-
-/// Content-Security-Policy. Same-origin except the Google Fonts hosts
-/// halo-design uses. The player runs libopenmpt as WebAssembly inside an
-/// AudioWorklet, so we additionally allow `'wasm-unsafe-eval'` (wasm
-/// instantiation) and `worker-src 'self' blob:` (the worklet module). HSTS /
-/// X-Frame-Options / X-Content-Type-Options are Traefik's job, not ours.
-///
-/// SvelteKit inlines its bootstrap `<script>` in index.html with a per-build
-/// hash, so we hash whatever inline scripts the built index.html contains at
-/// boot and allow exactly those — no `'unsafe-inline'` for scripts.
-///
-/// **`'unsafe-eval'` is required by the SID engine, and only by it.**
-/// libsidplayfp is bound through Emscripten's Embind, which builds its invoker
-/// functions with the `Function` constructor — string evaluation, which
-/// `'wasm-unsafe-eval'` does not cover (that permits wasm compilation and
-/// nothing else). libopenmpt reaches its C API through `cwrap` and needs none
-/// of this, which is why modules played and SIDs died with "Couldn't play this
-/// module" only once the app was served by *this* backend — `vite preview`,
-/// which the e2e suite runs against, sends no CSP at all.
-///
-/// Neither shipped artifact avoids it (residfp and sidlite both use Embind),
-/// and a worker cannot relax an inherited policy — a dedicated worker's CSP is
-/// the union of its own and its owner's. So the choice is this or no SID
-/// playback. Narrowing it would mean rebuilding the wasm with
-/// `-sDYNAMIC_EXECUTION=0`, which is upstream work.
-///
-/// Everything else stays strict: no `'unsafe-inline'` for scripts, the inline
-/// bootstrap is hashed, and `connect-src`/`img-src`/`frame-ancestors` are
-/// unchanged.
-fn build_csp(script_hashes: &[String]) -> String {
-    let mut script_src = String::from("'self' 'wasm-unsafe-eval' 'unsafe-eval'");
-    for h in script_hashes {
-        script_src.push(' ');
-        script_src.push_str(h);
-    }
-    format!(
-        "default-src 'self'; \
-         script-src {script_src}; \
-         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-         font-src 'self' data: https://fonts.gstatic.com; \
-         img-src 'self' data: blob:; \
-         connect-src 'self'; \
-         worker-src 'self' blob:; \
-         child-src 'self' blob:; \
-         frame-ancestors 'none'; \
-         base-uri 'self'; \
-         object-src 'none'; \
-         form-action 'self'"
-    )
-}
-
-/// CSP `'sha256-…'` source for every inline `<script>` (no `src=`) in `html`.
-fn inline_script_hashes(html: &str) -> Vec<String> {
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
-    use sha2::{Digest, Sha256};
-
-    let mut out = Vec::new();
-    let mut idx = 0;
-    while let Some(rel) = html[idx..].find("<script") {
-        let tag = idx + rel;
-        let Some(gt) = html[tag..].find('>') else {
-            break;
-        };
-        let open = &html[tag..tag + gt + 1];
-        let body_start = tag + gt + 1;
-        let Some(close) = html[body_start..].find("</script>") else {
-            break;
-        };
-        let body = &html[body_start..body_start + close];
-        if !open.contains("src=") {
-            let digest = Sha256::digest(body.as_bytes());
-            out.push(format!("'sha256-{}'", STANDARD.encode(digest)));
-        }
-        idx = body_start + close + "</script>".len();
-    }
-    out
-}
 
 /// Run a full scan of one root on a blocking thread (hashing new files can take
 /// minutes over CIFS) and return the reconciliation counts. Flips the `scanning`
@@ -119,41 +39,27 @@ pub async fn run_scan(
     // while the scan actually finished. A drop guard resets it on any exit
     // (return, error, or panic), and the blocking task can't be cancelled.
     tokio::task::spawn_blocking(move || {
-        progress.scanning.store(true, Ordering::Relaxed);
-        let _done = ScanFlagGuard(progress.clone());
+        let _done = scene_backend::scan::ScanFlagGuard::set(progress.clone());
         let mut conn = db.blocking_lock();
         let result = scan::scan_into(&mut conn, &root_id, &root, &progress);
 
         // Publish the outcome *here*, inside the blocking task, so it is written
-        // before `_done` clears `scanning`.
-        //
-        // The caller used to record it after awaiting this future, which left a
-        // window where `/status` said `scanning: false` while `last_scan` was
-        // still the previous run's — or null. That is precisely what a client
-        // polling "wait for scanning to go false, then read the result" hits,
-        // which is what the SPA does and what caught this in CI.
-        //
-        // Doing it here also means the boot scan records its outcome, which the
-        // caller-side version never did: `last_scan` is now an invariant of "a
-        // scan finished", not of "someone asked for one over HTTP".
+        // before `_done` clears `scanning` — the SPA polls "scanning went false
+        // → read last_scan" and must never see the gap. It also makes
+        // `last_scan` an invariant of "a scan finished" (the boot scan included),
+        // not of "someone asked for one over HTTP".
         if let Ok(mut slot) = progress.last.lock() {
-            *slot = Some(match &result {
-                Ok(r) => state::ScanOutcome {
-                    root: root_id.clone(),
-                    indexed: r.indexed,
-                    hashed: r.hashed,
-                    removed: r.removed,
-                    finished_at: chrono::Utc::now().to_rfc3339(),
-                    error: None,
-                },
-                Err(e) => state::ScanOutcome {
-                    root: root_id.clone(),
-                    indexed: 0,
-                    hashed: 0,
-                    removed: 0,
-                    finished_at: chrono::Utc::now().to_rfc3339(),
-                    error: Some(e.to_string()),
-                },
+            let (counts, error) = match &result {
+                Ok(r) => ((r.indexed, r.hashed, r.removed), None),
+                Err(e) => ((0, 0, 0), Some(e.to_string())),
+            };
+            *slot = Some(state::ScanOutcome {
+                root: root_id.clone(),
+                indexed: counts.0,
+                hashed: counts.1,
+                removed: counts.2,
+                finished_at: chrono::Utc::now().to_rfc3339(),
+                error,
             });
         }
         result
@@ -171,21 +77,11 @@ pub async fn run_hvsc_index(
     progress: Arc<ScanProgress>,
 ) -> anyhow::Result<hvsc::IndexResult> {
     tokio::task::spawn_blocking(move || {
-        progress.scanning.store(true, Ordering::Relaxed);
-        let _done = ScanFlagGuard(progress.clone());
+        let _done = scene_backend::scan::ScanFlagGuard::set(progress.clone());
         let mut conn = db.blocking_lock();
         hvsc::index_into(&mut conn, &root_id, &root)
     })
     .await?
-}
-
-/// Resets the `scanning` flag to false when dropped, so a scan always clears it
-/// regardless of how it ends. Lives inside the (non-cancellable) blocking task.
-struct ScanFlagGuard(Arc<ScanProgress>);
-impl Drop for ScanFlagGuard {
-    fn drop(&mut self) {
-        self.0.scanning.store(false, Ordering::Relaxed);
-    }
 }
 
 pub async fn run_server() -> anyhow::Result<()> {
@@ -288,7 +184,7 @@ pub async fn run_server() -> anyhow::Result<()> {
     // them. Read once at boot; the built index.html is immutable for the run.
     let index_path = state.cfg.static_dir.join("index.html");
     let hashes = std::fs::read_to_string(&index_path)
-        .map(|h| inline_script_hashes(&h))
+        .map(|h| scene_backend::csp::inline_script_hashes(&h))
         .unwrap_or_default();
     if hashes.is_empty() {
         tracing::warn!(
@@ -297,8 +193,17 @@ pub async fn run_server() -> anyhow::Result<()> {
              CSP script-src has no hashes"
         );
     }
-    let csp_value = axum::http::HeaderValue::from_str(&build_csp(&hashes))
-        .map_err(|e| anyhow::anyhow!("invalid CSP header: {e}"))?;
+    // No emulator blobs here, but `'unsafe-eval'` is still required — by the SID
+    // engine, and only by it: libsidplayfp is bound through Emscripten's Embind,
+    // which builds its invokers with the `Function` constructor (string
+    // evaluation, which `'wasm-unsafe-eval'` does not cover). libopenmpt uses
+    // `cwrap` and needs none of this — which is why modules played and SIDs died
+    // only once the app was served by *this* backend; `vite preview` (what the
+    // e2e runs against) sends no CSP. Narrowing it means rebuilding the wasm
+    // with `-sDYNAMIC_EXECUTION=0` — upstream work. See scene_backend::csp.
+    let csp_value =
+        axum::http::HeaderValue::from_str(&scene_backend::csp::build_csp(&hashes, false))
+            .map_err(|e| anyhow::anyhow!("invalid CSP header: {e}"))?;
     let app = routes::router(state).layer(SetResponseHeaderLayer::if_not_present(
         axum::http::header::CONTENT_SECURITY_POLICY,
         csp_value,
@@ -308,40 +213,4 @@ pub async fn run_server() -> anyhow::Result<()> {
     tracing::info!(%bind, "tracker listening");
     axum::serve(listener, app).await?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hashes_inline_scripts_skips_external() {
-        let html = r#"<script src="/app.js"></script><script>abc</script>"#;
-        assert_eq!(
-            inline_script_hashes(html),
-            vec!["'sha256-ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0='"]
-        );
-    }
-
-    #[test]
-    fn csp_allows_wasm_and_workers() {
-        let csp = build_csp(&["'sha256-X'".into()]);
-        assert!(csp.contains("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' 'sha256-X'"));
-        assert!(csp.contains("worker-src 'self' blob:"));
-        assert!(!csp.contains("script-src 'self' 'unsafe-inline'"));
-    }
-
-    /// `'unsafe-eval'` looks like something to tighten, and tightening it breaks
-    /// SID playback with an error that names the CSP but not the cause — and no
-    /// test catches it, because the e2e suite runs against `vite preview`, which
-    /// sends no CSP. Embind builds libsidplayfp's invokers with the `Function`
-    /// constructor; `'wasm-unsafe-eval'` does not cover string evaluation.
-    #[test]
-    fn csp_keeps_unsafe_eval_for_embind() {
-        let csp = build_csp(&[]);
-        assert!(
-            csp.contains("'unsafe-eval'"),
-            "removing this silently disables SID playback: {csp}"
-        );
-    }
 }

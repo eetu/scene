@@ -48,13 +48,7 @@ impl Root {
         match self.id.as_str() {
             "hvsc" => "HVSC".into(),
             "mods" => "Mods".into(),
-            other => {
-                let mut c = other.chars();
-                match c.next() {
-                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-                    None => String::new(),
-                }
-            }
+            other => scene_backend::capitalize_first(other),
         }
     }
 }

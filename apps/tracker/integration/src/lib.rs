@@ -85,9 +85,7 @@ impl Stack {
         // suite runs a couple of dozen backends across its test binaries
         // concurrently, so two occasionally pick the same one: the loser can't
         // bind, exits immediately, and every later assertion in that test fails
-        // for reasons that look nothing like the cause. (Diagnosed the hard way
-        // — it presented as "startup is slow under load", and raising the wait
-        // just made the failure take longer.)
+        // for reasons that look nothing like the cause.
         //
         // So: notice the child is gone rather than polling a corpse, and try
         // again on a fresh port.

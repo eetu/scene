@@ -35,21 +35,18 @@
       .map((x) => x.trim())
       .filter(Boolean);
 
-  // ---- move (rename) ---- (all fields seeded by the $effect below, which also
-  // re-seeds if the modal is reused for a different track)
+  // All draft fields are seeded by the $effect below, which also re-seeds if
+  // the modal is reused for a different track.
   let dFolder = $state("");
   let dFilename = $state("");
 
-  // ---- artist graph (seeded from the manifest for the canonical artist) ----
   const artistEntry = $derived(canonical ? manifestStore.data?.artists?.[canonical] : undefined);
   let dAka = $state("");
   let dGroups = $state("");
-  // ---- credits (by md5) ----
   const credit = $derived(idx.credit(track.md5));
   let dForGroup = $state("");
   let dWith = $state("");
   let dYear = $state("");
-  // ---- album membership ----
   const allAlbums = $derived(idx.albums());
   const memberIds = $derived(new Set(idx.albumsOf(track.md5).map((a) => a.id)));
   let inAlbums = $state<Record<string, boolean>>({});
@@ -80,7 +77,7 @@
     err = null;
     const patch: Partial<Track> = {};
     try {
-      // 1) Rename / move (only if a path segment actually changed). Artist-
+      // Rename / move (only if a path segment actually changed). Artist-
       // primary: the folder is the artist; there is no path-group to edit.
       const folderChanged = dFolder.trim() !== (track.artist ?? "");
       if (folderChanged || dFilename.trim() !== track.filename) {
@@ -99,7 +96,7 @@
         });
       }
 
-      // 2) Artist graph (aka + groups) for the canonical artist.
+      // Artist graph (aka + groups) for the canonical artist.
       if (canonical) {
         const aka = splitLines(dAka);
         const groups = splitCommas(dGroups);
@@ -110,7 +107,7 @@
         }
       }
 
-      // 3) Credits (by md5).
+      // Credits (by md5).
       if (track.md5) {
         const w = splitCommas(dWith);
         const year = dYear.trim() ? Number(dYear.trim()) : null;
@@ -127,7 +124,7 @@
         }
       }
 
-      // 4) Album membership (add/remove diffs) + optional new album.
+      // Album membership (add/remove diffs) + optional new album.
       if (track.md5) {
         for (const a of allAlbums) {
           const now = !!inAlbums[a.id];

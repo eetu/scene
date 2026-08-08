@@ -2,13 +2,6 @@
 // package directly (no visualisers involved) so a version bump that breaks any of it
 // fails here rather than showing up as a black or half-empty viz pane. Requires 1.4.0
 // or newer.
-//
-// Most of these were suspected bugs during the integration and turned out to work —
-// the "failures" were a broken measurement (see `count` below). Case C was real: a
-// creation-order race, where the screen was built before the pane had been laid out,
-// left it black until the screen was toggled off and on by hand. This file is what
-// makes each of these a requirement rather than a note, so losing one fails here
-// instead of showing up as a black viz pane.
 import { page } from "vitest/browser";
 import { expect, test } from "vitest";
 
@@ -124,7 +117,7 @@ test("element mode composites late, swapped and nested canvases", { timeout: 180
   }
 
   // ---- C: created before the host has been laid out ------------------------
-  // The suspected cause of the real-world black pane: the screen is created from an
+  // The creation-order race behind a black pane: the screen is created from an
   // effect that runs before layout, so the container is 0x0 at that moment.
   {
     const h = host();

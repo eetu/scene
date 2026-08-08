@@ -8,6 +8,7 @@
   // Selection is plain UI state (always works); the waveform + jam keyboard gate
   // on the custom-build capabilities (playback.canReadSamples / canJam), so on
   // the stock build the list still works and the panels degrade to a note.
+  import { hex2 } from "./format";
   import JamKeyboard from "./JamKeyboard.svelte";
   import { exportSampleWav, playback, readSample, type SampleData } from "./player.svelte";
   import ResizeHandle from "./ResizeHandle.svelte";
@@ -62,11 +63,6 @@
     if (!(f & 1)) return "none";
     return f & 2 ? "ping-pong" : "forward";
   });
-
-  // Function declaration (hoisted) — used by the deriveds above.
-  function hex2(n: number): string {
-    return n.toString(16).toUpperCase().padStart(2, "0");
-  }
 
   // Up/down navigate the active list (samples, or instruments if one's picked).
   // Left/right track-switch is handled globally by the app; it suppresses itself

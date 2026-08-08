@@ -163,13 +163,12 @@ test("nothing HVSC-specific renders without a configured HVSC root", async ({ co
 
 test.describe("on a phone", () => {
   // A locale that separates thousands with a space (`61 157`) — the widest the
-  // counts ever render, and the condition the overflow was first seen under.
+  // counts ever render.
   test.use({ viewport: { width: 320, height: 568 }, locale: "fi-FI" });
 
   test("every control fits on screen, none scrolled out of reach", async ({ context, page }) => {
-    // The row scrolls horizontally with no scrollbar, so anything past the edge
-    // is both invisible and silent — which is where `Reindex` ended up: the
-    // counts pushed the row to 352px inside a 320px viewport.
+    // The row scrolls horizontally with no scrollbar, so anything past the edge —
+    // Reindex, behind wide counts — is both invisible and silent.
     await mock(context, {
       roots: [
         { id: "mods", label: "Mods", kind: "scan", path: "/mods", count: 6478 },
@@ -183,9 +182,9 @@ test.describe("on a phone", () => {
     await page.getByRole("button", { name: /^HVSC/ }).click();
     await expect(page.getByRole("button", { name: "Reindex" })).toBeVisible();
 
-    // Not scrollable in either axis. A scrolling row was the original bug: it
-    // put a scrollbar across the chips on WebKit (where `scrollbar-width: none`
-    // does nothing), which ate the row's height and clipped the labels.
+    // Not scrollable in either axis: a scrolling row puts a scrollbar across the
+    // chips on WebKit (where `scrollbar-width: none` does nothing), which eats
+    // the row's height and clips the labels.
     const nav = page.locator("nav.sources");
     const over = await nav.evaluate((n) => ({
       x: n.scrollWidth - n.clientWidth,

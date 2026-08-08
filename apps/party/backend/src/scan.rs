@@ -22,13 +22,7 @@ use walkdir::{DirEntry, WalkDir};
 use crate::party::{slugify, PartyConfigs};
 use crate::state::ScanProgress;
 
-/// Module extensions libopenmpt can open (from tracker). Lowercase.
-pub const MODULE_EXTS: &[&str] = &[
-    "mod", "xm", "s3m", "it", "mptm", "stm", "nst", "m15", "stk", "wow", "ult", "669", "mtm",
-    "med", "far", "amf", "ams", "dbm", "digi", "dmf", "dsm", "dtm", "fmt", "imf", "j2b", "mdl",
-    "mo3", "mt2", "okt", "okta", "plm", "psm", "pt36", "ptm", "sfx", "sfx2", "st26", "stp", "umx",
-    "gdm", "gmc", "ice", "itp", "mms", "oct", "tcb", "ftm", "rtm", "c67", "symmod",
-];
+pub use scene_backend::scan::MODULE_EXTS;
 
 const IMAGE_EXTS: &[&str] = &[
     "lbm", "iff", "ilbm", "ham", "pic", "pcx", "tif", "tiff", "gif", "jpg", "jpeg", "png", "tga",
@@ -44,29 +38,23 @@ const TEXT_EXTS: &[&str] = &[
 ];
 const ARCHIVE_EXTS: &[&str] = &["zip", "lha", "lzh", "arj", "rar", "7z", "gz", "dms"];
 
+/// Extension list → `kind`, in match priority order (`.dms` is in both
+/// diskimage and archive; diskimage wins).
+const KINDS_BY_EXT: &[(&[&str], &str)] = &[
+    (MODULE_EXTS, "music"),
+    (IMAGE_EXTS, "image"),
+    (VIDEO_EXTS, "video"),
+    (DISKIMAGE_EXTS, "diskimage"),
+    (EXE_EXTS, "exe"),
+    (TEXT_EXTS, "text"),
+    (ARCHIVE_EXTS, "archive"),
+];
+
 /// Classify a file into a `kind` from its extension (and filename for
 /// extensionless README/NFO-style files).
 pub fn classify(filename: &str, ext: &str) -> &'static str {
-    if MODULE_EXTS.contains(&ext) {
-        return "music";
-    }
-    if IMAGE_EXTS.contains(&ext) {
-        return "image";
-    }
-    if VIDEO_EXTS.contains(&ext) {
-        return "video";
-    }
-    if DISKIMAGE_EXTS.contains(&ext) {
-        return "diskimage";
-    }
-    if EXE_EXTS.contains(&ext) {
-        return "exe";
-    }
-    if TEXT_EXTS.contains(&ext) {
-        return "text";
-    }
-    if ARCHIVE_EXTS.contains(&ext) {
-        return "archive";
+    if let Some((_, kind)) = KINDS_BY_EXT.iter().find(|(exts, _)| exts.contains(&ext)) {
+        return kind;
     }
     if ext.is_empty() {
         let up = filename.to_ascii_uppercase();
@@ -209,14 +197,7 @@ fn is_win_pe(path: &Path) -> bool {
 
 fn is_junk(name: &str) -> bool {
     name == crate::party::CONFIG_FILE // .party.json — config, not a browsable file
-        || name == ".DS_Store"
-        || name.starts_with("._")
-        || name == ".Trashes"
-        || name == ".Spotlight-V100"
-        || name == ".AppleDouble"
-        || name == ".fseventsd"
-        || name == ".DocumentRevisions-V100"
-        || name == ".TemporaryItems"
+        || scene_backend::scan::is_macos_junk(name)
 }
 
 fn is_hidden_dir(e: &DirEntry) -> bool {
@@ -281,18 +262,18 @@ struct Cached {
 /// Map a stored `kind` string back to the canonical `&'static str`. Only used to
 /// reuse a prior content-sniff decision (text vs data) for unchanged files.
 fn intern_kind(k: &str) -> &'static str {
-    match k {
-        "music" => "music",
-        "image" => "image",
-        "video" => "video",
-        "exe" => "exe",
-        "amiga_exe" => "amiga_exe",
-        "win_exe" => "win_exe",
-        "diskimage" => "diskimage",
-        "text" => "text",
-        "archive" => "archive",
-        _ => "data",
-    }
+    const KINDS: &[&str] = &[
+        "music",
+        "image",
+        "video",
+        "exe",
+        "amiga_exe",
+        "win_exe",
+        "diskimage",
+        "text",
+        "archive",
+    ];
+    KINDS.iter().find(|&&s| s == k).copied().unwrap_or("data")
 }
 
 /// A file as walked, with everything needed to index it and assign it to a
@@ -353,13 +334,7 @@ fn humanize(category: &str) -> String {
     category
         .split(['/', '_', '-'])
         .filter(|s| !s.is_empty())
-        .map(|w| {
-            let mut c = w.chars();
-            match c.next() {
-                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-                None => String::new(),
-            }
-        })
+        .map(scene_backend::capitalize_first)
         .collect::<Vec<_>>()
         .join(" ")
 }
@@ -526,7 +501,6 @@ pub fn scan_into(
     }
     progress.total.store(cache.len(), Ordering::Relaxed);
 
-    // 1) Walk (sequential directory traversal) and collect candidate file paths.
     let mut entries: Vec<(PathBuf, String, String)> = Vec::new(); // (path, rel_path, name)
     let walker = WalkDir::new(root)
         .follow_links(false)
@@ -560,14 +534,13 @@ pub fn scan_into(
         entries.push((path.to_path_buf(), rel_path, name));
     }
 
-    // 2) Resolve each file's metadata + hash + kind in parallel. This is the
-    // network-heavy part (a stat each, plus hashing/sniffing new-or-changed
-    // files), so spreading it across rayon threads overlaps the per-file NAS
-    // round-trips. Only the shared read-only `cache` and the atomic progress
-    // counters are touched here (no DB), so it's safe. Unchanged files (size +
-    // mtime match) reuse the cached hash AND the cached content-sniff (text vs
-    // data) — no open/read at all; the cheap extension classify still runs every
-    // scan, so classification fixes take effect on rescan without a re-sniff.
+    // The network-heavy part (a stat each, plus hashing/sniffing new-or-changed
+    // files): rayon threads overlap the per-file NAS round-trips. Only the
+    // shared read-only `cache` and the atomic progress counters are touched
+    // here (no DB), so it's safe. Unchanged files (size + mtime match) reuse the
+    // cached hash AND the cached content-sniff (text vs data) — no open/read at
+    // all; the cheap extension classify still runs every scan, so
+    // classification fixes take effect on rescan without a re-sniff.
     struct Resolved {
         rel_path: String,
         name: String,
@@ -648,8 +621,8 @@ pub fn scan_into(
         })
         .collect();
 
-    // 3) Assign each resolved file to a production (cheap, pure — kept sequential
-    // so the per-party config lookup stays simple).
+    // Cheap and pure — kept sequential so the per-party config lookup stays
+    // simple.
     let mut walked: Vec<Walked> = Vec::with_capacity(resolved.len());
     for r in resolved {
         let segs: Vec<&str> = r.rel_path.split('/').collect();
@@ -678,7 +651,6 @@ pub fn scan_into(
         });
     }
 
-    // 2) Group files into productions.
     struct Accum {
         party_slug: String,
         party_dir: String,
@@ -707,7 +679,6 @@ pub fn scan_into(
     let mut result = ScanResult::default();
     let tx = conn.transaction()?;
     {
-        // --- parties ---
         let mut seen_parties: Vec<String> = Vec::new();
         {
             let mut party_dirs: HashMap<String, String> = HashMap::new();
@@ -739,7 +710,6 @@ pub fn scan_into(
         }
         result.parties = seen_parties.len();
 
-        // --- productions ---
         let mut seen_prods: Vec<String> = Vec::new();
         let mut prod_id_by_dir: HashMap<String, String> = HashMap::new();
         {
@@ -838,7 +808,6 @@ pub fn scan_into(
         }
         result.productions = seen_prods.len();
 
-        // --- files ---
         let mut seen_files: Vec<String> = Vec::new();
         {
             let mut up = tx.prepare(
@@ -875,7 +844,6 @@ pub fn scan_into(
         }
         result.hashed = progress.hashed.load(Ordering::Relaxed);
 
-        // --- drop stale rows ---
         let seen_files_set: std::collections::HashSet<&String> = seen_files.iter().collect();
         let stale_files: Vec<String> = cache
             .keys()
@@ -910,7 +878,6 @@ pub fn scan_into(
             }
         }
 
-        // --- party counts ---
         tx.execute(
             "UPDATE parties SET
                n_files = (SELECT COUNT(*) FROM files f WHERE f.party_slug = parties.slug),
@@ -920,7 +887,7 @@ pub fn scan_into(
     }
     tx.commit()?;
 
-    // 3) Join scraped results from each party's config (best-effort).
+    // Join scraped results from each party's config (best-effort).
     let party_dirs: HashMap<String, String> = walked
         .iter()
         .map(|w| (w.party_slug.clone(), w.party_dir.clone()))

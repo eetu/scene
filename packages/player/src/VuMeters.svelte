@@ -4,6 +4,7 @@
   // black needle and a dark bezel hiding the pivot. Two meters (L/R banks of the
   // VU channels) with meter ballistics — eased attack + slower release. The dial
   // is self-coloured, so it reads identically in both themes.
+  import { fitCanvas2d } from "./canvas2d";
   import { playback } from "./player.svelte";
   import { driveFrames } from "./raf";
   import { drawVuMeter, vuEase } from "./vu-meter";
@@ -15,22 +16,15 @@
   $effect(() => {
     const el = canvas;
     if (!el) return;
-    const ctx = el.getContext("2d");
-    if (!ctx) return;
-    const g2: CanvasRenderingContext2D = ctx;
 
     let w = 0;
     let h = 0;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const ro = new ResizeObserver(() => {
-      const r = el.getBoundingClientRect();
-      w = r.width;
-      h = r.height;
-      el.width = Math.max(1, Math.round(w * dpr));
-      el.height = Math.max(1, Math.round(h * dpr));
-      g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const fit = fitCanvas2d(el, (fw, fh) => {
+      w = fw;
+      h = fh;
     });
-    ro.observe(el);
+    if (!fit) return;
+    const g2 = fit.ctx;
 
     let posL = 0;
     let posR = 0;
@@ -107,7 +101,7 @@
 
     return () => {
       stopFrames();
-      ro.disconnect();
+      fit.stop();
     };
   });
 </script>

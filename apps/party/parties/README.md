@@ -4,14 +4,10 @@ This directory holds the checked-in per-party metadata configs (`<slug>.json`)
 for the **party** app. This README is the runbook for turning a demoparty's
 scene.org archive into a tree the backend can serve.
 
-It was reconstructed by reverse-engineering the **Assembly '95** export (the
-first party ingested), then hardened ingesting **Assembly '96**, **The
-Gathering '96**, and **The Gathering '97** — each surfaced new edge cases now
-folded in below (TG97, the sparsest tree yet, drove the demozoo-API recovery
-recipe in Step 4½). Use `assembly95.json` / `assembly96.json` /
-`gathering96.json` / `gathering97.json` + their live
-`/Volumes/scene/parties/<Party>` trees as worked examples throughout; they
-bracket most of the variation seen so far.
+`assembly95.json` / `assembly96.json` / `gathering96.json` /
+`gathering97.json` and their live `/Volumes/scene/parties/<Party>` trees are
+worked examples throughout; when in doubt, diff them — they bracket most of the
+variation seen so far.
 
 ## Mental model
 
@@ -37,45 +33,6 @@ scene.org archive  →  a laid-out party tree  →  backend scans & indexes  →
   transcoder sidecar (`backend/src/transcoder.rs`).
 - **Amiga (and C64) demos run in-browser** via EmulatorJS. Amiga prods boot from
   per-prod disk images under a `.support/` subdir; PC demos run via js-dos.
-
-You only ever arrange files + write JSON. The backend does the rest.
-
-## How generic is this, really?
-
-The **spine is universal**; the details are per-party. Treat the steps below as the
-reliable backbone and budget for a handful of party-specific surprises each time.
-
-- **Universal**: the pipeline (download → arrange → scan → serve), the folder
-  grammar (`NN - Group - Title`, `rest/`, one- vs two-level compos), the config
-  schema, the results-into-config join, the emulation/transcode-at-serve model.
-- **Varies every party**: the compo set + folder names; the `results.txt` format
-  (each party differs — *scrape, never parse at runtime*); which prods were actually
-  archived vs. lost; the long unranked music/graphics tail; per-prod quirks (split
-  executables, Amiga launch lines, a demo that needs sound setup).
-- **Rules of thumb we keep relearning**: scene.org is often **incomplete** (winners
-  missing entirely — Step 4½; TG97 was only **66/167** ranked entries on the mirror,
-  demozoo got it to 121); the same prod sometimes lands in **both** a ranked
-  folder and `rest/`, so it lists twice (Step 5, dedup); auto-naming the tail with
-  an LLM is great but it **hallucinates** occasionally, so cross-check (Step 5); and
-  emulation has **non-obvious runtime knobs** (Amiga fast RAM, PC GUS setup) that
-  make a "correctly arranged" prod still fail — so actually **boot a few** before
-  declaring victory (Step 7½).
-- **Folder↔compo is not 1:1.** A single compo can be split across two scene.org
-  dirs (TG97 stored one Graphics compo across `grfx/` **and** `grtc/`, with one pic
-  duplicated in both) — merge them under one category key. And a dir's name lies:
-  TG97's `grtc` is *not* raytrace (the raytrace compo had its own single entry,
-  absent from the tree). Map dirs by their **contents vs the results**, not the name.
-- **`results.txt` can omit whole compos.** TG97's file had no raytraced-graphics
-  section at all — only demozoo revealed the compo existed. Always reconcile the
-  compo *list* against demozoo, not just the placings (Step 4).
-- **Ranks are the results' line order, ties included** — not points-deduped. Two
-  entries on the same points each consume a rank (TG97 amiga #8/#9 both 220 pts).
-  The `FILE_ID.DIZ` is the oracle: many state "Place 11th" / "#13 in the … compo",
-  which catches off-by-one rank slips (Step 5).
-
-When in doubt, diff the four worked examples (`assembly95.json`, `assembly96.json`,
-`gathering96.json`, `gathering97.json`) — they bracket most of the variation seen
-so far.
 
 ## Prerequisites
 
@@ -212,7 +169,9 @@ Worked example — the Assembly '95 category set (mirror in `assembly95.json`):
 scene.org tree actually has. Assembly '96, for instance, has `amiga/in64` (not
 `in40`), splits C64 into `c64/demo` + `c64/grfx_music`, and lists a *Wild* compo in
 the results that has **no folder on the server** (those prods were never archived).
-`assembly96.json` is a second worked example — diff it against `assembly95.json`.
+Folder↔compo is not 1:1 either: one compo can be split across two scene.org dirs
+(merge them under one category key), and a dir's name can lie — map dirs by their
+contents vs the results, not the name.
 
 ## Step 3 — Extract the archives
 
@@ -329,13 +288,8 @@ Stage downloads outside the live tree, **verify each is the right prod** (read i
 `FILE_ID.DIZ`, or byte-compare if it claims to match an existing file — recovery
 links do mislink), then drop into the proper `NN - Group - Title` folder.
 
-TG96: **46** missing, **11** recovered, rest `lost`/Cloudflare-walled. TG97 worked
-example (API-driven): **102** ranked entries missing from scene.org; **55**
-recovered (music +24, graphics +11, fastintro +9, demo +3, …) bringing it to
-**121/167**; of the rest, 45 were demozoo-`lost`, 1 had no demozoo record, 1 a dead
-link — and **39 of those 47 are the Wild compo** (wild is chronically unarchived).
-Don't expect a clean sweep — log what stays missing so the disabled rows are
-understood, not mistaken for a bug.
+Don't expect a clean sweep — Wild compos especially are chronically unarchived.
+Log what stays missing so the disabled rows are understood, not mistaken for a bug.
 
 ## Step 5 — Author the party config (`.party.json`)
 
@@ -426,52 +380,34 @@ Key rules:
   fix the name (don't delete). A quick script comparing every `unranked` title to
   the compo's `results` titles is the cheapest way to flag both cases at once.
 - **Sidecar soundtracks + a lying frame rate** — the `files` map and `video_fps`.
-  The Assembly '95/'96 animation compos are **video-only MPEG-1 elementary streams**
-  with the soundtrack in a separate file next to the picture, played back by the
-  party's own DOS player (`ASMPEG.EXE`, in `Assembly95/anim/rest/` and
-  `Assembly96/anim/04 - Heroes/`). Without config they play silent *and* at double
-  speed. Twelve entries across the two parties need it. The recipe:
-  **unsigned 8-bit mono PCM at 12288 Hz, picture at 12.5 fps.** Not guessed —
-  `Assembly96/anim/06 …/VISITOR.TXT` states it (*"soundtrack: visitor.raw (12288kHz,
-  raw, unsigned, 8bit)"*, *"The playback rate of the animation is 12.5 frames"*), and
-  `GBIOS.WAV` is `GBIOS.SND` plus a 44-byte WAV header declaring `pcm_u8 / 12288 / 1`.
-  - `video_fps` on the category is the default for every video in that compo (the
-    whole `anim` folder shares one pipeline); `FileCfg.fps` overrides it per file.
-    `Assembly96/anim/01 - Vaapukka - Amis 5000` opts out with `"fps": 24` — it's the
-    one entry that already ships an `mp2` track at its real rate.
+  The Assembly '95/'96 animation compos are **video-only MPEG-1 elementary
+  streams** with the soundtrack in a separate file next to the picture. Without
+  config they play silent *and* at double speed. The recipe: **unsigned 8-bit
+  mono PCM at 12288 Hz, picture at 12.5 fps** (documented in
+  `Assembly96/anim/06 …/VISITOR.TXT`).
+  - `video_fps` on the category is the default for every video in that compo;
+    `FileCfg.fps` overrides it per file.
   - **A category default needs an opt-out for anything in the folder that isn't a
-    raw stream** — use `"native_fps": true`. An fps override is applied as an ffmpeg
-    *input* option, which rewrites timestamps as constant-rate; that's exactly right
-    for an elementary stream (which has none) and wrong for a real container, whose
-    timestamps are authoritative and may be **variable**. asm95's `anim` holds two
-    later DivX/mpeg4 re-encodes with audio already muxed: `asm_pulp_divx.avi` runs at
-    a variable ~10 fps and drifts ~9 s out from its own soundtrack if forced to 12.5.
-    `MATTER.FLI` (a bonus under `rest/`, not a compo entry) also opts out — its FLIC
-    speed field is 0, so ffmpeg's own fallback is as good as it gets. Audit the whole
-    folder before setting `video_fps`: `ffprobe -show_entries stream=codec_type,
-    avg_frame_rate,duration` over every video in it will show which ones already
-    carry audio or a non-25 rate, and those are the ones that need an entry.
-  - **Prefer a container'd sidecar when one exists.** `GBIOS.WAV` and `SOUNDTR.WAV`
-    need only `"audio"` — ffmpeg reads rate/format/channels from the header, so
-    there's nothing to author and nothing to get wrong. Only reach for
-    `audio_format`/`audio_rate`/`audio_channels` for a headerless dump (`.snd`).
+    raw stream** — `"native_fps": true`. An fps override is an ffmpeg *input*
+    option that rewrites timestamps as constant-rate: right for an elementary
+    stream (which has none), wrong for a real container whose timestamps are
+    authoritative and may be variable (a muxed-audio DivX re-encode drifts
+    seconds out of sync if forced). Audit the whole folder with
+    `ffprobe -show_entries stream=codec_type,avg_frame_rate,duration` before
+    setting `video_fps` — anything already carrying audio or a non-25 rate needs
+    an opt-out entry.
+  - **Prefer a container'd sidecar when one exists** — a `.wav` needs only
+    `"audio"` (ffmpeg reads rate/format/channels from the header). Reach for
+    `audio_format`/`audio_rate`/`audio_channels` only for a headerless dump
+    (`.snd`).
   - **Keys are party-relative and case-sensitive** — `anim/…/GBIOS.MPG`, not `.mpg`.
-  - **To confirm a rate, compare durations rather than trusting the header**: the raw
-    ES has no timestamps, so use `frames ÷ fps` for the picture
-    (`ffprobe -count_frames -select_streams v:0 -show_entries stream=nb_read_frames`)
-    against `bytes ÷ rate` for the sound. An intact pair lands within a few percent,
-    the sound running slightly long. Note that halving both fps and rate fits the
-    ratio equally well, so a ratio alone can't pick between 12288/12.5 and 25000/25 —
-    which is why the two documented sources above are what settles it.
-  - Two sources in this archive are **truncated**, which the drift check exposes:
-    `Assembly95/anim/07 - Artifex - Dawn/dawn.snd` is ~17 s of audio for a 153 s
-    animation and ends mid-transient at full scale, and `Assembly96/anim/09 -
-    Delmar/DELMAR.MPG` is only 302 frames (24 s) against 51 s of sound. Both are
-    configured anyway — worth re-sourcing, harmless meanwhile (no `-shortest`, so
-    neither stream truncates the other).
-  - Editing any of these values yields a **new** cache entry rather than the previous
-    mux (the recipe is hashed into the `derived` ledger key), so retuning is just
-    edit → `POST /api/rescan` → reload.
+  - To confirm a rate, compare durations: `frames ÷ fps` for the picture
+    (`ffprobe -count_frames`) against `bytes ÷ rate` for the sound — an intact
+    pair lands within a few percent. A ratio alone can't distinguish 12288/12.5
+    from a doubled pair, so a documented source is what settles the absolute rate.
+  - Editing any of these values yields a **new** cache entry (the recipe is
+    hashed into the `derived` ledger key), so retuning is just edit →
+    `POST /api/rescan` → reload.
 - **A DOS demo that needs a specific CPU** — `FileCfg.cputype`, keyed by the demo's
   **entry folder** (the one `files` key that isn't per-file: a CPU belongs to the
   production, so every build inside inherits it — the fix, the v2, the extender a
@@ -491,18 +427,13 @@ Key rules:
   the core actually wants. Naming a specific exe still works and beats the folder,
   for the rare prod whose two builds want different CPUs. An unrecognised value is
   logged at startup and ignored — but a key that matches *nothing* is silent, so
-  **renaming the entry folder unpins the CPU** (tidying `11 - byterapers -
-  protocode0x28` to `11 - Byterapers - Protocode 0x28` did exactly that): move the
-  key with the folder, and note the rename also changes the production's id, so
-  reload the SPA rather than trusting an open tab.
-  - **Neither MMX spelling of DOSBox-X-in-js-dos gives you MMX**, which is why that
-    one value is remapped: `cputype=pentium_mmx` logs `not supported (using pentium
-    instead)`, and the fork's own `jsdos_pentium_mmx` logs `pentium_mmx is enabled`
-    but *still* fails protocode0x28's check ("This machine does not report MMX
-    support") — its CPUID doesn't advertise MMX. `pentium_ii` is the lowest setting
-    whose CPUID does, and the demo runs on it, so an authored `pentium_mmx` resolves
-    to `pentium_ii`. Written out in `cpu_target`; `jsdos_pentium_mmx` remains
-    available if you name it explicitly.
+  **renaming the entry folder unpins the CPU**: move the key with the folder, and
+  note the rename also changes the production's id, so reload the SPA rather than
+  trusting an open tab.
+  - **Neither MMX spelling of DOSBox-X-in-js-dos actually advertises MMX in
+    CPUID**, so `cpu_target` resolves an authored `pentium_mmx` to `pentium_ii` —
+    the lowest setting whose CPUID does report it. (`jsdos_pentium_mmx` remains
+    available if you name it explicitly, but demos' own MMX checks still fail on it.)
 - Copy `assembly95.json` / `assembly96.json` as a starting template.
 
 ## Step 6 — Amiga AGA disk images (optional but recommended)
@@ -589,8 +520,9 @@ Two macOS traps when scripting the build:
   per-prod `.support/` (depth ≥ 2) *is* scanned — only the shared root one is not.
 
 **Don't trust "it built" — boot it (Step 7½).** A bootable image still drops to an
-AmigaDOS CLI or hangs if the launch line is wrong or the machine lacks RAM (see the
-fast-RAM quirk in 7½). `fs-uae` confirms in seconds whether it reaches the demo.
+AmigaDOS CLI or hangs if the launch line is wrong or the machine lacks RAM (the
+fast-RAM default — see `apps/party/AMIGA-ROMS.md`). `fs-uae` confirms in seconds
+whether it reaches the demo.
 
 ## Step 7 — Index & verify
 
@@ -640,8 +572,7 @@ Then browse the SPA (`just dev party`) and confirm:
 
 A prod can be arranged perfectly and still not run — emulation has runtime knobs
 the filesystem can't express. **Actually boot a sample** of each platform before
-shipping, using a native emulator configured like the in-browser core. This caught
-every issue below; none were visible from the file tree.
+shipping, using a native emulator configured like the in-browser core.
 
 ```sh
 # Amiga — `just amiga` picks the machine + Kickstart from the demo's filename tag,
@@ -658,61 +589,40 @@ dosbox-x -conf t.conf & sleep 16; screencapture -x shot.png; pkill -f dosbox
 Capturing the window to a PNG and reading it back is the reliable way to tell
 "reached the demo" from "dropped to a CLI / setup menu" without a human watching.
 
-**A slow AGA demo in the SPA is not necessarily a broken one.** The in-browser core
-has no JIT, so 68020+ AGA work can crawl there and still be fine natively. `just
-amiga` is the control: if it runs at speed in fs-uae, the image is good and the
-browser is simply the limit — don't go rebuilding the `.hdf`. See
-`apps/party/AMIGA-ROMS.md` for the tag→machine mapping the recipe shares with the app.
+For the Amiga runtime facts — the no-JIT browser core (a demo that crawls in the
+SPA but runs at speed in fs-uae is fine; don't rebuild the `.hdf`), the forced
+8 MB fast-RAM default, and the tag→machine mapping — `apps/party/AMIGA-ROMS.md`
+is canonical. `just amiga` is the control run.
 
-The quirks we hit (all now fixed in the app, but know them when a demo misbehaves):
+The quirks (fixed in the app where noted — know them when a demo misbehaves):
 
-- **A wild "demo" that's only a captured video showed no Play button.** `pick_primary`
-  (`scan.rs`) resolved `medium: demo/intro` to runnable→diskimage→exe and stopped, so a
-  wild entry shipping only an `.mpg` (TG97 #3 Firestarter) got *no* primary. Fixed:
-  it now falls back to the largest video. Wild compos mix runnable prods and videos —
-  expect both.
-- **The DOS extender got picked as the primary exe.** Scanner takes the largest `.exe`;
-  for a prod shipping `DOS4GW.EXE`/`CWSDPMI.EXE` alongside the real (smaller) demo exe,
-  the extender won and the js-dos bundle ran a do-nothing stub (TG97 Textatic →
-  `DOS4GW.EXE` instead of `DEMO5.EXE`). Fixed: `scan.rs` now excludes a denylist of
-  known extenders/stubs from the exe slot.
-- **Amiga demos need fast RAM.** EmulatorJS forces `puae_model=A1200` — whose preset
-  is "2M Chip + **8M Fast**" — but it *also* writes the individual memory options at
-  the core's default (fast = 0), and those **override the model preset**. Result: any
-  sizable demo aborts the instant its loader runs —
-  `<exe>: not enough memory available / failed returncode 10`, dropping to the CLI.
-  Fix (in `frontend/src/lib/EjsEmulator.svelte`): force `puae_fastmem_size = "8"`.
-  This is the #1 reason a freshly-imaged Amiga demo "doesn't start."
-- **A few PC demos need sound setup — bake it, don't make users do it.** A demo that
-  ships a `SETUP.EXE` writing a `SOUND.CFG` hardcodes the *author's* card settings
-  (TG96 Inside: GUS at the original DMA 6 / IRQ 11). js-dos's GUS sits elsewhere
-  (port 240 / DMA 3 / IRQ 5), so GUS init fails → silent (or the demo drops to its
-  own sound menu). Fix: run the demo's setup once **against the bundle's GUS** (pick
-  Gravis UltraSound) so it rewrites `SOUND.CFG` to the bundle's IRQ/DMA, and bake
-  that file. It's **rare** — across all three parties only Inside has a `SETUP.EXE`;
-  every other `.CFG` either auto-detects (MIDAS, IRQ/DMA = `ffffffff` sentinels) or
-  uses the SoundBlaster defaults that already match. Scan for the pattern with
+- **Wild compos mix runnable prods and captured videos.** `pick_primary`
+  (`scan.rs`) falls back to the largest video for a `demo`/`intro` entry that
+  ships only an `.mpg`, so those get a Play button too.
+- **The largest `.exe` is not always the demo.** `scan.rs` excludes a denylist of
+  known DOS extenders/stubs (`DOS4GW.EXE`, `CWSDPMI.EXE`, …) from the primary-exe
+  slot so they don't beat the real (smaller) demo exe.
+- **A demo shipping `SETUP.EXE` + `SOUND.CFG` hardcodes the author's card
+  settings.** js-dos's GUS sits at port 240 / DMA 3 / IRQ 5, so GUS init fails →
+  silent (or the demo drops to its own sound menu). Fix: run the demo's setup
+  once against the bundle's GUS and bake the rewritten `SOUND.CFG`. It's rare —
+  most `.CFG`s auto-detect (MIDAS, `ffffffff` sentinels) or match the
+  SoundBlaster defaults. Scan for the pattern with
   `find <pc-compos> -iname setup.exe -o -iname '*.cfg'`.
-- **A PC demo that aborts instantly may want MMX.** The default core has none, and
-  such a demo says so on the way out (protocode0x28: `CPU: no MMX support -
-  aborting`) — check its `FILE_ID.DIZ`/`.nfo` requirements block, then set
-  `cputype` for that exe (Step 5) to move it onto DOSBox-X. Don't trust the core's
-  log line as proof: `jsdos_pentium_mmx` cheerfully reports `pentium_mmx is enabled`
-  while its CPUID still says no MMX, so the only confirmation that counts is the
-  demo getting past its own check (Step 5's sub-bullet — this is why an authored
-  `pentium_mmx` becomes `pentium_ii`). Native `dosbox-x` is unaffected: there you
-  write `pentium_mmx` normally.
-- **js-dos caches bundles by URL.** The backend builds each `.jsdos` bundle *live
-  from disk*, so a fresh fetch always has the current files — but the browser caches
-  the zip. Change a bundled file (a corrected `SOUND.CFG`) and clients keep the stale
-  one. Bump `BUNDLE_CONF_VERSION` in `frontend/src/lib/api.ts` to bust it.
-- **Kiosk is immutable — fixes must be in the data, not in a user action.** The
-  public/kiosk instance serves a read-only data image. A visitor running `SETUP.EXE`
-  or changing an emulator setting only writes the *local* js-dos overlay /
-  `localStorage` — per-browser, gone on reload and never seen by the next visitor.
-  So every playability fix (corrected `SOUND.CFG`, AGA image, fast-RAM default) has
-  to land in the baked files / app build + a cache-bump. "Just run setup" is not a
-  fix here.
+- **A PC demo that aborts instantly may want MMX.** The default core has none,
+  and such a demo says so on the way out (`CPU: no MMX support - aborting`) —
+  check its `FILE_ID.DIZ`/`.nfo` requirements block, then set `cputype` (Step 5)
+  to move it onto DOSBox-X. The only confirmation that counts is the demo
+  getting past its own check. Native `dosbox-x` is unaffected: there you write
+  `pentium_mmx` normally.
+- **js-dos caches bundles by URL.** The backend builds each `.jsdos` bundle live
+  from disk, but the browser caches the zip — change a bundled file and clients
+  keep the stale one. Bump `BUNDLE_CONF_VERSION` in `frontend/src/lib/api.ts`.
+- **Kiosk is immutable — fixes must be in the data, not in a user action.** A
+  visitor running `SETUP.EXE` or changing an emulator setting only writes the
+  local js-dos overlay / `localStorage` — per-browser, gone on reload. Every
+  playability fix has to land in the baked files / app build + a cache-bump;
+  "just run setup" is not a fix here.
 
 ## Step 8 — Package & deploy
 
@@ -730,21 +640,12 @@ tree never changes there, so rescan is disabled. (See `justfile`,
 
 ## Gotchas
 
-- **macOS junk** — `._*` / `.DS_Store` from SMB shares. The scanner skips
-  dot-dirs; `package-party-data` excludes them. Don't commit them into the tree.
 - **Permissions** — the backend runs as a non-root UID. The NAS source is often
   `drwx------`/`-rwx------` (root-only); `package-party-data` chmods to
   `0755`/`0644` so the binary can read the archive (otherwise it indexes 0 files).
   If running directly off the NAS in dev, make sure your user can traverse it.
 - **CP437** — results files and many `.nfo`/`FILE_ID.DIZ` are CP437, not UTF-8.
   Leave them; the backend handles the encoding.
-- **Transcoder required for visuals** — without `PARTY_TRANSCODER_URL`, graphics
-  and animations only offer a download link. Nothing is pre-converted.
-- **Kickstart not bundled** — Amiga emulation needs `kick40068.A1200` in
-  `.support/`, supplied separately (copyrighted).
-- **Results join is by `(category, rank)`** — a wrong `categories` key or a rank
-  that doesn't match the `NN - …` folder silently drops that entry's points. Verify
-  via the `updated=` log line (Step 7) and that ranks show in the UI after a rescan.
 - **fish shell** — moving entry folders with hidden files trips the classic fish
   gotcha: an unmatched glob like `mv rest/x/.[!.]* dst/` *errors* instead of
   passing through. Wrap such one-liners in `bash -c '…'`, or use `cp -a`/`rsync`.
@@ -752,24 +653,6 @@ tree never changes there, so rescan is disabled. (See `justfile`,
   control-byte names that `unzip` can't create; it then *prompts* ("write error;
   Continue? y/n") and a non-interactive run blocks forever (or dies on EOF). Run it
   `</dev/null` and tolerate a non-zero exit; the junk file is unimportant.
-- **`.lzx` ≠ `.lha`** — `lha` silently makes an empty folder for an LZX archive (no
-  error). Extract it with `unar` (The Unarchiver, `brew install unar` — Prerequisites).
-- **A compo split across two dirs / a misnamed dir** — one Graphics compo can live in
-  two scene.org folders (merge under one key); a `grtc`-named dir may not be raytrace.
-  Map by contents-vs-results, and reconcile the compo *list* against demozoo (Step 4).
-- **Double-listed prods** — a winner copied into both its ranked folder and `rest/`
-  shows twice; the backend won't dedupe. Title-match + byte-compare, then drop the
-  `rest/` copy + its `unranked` entry (Step 5).
-- **Amiga demo "not enough memory" / returncode 10** — emulated A1200 has no fast
-  RAM; it's the fast-RAM override quirk, fixed app-side (`puae_fastmem_size`, Step
-  7½), not a bad image.
-- **PC demo plays silent** — a `SETUP.EXE`/`SOUND.CFG` demo with the author's GUS
-  settings; correct the config to the bundle's GUS and bake it (rare — Step 7½).
-- **Kiosk doesn't reflect a fix** — the data image is immutable and user-side
-  emulator actions don't persist; rebuild the image + bump the bundle version. Don't
-  rely on a visitor running setup (Step 7½).
-- **LLM-named tail can be wrong** — the auto-namer occasionally pastes a ranked
-  title onto a different prod; cross-check unranked titles against `results` (Step 5).
 - **Don't mount the live archive read-write in an emulator** — a DOS/Amiga setup
-  tool will rewrite config files in place (it silently "fixed" a `SOUND.CFG` during
-  testing). Test on a copy; only deliberately bake the result back.
+  tool will rewrite config files in place. Test on a copy; only deliberately bake
+  the result back.
