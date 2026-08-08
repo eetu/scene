@@ -3,30 +3,19 @@
 // pointer/wheel events, so the scenes that support drag-orbit and zoom (paint,
 // tubes) still do.
 //
-// On by default: this is demoscene material, and it was made to be watched on a
-// tube. The toggle is persisted because it's a preference about how you like to
-// watch, not a per-session accident.
+// On by default — demoscene material was made to be watched on a tube; the toggle is
+// a persisted preference.
 import { createCrtScreen, type CrtOptions, type CrtScreen } from "@glowbox/crt";
+
+import { readPref, writePref } from "./persist";
 
 const KEY = "scene-viz-crt";
 
-function initial(): boolean {
-  try {
-    return localStorage.getItem(KEY) !== "0";
-  } catch {
-    return true; // no storage — default to on
-  }
-}
-
-export const crt = $state({ on: initial() });
+export const crt = $state({ on: readPref(KEY) !== "0" });
 
 export function setCrt(on: boolean) {
   crt.on = on;
-  try {
-    localStorage.setItem(KEY, on ? "1" : "0");
-  } catch {
-    /* no storage — the choice just won't outlive the session */
-  }
+  writePref(KEY, on ? "1" : "0");
 }
 
 export function toggleCrt() {
@@ -35,29 +24,12 @@ export function toggleCrt() {
 
 /** Visualisers the CRT screen does not belong in front of.
  *
- *  One rule, and it is not a taste call: the screen simulates a phosphor tube — scanlines, a
- *  shadow mask, a barrel-warped glass face — so it belongs in front of a PICTURE and not in
- *  front of an OBJECT.
- *
- *  Most of the set is a picture: a raster of light with no depth and no housing, which is
- *  what a tube in a chain shows and why the screen reads as period hardware over them. The
- *  ones listed here are objects instead — things drawn as though they are sitting in a room,
- *  with a case, a front panel and their own light:
- *
- *    flip   a flip-dot matrix: printed discs, lit by whatever light is around them
- *    board  a Solari split-flap: physical cards that fall
- *    hifi   a mini system: a brushed faceplate, a cassette door, two speaker cabinets
- *    tubes  nixies in a chassis — glass envelopes you look INTO, not a surface
- *    vu     moving-coil meters: a needle behind a window, an instrument rather than an image
- *
- *  Over any of these the raster claims the object is emitting, which is exactly the illusion
- *  they trade on not doing, and the barrel warp bends front panels and printed cards that are
- *  supposed to be flat. Several also carry controls drawn into the panel, which the screen
- *  cannot composite.
- *
- *  The hi-fi is the interesting case, because it DOES contain a display. But the display is a
- *  strip screwed into a faceplate, and what the visualiser draws is the stereo, not the
- *  strip — so a tube in front is a third display in a chain that already has two. */
+ *  One rule: the screen simulates a phosphor tube, so it belongs in front of a PICTURE
+ *  (a raster of light) and not an OBJECT (something drawn as sitting in a room, with a
+ *  case, a front panel and its own light). Over an object the raster claims the object is
+ *  emitting, the barrel warp bends panels that are supposed to be flat, and several carry
+ *  controls drawn into the panel that the screen cannot composite. The hi-fi DOES contain
+ *  a display, but the visualiser draws the stereo, not the strip. */
 const PHYSICAL = new Set(["flip", "board", "hifi", "tubes", "vu"]);
 
 /** Should the CRT screen be mounted for this visualiser? */

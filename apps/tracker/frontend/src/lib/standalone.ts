@@ -8,7 +8,7 @@ export const STANDALONE = import.meta.env.VITE_STANDALONE === "1";
 // Module extensions libopenmpt can play — used to filter dropped folders / zip
 // entries and to build the file-picker `accept`. Permissive on purpose; a file
 // that slips through and fails to parse is just skipped.
-export const MODULE_EXTS = [
+const MODULE_EXTS = [
   "mod",
   "xm",
   "s3m",

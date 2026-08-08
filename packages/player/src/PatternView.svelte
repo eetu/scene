@@ -8,6 +8,7 @@
   import { untrack } from "svelte";
 
   import ChannelScope from "./ChannelScope.svelte";
+  import { hex2 } from "./format";
   import {
     cellFieldText,
     handleEditKey,
@@ -41,10 +42,6 @@
   // In edit mode the centerline follows the EDIT CURSOR (so entered notes stay
   // in view); otherwise it follows the playing row.
   const centerRow = $derived(playback.editing ? playback.cursorRow : playback.row);
-
-  function hex2(n: number): string {
-    return n.toString(16).toUpperCase().padStart(2, "0");
-  }
 
   // Cursor nav — only while the grid is focused. stopPropagation on handled keys
   // so the app's global arrows (track switch) don't also fire; unhandled keys

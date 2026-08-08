@@ -110,9 +110,8 @@ test("the board turns the page", { timeout: 90000 }, async () => {
 });
 
 // The other half of clamping the drift: when the whole script already fits on the
-// board there is nowhere to scroll to, so it holds still. It used to cycle regardless —
-// the text rotated under you for no reason, and the module's own message was never all
-// on screen at once even though it would have fit.
+// board there is nowhere to scroll to, so it holds still rather than rotating the text
+// under the reader.
 test("a script that fits the board stays put", { timeout: 90000 }, async () => {
   await page.viewport(1000, 620);
   feed = startVizFeed();
@@ -133,16 +132,14 @@ test("a script that fits the board stays put", { timeout: 90000 }, async () => {
   expect(canvas.getAttribute("aria-label"), "a script that fits scrolled anyway").toBe(first);
 });
 
-// The pager is a DOM control inside the pane the CRT screen wraps. The screen
-// composites canvases and hides the sources, so anything that isn't a canvas has to be
-// deliberately placed in front of the glass — and has to still receive clicks, because
-// the screen's own canvas covers the pane. Both have gone wrong here before (a readout
-// that vanished behind the screen, and one that painted over it).
+// The pager is a DOM control inside the pane the CRT screen wraps: the screen composites
+// canvases and hides the sources, so anything that isn't a canvas has to be deliberately
+// placed in front of the glass — and still receive clicks, because the screen's own
+// canvas covers the pane.
 // The scrollbar is drawn INTO the panel, so the pointer path is what has to work: a tap
 // on the last column moves the board. No CRT here on purpose — the app does not mount a
-// screen over the mechanical displays (see crtSuits), and the cross-package contract that
-// used to be checked here now lives in crt.svelte.test.ts, over a visualiser that ships
-// with one.
+// screen over the mechanical displays (see crtSuits); the cross-package compositing
+// contract lives in crt.svelte.test.ts, over a visualiser that ships with one.
 test("a tap on the scrollbar column scrolls the board", { timeout: 90000 }, async () => {
   await page.viewport(1000, 620);
   feed = startVizFeed();

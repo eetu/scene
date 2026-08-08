@@ -268,43 +268,26 @@
       showHelp = !showHelp;
       return;
     }
-    if (e.key === "Escape" && showHelp) {
-      showHelp = false;
-      return;
-    }
-    if (e.key === "Escape" && addTrack) {
-      addTrack = null;
-      return;
-    }
-    if (e.key === "Escape" && showSettings) {
-      showSettings = false;
-      return;
-    }
-    if (e.key === "Escape" && showDupes) {
-      showDupes = false;
-      return;
-    }
-    if (e.key === "Escape" && editingTrack) {
-      cancelEdit();
-      return;
-    }
-    // Innermost first: the visualiser sheet sits inside the player overlay, so it has to
-    // be dismissed before the overlay itself gets the key.
-    if (e.key === "Escape" && pv.vizSheet) {
-      pv.vizSheet = false;
-      return;
-    }
-    // Then fullscreen, before the overlay: losing the visualiser AND the view to one key
-    // is a surprise, and there'd be no way back to where you were. Most browsers consume
-    // Escape themselves to leave fullscreen and never deliver it here — this covers the
-    // ones that do deliver it.
-    if (e.key === "Escape" && document.fullscreenElement) {
-      void document.exitFullscreen();
-      return;
-    }
-    if (e.key === "Escape" && showPattern) {
-      showPattern = false;
-      return;
+    if (e.key === "Escape") {
+      // Innermost first — modals, then the visualiser sheet (it sits inside the
+      // player overlay), then fullscreen (losing the visualiser AND the view to
+      // one key would be a surprise; most browsers consume Escape for fullscreen
+      // themselves — this covers the ones that deliver it), then the overlay.
+      const cascade: [boolean, () => void][] = [
+        [showHelp, () => (showHelp = false)],
+        [!!addTrack, () => (addTrack = null)],
+        [showSettings, () => (showSettings = false)],
+        [showDupes, () => (showDupes = false)],
+        [!!editingTrack, cancelEdit],
+        [pv.vizSheet, () => (pv.vizSheet = false)],
+        [!!document.fullscreenElement, () => void document.exitFullscreen()],
+        [showPattern, () => (showPattern = false)],
+      ];
+      const hit = cascade.find(([open]) => open);
+      if (hit) {
+        hit[1]();
+        return;
+      }
     }
     // ('f' fullscreens the visualiser — handled inside PlayerView.)
     // Type-to-filter: a bare alphanumeric keystroke while the library list is the
@@ -366,7 +349,7 @@
     }
   }
 
-  // ---- rename / move (modal, so list rows keep a fixed height) ----
+  // Rename / move lives in a modal so list rows keep a fixed height.
   // The curate modal (rename/move + manifest graph) owns its own field state;
   // here we just hold which track is open and apply the returned patch so the
   // row re-groups without a full reload.
@@ -378,7 +361,6 @@
     editingTrack = null;
   }
 
-  // ---- playlists ----
   let playlists = $state<Playlist[]>([]);
 
   async function refreshPlaylists() {

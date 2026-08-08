@@ -2,6 +2,8 @@
 // FacetBar controls, the topbar tabs + count, and the list derivations all read
 // it, so it's shared, not prop-drilled. Plain state (no machine — it's just view
 // prefs); only the tab is persisted.
+import { readPref, writePref } from "@scene/player";
+
 import type { LibraryQuery } from "$lib/api";
 import type { GroupKey, GroupSort, TrackSort } from "$lib/library";
 
@@ -35,9 +37,8 @@ const DEFAULTS: Persisted = {
 };
 
 function load(): Persisted {
-  if (typeof localStorage === "undefined") return { ...DEFAULTS };
   try {
-    const raw = localStorage.getItem(VIEW_KEY);
+    const raw = readPref(VIEW_KEY);
     if (!raw) return { ...DEFAULTS };
     // Spread over the defaults so a stored blob from an older shape (or a
     // hand-edited one) can't leave a field undefined.
@@ -47,8 +48,7 @@ function load(): Persisted {
   }
 }
 
-const storedTab =
-  typeof localStorage !== "undefined" ? (localStorage.getItem(TAB_KEY) as Tab | null) : null;
+const storedTab = readPref(TAB_KEY) as Tab | null;
 
 export const view = $state({
   tab: storedTab ?? "library",
@@ -58,30 +58,22 @@ export const view = $state({
 
 /** Persist the sticky slice. Call after any control change. */
 export function saveView() {
-  try {
-    localStorage.setItem(
-      VIEW_KEY,
-      JSON.stringify({
-        collection: view.collection,
-        groupBy: view.groupBy,
-        trackSort: view.trackSort,
-        groupSort: view.groupSort,
-        fmtFilter: view.fmtFilter,
-        trackerFilter: view.trackerFilter,
-      } satisfies Persisted),
-    );
-  } catch {
-    /* storage unavailable — non-fatal */
-  }
+  writePref(
+    VIEW_KEY,
+    JSON.stringify({
+      collection: view.collection,
+      groupBy: view.groupBy,
+      trackSort: view.trackSort,
+      groupSort: view.groupSort,
+      fmtFilter: view.fmtFilter,
+      trackerFilter: view.trackerFilter,
+    } satisfies Persisted),
+  );
 }
 
 export function setTab(t: Tab) {
   view.tab = t;
-  try {
-    localStorage.setItem(TAB_KEY, t);
-  } catch {
-    /* storage unavailable — non-fatal */
-  }
+  writePref(TAB_KEY, t);
 }
 
 /** Switch the source scope (Mods / HVSC / All — "" means all). Clears the

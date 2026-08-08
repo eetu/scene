@@ -6,7 +6,7 @@
   // callbacks (open the player view / add to playlist / rename), plus the
   // playlists tab's data (that tab's own state lives in +page for now).
   import { ChevronRight, ListPlus, Pencil, Play, Star, Trash2 } from "@lucide/svelte";
-  import { BoingBall, playback } from "@scene/player";
+  import { BoingBall, fmtTime, playback } from "@scene/player";
   import { createVirtualizer } from "@tanstack/svelte-virtual";
   import { tick, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
@@ -57,13 +57,6 @@
     onToast: (msg: string, kind?: "ok" | "err") => void;
   } = $props();
 
-  function fmtTime(sec: number): string {
-    if (!sec || !isFinite(sec)) return "0:00";
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  }
-
   // Standalone (backend-less) build: delete a module from the browser-local
   // library (bytes + catalog). library.tracks is the store's array, so removing
   // updates the list reactively.
@@ -92,7 +85,6 @@
     groupOverride.set(name, !isOpen(name));
   }
 
-  // ---- virtualized library list ----
   // Flatten the grouped tree into one row stream (a header row per group, plus
   // the track rows of open groups) and virtualize it with TanStack Virtual, so
   // thousands of <li> never hit the DOM at once. (buildRows/rowKey in $lib/library.)
@@ -205,7 +197,6 @@
     });
   });
 
-  // ---- A-Z quick-jump rail ----
   // A long, alphabetically-ordered library means scrolling forever to reach the
   // Z's. This side rail jumps the virtualized list to the first group under a
   // letter — click a letter, or drag along it (a scrubber, handy on touch). Only
@@ -224,7 +215,7 @@
     if (scrollEl) $virtualizer.scrollToIndex(index, { align: "start" });
   }
 
-  // ---- reveal the currently-playing track when the list comes to the front ----
+  // Reveal the currently-playing track when the list comes to the front.
   // Returning from the player overlay (or a reload that cued a bookmarked ?t)
   // should surface the track you're on, not drop you at wherever you'd scrolled.
   // On the hidden→shown edge only, open its group and centre it — the edge guard

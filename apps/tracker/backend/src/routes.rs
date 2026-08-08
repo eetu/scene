@@ -19,19 +19,13 @@ pub fn router(state: AppState) -> Router {
         // Unauthenticated liveness — gatus probes this; keep it auth-free and on
         // a Traefik monitor router that bypasses oauth2-proxy.
         .route("/status", get(status))
-        // The whole library index (path-derived fields + cached metadata).
         .route("/api/tracks", get(api_tracks))
-        // Raw module bytes by content hash (player + WASM metadata extraction).
         .route("/api/file/{hash}", get(api_file))
-        // Enrichment the frontend parsed via libopenmpt WASM.
         .route("/api/meta/{hash}", post(api_meta))
-        // Listener state: toggle favourite, bump play count (both by content hash).
         .route("/api/favorite/{hash}", post(api_favorite))
         .route("/api/play/{hash}", post(api_play))
-        // Rename / move a module on disk (organise the collection in place).
         .route("/api/rename", post(api_rename))
         .route("/api/delete", post(api_delete))
-        // Re-walk the collection (e.g. after moving files around).
         .route("/api/library/ids", get(api_library_ids))
         .route("/api/tracks/batch", get(api_tracks_batch))
         .route("/api/track/{hash}", get(api_track_by_hash))
@@ -41,7 +35,6 @@ pub fn router(state: AppState) -> Router {
         .route("/api/roms/{which}", get(api_rom))
         .route("/api/rescan", post(api_rescan))
         .route("/api/rescan/{root}", post(api_rescan_root))
-        // Playlists: list/create, fetch/rename/delete one, manage its items.
         .route(
             "/api/playlists",
             get(api_playlists).post(api_create_playlist),
@@ -63,17 +56,11 @@ pub fn router(state: AppState) -> Router {
             "/api/playlists/{id}/items/{item_id}",
             delete(api_remove_item),
         )
-        // Download a playlist's missing songs by md5 via Modland; poll progress.
         .route("/api/playlists/{id}/fetch-missing", post(api_fetch_missing))
         .route("/api/fetch/status", get(api_fetch_status))
-        // All local md5s (for external curation/diffing).
         .route("/api/library/md5", get(api_library_md5))
-        // The library manifest (aliases / group memberships / albums / credits)
-        // and a cheap reload after a hand-edit (no rescan / hashing).
         .route("/api/manifest", get(api_manifest))
         .route("/api/library/reload", post(api_reload_manifest))
-        // Curation: edit the manifest from the UI / an LLM (all write library.json
-        // atomically then hot-swap — no rescan).
         .route("/api/artist/{name}", put(api_set_artist))
         .route("/api/albums", post(api_create_album))
         .route(
@@ -86,11 +73,9 @@ pub fn router(state: AppState) -> Router {
             delete(api_remove_album_song),
         )
         .route("/api/song/{md5}", put(api_set_song))
-        // Duplicate report (exact + likely).
         .route("/api/dupes", get(api_dupes))
-        // SPA fallback — serve a real built asset, else index.html with 200 so
-        // the client router owns the route. NOT tower-http ServeDir (its
-        // not_found_service leaks a 404 onto every client route).
+        // NOT tower-http ServeDir (its not_found_service leaks a 404 onto every
+        // client route).
         .fallback(get(serve_spa))
         .with_state(state)
 }
@@ -99,32 +84,36 @@ async fn serve_spa(
     State(state): State<AppState>,
     uri: axum::http::Uri,
 ) -> axum::response::Response {
-    use axum::response::Html;
+    scene_backend::spa::spa_response(&state.cfg.static_dir, &uri).await
+}
 
-    let base = &state.cfg.static_dir;
-    let rel = uri.path().trim_start_matches('/');
-
-    if !rel.is_empty() {
-        let candidate = base.join(rel);
-        if let Ok(canon) = candidate.canonicalize() {
-            if let Ok(canon_base) = base.canonicalize() {
-                if canon.starts_with(&canon_base) && canon.is_file() {
-                    if let Ok(bytes) = tokio::fs::read(&canon).await {
-                        let mime = mime_guess::from_path(&canon).first_or_octet_stream();
-                        return ([(header::CONTENT_TYPE, mime.as_ref())], bytes).into_response();
-                    }
-                }
-            }
+/// Map a blocking filesystem task's error onto the API error space.
+fn io_to_app(e: std::io::Error) -> AppError {
+    match e.kind() {
+        std::io::ErrorKind::AlreadyExists => {
+            AppError::Conflict("destination already exists".into())
         }
-    }
-
-    match tokio::fs::read_to_string(base.join("index.html")).await {
-        Ok(html) => Html(html).into_response(),
-        Err(_) => (StatusCode::NOT_FOUND, "not found").into_response(),
+        std::io::ErrorKind::NotFound => AppError::NotFound,
+        _ => AppError::Internal(e.into()),
     }
 }
 
-// ---------- public probe ----------
+/// 204 for a row-touching statement, 404 when it matched nothing.
+fn changed_or_404(changed: usize) -> AppResult<StatusCode> {
+    if changed == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Trimmed, non-empty `name` field, else 400.
+fn required_name(raw: &str) -> AppResult<String> {
+    let name = raw.trim();
+    if name.is_empty() {
+        return Err(AppError::BadRequest("name is required".into()));
+    }
+    Ok(name.to_string())
+}
 
 async fn status(State(state): State<AppState>) -> Json<Value> {
     let scanning = state.scan.scanning.load(Ordering::Relaxed);
@@ -229,8 +218,6 @@ async fn status(State(state): State<AppState>) -> Json<Value> {
         "last_scan": state.scan.last.lock().ok().and_then(|s| s.clone()),
     }))
 }
-
-// ---------- gated api ----------
 
 /// One library entry. Path-derived fields are always present; the rest come
 /// from the `meta` cache (LEFT JOIN) and are null until enrichment fills them.
@@ -948,7 +935,7 @@ async fn api_rename(
     // directory — groups live in the manifest.
     let folder = artist.clone().unwrap_or_else(|| {
         if group == crate::scan::GROUPLESS {
-            crate::migrate::UNKNOWN_ARTIST.to_string()
+            crate::scan::UNKNOWN_ARTIST.to_string()
         } else {
             group.clone()
         }
@@ -985,20 +972,16 @@ async fn api_rename(
     })
     .await
     .map_err(|e| AppError::Internal(e.into()))?
-    .map_err(|e| match e.kind() {
-        std::io::ErrorKind::AlreadyExists => {
-            AppError::Conflict("destination already exists".into())
-        }
-        std::io::ErrorKind::NotFound => AppError::NotFound,
-        _ => AppError::Internal(e.into()),
-    })?;
+    .map_err(io_to_app)?;
 
     // Update the index row in place (hash unchanged → meta still matches).
     let (grp, art, fname, ext) = crate::scan::derive_fields(&to_rel);
     let to_for_db = to_rel.clone();
+    let db_fields = (grp.clone(), art.clone(), fname.clone(), ext.clone());
     state
         .db
         .with(move |c| {
+            let (grp, art, fname, ext) = db_fields;
             c.execute(
                 "UPDATE files SET rel_path=?1, grp=?2, artist=?3, filename=?4, ext=?5
                  WHERE root_id=?6 AND rel_path=?7",
@@ -1007,7 +990,6 @@ async fn api_rename(
         })
         .await?;
 
-    let (grp, art, fname, ext) = crate::scan::derive_fields(&to_rel);
     Ok(Json(json!({
         "path": to_rel,
         "group": grp,
@@ -1047,10 +1029,7 @@ async fn api_delete(
     tokio::task::spawn_blocking(move || std::fs::remove_file(&for_fs))
         .await
         .map_err(|e| AppError::Internal(e.into()))?
-        .map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => AppError::NotFound,
-            _ => AppError::Internal(e.into()),
-        })?;
+        .map_err(io_to_app)?;
 
     // Drop the index row ((root_id, rel_path) is unique; both came from the index).
     let for_db = rel.clone();
@@ -1124,12 +1103,6 @@ async fn rescan_root(state: &AppState, root_id: &str) -> AppResult<(StatusCode, 
             })),
         ));
     }
-    if root.kind != crate::config::RootKind::Scan {
-        return Err(AppError::BadRequest(format!(
-            "root {root_id:?} is not walked — it is indexed from its own catalogue"
-        )));
-    }
-
     // One at a time. Two scans would serialise on the single SQLite connection
     // anyway, but they'd also interleave their writes to the shared progress
     // counters, so `/status` would report a meaningless blend of the two.
@@ -1147,24 +1120,12 @@ async fn rescan_root(state: &AppState, root_id: &str) -> AppResult<(StatusCode, 
         return Err(AppError::Conflict("a scan is already running".into()));
     }
 
-    // Answer immediately and walk in the background.
-    //
-    // A scan of the module root is minutes of stat-and-hash over a network
-    // mount. Holding the request open for that meant one dropped connection —
-    // a UI reload, a proxy timeout, a phone locking — looked like a failure
-    // while the scan carried on regardless, and nothing could tell the
-    // difference. The work was always detached in practice (`spawn_blocking`
-    // runs to completion whether or not anyone is awaiting it); this just makes
-    // the API say so.
-    //
-    // Progress is already reportable without the DB: the scanner writes
-    // lock-free counters that `/status` reads, which is what the client polls.
-    // The outcome lands in `scan.last` for the same reason — a 202 has nothing
-    // to report yet, and dropping the counts entirely would make a failed scan
-    // indistinguishable from one that found nothing.
-    // `run_scan` records the outcome in `scan.last` itself, before it clears the
-    // `scanning` flag — so a client polling "wait for scanning to go false, then
-    // read last_scan" can't observe the gap between the two.
+    // Answer 202 and walk detached: a scan is minutes of stat-and-hash over a
+    // network mount, and `spawn_blocking` runs to completion whether or not
+    // anyone awaits it anyway. Progress comes from the lock-free counters
+    // `/status` reads; the outcome lands in `scan.last` (written by `run_scan`
+    // *before* it clears the `scanning` flag, so a client polling "scanning
+    // went false → read last_scan" can't observe the gap).
     let db = state.db.clone();
     let progress = state.scan.clone();
     let id = root.id.clone();
@@ -1180,8 +1141,6 @@ async fn rescan_root(state: &AppState, root_id: &str) -> AppResult<(StatusCode, 
         Json(json!({ "started": true, "root": root_id })),
     ))
 }
-
-// ---------- playlists ----------
 
 #[derive(Serialize)]
 struct PlaylistSummary {
@@ -1247,27 +1206,31 @@ fn slug(name: &str) -> String {
     }
 }
 
+/// Columns for [`playlist_summary_row`] — the two must stay in sync.
+const PLAYLIST_COLS: &str = "p.id, p.name, p.kind, p.source_ref, p.created_at, p.updated_at,
+     (SELECT COUNT(*) FROM playlist_items pi WHERE pi.playlist_id = p.id)";
+
+fn playlist_summary_row(r: &rusqlite::Row) -> rusqlite::Result<PlaylistSummary> {
+    Ok(PlaylistSummary {
+        id: r.get(0)?,
+        name: r.get(1)?,
+        kind: r.get(2)?,
+        source_ref: r.get(3)?,
+        created_at: r.get(4)?,
+        updated_at: r.get(5)?,
+        item_count: r.get(6)?,
+    })
+}
+
 async fn api_playlists(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {
     let lists = state
         .db
         .with(|c| {
-            let mut stmt = c.prepare(
-                "SELECT p.id, p.name, p.kind, p.source_ref, p.created_at, p.updated_at,
-                        (SELECT COUNT(*) FROM playlist_items pi WHERE pi.playlist_id = p.id)
-                 FROM playlists p
-                 ORDER BY p.updated_at DESC, p.name COLLATE NOCASE",
-            )?;
-            let rows = stmt.query_map([], |r| {
-                Ok(PlaylistSummary {
-                    id: r.get(0)?,
-                    name: r.get(1)?,
-                    kind: r.get(2)?,
-                    source_ref: r.get(3)?,
-                    created_at: r.get(4)?,
-                    updated_at: r.get(5)?,
-                    item_count: r.get(6)?,
-                })
-            })?;
+            let mut stmt = c.prepare(&format!(
+                "SELECT {PLAYLIST_COLS} FROM playlists p
+                 ORDER BY p.updated_at DESC, p.name COLLATE NOCASE"
+            ))?;
+            let rows = stmt.query_map([], playlist_summary_row)?;
             rows.collect::<rusqlite::Result<Vec<_>>>()
         })
         .await?;
@@ -1284,10 +1247,7 @@ async fn api_create_playlist(
     State(state): State<AppState>,
     Json(req): Json<CreatePlaylistIn>,
 ) -> AppResult<Json<PlaylistSummary>> {
-    let name = req.name.trim().to_string();
-    if name.is_empty() {
-        return Err(AppError::BadRequest("name is required".into()));
-    }
+    let name = required_name(&req.name)?;
     let now = chrono::Utc::now();
     let id = format!("{}-{}", slug(&name), now.timestamp_millis());
     let now = now.to_rfc3339();
@@ -1322,21 +1282,9 @@ async fn api_playlist(
         .db
         .with(move |c| {
             let summary = c.query_row(
-                "SELECT p.id, p.name, p.kind, p.source_ref, p.created_at, p.updated_at,
-                        (SELECT COUNT(*) FROM playlist_items pi WHERE pi.playlist_id = p.id)
-                 FROM playlists p WHERE p.id = ?1",
+                &format!("SELECT {PLAYLIST_COLS} FROM playlists p WHERE p.id = ?1"),
                 [&id],
-                |r| {
-                    Ok(PlaylistSummary {
-                        id: r.get(0)?,
-                        name: r.get(1)?,
-                        kind: r.get(2)?,
-                        source_ref: r.get(3)?,
-                        created_at: r.get(4)?,
-                        updated_at: r.get(5)?,
-                        item_count: r.get(6)?,
-                    })
-                },
+                playlist_summary_row,
             )?;
             // Resolve each md5 to a local file (if present); an md5 can map to
             // several `files` rows (duplicate files), GROUP BY collapses to one.
@@ -1411,10 +1359,7 @@ async fn api_rename_playlist(
     Path(id): Path<String>,
     Json(req): Json<CreatePlaylistIn>,
 ) -> AppResult<StatusCode> {
-    let name = req.name.trim().to_string();
-    if name.is_empty() {
-        return Err(AppError::BadRequest("name is required".into()));
-    }
+    let name = required_name(&req.name)?;
     let now = chrono::Utc::now().to_rfc3339();
     let changed = state
         .db
@@ -1425,10 +1370,7 @@ async fn api_rename_playlist(
             )
         })
         .await?;
-    if changed == 0 {
-        return Err(AppError::NotFound);
-    }
-    Ok(StatusCode::NO_CONTENT)
+    changed_or_404(changed)
 }
 
 async fn api_delete_playlist(
@@ -1440,10 +1382,7 @@ async fn api_delete_playlist(
         .db
         .with(move |c| c.execute("DELETE FROM playlists WHERE id = ?1", [&id]))
         .await?;
-    if changed == 0 {
-        return Err(AppError::NotFound);
-    }
-    Ok(StatusCode::NO_CONTENT)
+    changed_or_404(changed)
 }
 
 /// One item to add/import. Hybrid identity: `md5` (local-library match key, when
@@ -1524,32 +1463,23 @@ async fn api_add_item(
                 return Ok(false);
             }
             // Idempotent: dedup by md5 if present, else path, else url.
-            let dup: bool = match (&md5, &path, &url) {
-                (Some(m), _, _) => tx
+            let key = md5
+                .as_ref()
+                .map(|v| ("md5", v))
+                .or_else(|| path.as_ref().map(|v| ("path", v)))
+                .or_else(|| url.as_ref().map(|v| ("url", v)));
+            let dup: bool = match key {
+                Some((col, val)) => tx
                     .query_row(
-                        "SELECT 1 FROM playlist_items WHERE playlist_id = ?1 AND md5 = ?2",
-                        rusqlite::params![id, m],
+                        &format!(
+                            "SELECT 1 FROM playlist_items WHERE playlist_id = ?1 AND {col} = ?2"
+                        ),
+                        rusqlite::params![id, val],
                         |_| Ok(true),
                     )
                     .optional()?
                     .is_some(),
-                (None, Some(p), _) => tx
-                    .query_row(
-                        "SELECT 1 FROM playlist_items WHERE playlist_id = ?1 AND path = ?2",
-                        rusqlite::params![id, p],
-                        |_| Ok(true),
-                    )
-                    .optional()?
-                    .is_some(),
-                (None, None, Some(u)) => tx
-                    .query_row(
-                        "SELECT 1 FROM playlist_items WHERE playlist_id = ?1 AND url = ?2",
-                        rusqlite::params![id, u],
-                        |_| Ok(true),
-                    )
-                    .optional()?
-                    .is_some(),
-                _ => false,
+                None => false,
             };
             if !dup {
                 let next: i64 = tx.query_row(
@@ -1633,13 +1563,8 @@ async fn api_remove_item(
             )
         })
         .await?;
-    if changed == 0 {
-        return Err(AppError::NotFound);
-    }
-    Ok(StatusCode::NO_CONTENT)
+    changed_or_404(changed)
 }
-
-// ---------- import / export ----------
 
 #[derive(Deserialize)]
 struct ImportIn {
@@ -1656,10 +1581,7 @@ async fn api_import_playlist(
     State(state): State<AppState>,
     Json(req): Json<ImportIn>,
 ) -> AppResult<Json<PlaylistSummary>> {
-    let name = req.name.trim().to_string();
-    if name.is_empty() {
-        return Err(AppError::BadRequest("name is required".into()));
-    }
+    let name = required_name(&req.name)?;
     // Keep items with a usable key (md5 or path), de-duped, first-seen order.
     let mut seen = std::collections::HashSet::new();
     let mut items: Vec<ItemIn> = Vec::new();
@@ -1781,8 +1703,6 @@ async fn api_library_md5(_auth: Auth, State(state): State<AppState>) -> AppResul
     Ok(Json(json!({ "md5": md5s })))
 }
 
-// ---------- library manifest ----------
-
 /// The library manifest (`library.json`): artist aliases + group memberships,
 /// albums (by md5), per-song credits. The frontend joins it against the track
 /// index client-side to build the group / artist / album facets.
@@ -1799,8 +1719,6 @@ async fn api_reload_manifest(_auth: Auth, State(state): State<AppState>) -> AppR
     state.manifest.reload().await?;
     Ok(StatusCode::NO_CONTENT)
 }
-
-// ---------- library manifest curation ----------
 
 /// Normalise an md5: lowercased, only if it's a 32-hex string.
 fn normalize_md5(raw: &str) -> Option<String> {
@@ -1940,6 +1858,32 @@ struct AlbumPatch {
     songs: Option<Vec<String>>,
 }
 
+/// Run a manifest update; 204 when the closure reports success, else 404.
+async fn manifest_204(
+    state: &AppState,
+    mutate: impl FnOnce(&mut crate::manifest::Manifest) -> bool,
+) -> AppResult<StatusCode> {
+    let ok = state.manifest.update(mutate).await?;
+    ok.then_some(StatusCode::NO_CONTENT)
+        .ok_or(AppError::NotFound)
+}
+
+/// Mutate album `id`; 404 for an unknown id.
+async fn album_204(
+    state: &AppState,
+    id: String,
+    mutate: impl FnOnce(&mut crate::manifest::Album),
+) -> AppResult<StatusCode> {
+    manifest_204(state, move |m| {
+        let Some(a) = m.albums.get_mut(&id) else {
+            return false;
+        };
+        mutate(a);
+        true
+    })
+    .await
+}
+
 /// Update an album's title / kind / songs. Fields absent from the body are left
 /// unchanged; an empty `title`/`kind` string clears it. 404 if the id is unknown.
 async fn api_update_album(
@@ -1949,28 +1893,20 @@ async fn api_update_album(
     Json(req): Json<AlbumPatch>,
 ) -> AppResult<StatusCode> {
     let songs = req.songs.as_ref().map(|s| clean_md5_list(s));
-    let ok = state
-        .manifest
-        .update(move |m| {
-            let Some(a) = m.albums.get_mut(&id) else {
-                return false;
-            };
-            if let Some(t) = req.title {
-                let t = t.trim();
-                a.title = (!t.is_empty()).then(|| t.to_string());
-            }
-            if let Some(k) = req.kind {
-                let k = k.trim();
-                a.kind = (!k.is_empty()).then(|| k.to_string());
-            }
-            if let Some(s) = songs {
-                a.songs = s;
-            }
-            true
-        })
-        .await?;
-    ok.then_some(StatusCode::NO_CONTENT)
-        .ok_or(AppError::NotFound)
+    album_204(&state, id, move |a| {
+        if let Some(t) = req.title {
+            let t = t.trim();
+            a.title = (!t.is_empty()).then(|| t.to_string());
+        }
+        if let Some(k) = req.kind {
+            let k = k.trim();
+            a.kind = (!k.is_empty()).then(|| k.to_string());
+        }
+        if let Some(s) = songs {
+            a.songs = s;
+        }
+    })
+    .await
 }
 
 async fn api_delete_album(
@@ -1978,12 +1914,7 @@ async fn api_delete_album(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> AppResult<StatusCode> {
-    let ok = state
-        .manifest
-        .update(move |m| m.albums.shift_remove(&id).is_some())
-        .await?;
-    ok.then_some(StatusCode::NO_CONTENT)
-        .ok_or(AppError::NotFound)
+    manifest_204(&state, move |m| m.albums.shift_remove(&id).is_some()).await
 }
 
 #[derive(Deserialize)]
@@ -1999,24 +1930,16 @@ async fn api_add_album_song(
     Json(req): Json<AlbumSongIn>,
 ) -> AppResult<StatusCode> {
     let md5 = normalize_md5(&req.md5).ok_or_else(|| AppError::BadRequest("invalid md5".into()))?;
-    let ok = state
-        .manifest
-        .update(move |m| {
-            let Some(a) = m.albums.get_mut(&id) else {
-                return false;
-            };
-            if !a
-                .songs
-                .iter()
-                .any(|s| normalize_md5(s).as_deref() == Some(md5.as_str()))
-            {
-                a.songs.push(md5);
-            }
-            true
-        })
-        .await?;
-    ok.then_some(StatusCode::NO_CONTENT)
-        .ok_or(AppError::NotFound)
+    album_204(&state, id, move |a| {
+        if !a
+            .songs
+            .iter()
+            .any(|s| normalize_md5(s).as_deref() == Some(md5.as_str()))
+        {
+            a.songs.push(md5);
+        }
+    })
+    .await
 }
 
 async fn api_remove_album_song(
@@ -2025,19 +1948,11 @@ async fn api_remove_album_song(
     Path((id, md5)): Path<(String, String)>,
 ) -> AppResult<StatusCode> {
     let md5 = normalize_md5(&md5).ok_or_else(|| AppError::BadRequest("invalid md5".into()))?;
-    let ok = state
-        .manifest
-        .update(move |m| {
-            let Some(a) = m.albums.get_mut(&id) else {
-                return false;
-            };
-            a.songs
-                .retain(|s| normalize_md5(s).as_deref() != Some(md5.as_str()));
-            true
-        })
-        .await?;
-    ok.then_some(StatusCode::NO_CONTENT)
-        .ok_or(AppError::NotFound)
+    album_204(&state, id, move |a| {
+        a.songs
+            .retain(|s| normalize_md5(s).as_deref() != Some(md5.as_str()));
+    })
+    .await
 }
 
 #[derive(Deserialize)]
@@ -2081,8 +1996,6 @@ async fn api_set_song(
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
-
-// ---------- fetch missing (download by Modland path) ----------
 
 /// Fallback group for a fetched module whose Modland path carries no author.
 /// Safety cap on downloads per fetch run (be kind to a volunteer-run service).
@@ -2314,7 +2227,7 @@ async fn write_module(
         .ok_or_else(|| anyhow::anyhow!("unsafe or non-module filename: {filename}"))?;
     let folder = artist
         .and_then(clean_segment)
-        .unwrap_or_else(|| crate::migrate::UNKNOWN_ARTIST.to_string());
+        .unwrap_or_else(|| crate::scan::UNKNOWN_ARTIST.to_string());
     let dir = root.join(folder);
     tokio::fs::create_dir_all(&dir).await?;
     let dest = unique_dest(&dir, &name);
@@ -2341,8 +2254,6 @@ fn unique_dest(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
     }
     plain
 }
-
-// ---------- duplicate report ----------
 
 /// Report duplicate modules: **exact** (identical md5 at multiple paths) and
 /// **likely** (same filename, different md5 — probably the same tune re-encoded).

@@ -1,0 +1,27 @@
+/* Emulator toolbar button chrome, shared by Emulator.svelte (DOSBox) and
+   EjsEmulator.svelte (EmulatorJS). The .bar container layout stays per
+   component; their own scoped rules (toggles, segments, mobile padding)
+   override this base by specificity. */
+.bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.bar button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.bar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.bar button.exit:hover {
+  border-color: #ff4136;
+  color: #ff4136;
+}

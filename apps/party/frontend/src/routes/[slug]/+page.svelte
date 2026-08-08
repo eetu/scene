@@ -3,6 +3,8 @@
   // detail panel that dispatches to the right viewer by medium — music → the
   // libopenmpt Player, images/video native where possible, text → NfoView,
   // demos/intros → an emulator placeholder (Phase 3). Everything downloadable.
+  import "@scene/design/modal.css";
+
   import {
     ChevronRight,
     CircleHelp,
@@ -503,51 +505,12 @@
     font-size: 13px;
     margin-right: auto;
   }
-  /* Help overlay (mirrors the Settings modal's look). */
+  /* Help overlay — shell from @scene/design/modal.css; sits above the viewer
+     chrome and runs a touch wider/roomier than the settings card. */
   .modal-bg {
-    position: fixed;
-    inset: 0;
-    z-index: 30;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-  }
-  .modal-scrim {
-    position: absolute;
-    inset: 0;
-    border: none;
-    background: rgba(0, 0, 0, 0.5);
-    cursor: pointer;
-  }
-  .modal {
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    max-width: 460px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  /* Fill the viewport on phones instead of a cramped centred card (safe-area
-     aware, scrolls if tall). */
-  @media (max-width: 640px) {
-    .modal-bg {
-      padding: 0;
-    }
-    .modal {
-      max-width: none;
-      height: 100%;
-      border: 0;
-      border-radius: 0;
-      overflow-y: auto;
-      padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
-        calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
-    }
+    --modal-z: 30;
+    --modal-max-w: 460px;
+    --modal-gap: 12px;
   }
   .help-head {
     display: flex;

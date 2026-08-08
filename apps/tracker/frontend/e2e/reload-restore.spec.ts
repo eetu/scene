@@ -53,10 +53,8 @@ test("cold reload of /?t= decodes the pattern and keeps the transport honest", a
 
 // After a cold reload the module is decoded (for the pattern) but no gesture has
 // started audio, so nothing is "loaded" for playback. The samples view reads
-// waveforms/props off the resident module via readSample — which used to fail
-// (decodeSong discarded its throwaway module), leaving the samples tab with names
-// but no waveform/props until you pressed play. The worker now keeps the decoded
-// module resident while idle, so sample data is available with no gesture.
+// waveforms/props off the resident module via readSample, so the worker must keep
+// the decoded module resident while idle — sample data with no gesture.
 test("cold reload leaves samples readable without a gesture", async ({ context, page }) => {
   await mockLibrary(context); // one track (test.xm — 3 samples)
 

@@ -121,7 +121,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!res.ok) {
-    throw new ApiError(res.status, `${init?.method ?? "GET"} ${path} → ${res.status}`);
+    // Prefer the backend's own words — its 4xx bodies are written to be read.
+    // Falls back to the method/status form for an empty body or an HTML error
+    // page from a proxy, neither of which says anything a user can act on.
+    let detail = "";
+    try {
+      const body = (await res.text()).trim();
+      if (body && !body.startsWith("<") && body.length <= 300) detail = body;
+    } catch {
+      /* body already consumed or unreadable — the fallback still holds */
+    }
+    throw new ApiError(res.status, detail || `${init?.method ?? "GET"} ${path} → ${res.status}`);
   }
   if (res.status === 204) {
     return undefined as T;

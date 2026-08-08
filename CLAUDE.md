@@ -10,6 +10,8 @@ Siblings: deploy via `../raspi`; media sidecar pattern from `../scribe`.
 packages/        shared FRONTEND libs (yarn workspace members, source-only)
   player/          @scene/player  — libopenmpt (chiptune3) engine + store + transport UI
   design/          @scene/design  — halo tokens, fonts, theme store
+crates/          shared BACKEND libs (cargo workspace members)
+  scene-backend/   error/auth/CSP/SPA/scan plumbing shared by the app backends
 apps/
   tracker/         MOD/tracker-music player
     backend/         tracker-backend (cargo member)

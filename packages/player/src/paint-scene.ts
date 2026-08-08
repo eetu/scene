@@ -11,13 +11,13 @@
 // SpeakerPaint.svelte feeds it the per-band levels + beats.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 
 import { activeFps, idleFps, reportFrame } from "./perf.svelte";
+import { createStage } from "./stage";
 
 export interface PaintScene {
   /** Five band levels 0..1 (centre→ring = sub-bass→treble). */
@@ -81,25 +81,16 @@ function setRamp(accent: string) {
 }
 
 export function createPaintScene(container: HTMLElement): PaintScene {
-  // preserveDrawingBuffer: the CRT screen samples this canvas as a texture from its own
-  // rAF, and Safari discards a drawing buffer as soon as it has composited it — so
-  // without this the screen reads an empty buffer and the tube goes black there (Chrome
-  // happens to keep it around, which is why it only showed up on Safari). Costs the
-  // driver some freedom to discard, which is the price of being compositable.
-  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.6;
-  container.appendChild(renderer.domElement);
-  renderer.domElement.style.display = "block";
-  renderer.domElement.style.width = "100%";
-  renderer.domElement.style.height = "100%";
+  const stage = createStage(container, {
+    pixelRatioMax: 1.5,
+    toneMappingExposure: 0.6,
+    environment: true,
+  });
+  const renderer = stage.renderer;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x040406);
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environment = envTex;
+  scene.environment = stage.envTex;
 
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 
@@ -413,9 +404,7 @@ export function createPaintScene(container: HTMLElement): PaintScene {
     camera.aspect = w / hgt;
     camera.updateProjectionMatrix();
   }
-  const ro = new ResizeObserver(() => resize());
-  ro.observe(container);
-  resize();
+  stage.observe(resize);
   lastT = performance.now();
   raf = requestAnimationFrame(loop);
 
@@ -461,25 +450,11 @@ export function createPaintScene(container: HTMLElement): PaintScene {
     dispose() {
       cancelAnimationFrame(raf);
       document.removeEventListener("visibilitychange", onVis);
-      ro.disconnect();
       controls.dispose();
       geo.dispose();
       paintMat.dispose();
-      envTex.dispose();
-      pmrem.dispose();
       composer.dispose();
-      renderer.dispose();
-      // Hand the WebGL context back NOW. dispose() releases three's own resources but
-      // leaves the context itself alive until GC, and a browser allows only ~16 at a
-      // time — flipping between visualisers then walks over the limit ("too many
-      // active WebGL contexts, the oldest will be lost") and silently kills whichever
-      // one is on screen. That looks exactly like a broken visualiser.
-      //
-      // Guarded: the context may ALREADY be lost, either because the browser dropped
-      // it under that limit or because it was torn down once before. Asking again logs
-      // "INVALID_OPERATION: loseContext: context already lost".
-      if (!renderer.getContext().isContextLost()) renderer.forceContextLoss();
-      renderer.domElement.remove();
+      stage.destroy();
     },
   };
 }

@@ -2,11 +2,6 @@
 // the `Engine` interface through `unknown`, so the compiler verifies nothing
 // about that pairing. This test does: every method the interface promises must
 // actually exist on the wrapper.
-//
-// It exists because the interface used to be *under*-specified — the store
-// reached four render-telemetry hooks through an untyped handle, so they were
-// part of the real contract while being invisible to it. Widening the interface
-// only helps if something checks the implementation still satisfies it.
 import { describe, expect, test } from "vitest";
 
 import { ChiptuneJsPlayer } from "../vendor/chiptune3.js";

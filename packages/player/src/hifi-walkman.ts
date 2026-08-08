@@ -1,15 +1,9 @@
 // The portrait chassis: a personal stereo, with the same cassette stood on its short edge.
 //
-// A separates stack is the wrong object for a tall pane. Capping the components' aspect and
-// centring them (see layoutHifi) keeps that honest rather than stretched, but it also leaves
-// a phone-shaped pane mostly empty — and the cassette, which is the thing worth looking at,
-// ends up small in the middle of it. A personal stereo is the object that IS this shape: it
-// was built around one cassette standing upright, because that is the smallest box a
-// cassette fits in.
-//
-// So the cassette gets a quarter turn and nearly the whole pane, exactly as it did in the
-// real thing: 100.5mm of tape shell in a body about 113mm tall. The label reads sideways,
-// which is also what it did — you tilted your head, or the machine.
+// A separates stack is the wrong object for a tall pane; a personal stereo is the object
+// that IS this shape — built around one cassette standing upright, because that is the
+// smallest box a cassette fits in. So the cassette gets a quarter turn and nearly the whole
+// pane: 100.5mm of tape shell in a body about 113mm tall, the label reading sideways.
 //
 // Everything is drawn from hifi-parts, so this is the same cassette as the deck's, not a
 // second drawing of one that will drift.
@@ -61,18 +55,10 @@ export type WalkmanLayout = {
 };
 
 /**
- * The body's proportions.
- *
- * Driven by the cassette, not chosen: a shell is 100.5mm long, it stands upright behind the
- * lid, and the display strip has to go somewhere under it. 92 × 140 is what that adds up to,
- * and it puts the door at nearly three-quarters of the front — which is what a personal
- * stereo looked like, because the door is where the tape is.
- *
- * It got there in two corrections. A real WM's 92 × 118 had no room under the lid at all, so
- * the lid shrank and the cassette floated in it with dark margins either side. Then a key row
- * on the front pushed the body to 92 × 150 — but the transport keys on these machines were on
- * the SIDE EDGE, not the face, so drawing them on the front was wrong twice over: wrong
- * object, and it stole the height the door wanted.
+ * The body's proportions. Driven by the cassette, not chosen: a shell is 100.5mm long, it
+ * stands upright behind the lid, and the display strip has to go somewhere under it.
+ * 92 × 140 is what that adds up to, and it puts the door at nearly three-quarters of the
+ * front — which is what a personal stereo looked like, because the door is where the tape is.
  */
 export const BODY_ASPECT = 92 / 140;
 
@@ -85,11 +71,7 @@ export const BODY_ASPECT = 92 / 140;
  * of a side. That is the way round a tape sits in one of these — you load it label-out with
  * the open edge downward, into the mechanism.
  */
-export function turnedCassette(
-  ctx: CanvasRenderingContext2D,
-  l: WalkmanLayout,
-  fn: (c: Rect) => void,
-) {
+function turnedCassette(ctx: CanvasRenderingContext2D, l: WalkmanLayout, fn: (c: Rect) => void) {
   ctx.save();
   // Rotate about the well's centre, then hand `fn` a landscape rect centred on the origin.
   ctx.translate(l.well.x + l.well.w / 2, l.well.y + l.well.h / 2);
@@ -113,24 +95,18 @@ export function layoutWalkman(w: number, h: number): WalkmanLayout {
   }
   const body: Rect = { x: pad + (availW - bw) / 2, y: pad + (availH - bh) / 2, w: bw, h: bh };
 
-  // The side band, and the front plate that is left.
-  //
-  // These machines were two materials: a painted front and a bare metal side carrying the
-  // transport. Drawing the side as its own full-height band — rather than as a strip of
-  // decoration sitting on the front — is what puts the buttons somewhere they could be
-  // mounted, and it is why the front carries none.
-  // A sliver, not a panel: looking down at the top of the machine you see its side wall
-  // recede, not present itself.
+  // The side band, and the front plate that is left. These machines were two materials: a
+  // painted front and a bare metal side carrying the transport — which is why the front
+  // carries no buttons. A sliver, not a panel: looking down at the top of the machine you
+  // see its side wall recede, not present itself.
   const sideW = body.w * 0.035;
   const sideKeys: Rect = { x: body.x + body.w - sideW, y: body.y, w: sideW, h: body.h };
   const face: Rect = { x: body.x, y: body.y, w: body.w - sideW, h: body.h };
 
   // The lid is sized FROM the cassette, the way the deck's well is: a door is a door-sized
   // hole. Turned, the cassette's LENGTH runs down the lid and its HEIGHT across it, so the
-  // lid comes out about three-quarters of the body's width — which is the proportion that
-  // makes the thing read as a machine built around one tape.
-  // A band across the top belongs to the HOLD switch, the way the deck reserves one for its
-  // model name: a switch half-hidden behind the door it sits above reads as a mistake.
+  // lid comes out about three-quarters of the body's width. A band across the top belongs
+  // to the HOLD switch, the way the deck reserves one for its model name.
   const headBand = face.h * 0.055;
   const lidW = face.w * 0.86;
   const lidH = face.h * 0.72;
@@ -150,25 +126,11 @@ export function layoutWalkman(w: number, h: number): WalkmanLayout {
   const lip = Math.max(2, well.w * 0.02);
 
   // A single strip of display under the door — a personal stereo had room for one line, and
-  // the mini plate declared in vfd-face.ts is that line.
+  // the mini plate declared in vfd-face.ts is that line. It runs out to an even margin off
+  // the face's own edges: the same gap left, right, below, and between it and the door.
   //
-  // It gets the full width because there are no buttons flanking it any more. There were:
-  // DISPLAY and DIMMER, drawn as caps either side. DISPLAY went because pressing the plate
-  // already cycles the face, so the cap was a second way to do one thing; DIMMER went
-  // because a dimmer is a home-component control — you turn a hi-fi's display down at night
-  // — and a machine you wear in a pocket never had one. What is left is more display.
-  // It takes ALL the room below the door — wider than the door, because there is no reason
-  // for it not to be. The door's width is set by a cassette; the display's is set by the
-  // machine, so it runs out to an even margin off the face's own edges: the same gap left,
-  // right, below, and between it and the door. Matching the DOOR's width instead, which is
-  // where this started, left a band of bare metal either side of a display that had nothing
-  // else to share the space with.
-  //
-  // Capped at the mini plate's own 5.2:1, and centred in the band if the cap bites. Letting
-  // it go wider than that letterboxes the plate INSIDE the strip — dark bands at both ends
-  // of a display that is only one line tall, which reads as a display that isn't working.
-  // At these proportions the cap lands almost exactly on the available space, so the plate
-  // fills the glass.
+  // Capped at the mini plate's own 5.2:1, and centred in the band if the cap bites — wider
+  // letterboxes the plate INSIDE the strip, which reads as a display that isn't working.
   const m = face.w * 0.045;
   const bandTop = well.y + well.h + lip + m;
   const bandBottom = face.y + face.h - m;
@@ -181,21 +143,15 @@ export function layoutWalkman(w: number, h: number): WalkmanLayout {
     h: Math.max(1, glassH),
   };
 
-  // HOLD, and what it holds.
-  //
-  // On the real thing HOLD locked the transport so nothing happened while the machine was in
-  // a pocket, and here it locks the one gesture this face has: pressing the plate to change
-  // what the display shows. That makes it a real switch doing its real job rather than a
-  // moulding — and on a phone, where the viz pane is something you touch by accident, it is
-  // the same protection it always was.
+  // HOLD: on the real thing it locked the transport against pocket presses; here it locks
+  // the one gesture this face has — pressing the plate to change what the display shows —
+  // which on a phone, where the viz pane is touched by accident, is the same protection.
   const holdW = face.w * 0.17;
   const holdH = Math.max(6, face.h * 0.026);
   const hold: Rect = {
     x: face.x + face.w * 0.85 - holdW,
-    // Centred between the face's top edge and the door's RECESS, not the door's opening.
-    // Measuring to the opening ignores the chamfer around it, so the switch ended up one
-    // lip closer to the door than to the top of the machine — a small gap that reads as the
-    // switch having drifted rather than as a margin.
+    // Centred between the face's top edge and the door's RECESS (its opening plus the
+    // chamfer), so the switch sits an equal distance from both.
     y: face.y + (well.y - lip - face.y - holdH) / 2,
     w: holdW,
     h: holdH,
@@ -239,22 +195,15 @@ export function paintWalkmanStill(
   g.fillRect(0, 0, w, h);
 
   // The machine, in the order you actually see it: the side wall behind, the transport
-  // mounted THROUGH that wall, and the top panel laid over both.
-  //
-  // The order is the whole trick, and three earlier attempts got it wrong by drawing the
-  // buttons last — as caps on the face, then as caps in a channel on the face, then as caps
-  // on a side band. All three drew a button you could put a thumb on, because a shape drawn
-  // last is a shape you are looking AT. Drawing them BEFORE the top panel means the panel's
-  // edge cuts them off, and what is left is a profile peeking over that edge — which is all
+  // mounted THROUGH that wall, and the top panel laid over both. The buttons are drawn
+  // BEFORE the top panel so its edge cuts them off — a profile peeking over the edge is all
   // you can see of a control mounted on the side of something you are looking down at.
   const side = l.sideKeys;
   const r = Math.max(3, face.w * 0.05);
 
-  // Nothing is drawn behind them. There was a side-wall panel here, filling the strip the
-  // buttons sit in — and a panel behind a button is a BACK PLATE, which is a thing this
-  // machine does not have. Looking down at the top, past its edge, there is the button and
-  // then there is the room. The buttons run well under where the panel will land, so only
-  // their outer ends survive the occlusion.
+  // Nothing is drawn behind them: looking down past the top's edge there is the button and
+  // then the room. The buttons run well under where the panel will land, so only their
+  // outer ends survive the occlusion.
   for (let i = 0; i < 4; i++) {
     const kh = side.h * 0.05;
     const ky = side.y + side.h * 0.32 + i * kh * 2.2;
@@ -262,9 +211,8 @@ export function paintWalkmanStill(
     kg.addColorStop(0, INK.keyTop);
     kg.addColorStop(1, INK.keyBot);
     g.fillStyle = kg;
-    // Square, not rounded. A button seen from the side is a slab with a flat top and two
-    // corners; rounding them turns the profile back into a pill, which reads as a cap seen
-    // face-on — the same mistake as before wearing a different shape.
+    // Square, not rounded: a button seen from the side is a slab with a flat top and two
+    // corners; rounding them turns the profile back into a face-on pill.
     const kx = side.x - side.w * 1.2;
     const kw = side.w * 2.2;
     g.fillRect(kx, ky, kw, kh);
@@ -368,12 +316,10 @@ export function drawWalkmanFrame(
   ctx.fillStyle = INK.wellFloor;
   ctx.fillRect(lid.x, lid.y, lid.w, lid.h);
   turnedCassette(ctx, l, (c) => drawMechanism(ctx, c));
-  // The tape lifts out at the top of the travel, which is the point of opening the lid: for a
-  // moment the bay is empty and you can see what a cassette actually sits on. Below that the
-  // tape is still in, and the reels still turn.
-  // …and with the tape OUT it stays empty, however far the lid has travelled back. `loaded`
-  // is a state the player itself does not have — a track selected but not in the machine —
-  // so it can only come from here.
+  // The tape lifts out at the top of the travel; below that it is still in and the reels
+  // still turn. With the tape OUT the bay stays empty however far the lid has travelled —
+  // `loaded` is a state the player itself does not have (a track selected but not in the
+  // machine), so it can only come from here.
   if (input.loaded && open < 0.88) {
     turnedCassette(ctx, l, (c) => {
       drawReels(ctx, c, input.deck, reelState(input.deck.frac));
@@ -388,26 +334,19 @@ export function drawWalkmanFrame(
   }
   ctx.restore();
 
-  // The lid itself, hinged along its LEFT edge.
-  //
-  // Which edge matters: the view is from above, looking down at the machine lying flat, and
-  // the top plate swings up and over to the left on two hinges — so it foreshortens ACROSS,
-  // not down, and the bay is uncovered from the right. Hinging it along the top edge, which
-  // is what this did first, opened it toward the viewer like a car boot; that is not how you
-  // put a tape in one of these.
+  // The lid itself, hinged along its LEFT edge. Which edge matters: the view is from above,
+  // looking down at the machine lying flat, and the top plate swings up and over to the
+  // left on two hinges — so it foreshortens ACROSS, not down, and the bay is uncovered from
+  // the right.
   const cos = Math.cos(open * 1.34);
   ctx.save();
   ctx.translate(lid.x, 0);
   ctx.scale(Math.max(0.001, cos), 1);
   ctx.translate(-lid.x, 0);
 
-  // The lid's own metal, with the window CUT OUT of it rather than painted over.
-  //
-  // Worth being explicit about, because the obvious version is wrong and looks nearly right:
-  // fill the lid, then lay a translucent tint on top for the window. That paints opaque metal
-  // over the cassette first, so the tint tints the metal and the tape is simply gone — a lid
-  // with a picture of a window on it. Two subpaths and an even-odd fill make the window a
-  // hole, which is what a window is.
+  // The lid's own metal, with the window CUT OUT of it (two subpaths, an even-odd fill)
+  // rather than painted over — a translucent tint on top of a filled lid would tint the
+  // metal and lose the tape behind it.
   const winR = Math.max(2, well.w * 0.02);
   const ring = (x: number, y: number, w: number, h: number, r: number) => {
     const k = Math.max(0, Math.min(r, Math.min(w, h) / 2));
@@ -449,10 +388,8 @@ export function drawWalkmanFrame(
   ctx.fillRect(lid.x + lip, lid.y + 1, lid.w - lip * 2, 1);
   ctx.restore();
 
-  // The hinges down the left edge. Drawn ALWAYS, not only while the lid is moving: they are
-  // two barrels screwed to the case, and a shut lid still has them. Gating them on `open`
-  // made them wink into existence at the start of an eject and vanish at the end, which
-  // reads as a rendering fault rather than as a mechanism.
+  // The hinges down the left edge. Drawn always — two barrels screwed to the case, and a
+  // shut lid still has them.
   const hingeW = Math.max(1.5, lid.w * 0.014);
   for (const f of [0.16, 0.84]) {
     const hy = lid.y + lid.h * f;
@@ -498,11 +435,6 @@ export function drawWalkmanFrame(
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  // No play lamp. There was one, tucked beside the display — and it sat on the DISPLAY
-  // button's own legend, which is how it was noticed. Moving it somewhere clear would have
-  // worked, but it was saying the same thing as the ▶ two centimetres to its right on the
-  // plate. Same call as the cassette pictogram: a second indicator for something already
-  // indicated is not a detail, it is a duplicate.
   void body;
 }
 

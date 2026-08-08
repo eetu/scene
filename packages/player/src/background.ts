@@ -46,10 +46,10 @@ export function setupMediaElementRoute() {
 /** Pause the routed <audio> element when the transport pauses. Once output is
  *  moved to it, that element is the only sink — the worklet going silent doesn't
  *  pause it, so its own `paused` state stays false and the OS transport keeps
- *  reading it as playing; pausing it keeps that state coherent with ours.
- *  (Keeping it *playing* silence to hold the context alive on iOS was tried and
- *  reverted: iOS then auto-derives the media-session state as "playing" and
- *  overrides our "paused", flipping the lock-screen icon and breaking resume.) */
+ *  reading it as playing; pausing it keeps that state coherent with ours. It must
+ *  NOT be left playing silence: iOS then auto-derives the media-session state as
+ *  "playing" and overrides our "paused", flipping the lock-screen icon and
+ *  breaking resume. */
 export function pauseMediaElement() {
   mediaEl?.pause();
 }

@@ -6,13 +6,10 @@ user-invocable: true
 
 # scene-design
 
-The one design skill for the **scene** monorepo. Both apps — [tracker](../../../apps/tracker)
-(a FastTracker 2-style module player) and [party](../../../apps/party) (a
-demoparty archive player) — share a **demoscene** identity layered on the shared
-halo-design family tokens. The product _is_ retro, so the surface leans into a
-FT2 / Amiga / DOS-demoscene look rather than the family's neutral chrome.
-
-This skill covers the **shared scene identity** once, then the two apps' **deltas**.
+Both scene apps share a **demoscene** identity layered on the halo-design family
+tokens — the product _is_ retro, so the surface leans into a FT2 / Amiga /
+DOS-demoscene look rather than the family's neutral chrome. Shared identity
+first, then each app's deltas.
 
 ## Tokens
 
@@ -60,10 +57,7 @@ a demoscene **title-screen** treatment instead:
   just an accent dot — it reads as a lit demoscene logo.
 - **No dot** → no trailing accent period.
 
-Lowercase and the terse voice still hold. This is exactly the kind of deviation
-the family sanctions when it's documented with a reason (see the `halo-design`
-"Wordmark" section) — this section is that documentation. Per-app text differs
-(below).
+Lowercase and the terse voice still hold. Per-app text differs (below).
 
 ## Icons & voice
 
@@ -111,14 +105,3 @@ the family sanctions when it's documented with a reason (see the `halo-design`
 - **Layout** — landing is a grid of party **cards** (the glyph is the artwork
   fallback when a party has no logo); the player stage is shared via
   `@scene/player` (`PlayerStage`, with the `SampleBrowser`).
-
-## Production sources of truth
-
-- `packages/design/src/halo.css` — tokens (adopted halo-design), the theme store,
-  fonts. Consumed as `@scene/design`.
-- `packages/player` — `@scene/player`: the shared libopenmpt engine + transport /
-  `PlayerStage` UI both apps embed.
-- tracker: `apps/tracker/frontend/src/routes/{+page,+layout}.svelte`,
-  `apps/tracker/frontend/static/favicon.svg`.
-- party: `apps/party/frontend/src/routes/{+page,+layout}.svelte`,
-  `apps/party/frontend/static/favicon.svg`.

@@ -11,7 +11,6 @@ pub mod state;
 pub mod transcoder;
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -22,67 +21,6 @@ use db::Db;
 use party::PartyConfigs;
 use scan::ScanResult;
 use state::{AppState, ScanProgress};
-
-/// Content-Security-Policy. Same-origin plus the Google Fonts hosts halo-design
-/// uses. The music player runs libopenmpt as WebAssembly inside an AudioWorklet
-/// (`'wasm-unsafe-eval'`). The emulators go further: js-dos and EmulatorJS's
-/// libretro cores `eval()` JavaScript at runtime (the cores ship as code the
-/// loader evaluates), which only `'unsafe-eval'` permits — `'wasm-unsafe-eval'`
-/// alone blocks it. Acceptable here: a LAN-only archive whose whole point is
-/// running sandboxed WASM demos. EmulatorJS also decompresses its core to a
-/// `blob:` URL and runs/fetches it from there, so `blob:` is allowed in
-/// `script-src`, `worker-src`, and `connect-src` (the wasm is fetched from the
-/// blob). HSTS / X-Frame-Options are the edge's job.
-fn build_csp(script_hashes: &[String]) -> String {
-    let mut script_src = String::from("'self' 'wasm-unsafe-eval' 'unsafe-eval' blob:");
-    for h in script_hashes {
-        script_src.push(' ');
-        script_src.push_str(h);
-    }
-    format!(
-        "default-src 'self'; \
-         script-src {script_src}; \
-         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-         font-src 'self' data: https://fonts.gstatic.com; \
-         img-src 'self' data: blob:; \
-         media-src 'self' blob:; \
-         connect-src 'self' blob:; \
-         worker-src 'self' blob:; \
-         child-src 'self' blob:; \
-         frame-ancestors 'none'; \
-         base-uri 'self'; \
-         object-src 'none'; \
-         form-action 'self'"
-    )
-}
-
-/// CSP `'sha256-…'` source for every inline `<script>` (no `src=`) in `html`.
-fn inline_script_hashes(html: &str) -> Vec<String> {
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
-    use sha2::{Digest, Sha256};
-
-    let mut out = Vec::new();
-    let mut idx = 0;
-    while let Some(rel) = html[idx..].find("<script") {
-        let tag = idx + rel;
-        let Some(gt) = html[tag..].find('>') else {
-            break;
-        };
-        let open = &html[tag..tag + gt + 1];
-        let body_start = tag + gt + 1;
-        let Some(close) = html[body_start..].find("</script>") else {
-            break;
-        };
-        let body = &html[body_start..body_start + close];
-        if !open.contains("src=") {
-            let digest = Sha256::digest(body.as_bytes());
-            out.push(format!("'sha256-{}'", STANDARD.encode(digest)));
-        }
-        idx = body_start + close + "</script>".len();
-    }
-    out
-}
 
 /// Run a full scan on a blocking thread and return the reconciliation counts.
 pub async fn run_scan(
@@ -98,21 +36,11 @@ pub async fn run_scan(
     // while the scan actually finished. A drop guard resets it on any exit
     // (return, error, or panic), and the blocking task can't be cancelled.
     tokio::task::spawn_blocking(move || {
-        progress.scanning.store(true, Ordering::Relaxed);
-        let _done = ScanFlagGuard(progress.clone());
+        let _done = scene_backend::scan::ScanFlagGuard::set(progress.clone());
         let mut conn = db.blocking_lock();
         scan::scan_into(&mut conn, &root, &parties, &progress)
     })
     .await?
-}
-
-/// Resets the `scanning` flag to false when dropped, so a scan always clears it
-/// regardless of how it ends. Lives inside the (non-cancellable) blocking task.
-struct ScanFlagGuard(Arc<ScanProgress>);
-impl Drop for ScanFlagGuard {
-    fn drop(&mut self) {
-        self.0.scanning.store(false, Ordering::Relaxed);
-    }
 }
 
 /// Whether real party data is present under `root`. The mountpoint always
@@ -213,7 +141,7 @@ pub async fn run_server() -> anyhow::Result<()> {
 
     let index_path = state.cfg.static_dir.join("index.html");
     let hashes = std::fs::read_to_string(&index_path)
-        .map(|h| inline_script_hashes(&h))
+        .map(|h| scene_backend::csp::inline_script_hashes(&h))
         .unwrap_or_default();
     if hashes.is_empty() {
         tracing::warn!(
@@ -221,8 +149,15 @@ pub async fn run_server() -> anyhow::Result<()> {
             "no inline-script hashes (index.html missing or no inline scripts)"
         );
     }
-    let csp_value = axum::http::HeaderValue::from_str(&build_csp(&hashes))
-        .map_err(|e| anyhow::anyhow!("invalid CSP header: {e}"))?;
+    // `emulator_blobs`: js-dos and EmulatorJS's libretro cores `eval()` JS at
+    // runtime (only `'unsafe-eval'` permits that), and EmulatorJS decompresses
+    // its core to a `blob:` URL and runs/fetches it from there — so `blob:`
+    // joins `script-src`/`connect-src`/`media-src`. Acceptable here: a LAN-only
+    // archive whose whole point is running sandboxed WASM demos. See
+    // scene_backend::csp.
+    let csp_value =
+        axum::http::HeaderValue::from_str(&scene_backend::csp::build_csp(&hashes, true))
+            .map_err(|e| anyhow::anyhow!("invalid CSP header: {e}"))?;
     // Cross-origin isolation (COOP + COEP) exposes SharedArrayBuffer, which lets
     // the WASM emulators (EmulatorJS) run their cores in a worker thread — far
     // smoother in fullscreen, and required for heavier cores. Safe here because
@@ -268,22 +203,5 @@ mod tests {
         std::fs::create_dir(root.join("Assembly95")).unwrap();
         std::fs::write(root.join("Assembly95/results.txt"), b"x").unwrap();
         assert!(data_present(root), "a non-empty party subdir → ready");
-    }
-
-    #[test]
-    fn hashes_inline_scripts_skips_external() {
-        let html = r#"<script src="/app.js"></script><script>abc</script>"#;
-        assert_eq!(
-            inline_script_hashes(html),
-            vec!["'sha256-ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0='"]
-        );
-    }
-
-    #[test]
-    fn csp_allows_wasm_and_media() {
-        let csp = build_csp(&["'sha256-X'".into()]);
-        assert!(csp.contains("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' blob: 'sha256-X'"));
-        assert!(csp.contains("worker-src 'self' blob:"));
-        assert!(csp.contains("media-src 'self' blob:"));
     }
 }

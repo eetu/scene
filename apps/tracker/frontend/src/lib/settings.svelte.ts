@@ -6,7 +6,7 @@
 // Persistence is explicit (in the setters) rather than a $effect, because a
 // module-level rune store has no component/effect context to run one in.
 
-import { type FpsMode, perf } from "@scene/player";
+import { type FpsMode, perf, readPref, writePref } from "@scene/player";
 
 export type PatternMode = "locked" | "scroll";
 
@@ -29,54 +29,38 @@ const SCOPE_KEY = "tracker:scope";
  */
 const EDITOR_KEY = "tracker:editor";
 
-function read(key: string): string | null {
-  return typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
-}
-
 const loadedFrameRate: FpsMode = ((v) => (v === "smooth" || v === "battery" ? v : "auto"))(
-  read(FRAME_RATE_KEY),
+  readPref(FRAME_RATE_KEY),
 );
 // Push the persisted choice into the shared player frame-rate policy at startup.
 perf.mode = loadedFrameRate;
 
 export const settings = $state({
   /** Player pattern view: locked centre-line vs free scroll. */
-  patternMode: (read(PATTERN_MODE_KEY) === "scroll" ? "scroll" : "locked") as PatternMode,
+  patternMode: (readPref(PATTERN_MODE_KEY) === "scroll" ? "scroll" : "locked") as PatternMode,
   /** Visualiser frame rate: auto (adaptive) / smooth (60) / battery (30). */
   frameRate: loadedFrameRate,
   /** Master oscilloscope strip on the pattern tab. On by default; opt-out to
    *  save the per-frame canvas draw while playing. */
-  scope: read(SCOPE_KEY) !== "0",
+  scope: readPref(SCOPE_KEY) !== "0",
   /** Pattern editor. Off unless explicitly enabled — see EDITOR_KEY. Read once
    *  at startup, so flipping it takes a reload; that's fine for a dev flag and
    *  keeps every gate a plain boolean read. */
-  editor: read(EDITOR_KEY) === "1",
+  editor: readPref(EDITOR_KEY) === "1",
 });
 
 export function setPatternMode(m: PatternMode) {
   settings.patternMode = m;
-  try {
-    localStorage.setItem(PATTERN_MODE_KEY, m);
-  } catch {
-    /* storage unavailable — non-fatal */
-  }
+  writePref(PATTERN_MODE_KEY, m);
 }
 
 export function setFrameRate(m: FpsMode) {
   settings.frameRate = m;
   perf.mode = m;
-  try {
-    localStorage.setItem(FRAME_RATE_KEY, m);
-  } catch {
-    /* storage unavailable — non-fatal */
-  }
+  writePref(FRAME_RATE_KEY, m);
 }
 
 export function setScope(on: boolean) {
   settings.scope = on;
-  try {
-    localStorage.setItem(SCOPE_KEY, on ? "1" : "0");
-  } catch {
-    /* storage unavailable — non-fatal */
-  }
+  writePref(SCOPE_KEY, on ? "1" : "0");
 }

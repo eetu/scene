@@ -3,6 +3,7 @@
   // directly above that channel's notes (tied to the track, scrolls with the
   // grid). Driven by the editor sequencer's per-channel analyser tap; flat when
   // not playing (no idle rAF — driveFrames only loops while seqPlaying).
+  import { accentHex } from "./accent";
   import { playback, readSeqScope, SEQ_SCOPE_SIZE } from "./player.svelte";
   import { driveFrames } from "./raf";
 
@@ -30,7 +31,7 @@
     const el = canvas;
     if (!el || w < 2) return;
     const playing = playback.seqPlaying;
-    const col = getComputedStyle(el).getPropertyValue("--accent").trim() || "#f78f08";
+    const col = accentHex(el);
     const buf = new Uint8Array(SEQ_SCOPE_SIZE);
     const flat = new Uint8Array(SEQ_SCOPE_SIZE).fill(128);
     const paint = () => {

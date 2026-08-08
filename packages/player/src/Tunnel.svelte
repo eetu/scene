@@ -13,6 +13,7 @@
   // Intentionally dark: this is a self-lit neon-on-black scene, not a themed panel,
   // so it does NOT follow the app's light/dark theme (its "themes" are internal wall
   // styles, unrelated to the app theme).
+  import { createQuadProgram } from "./gl";
   import {
     beatBpm,
     beatPhase,
@@ -117,17 +118,15 @@
       return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
     }
 
-    // --- wall themes: z = distance along tube, a = angle 0..1 around, t = seconds.
+    // Wall themes: z = distance along tube, a = angle 0..1 around, t = seconds.
     // Tron: a cold, sharp digital grid on pure black — thin cyan rings + orange
-    // rails, with bright cyan data-pulses running the rails toward the camera
-    // (lightcycle trails). Kept hard-edged and black-gapped to contrast with the
-    // soft sunset Vaporwave.
+    // rails, with bright cyan data-pulses running the rails toward the camera.
     vec3 themeTron(float z, float a, float t) {
-      float rings = neon(z * RING_FREQ, 0.03); // thinner + sharper than before
+      float rings = neon(z * RING_FREQ, 0.03);
       float rails = neon(a * RAIL_FREQ, 0.028);
       float pulse = pow(0.5 + 0.5 * sin(z * 0.9 - t * 5.0 + a * TAU * 2.0), 6.0); // travelling packets
       vec3 col = vec3(0.15, 0.9, 1.0) * rings + vec3(1.0, 0.55, 0.05) * rails;
-      col += vec3(0.4, 1.0, 1.0) * rails * pulse; // bright data-pulses ride the rails
+      col += vec3(0.4, 1.0, 1.0) * rails * pulse;
       return col; // pure black gaps
     }
     // 2001 star-gate slit-scan: fast colour curtains rushing toward the camera,
@@ -140,33 +139,23 @@
       vec3 c = hsv2rgb(vec3(hue, 0.85, 1.0));
       return c * streak * 1.4 + vec3(1.0) * pow(streak, 4.0) * 0.5;
     }
-    // Biomech / Giger: a dark ribbed metal tube — segmented rings along the tube
-    // with a wet cold-steel sheen on the crests and near-black crevices between,
-    // vertebrae segmentation around the circumference. Cold blue-grey, high
-    // contrast (the ribbed biomech corridor look, not soft violet folds).
+    // Biomech / Giger: a dark biomechanical carapace — irregular, skeletal, wet.
+    // Deliberately low-key + brooding (horror), not a flashy neon theme.
     vec3 themeGiger(float z, float a, float t) {
-      // A dark biomechanical carapace — irregular, skeletal, wet. Deliberately
-      // low-key + brooding (horror), NOT a flashy neon theme: near-black oily
-      // shell, dim bone ribs, deep shadowed vertebrae grooves, only a faint wet
-      // gleam and the slowest ominous "breathing".
       float warp = sin(a * TAU * 3.0 + z * 0.5) * 0.4 + sin(z * 0.9 + uSeed) * 0.3; // organic irregularity
       float ring = 0.5 + 0.5 * sin(z * 5.0 + warp + sin(a * TAU * 2.0) * 0.9);
-      float rib = smoothstep(0.1, 0.9, ring); // rib body
-      float spine = pow(0.5 + 0.5 * sin(a * TAU * 7.0 + z * 0.5 + warp), 3.0); // deep vertebrae grooves
+      float rib = smoothstep(0.1, 0.9, ring);
+      float spine = pow(0.5 + 0.5 * sin(a * TAU * 7.0 + z * 0.5 + warp), 3.0); // vertebrae grooves
       float sinew = 0.82 + 0.18 * sin(z * 22.0 + a * TAU * 11.0); // fine tendon detail
-      // near-black shell → dim bone ribs; carve deep shadow between the vertebrae.
       vec3 col = mix(vec3(0.005, 0.006, 0.007), vec3(0.075, 0.08, 0.075), rib) * sinew;
       col *= 0.4 + 0.6 * spine;
-      // faint, desaturated wet gleam on the crests (dim bone, not bright cyan).
       float wet = pow(smoothstep(0.86, 1.0, ring), 4.0);
       col += vec3(0.15, 0.16, 0.14) * wet * (0.4 + 0.6 * spine);
       col *= 0.88 + 0.12 * sin(t * 0.5 + z * 0.2); // slow, barely-there breathing
       return col;
     }
-    // Vaporwave: an 80s sunset, not a grid — a pink→orange→indigo gradient
-    // wrapping the tube (never black), with chunky, soft-glowing, receding rings
-    // (a horizon feel; rails halved) and a magenta↔cyan neon that pulses over
-    // time. Soft + warm to contrast with Tron's hard cold grid.
+    // Vaporwave: an 80s sunset, not a grid — a pink→orange→indigo gradient wrapping the
+    // tube (never black), with chunky soft-glowing rings and a magenta↔cyan neon pulse.
     vec3 themeVapor(float z, float a, float t) {
       float g = 0.5 + 0.5 * sin(a * TAU + 0.6);                            // 0..1 around the tube
       vec3 sky = mix(vec3(0.08, 0.02, 0.18), vec3(0.9, 0.25, 0.5), g);     // indigo → hot pink
@@ -188,7 +177,6 @@
       float r = fract(sin(floor(gz) * 12.9 + mod(floor(ga), 24.0) * 78.2 + uSeed) * 43758.5);
       float r2 = fract(sin(floor(gz) * 45.2 + mod(floor(ga), 24.0) * 13.7 + uSeed * 2.0) * 27182.8);
       float pad = smoothstep(0.18, 0.1, length(cell)) * step(0.45, r2); // pads at ~55% of nodes
-      // bright packets flowing along the copper — sharp crest (pow 8) gated to a trace
       float packZ = pow(0.5 + 0.5 * sin(gz * 3.14159 - t * 6.0), 8.0) * traceZ;
       float packA = pow(0.5 + 0.5 * sin(ga * 3.14159 - t * 4.0 + r * 6.0), 8.0) * traceA;
       float current = max(packZ, packA);
@@ -317,7 +305,7 @@
     // station — white glazed subway tiles clad the walls and a fluorescent strip
     // lights the platform ceiling. Stations are keyed on absolute z, so one
     // approaches through the fog and slides past rather than popping in; the
-    // track bed runs straight through. (A decorative wall mural is on the shelf.)
+    // track bed runs straight through.
     vec3 themeMetro(float z, float a, float t) {
       float cell = mod(floor(a * 40.0), 40.0); // wrap the grain cell → no seam at a=0/1
       float grain = fract(sin(floor(z * 4.0) * 12.9 + cell * 78.2 + uSeed) * 43758.5);
@@ -329,12 +317,10 @@
       vec3 col = mix(rock, vec3(0.05, 0.045, 0.035), floorBand * 0.75); // dark gravel bed
       float ties = floorBand * smoothstep(0.14, 0.02, abs(fract(z * 1.3) - 0.5));
       col += vec3(0.17, 0.09, 0.04) * ties; // warm wooden sleepers
-      // two thin steel rails on the floor with a travelling glint
       float rails = smoothstep(0.012, 0.0, abs(a - 0.205)) + smoothstep(0.012, 0.0, abs(a - 0.295));
       col += vec3(0.9, 0.85, 0.7) * rails * (0.55 + 0.45 * sin(z * 10.0));
       col += vec3(0.24, 0.14, 0.05) * (0.4 + 0.3 * sin(z * 0.5 - t * 0.4)); // work-lights
 
-      // --- metro stop -------------------------------------------------------
       float SPACING = 48.0;                                // world units between stops
       float sIdx = floor(z / SPACING + 0.5);               // nearest station index (per-stop variety)
       float dCenter = abs(z - sIdx * SPACING);             // distance to its centre
@@ -351,8 +337,6 @@
       vec3 tile = vec3(0.95, 0.94, 0.88) * tvar;           // cream glaze
       tile *= 1.0 - 0.45 * bevel;                          // bevel shading toward the edges
       tile = mix(tile, vec3(0.30, 0.30, 0.33), grout);     // grey grout lines
-      // (A decorative mural frieze on the side walls is parked for now — the
-      // stops read as clean tiled, lit platforms until it's ready.)
       vec3 wallCol = tile;
       // Even, cool-white platform light on the tiles; a fluorescent strip along the
       // ceiling (a≈0.75) and a gentle overall lift as you pull in.
@@ -433,10 +417,9 @@
     // Small per-cell hash (used by the voxel wall displacement).
     float rnd1(float n) { return fract(sin(n * 45.233) * 43758.5453); }
 
-    // --- Death Star trench run --------------------------------------------------
-    // Where the trench wall opens to space (see main), paint a star sky + green
-    // defence-turret tracers instead of the wall. Parameterized by (z along the
-    // trench, a around 0..1) like the wall themes, so it streams past as you fly.
+    // Death Star trench run: where the trench wall opens to space (see main), paint a
+    // star sky + green defence-turret tracers instead of the wall. Parameterized by
+    // (z along the trench, a around 0..1) like the wall themes, so it streams past.
     // Star sky, keyed to VIEW DIRECTION (rolled screen dir) rather than position
     // along the trench — so it rotates as the ship banks but barely translates as
     // you fly, reading as deep space FAR beyond the ceiling (parallax vs the near
@@ -589,10 +572,8 @@
         col *= fog * (0.55 + uGlow * 0.9);
         col += col * uPulse * 0.5; // beat bloom kick (theme-agnostic)
 
-        // Beat pulse-wave: a gentle brightness swell rolling down the tube on each
-        // beat. It *modulates the wall's own colour* (multiplicative) rather than
-        // adding a separate coloured band, so it supports the tunnel instead of
-        // upstaging it.
+        // Beat pulse-wave: a gentle brightness swell rolling down the tube on each beat,
+        // modulating the wall's own colour (multiplicative).
         float wave = smoothstep(8.0, 0.0, abs(hitZ - uWave * 15.0)) * (1.0 - uWave);
         col *= 1.0 + wave * (0.12 + uBass * 0.3);
         // Treble → faint moving shimmer on the walls.
@@ -644,56 +625,14 @@
     const cv = canvas;
     if (!cv) return;
     const el: HTMLCanvasElement = cv;
-    // preserveDrawingBuffer: the CRT screen samples this canvas as a texture from its own
-    // rAF, and Safari discards a drawing buffer as soon as it has composited it — so
-    // without this the screen reads an empty buffer and the tube goes black there (Chrome
-    // happens to keep it around, which is why it only showed up on Safari). Costs the
-    // driver some freedom to discard, which is the price of being compositable.
-    const ctx = el.getContext("webgl", {
+    const quad = createQuadProgram(el, {
+      label: "Tunnel",
+      vert: VERT,
+      frag: FRAG,
       antialias: true,
-      alpha: false,
-      preserveDrawingBuffer: true,
     });
-    if (!ctx) {
-      console.warn("Tunnel: WebGL unavailable");
-      return;
-    }
-    // Bind a non-null-typed handle so the nested frame/resize closures don't
-    // re-widen it back to `| null` (TS doesn't carry the guard into closures).
-    const gl: WebGLRenderingContext = ctx;
-
-    function compile(type: number, src: string): WebGLShader | null {
-      const sh = gl.createShader(type);
-      if (!sh) return null;
-      gl.shaderSource(sh, src);
-      gl.compileShader(sh);
-      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-        console.warn("Tunnel shader:", gl.getShaderInfoLog(sh));
-        gl.deleteShader(sh);
-        return null;
-      }
-      return sh;
-    }
-    const vs = compile(gl.VERTEX_SHADER, VERT);
-    const fs = compile(gl.FRAGMENT_SHADER, FRAG);
-    const prog = gl.createProgram();
-    if (!vs || !fs || !prog) return;
-    gl.attachShader(prog, vs);
-    gl.attachShader(prog, fs);
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.warn("Tunnel link:", gl.getProgramInfoLog(prog));
-      return;
-    }
-    gl.useProgram(prog);
-
-    // One big triangle covering the viewport — no per-frame geometry.
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    const aPos = gl.getAttribLocation(prog, "a_pos");
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    if (!quad) return;
+    const { gl, prog } = quad;
 
     const uRes = gl.getUniformLocation(prog, "uRes");
     const uCamZ = gl.getUniformLocation(prog, "uCamZ");
@@ -745,22 +684,8 @@
     const bandVals = new Float32Array(BANDS); // eased per-band levels 0..1
     const bandBytes = new Uint8Array(BANDS);
 
-    // Cap the backing resolution at 1.5× rather than full 2× retina: the tunnel
-    // is smooth gradients, so 1.5× looks identical for ~44% fewer fragment-shader
-    // invocations per frame (paired with the 60fps cap below, the main heat lever).
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    const ro = new ResizeObserver(() => {
-      const rect = el.getBoundingClientRect();
-      el.width = Math.max(1, Math.round(rect.width * dpr));
-      el.height = Math.max(1, Math.round(rect.height * dpr));
-      gl.viewport(0, 0, el.width, el.height);
-    });
-    ro.observe(el);
-
-    // Keys, scoped to this component (only while the tunnel viz is on screen;
-    // ignored while typing): 'n' jumps to the next wall theme, 'l' locks/unlocks the
-    // theme rotation. (Scanlines used to be an 's' toggle here; the CRT screen over
-    // the whole viz pane owns that now — see ./crt.svelte.ts.)
+    // Keys, scoped to this component (only while the tunnel viz is on screen; ignored
+    // while typing): 'n' jumps to the next wall theme, 'l' locks/unlocks the rotation.
     let clock = 0; // seconds elapsed, for wall animation (uTime)
     const SLOT = 24; // seconds a wall theme holds before crossfading to the next
     let themeTime = 0; // theme-selection clock (frozen while locked)
@@ -819,9 +744,8 @@
     let fpsAcc = 0;
     let fpsN = 0;
 
-    // JS-authoritative theme rotation (mirrored out of the shader): a seeded
-    // per-slot random, held one SLOT then crossfaded to the next.
-    // Drop detection state (drives only the burst flash — not a theme change).
+    // JS-authoritative theme rotation: each theme holds one SLOT, then crossfades to the
+    // next. The state below drives the drop-burst flash.
     let energyBase = 0;
     let prevEnergy = 0;
     let lastDrop = -1e9;
@@ -842,8 +766,7 @@
       return s * s * (3 - 2 * s);
     };
     const themeSlot = (slot: number) => {
-      // Ordered rotation (Tron → … → Abyss → Tron): 'n' and the auto-advance step
-      // to the *next* theme, not a random one. The per-track seed only picks where
+      // Ordered rotation (Tron → … → Abyss → Tron). The per-track seed only picks where
       // the cycle starts, so tracks don't all open on the same theme.
       const start = Math.floor((seedVal / 12.0) * THEMES.length); // seedVal ∈ [0,12)
       return (((start + slot) % THEMES.length) + THEMES.length) % THEMES.length;
@@ -876,8 +799,7 @@
 
         const energy = playback.vu.length ? Math.max(...playback.vu) : 0;
         // Drop detection: a big jump above the slow energy floor fires a brief
-        // burst (screen flash) synced to musical drops. It no longer switches the
-        // wall theme — a theme changing on its own just read as confusing.
+        // burst (screen flash) synced to musical drops.
         energyBase += ((active ? energy : 0) - energyBase) * 0.02;
         let droppedNow = false;
         if (
@@ -1026,15 +948,10 @@
 
     return () => {
       stop();
-      ro.disconnect();
       window.removeEventListener("keydown", onKey);
       el.removeEventListener("click", onTap);
-      gl.deleteProgram(prog);
-      gl.deleteShader(vs);
-      gl.deleteShader(fs);
-      gl.deleteBuffer(buf);
       gl.deleteTexture(bandTex);
-      gl.getExtension("WEBGL_lose_context")?.loseContext();
+      quad.destroy();
     };
   });
 </script>

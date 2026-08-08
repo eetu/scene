@@ -17,29 +17,17 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         // Unauthenticated liveness probe.
         .route("/status", get(status))
-        // Landing: the list of parties.
         .route("/api/parties", get(api_parties))
-        // A party's catalog of productions (grouped/ordered by competition).
         .route("/api/parties/{slug}/productions", get(api_productions))
-        // One production with its files + music metadata.
         .route("/api/production/{id}", get(api_production))
-        // Raw file bytes by content hash (player + emulator + download).
         .route("/api/file/{hash}", get(api_file))
-        // Same bytes, name-in-URL variant so emulators can read the extension.
         .route("/api/file/{hash}/{name}", get(api_file_named))
-        // Shared, unscanned support data (e.g. emulator BIOS) served by filename.
         .route("/api/support/{file}", get(api_support))
-        // Text/NFO/DIZ content, decoded CP437 → UTF-8.
         .route("/api/text/{hash}", get(api_text))
-        // Derived (transcoded) asset: `<hash>.png` | `<hash>.mp4`. Cached on disk.
         .route("/api/asset/{file}", get(api_asset))
-        // js-dos bundle (`<prod_id>.jsdos`) for running a PC demo/intro in-browser.
         .route("/api/bundle/{file}", get(api_bundle))
-        // libopenmpt enrichment posted by the frontend after parsing a module.
         .route("/api/meta/{hash}", post(api_meta))
-        // Re-walk the tree.
         .route("/api/rescan", post(api_rescan))
-        // SPA fallback.
         .fallback(get(serve_spa))
         .with_state(state)
 }
@@ -48,32 +36,8 @@ async fn serve_spa(
     State(state): State<AppState>,
     uri: axum::http::Uri,
 ) -> axum::response::Response {
-    use axum::response::Html;
-
-    let base = &state.cfg.static_dir;
-    let rel = uri.path().trim_start_matches('/');
-
-    if !rel.is_empty() {
-        let candidate = base.join(rel);
-        if let Ok(canon) = candidate.canonicalize() {
-            if let Ok(canon_base) = base.canonicalize() {
-                if canon.starts_with(&canon_base) && canon.is_file() {
-                    if let Ok(bytes) = tokio::fs::read(&canon).await {
-                        let mime = mime_guess::from_path(&canon).first_or_octet_stream();
-                        return ([(header::CONTENT_TYPE, mime.as_ref())], bytes).into_response();
-                    }
-                }
-            }
-        }
-    }
-
-    match tokio::fs::read_to_string(base.join("index.html")).await {
-        Ok(html) => Html(html).into_response(),
-        Err(_) => (StatusCode::NOT_FOUND, "not found").into_response(),
-    }
+    scene_backend::spa::spa_response(&state.cfg.static_dir, &uri).await
 }
-
-// ---------- public probe ----------
 
 async fn status(State(state): State<AppState>) -> Json<Value> {
     let scanning = state.scan.scanning.load(Ordering::Relaxed);
@@ -112,8 +76,6 @@ async fn status(State(state): State<AppState>) -> Json<Value> {
         "scan_hashed": state.scan.hashed.load(Ordering::Relaxed),
     }))
 }
-
-// ---------- gated api ----------
 
 #[derive(Serialize)]
 struct PartyOut {
@@ -488,12 +450,18 @@ async fn api_production(
 /// goes through here, including ones that came from a party config rather than
 /// from the scan.
 fn resolve_in_root(state: &AppState, rel: &str) -> AppResult<std::path::PathBuf> {
-    let full = state.cfg.root.join(rel);
-    let (canon, canon_root) = match (full.canonicalize(), state.cfg.root.canonicalize()) {
+    contained_file(&state.cfg.root, rel)
+}
+
+/// Canonicalised `base/rel` iff it stays under `base` and is a file — a `..`
+/// segment or a symlink out is a 404.
+fn contained_file(base: &std::path::Path, rel: &str) -> AppResult<std::path::PathBuf> {
+    let full = base.join(rel);
+    let (canon, canon_base) = match (full.canonicalize(), base.canonicalize()) {
         (Ok(a), Ok(b)) => (a, b),
         _ => return Err(AppError::NotFound),
     };
-    if !canon.starts_with(&canon_root) || !canon.is_file() {
+    if !canon.starts_with(&canon_base) || !canon.is_file() {
         return Err(AppError::NotFound);
     }
     Ok(canon)
@@ -540,13 +508,7 @@ async fn api_file_named(
 async fn serve_file(state: &AppState, hash: &str) -> AppResult<impl IntoResponse> {
     let canon = resolve_file(state, hash).await?;
     let bytes = tokio::fs::read(&canon).await?;
-    Ok((
-        [
-            (header::CONTENT_TYPE, "application/octet-stream".to_string()),
-            (header::CACHE_CONTROL, "private, max-age=3600".to_string()),
-        ],
-        bytes,
-    ))
+    Ok(cached("application/octet-stream", 3600, bytes))
 }
 
 /// Serve a file from the shared support dir (e.g. an emulator BIOS) by filename.
@@ -555,22 +517,9 @@ async fn api_support(
     State(state): State<AppState>,
     Path(file): Path<String>,
 ) -> AppResult<impl IntoResponse> {
-    let full = state.cfg.support_dir.join(&file);
-    let (canon, base) = match (full.canonicalize(), state.cfg.support_dir.canonicalize()) {
-        (Ok(a), Ok(b)) => (a, b),
-        _ => return Err(AppError::NotFound),
-    };
-    if !canon.starts_with(&base) || !canon.is_file() {
-        return Err(AppError::NotFound);
-    }
+    let canon = contained_file(&state.cfg.support_dir, &file)?;
     let bytes = tokio::fs::read(&canon).await?;
-    Ok((
-        [
-            (header::CONTENT_TYPE, "application/octet-stream".to_string()),
-            (header::CACHE_CONTROL, "private, max-age=86400".to_string()),
-        ],
-        bytes,
-    ))
+    Ok(cached("application/octet-stream", 86400, bytes))
 }
 
 async fn api_text(
@@ -581,26 +530,23 @@ async fn api_text(
     let canon = resolve_file(&state, &hash).await?;
     let bytes = tokio::fs::read(&canon).await?;
     let text = crate::cp437::decode(&bytes);
-    Ok((
-        [
-            (
-                header::CONTENT_TYPE,
-                "text/plain; charset=utf-8".to_string(),
-            ),
-            (header::CACHE_CONTROL, "private, max-age=3600".to_string()),
-        ],
-        text,
-    ))
+    Ok(cached("text/plain; charset=utf-8", 3600, text))
 }
 
-fn asset_response(content_type: &'static str, bytes: Vec<u8>) -> impl IntoResponse {
+/// Body + content type + a private cache window, as one response shape.
+fn cached(
+    content_type: &'static str,
+    max_age: u32,
+    body: impl IntoResponse,
+) -> axum::response::Response {
     (
         [
             (header::CONTENT_TYPE, content_type.to_string()),
-            (header::CACHE_CONTROL, "private, max-age=86400".to_string()),
+            (header::CACHE_CONTROL, format!("private, max-age={max_age}")),
         ],
-        bytes,
+        body,
     )
+        .into_response()
 }
 
 /// A sidecar soundtrack named by a party config: located and described, but not
@@ -756,7 +702,7 @@ async fn api_asset(
         // Cached success + bytes on disk → serve straight from cache.
         Some("ok") if cache_path.is_file() => {
             let bytes = tokio::fs::read(&cache_path).await?;
-            return Ok(asset_response(content_type, bytes));
+            return Ok(cached(content_type, 86400, bytes));
         }
         // Negative cache: the sidecar already rejected this source. Don't re-run
         // ffmpeg on every view — fall back immediately (SPA offers the original).
@@ -845,7 +791,7 @@ async fn api_asset(
         })
         .await?;
 
-    Ok(asset_response(content_type, out))
+    Ok(cached(content_type, 86400, out))
 }
 
 #[derive(Deserialize)]
@@ -1100,13 +1046,7 @@ async fn api_bundle(
     .map_err(|e| AppError::Internal(e.into()))?
     .map_err(|e| AppError::Internal(e.into()))?;
 
-    Ok((
-        [
-            (header::CONTENT_TYPE, "application/zip".to_string()),
-            (header::CACHE_CONTROL, "private, max-age=3600".to_string()),
-        ],
-        zip_bytes,
-    ))
+    Ok(cached("application/zip", 3600, zip_bytes))
 }
 
 async fn api_rescan(_auth: Auth, State(state): State<AppState>) -> AppResult<Json<Value>> {

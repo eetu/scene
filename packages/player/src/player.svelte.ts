@@ -30,9 +30,7 @@ import { buildWav } from "./wav";
 export { playback } from "./state.svelte";
 export { jamNote, jamStop, jamStopAll, setJamLevel } from "./jam";
 
-// Re-export the pure/self-contained helpers moved to sibling modules so the
-// package's public API — and in-package components importing from
-// "./player.svelte" — are unchanged.
+// Re-exported from sibling modules so the package's public API is unchanged.
 export { CELL, cellFieldText, FIELD, isRealNote, noteName, noteToJam, NUM_FIELDS } from "./notes";
 export {
   readScope,
@@ -139,8 +137,7 @@ export type ParsedMeta = {
 
 // The live engine, typed through the `Engine` facade: every method the store
 // calls is part of that contract, so a second backend cannot type-check while
-// silently omitting one. (It used to be `any`, which let four telemetry hooks
-// live outside the interface entirely.)
+// silently omitting one.
 //
 // Physically null before the first play — the AudioContext is created inside a
 // user gesture — but declared non-null: every path that touches it runs after
@@ -152,7 +149,7 @@ let player: Engine = NO_ENGINE;
 let ready: Promise<void> | null = null;
 let parseId = 0;
 
-// --- iOS: recreate the AudioContext on a stalled-but-"running" render -----
+// iOS: recreate the AudioContext on a stalled-but-"running" render.
 // After an iOS interruption (backgrounding, a call, AirPods handing the audio
 // route to another app) the AudioContext can report state="running" while its
 // audio unit is actually dead: the pattern freezes (onProgress stops arriving)
@@ -187,7 +184,6 @@ let playCountHash: string | null = null;
 // eslint-disable-next-line svelte/prefer-svelte-reactivity
 const pendingParse = new Map<number, (m: ParsedMeta | null) => void>();
 
-// --- Beat tracking (module row/tempo) ---------------------------------------
 // In tracker music the pattern rows are the beat grid; a musical beat is the
 // conventional every-4th-row. We watch the row advance in onProgress (which the
 // worklet fires synced to audio) and pulse on each beat boundary — so this is
@@ -224,10 +220,6 @@ export function beatPhase(now = performance.now()): number {
 export function beatBpm(): number {
   return beat.bpm();
 }
-
-// The reactive `playback` store lives in ./state (imported above), re-exported
-// below so the public API + component imports from "./player.svelte" are
-// unchanged.
 
 // The queue is an ordered list of *refs*, not tracks. A host whose library is
 // entirely in memory (party) queues the tracks and they land in `queueCache`
@@ -311,13 +303,11 @@ let prefetchedUrl: string | null = null;
 // spin forever. Reset on the first progress tick of a track that actually plays.
 let consecutiveErrors = 0;
 
-// --- transport state machine -------------------------------------------------
-// The machine (transport-machine.ts) is the single source of truth for play /
-// pause / cued / decoding state; this subscription mirrors it onto
-// `playback.playing`/`paused`, so the transport can never show a state it isn't
-// in (the cold-reload "pause icon over a frozen clock" bug). The imperative
-// engine work (load / pause / stop, background routing, iOS) stays in the
-// functions below — the machine governs *state*, not the audio graph.
+// The transport machine (transport-machine.ts) is the single source of truth for
+// play / pause / cued / decoding state; this subscription mirrors it onto
+// `playback.playing`/`paused`, so the transport can never show a state it isn't in.
+// The imperative engine work (load / pause / stop, background routing, iOS) stays
+// in the functions below — the machine governs *state*, not the audio graph.
 let pendingTrack: Track | null = null;
 
 const transport = createActor(
@@ -334,11 +324,6 @@ const transport = createActor(
         // Nothing to pre-decode for a SID: its music is 6502 code driving chip
         // registers, so there is no pattern grid to have ready before the play
         // gesture. Settle straight away.
-        //
-        // Not merely an optimisation — this actor used to build the *module*
-        // engine unconditionally, so cueing a SID fed its bytes to libopenmpt,
-        // which failed inside the WASM ("error loading file") instead of
-        // declining, and left the transport stuck in its error state.
         if (kind === "sid") return;
         await player.whenWorkerReady(); // WASM ready — independent of the audio worklet
         const buf = await fetch(host().fileUrl(t.hash)).then((r) => r.arrayBuffer());
@@ -380,7 +365,7 @@ function wireGlobalsOnce(): void {
       if (document.visibilityState !== "visible" && playback.paused) hiddenWhilePaused = true;
     });
   }
-  // --- Wake-from-freeze resync (laptop sleep / long suspend) --------------
+  // Wake-from-freeze resync (laptop sleep / long suspend).
   // Song timing is purely output-paced; nothing tracks wall time. If the audio
   // clock (currentTime) falls far behind wall-clock while playing, the pipeline
   // froze — reseek so it restarts clean instead of racing. (Distinct from the
@@ -412,11 +397,9 @@ function wireGlobalsOnce(): void {
     // The threshold is well above ordinary jitter (the interval itself is only
     // approximately 1s) and well below the 3s stall case.
     if (stalled > 150 && stalled <= 3000 && playback.playing && !playback.paused) {
-      // Hidden is NOT excluded any more. It was, to keep a backgrounded tab from filling
-      // the console — but backgrounded is exactly where the fault was reported, so the
-      // filter was hiding the evidence. Timer throttling does not produce false readings
-      // here: a late interval inflates the wall and context deltas together, so the
-      // difference stays near zero.
+      // Hidden tabs are included — backgrounded is where the fault occurs, and timer
+      // throttling can't false-fire: a late interval inflates the wall and context deltas
+      // together, so the difference stays near zero.
       console.warn(
         `[audio] clock fell ${Math.round(stalled)}ms behind in the last second ` +
           `(context ${player.context.sampleRate}Hz, state ${player.context.state}` +
@@ -627,11 +610,9 @@ function ensurePlayer(kind: EngineKind = "module"): Promise<void> {
       `[audio] dropped ${d.sinceMs}ms just now — ${d.events} dropouts, ${d.lostMs}ms total this session`,
     );
   });
-  // The silence between starting a track and its first audio: fetch, libopenmpt parse,
-  // first render. Reported apart from dropouts because it is a different thing with a
-  // different fix — a deeper jitter buffer cannot help, since the buffer is deliberately
-  // emptied on a song change — and because counting it as starvation hid whether real
-  // starvation was happening at all.
+  // The silence between starting a track and its first audio (fetch, parse, first render).
+  // Reported apart from dropouts: a deeper jitter buffer cannot help, since the buffer is
+  // deliberately emptied on a song change.
   // How much real time the decoder burns rendering. Under 5% it has ample headroom and
   // any dropout is the worker not being scheduled — cheaper rendering (a lower output
   // rate, a shorter interpolation filter) would buy nothing. Above ~25% it is genuinely
@@ -665,10 +646,8 @@ function ensurePlayer(kind: EngineKind = "module"): Promise<void> {
   });
   player.onLoadGap((d) => {
     playback.loadGapMs = d.ms;
-    // Only when it is long enough to be worth a look. Measured gaps run 100-400ms — the
-    // fetch, parse and first render — so a 60ms bar meant this printed on virtually every
-    // track change, which is expected behaviour rather than news. The value stays on the
-    // store either way; this is just about not narrating the normal case forever.
+    // Normal gaps run 100-400ms (fetch + parse + first render), so only log the outliers;
+    // the value stays on the store either way.
     if (d.ms >= 600) console.info(`[audio] ${d.ms}ms of silence loading this track`);
   });
   player.onError((e: { type?: string }) => {
@@ -712,17 +691,9 @@ function ensurePlayer(kind: EngineKind = "module"): Promise<void> {
   return ready as Promise<void>;
 }
 
-// OS / platform integration (Media Session, wake lock, foreground resume) lives
-// in ./platform; the media-session buttons drive the transport controls passed
-// into wirePlatformIntegration from ensurePlayer. Background playback (media-
-// element route) + wakeAudio live in ./background. Both imported above.
+// OS integration (Media Session, wake lock) lives in ./platform; the media-session
+// buttons drive the transport controls wirePlatformIntegration receives in ensurePlayer.
 
-/** Append this chunk's reconstructed frames to the trace ring.
- *
- *  Rows arrive flattened; they're split into zero-copy views over the same
- *  buffer rather than copied out, so the whole per-chunk cost is a few
- *  `subarray` calls. Trimmed from the front once past [`TRACE_ROWS`] — the grid
- *  shows the recent past, not the whole tune. */
 /** Drop the recorded frames. The trace is a recording of one tune's playback,
  *  so it must not survive into the next — a grid still showing the last tune's
  *  notes while a new one plays is worse than an empty one. */
@@ -789,17 +760,12 @@ function applyMeta(meta: Meta) {
   syncNowPlaying(); // title/duration known now → refresh OS Now Playing
 }
 
-/** Load a track and play it from the start (audible unless muted). */
-export async function playTrack(track: Track) {
-  // Stop the current module so the worklet drops it before we load the next.
-  if (player) player.stop();
-  resetJam(); // drop cached sample buffers + any live jam voices from the old module
+/** Reset every per-track playback field for `track` (shared by play and cue). */
+function resetForTrack(track: Track) {
   playback.error = null;
   playback.current = track;
   resetTrace(); // the previous tune's frames are not this one's
   loadNotes(track); // in parallel with engine init — nothing waits on it
-  pendingTrack = track;
-  transport.send({ type: "LOAD" }); // → loading; the subscription flips the transport to ⏸
   playback.position = 0;
   playback.duration = host().playLength?.(track) ?? track.duration ?? 0;
   playback.song = null;
@@ -809,6 +775,15 @@ export async function playTrack(track: Track) {
   playback.channelMutes = []; // repopulated when this module's metadata arrives
   clearEdits(); // drop editor buffer + stop the editor sequencer
   resetBeat();
+  pendingTrack = track;
+}
+
+export async function playTrack(track: Track) {
+  // Stop the current module so the worklet drops it before we load the next.
+  if (player) player.stop();
+  resetJam(); // drop cached sample buffers + any live jam voices from the old module
+  resetForTrack(track);
+  transport.send({ type: "LOAD" }); // → loading; the subscription flips the transport to ⏸
   const p = ensurePlayer(kindFor(track));
   // Resume the context BEFORE awaiting init. A track cued on a cold reload created
   // the AudioContext suspended (no gesture), and the worklet won't finish
@@ -931,20 +906,7 @@ export function cueRefs(refs: QueueRef[], index: number, track: Track) {
 }
 
 function cueTrack(track: Track) {
-  playback.error = null;
-  playback.current = track;
-  resetTrace();
-  loadNotes(track);
-  playback.position = 0;
-  playback.duration = host().playLength?.(track) ?? track.duration ?? 0;
-  playback.song = null;
-  playback.row = 0;
-  playback.order = 0;
-  playback.pattern = 0;
-  playback.channelMutes = [];
-  clearEdits();
-  resetBeat();
-  pendingTrack = track;
+  resetForTrack(track);
   rollNext(); // so next/prev + a later prefetch have a target
   transport.send({ type: "CUE" }); // → cued.decoding; the decode actor fills in the song
 }
@@ -1122,9 +1084,8 @@ export function eject() {
 
 export function setMuted(m: boolean) {
   if (!player) return;
-  // Unmuting restores the LEVEL, not full scale. Slamming to 1 was fine while mute was the
-  // only thing touching the gain; with a real volume it would throw away the setting every
-  // time you muted and unmuted.
+  // Unmuting restores the LEVEL, not full scale — otherwise a saved volume is thrown away
+  // on every mute/unmute cycle.
   player.setVol(m ? 0 : playback.volume);
   playback.muted = m;
 }
@@ -1190,7 +1151,6 @@ export function seekToOrder(o: number) {
   playback.pattern = playback.song?.orders?.[o]?.pat ?? playback.pattern;
 }
 
-// --- channel mute / solo (custom build) -------------------------------------
 // Mutes are applied to the LIVE module (chan_mute → CHN_MUTE), so the song's own
 // render drops the channel. State is per-session per-module (reset on load).
 //
@@ -1237,15 +1197,6 @@ export function isChannelSolo(ch: number): boolean {
   return !m[ch] && m.some(Boolean) && m.every((v, i) => (i === ch ? !v : v));
 }
 
-/** Unmute every channel. */
-export function clearChannelMutes() {
-  const n = playback.song?.channels?.length ?? 0;
-  if (!player || !playback.canMuteChannels) return;
-  for (let i = 0; i < n; i++) player.muteChannel(i, false);
-  playback.channelMutes = new Array(n).fill(false);
-}
-
-// --- Jamming (Web Audio sampler) + sample extraction ------------------------
 // Jamming plays a sample's raw PCM directly through Web Audio — a plain
 // AudioBufferSource pitched to the key and looped at the sample's loop points.
 // We already have the data via readSample(), so a note needs no libopenmpt
@@ -1282,10 +1233,8 @@ function triggerDownload(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// The Web Audio sampler (jam voices) lives in ./jam and the pattern editor +
-// sequencer in ./editor — both attached to the engine in ensurePlayer and
-// re-exported above. resetJam runs on track change; clearEdits/seqStop are the
-// editor hooks the transport calls.
+// resetJam runs on track change; clearEdits/seqStop are the editor hooks the
+// transport calls. Both modules attach to the engine in ensurePlayer.
 
 /** Reflect parsed metadata in the playing track and persist it (best effort). */
 async function saveMeta(track: Track, meta: Meta) {

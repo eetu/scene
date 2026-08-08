@@ -12,14 +12,14 @@ export const CELL_W = 130;
 /** Cap on the flexed column width — columns expand to fill only up to a natural
  *  tracker width; beyond this they DON'T stretch (a few channels on a wide pane
  *  keep their size and the extra stays plain surface, rather than ballooning). */
-export const MAX_CELL_W = 160;
+const MAX_CELL_W = 160;
 /** …but on a narrow pane (phones) there's no room to balloon, so allow a wider
  *  cap: the columns fill the edge instead of leaving a thick plain-surface gutter
  *  on the right. Kicks in at the apps' mobile breakpoint. */
-export const MAX_CELL_W_NARROW = 220;
-export const NARROW_W = 640;
+const MAX_CELL_W_NARROW = 220;
+const NARROW_W = 640;
 /** Slim edge divider reserved on each side when paging (holds the chevron). */
-export const EDGE_W = 22;
+const EDGE_W = 22;
 
 export type ChannelWindow = {
   /** How many whole channels are shown (≥1). */

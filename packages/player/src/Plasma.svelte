@@ -9,6 +9,8 @@
   // doesn't overexpose) is uploaded as a 256×1 texture; brightness lifts are gated
   // to the bright crests so loud passages sparkle instead of washing out. Fills the
   // whole area, so the panel colour is irrelevant — same in both themes. CSP-safe.
+  import { accentHex } from "./accent";
+  import { createQuadProgram } from "./gl";
   import { playback, sampleBands } from "./player.svelte";
   import { driveFrames } from "./raf";
 
@@ -71,53 +73,14 @@
     const cv = canvas;
     if (!cv) return;
     const el: HTMLCanvasElement = cv;
-    // preserveDrawingBuffer: the CRT screen samples this canvas as a texture from its own
-    // rAF, and Safari discards a drawing buffer as soon as it has composited it — so
-    // without this the screen reads an empty buffer and the tube goes black there (Chrome
-    // happens to keep it around, which is why it only showed up on Safari). Costs the
-    // driver some freedom to discard, which is the price of being compositable.
-    const ctx = el.getContext("webgl", {
+    const quad = createQuadProgram(el, {
+      label: "Plasma",
+      vert: VERT,
+      frag: FRAG,
       antialias: false,
-      alpha: false,
-      preserveDrawingBuffer: true,
     });
-    if (!ctx) {
-      console.warn("Plasma: WebGL unavailable");
-      return;
-    }
-    const gl: WebGLRenderingContext = ctx;
-
-    function compile(type: number, src: string): WebGLShader | null {
-      const sh = gl.createShader(type);
-      if (!sh) return null;
-      gl.shaderSource(sh, src);
-      gl.compileShader(sh);
-      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-        console.warn("Plasma shader:", gl.getShaderInfoLog(sh));
-        gl.deleteShader(sh);
-        return null;
-      }
-      return sh;
-    }
-    const vs = compile(gl.VERTEX_SHADER, VERT);
-    const fs = compile(gl.FRAGMENT_SHADER, FRAG);
-    const prog = gl.createProgram();
-    if (!vs || !fs || !prog) return;
-    gl.attachShader(prog, vs);
-    gl.attachShader(prog, fs);
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.warn("Plasma link:", gl.getProgramInfoLog(prog));
-      return;
-    }
-    gl.useProgram(prog);
-
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    const aPos = gl.getAttribLocation(prog, "a_pos");
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    if (!quad) return;
+    const { gl, prog } = quad;
 
     const uRes = gl.getUniformLocation(prog, "uRes");
     const uT = gl.getUniformLocation(prog, "uT");
@@ -153,7 +116,7 @@
       return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
     }
     function buildPalette() {
-      const acc = getComputedStyle(node).getPropertyValue("--accent").trim() || "#f78f08";
+      const acc = accentHex(node);
       // Derive a base hue from the accent (hex); fall back to amber.
       const m = /^#?([0-9a-f]{6})$/i.exec(acc);
       let baseHue = 35;
@@ -203,16 +166,6 @@
     buildPalette();
     uploadPalette();
     gl.uniform1i(uPal, 0);
-
-    // Smooth gradients → the backing resolution barely matters; cap at 1.5× retina.
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    const ro = new ResizeObserver(() => {
-      const rect = el.getBoundingClientRect();
-      el.width = Math.max(1, Math.round(rect.width * dpr));
-      el.height = Math.max(1, Math.round(rect.height * dpr));
-      gl.viewport(0, 0, el.width, el.height);
-    });
-    ro.observe(el);
 
     // Accessibility: honour prefers-reduced-motion by slowing the swirl/cycle and
     // damping the reactive warp/shimmer/flash to a calm fraction (never freezing —
@@ -266,13 +219,8 @@
 
     return () => {
       stop();
-      ro.disconnect();
-      gl.deleteProgram(prog);
-      gl.deleteShader(vs);
-      gl.deleteShader(fs);
-      gl.deleteBuffer(buf);
       gl.deleteTexture(palTex);
-      gl.getExtension("WEBGL_lose_context")?.loseContext();
+      quad.destroy();
     };
   });
 </script>

@@ -10,6 +10,7 @@
     ChannelScope,
     channelWindow,
     handleEditKey,
+    hex2,
     isChannelSolo,
     moveCursor,
     pageSwipe,
@@ -50,10 +51,6 @@
       else if (c >= win.offset + win.visible) offset = c - win.visible + 1;
     });
   });
-
-  function hex2(n: number): string {
-    return n.toString(16).toUpperCase().padStart(2, "0");
-  }
 
   // Cursor nav — mirrors PatternView (stops handled keys from reaching the
   // app's global arrows; unhandled keys still bubble).

@@ -2,11 +2,9 @@
 // a host and wraps the host the way PlayerView does, so this covers the real integration
 // rather than the package in isolation.
 //
-// EVERY visualiser, not a sample of them. An earlier version checked three, and the LED
-// cube turned out to render black under the screen while being perfectly fine without
-// it — the exact failure this suite exists to catch, walked straight past. Compositing
-// depends on how each effect draws (which context type, how often, whether it repaints
-// unprompted), so "one 2D and one WebGL effect work" generalises to nothing.
+// EVERY visualiser, not a sample of them: compositing depends on how each effect draws
+// (which context type, how often, whether it repaints unprompted), so "one 2D and one
+// WebGL effect work" generalises to nothing.
 //
 // A screenshot suite — see VISUAL in vitest.config.ts. Not part of `yarn test`.
 import { page } from "vitest/browser";

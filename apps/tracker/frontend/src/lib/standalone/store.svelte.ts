@@ -36,7 +36,6 @@ export const tracks = $state<Track[]>([]);
 // eslint-disable-next-line svelte/prefer-svelte-reactivity
 const urls = new Map<string, string>();
 
-// ---------------------------------------------------------------- catalog ----
 function persistCatalog(): void {
   try {
     localStorage.setItem(CATALOG_KEY, JSON.stringify(tracks));
@@ -89,7 +88,6 @@ function makeTrack(relPath: string, hash: string, size: number): Track {
   };
 }
 
-// -------------------------------------------------------------- intake ----
 type Entry = { path: string; bytes: ArrayBuffer };
 
 /** A path whose FIRST segment is the import root (the folder the user picked or
@@ -197,7 +195,6 @@ export async function addFiles(files: File[] | FileList): Promise<number> {
   return addEntries(entries);
 }
 
-// ---------------------------------------------------- metadata (parse) ----
 let parsing = false;
 /** Parse metadata for any tracks still lacking it (title/duration/etc.), so the
  *  list fills in without playing each one. Sequential + best-effort. */
@@ -232,7 +229,6 @@ function applyMeta(t: Track, meta: MetaIn): void {
   t.samples = meta.samples ?? null;
 }
 
-// ------------------------------------------------- host-side callbacks ----
 /** Player host `putMeta`: reflect a parse onto the track + persist. */
 export async function putMeta(hash: string, meta: MetaIn): Promise<void> {
   const t = tracks.find((x) => x.hash === hash);
@@ -330,7 +326,6 @@ export async function clearAll(): Promise<void> {
   localStorage.removeItem(PLAYLISTS_KEY);
 }
 
-// --------------------------------------------------------- demo seed ----
 const SEEDED_KEY = "tracker.standalone.seeded.v1";
 // Bundled at deploy time by the pages workflow (not committed) → served
 // same-origin. import.meta.env.BASE_URL is '/' in dev, '/scene/' on Pages.
@@ -355,7 +350,6 @@ export async function seedDemoIfEmpty(): Promise<void> {
   }
 }
 
-// ----------------------------------------------------------- rehydrate ----
 let rehydrated = false;
 /** Restore the catalog + recreate object URLs from IndexedDB on boot. Idempotent. */
 export async function rehydrate(): Promise<void> {
@@ -376,7 +370,6 @@ export async function rehydrate(): Promise<void> {
   void parsePending();
 }
 
-// ----------------------------------------------------- local playlists ----
 // Backs the api playlist methods so the existing PlaylistsTab / AddToPlaylist UI
 // works unchanged. Items are md5-keyed (md5 === content hash here).
 type LItem = Pick<ImportItem, "md5" | "title" | "artist" | "format" | "filename"> & { id: number };

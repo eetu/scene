@@ -16,6 +16,13 @@ pub struct ScanProgress {
     pub hashed: AtomicUsize,
 }
 
+// Lets `scene_backend::scan::ScanFlagGuard` manage the `scanning` flag.
+impl AsRef<AtomicBool> for ScanProgress {
+    fn as_ref(&self) -> &AtomicBool {
+        &self.scanning
+    }
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub cfg: Arc<Config>,

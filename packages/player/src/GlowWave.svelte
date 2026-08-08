@@ -8,6 +8,7 @@
   // scope panel so overlaps bloom into glow; light theme uses a pale lavender panel
   // + normal compositing (additive would wash out to white on a light field), so the
   // purple still reads.
+  import { fitCanvas2d } from "./canvas2d";
   import { readScope, SCOPE_SIZE } from "./player.svelte";
   import { driveFrames } from "./raf";
 
@@ -21,22 +22,20 @@
   $effect(() => {
     const el = canvas;
     if (!el) return;
-    const ctx = el.getContext("2d");
-    if (!ctx) return;
-    const g2: CanvasRenderingContext2D = ctx;
 
     let w = 0;
     let h = 0;
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // shadowBlur is costly — don't also pay full retina
-    const ro = new ResizeObserver(() => {
-      const r = el.getBoundingClientRect();
-      w = r.width;
-      h = r.height;
-      el.width = Math.max(1, Math.round(w * dpr));
-      el.height = Math.max(1, Math.round(h * dpr));
-      g2.setTransform(dpr, 0, 0, dpr, 0, 0);
-    });
-    ro.observe(el);
+    // dpr capped at 1.5: shadowBlur is costly — don't also pay full retina.
+    const fit = fitCanvas2d(
+      el,
+      (fw, fh) => {
+        w = fw;
+        h = fh;
+      },
+      1.5,
+    );
+    if (!fit) return;
+    const g2 = fit.ctx;
 
     const raw = new Uint8Array(SCOPE_SIZE);
     // Ring buffer of resampled waveforms (each POINTS long, values -1..1).
@@ -144,7 +143,7 @@
 
     return () => {
       stopFrames();
-      ro.disconnect();
+      fit.stop();
     };
   });
 </script>
