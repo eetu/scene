@@ -20,20 +20,10 @@ stock chiptune3 WASM cannot do, as a **drop-in replacement** for
   export-list add, no C code) so the editor can read numeric note / instrument /
   volume / effect / param per cell. Still read-only (libopenmpt has no write API).
 
-That's all the engine needs: **keyboard jamming is done in the browser with the
-Web Audio API** — the tracker builds an `AudioBuffer` from `smp_read`'s PCM and
-plays it pitched to the key, looped at the sample's loop points (see
-`packages/player/src/player.svelte.ts`). No libopenmpt playback engine, worker
-render-loop, or worklet involvement — a jammed note is just an
-`AudioBufferSourceNode`, independent of the song's transport.
-
-This is a build-time toolchain + a runtime WASM artifact — neither a cargo
-backend nor a yarn package — so it lives in its own top-level bucket.
-
 ## How it works
 
-- `Containerfile` — amd64 Debian + **emsdk 6.0.2** (pinned). We're on arm64 macOS, so it runs under podman's
-  amd64 emulation.
+- `Containerfile` — amd64 Debian + **emsdk 6.0.2** (pinned); runs under podman's
+  amd64 emulation on arm64 macOS.
 - `build.sh` — clones OpenMPT (`OMPT_REF`, default `libopenmpt-0.8.7`), builds
   the image, runs `compile.sh` inside it.
 - `compile.sh` (runs in the container) — applies the patches, compiles the
@@ -42,8 +32,7 @@ backend nor a yarn package — so it lives in its own top-level bucket.
   `libopenmpt` (the contract `decoder.worker.js` expects). Object files are
   cached under `out/obj/` for fast relinks after a shim edit.
 - **No `-flto`** — full LTO deadlocks under qemu-TCG on Apple Silicon at the
-  final link. CI builds on a native amd64
-  runner where LTO/`-Oz` are fine.
+  final link. CI builds on a native amd64 runner where LTO/`-Oz` are fine.
 - `patches/patch.py` — adds `module_impl::shim_get_sndfile()` (the only source
   change; reaches the otherwise-protected `CSoundFile`).
 - `src/shim.cpp` — appended to `libopenmpt/libopenmpt_c.cpp` (where the
@@ -52,11 +41,14 @@ backend nor a yarn package — so it lives in its own top-level bucket.
   `EXPORTED_RUNTIME_METHODS` lists (every `_openmpt_*` `decoder.worker.js` calls,
   plus the shim funcs).
 
-## Usage
+## Build, gate, vendor
+
+The same three steps cover a fresh build and a libopenmpt bump — updating is a
+tag bump + rebuild + gate, not a manual re-vendor:
 
 ```sh
 ./build.sh                       # clone + image + compile → out/libopenmpt.worklet.js
-OMPT_REF=libopenmpt-0.8.7 ./build.sh
+OMPT_REF=libopenmpt-0.8.7 ./build.sh   # or against a specific release tag
 node spike/spike.mjs <module>    # gate: sample PCM + channel mute + structured cells
 ```
 
@@ -72,8 +64,8 @@ done
 # decoder.worker.js is a hand-vendored fork — keep both apps' copies identical.
 ```
 
-The custom build is ~1.4 MB larger than the stock worklet; that's the cost of the
-in-browser sample data (both apps now pay it for jamming).
+The custom build is ~1.4 MB larger than the stock worklet — the cost of
+in-browser sample data.
 
 ## Flat C ABI (the shim)
 
@@ -91,19 +83,11 @@ worker already holds for the playing module):
 (Structured cells use the stock libopenmpt export
 `openmpt_module_get_pattern_row_channel_command`, not a shim function.)
 
-## Bumping libopenmpt (upstream updates)
+## Pins & bump anchors
 
-This is the **clean, reproducible** half of the vendored player — updating
-libopenmpt is a tag bump + rebuild + gate, not a manual re-vendor:
-
-```sh
-OMPT_REF=libopenmpt-0.8.7 ./build.sh     # rebuild against a newer release tag
-node spike/spike.mjs <module>            # re-run the Phase-2 gate
-cp out/libopenmpt.worklet.js ../../apps/tracker/frontend/static/vendor/chiptune3/
-```
-
-Our divergence from upstream is deliberately tiny and version-robust, so a bump
-rarely needs hand-holding — and when it does, it **fails loudly**, not silently:
+Pinned at **`libopenmpt-0.8.7`** + **emsdk 6.0.2** (libopenmpt 0.8.x requires
+emscripten ≥ 3.1.51; 6.0.2 passes the spike gate). A bad bump **fails loudly**,
+not silently:
 
 - `patches/patch.py` anchors on `}; // class module_impl`; if upstream
   restructures that class it `exit 1`s (doesn't miscompile).
@@ -112,20 +96,12 @@ rarely needs hand-holding — and when it does, it **fails loudly**, not silentl
 - `exports.txt` — a renamed `_openmpt_*` the worker calls surfaces as a link-time
   "undefined symbol", not a runtime break.
 
-Pinned at **`libopenmpt-0.8.7`** + **emsdk 6.0.2** — current stable of both. We
-track the latest toolchain rather than freeze an old one (libopenmpt 0.8.x only
-requires emscripten ≥ 3.1.51; 6.0.2 clears the 3.1→4→5→6 major jump clean and
-passes the spike gate, and the audio/sample output is identical anyway — the DSP
-is deterministic IEEE-754).
 The CI workflow (`.github/workflows/libopenmpt-ext.yml`) builds the shippable
 `-Oz -flto` artifact on a native amd64 runner and verifies the exports.
 
 ## The chiptune3 JS layer is a hard fork (no auto-sync)
 
-Separately from this from-source WASM, the JS glue — `chiptune3.js`,
-`decoder.worker.js`, `chiptune3.worklet.js` — was vendored from `chiptune3@0.8.7`
-and then **heavily reworked** (off-thread decoding, the patched `getSong`, and
-the jam/sample additions). That is a fork, not a tracking vendor: upstream and
-ours have diverged structurally, so pulling upstream changes is a **manual
-merge**, not a drop-in. In practice we own that layer now; chiptune3 upstream is
-thin and near-static, and we don't track it.
+The JS glue — `chiptune3.js`, `decoder.worker.js`, `chiptune3.worklet.js` — was
+vendored from `chiptune3@0.8.7` and then **heavily reworked** (off-thread
+decoding, the patched `getSong`, the jam/sample additions). Pulling upstream
+changes is a **manual merge**, not a drop-in.

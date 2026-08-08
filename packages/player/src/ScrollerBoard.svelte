@@ -61,15 +61,10 @@
   // follows it; at 32ms it lands well inside. The text face keeps the slower, heavier
   // fall — there the weight IS the effect, and nothing needs to keep up with a clock.
   const FLIP_MS_QUEUE = 32;
-  // Hold a line for this many beats, so the board turns *with* the music.
-  //
-  // Eight bars — ~15s at 125bpm — arrived by walking it down twice. Scrolling by a line
-  // re-targets EVERY module (row i takes row i+1's text), so each step costs a full
-  // cascade: ~1.5s typical, 2.9s worst case. At one bar the board was mid-flip more
-  // than half the time and the text never resolved — the first version of this was
-  // pretty and completely unreadable. At four it resolved but was turning the page
-  // while you were still reading it. A Solari board is something you glance at and take
-  // in, and the pause between turns is most of what makes a turn feel like an event.
+  // Hold a line for this many beats, so the board turns *with* the music. Eight bars —
+  // ~15s at 125bpm. Scrolling by a line re-targets EVERY module (row i takes row i+1's
+  // text), so each step costs a full cascade: ~1.5s typical, 2.9s worst case, and the
+  // hold has to be long enough for the text to resolve and be read between turns.
   const BEATS_PER_LINE = 32;
   // …but never sit still longer than this, for modules whose beat tick is sparse.
   const MAX_HOLD_S = 22;
@@ -158,9 +153,8 @@
         if (boardView.mode !== "departures") return [track];
         // No scrollbar on the queue face — the queue is a window, not a document, so
         // there is nothing to scroll and the last column belongs to the status flag
-        // instead. Worth being explicit: zones overlap by "later wins", so leaving the
-        // track zone in would silently steal that column back and blank every flag,
-        // which is exactly what it did the first time.
+        // instead. Zones overlap by "later wins", so leaving the track zone in would
+        // silently steal that column back and blank every flag.
         return [
           // y: 1 so the header row keeps the letter drum and can spell TIME.
           { x: TIME_X, y: 1, cols: TIME_W, rows: rows - 1, charset: DRUM_DIGITS },

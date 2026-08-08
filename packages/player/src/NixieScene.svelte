@@ -12,6 +12,7 @@
   // it only tracks --accent for the glow colour.
   import { onMount } from "svelte";
 
+  import { accentHex } from "./accent";
   import type { NixieScene } from "./nixie-scene";
   import { playback, sampleBands } from "./player.svelte";
   import { driveFrames } from "./raf";
@@ -33,9 +34,6 @@
       .padStart(2, "0");
     return `${mm}:${ss}:${cc}`.split("");
   }
-  const accentHex = () =>
-    getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#f78f08";
-
   onMount(() => {
     let stopped = false;
     let scene: NixieScene | null = null;

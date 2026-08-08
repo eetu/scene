@@ -1,8 +1,7 @@
 // Guards the playlist item row: one visual line on BOTH breakpoints (mobile a
 // touch taller for the tap target), the same shape as a library row — title +
-// trailing muted group·artist, then the duration, then reorder/remove. The row
-// used to wrap its metadata to a padded second line on a phone; this pins it
-// down by geometry, not by a magic row height.
+// trailing muted group·artist, then the duration, then reorder/remove. Pinned
+// by geometry, not by a magic row height.
 import { readFileSync } from "node:fs";
 
 import { expect, type Locator, test } from "@playwright/test";

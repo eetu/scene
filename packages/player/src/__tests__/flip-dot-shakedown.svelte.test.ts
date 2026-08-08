@@ -146,13 +146,9 @@ test("sound does not open an AudioContext until it is used", { timeout: 30000 },
 
     const report = `default=${afterQuiet} construct=${afterConstruct} flip=${afterFlip} dispose=${afterDispose}`;
     // No AudioContext at all without a user gesture — not at construction, and not on a
-    // flip. This is what a page that already runs one (this app, for playback) needs from
-    // a display core, and browsers cap how many a page may have.
-    //
-    // Against 1.5.0-rc.1 this read default=0 construct=0 flip=1: the first flip opened it,
-    // since flips come from data rather than from a gesture. Pinning that number is what
-    // surfaced the change when 1.5.1 fixed it, rather than it passing unnoticed — so the
-    // exact expectations stay exact.
+    // flip, which arrives from data rather than from a gesture. This is what a page that
+    // already runs one (this app, for playback) needs from a display core, and browsers
+    // cap how many a page may have.
     expect(afterQuiet, `sound:false opened a context — ${report}`).toBe(0);
     expect(afterConstruct, `sound:true allocated at construction — ${report}`).toBe(0);
     expect(afterFlip, `a flip opened an AudioContext with no user gesture — ${report}`).toBe(0);

@@ -10,10 +10,6 @@
   // show every change land. Frames also go out on the beat, so hits are on time rather
   // than up to a tick late.
   //
-  // Driving it slower than this — a frame only per beat — was the first attempt and it
-  // read as a static mass: at 2-3 updates a second the spectrum is a shape that
-  // occasionally changes rather than something moving to the music.
-  //
   // Content is one bit per dot, so nothing here dithers: at this resolution a clean cut
   // gives a stable silhouette where a halftone would shimmer between frames.
   import { onMount } from "svelte";

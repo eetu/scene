@@ -64,30 +64,13 @@ fn scan_pool() -> &'static rayon::ThreadPool {
     })
 }
 
-/// Module extensions libopenmpt can open. Generous on purpose — the collection
-/// has obscure legacy formats; unknown extensions are simply skipped. Lowercase.
-pub const MODULE_EXTS: &[&str] = &[
-    "mod", "xm", "s3m", "it", "mptm", "stm", "nst", "m15", "stk", "wow", "ult", "669", "mtm",
-    "med", "far", "amf", "ams", "dbm", "digi", "dmf", "dsm", "dtm", "fmt", "imf", "j2b", "mdl",
-    "mo3", "mt2", "okt", "okta", "plm", "psm", "pt36", "ptm", "sfx", "sfx2", "st26", "stp", "umx",
-    "gdm", "gmc", "ice", "itp", "mms", "oct", "tcb", "ftm", "rtm", "c67", "symmod",
-];
+use scene_backend::scan::is_macos_junk as is_junk;
+pub use scene_backend::scan::MODULE_EXTS;
 
 /// Every indexed extension: the libopenmpt zoo plus SID, which is decoded by a
 /// different engine entirely (see `crate::sid`) but lives in the same index.
 fn indexed_ext(ext: &str) -> bool {
     MODULE_EXTS.contains(&ext) || crate::sid::is_sid_ext(ext)
-}
-
-fn is_junk(name: &str) -> bool {
-    name == ".DS_Store"
-        || name.starts_with("._")
-        || name == ".Trashes"
-        || name == ".Spotlight-V100"
-        || name == ".AppleDouble"
-        || name == ".fseventsd"
-        || name == ".DocumentRevisions-V100"
-        || name == ".TemporaryItems"
 }
 
 /// True if this entry is a hidden/junk directory we should not descend into.
@@ -194,6 +177,9 @@ pub fn hash_bytes(bytes: &[u8]) -> (String, String) {
 /// as `group == GROUPLESS`; the UI shows that bucket distinctly (pinned last),
 /// and the rename endpoint writes here when the group field is left blank.
 pub const GROUPLESS: &str = "_groupless";
+
+/// Where a file with no derivable author is filed in the artist-primary tree.
+pub const UNKNOWN_ARTIST: &str = "_unknown";
 
 /// The artist of a module from its forward-slash relative path, artist-primary
 /// (`artist/song.ext`): segment[0] is the artist when there's a further segment

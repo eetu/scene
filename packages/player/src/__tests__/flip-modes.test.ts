@@ -27,12 +27,9 @@ const DOTS = COLS * ROWS;
 const BUDGET = Math.round(DOTS * 0.4);
 
 /** A plausible moving signal: a three-band spectrum and a sine through the scope.
- *
- *  Bands move independently, which matters — an earlier version of this fixture applied
- *  one envelope to every bin, so the whole spectrum rose and fell as a block and every
- *  bar on the board moved together. That measured `bars` at nearly twice its real
- *  churn. Music does not do that: a kick moves the bass bins and leaves the treble
- *  where it was. */
+ *  Bands move independently, which matters: one envelope over every bin makes the whole
+ *  spectrum rise and fall as a block and nearly doubles the measured churn. Music does
+ *  not do that — a kick moves the bass bins and leaves the treble where it was. */
 function fakeAnalyser(tRef: { t: number }) {
   return {
     context: { sampleRate: 48000 },

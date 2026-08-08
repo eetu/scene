@@ -104,11 +104,15 @@ async fn batch_skips_unknown_ids_and_rejects_junk() -> anyhow::Result<()> {
 async fn collection_filter_scopes_rows_and_facets() -> anyhow::Result<()> {
     let s = Stack::start_with_second_root("extra", "scan").await?;
     s.rescan().await;
-    s.post_empty("/api/rescan/extra").await;
+    // `rescan_root`, not a bare POST: the handler answers 202 and walks in the
+    // background, so a fire-and-forget second root is only indexed by the time
+    // the queries below run if the machine happens to be fast enough.
+    s.rescan_root("extra").await;
 
     let all = ids_of(&s, "group_by=artist").await;
     let mods = ids_of(&s, "group_by=artist&collection=mods").await;
     let extra = ids_of(&s, "group_by=artist&collection=extra").await;
+    assert_eq!(all.len(), 6, "both roots' three modules, unfiltered");
     assert_eq!(all.len(), mods.len() + extra.len());
     assert!(mods.iter().all(|id| !extra.contains(id)));
     Ok(())

@@ -111,10 +111,9 @@ test("on a phone the viz picker is a stepper row with a sheet for the full set",
   await expect(overlay).toBeVisible();
 });
 
-// The CRT bezel is the one part of the viz pane with no test at all — it's CSS, so no
-// component test renders it, and it had been carrying hard-coded greys that ignored the
-// theme. It now derives from --panel-hi, which is dark on the dark theme and light on the
-// light one, so the set sits in the room's lighting rather than glowing out of a dark page.
+// The CRT bezel is CSS, so no component test renders it — only this covers it. It derives
+// from --panel-hi, dark on the dark theme and light on the light one, so the set sits in
+// the room's lighting rather than glowing out of a dark page.
 //
 // Asserted on the RESOLVED box-shadow colour rather than the custom property: the property
 // holds an unresolved color-mix() expression, which would pass this test while painting

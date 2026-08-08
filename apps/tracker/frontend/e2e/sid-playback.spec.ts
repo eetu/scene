@@ -50,9 +50,6 @@ const tracks = [0, 1].map((subsong) => ({
  *
  *  The real images are operator-supplied and gitignored — they're copyrighted,
  *  and deliberately never in the repo — so a committed test cannot read them.
- *  This used to point at an absolute path on one machine: green there, and
- *  impossible anywhere else, which is exactly how it failed the first time CI
- *  ran on it.
  *
  *  What these specs need from the ROMs is the *transport* — that the app fetches
  *  three of them and hands them to the decoder — not their contents. A PSID
@@ -125,14 +122,12 @@ test("a deep-linked SID cues without handing its bytes to libopenmpt", async ({
   page,
 }) => {
   // The cold-restore path (?t=) decodes a module's pattern before any gesture,
-  // so the grid is ready when you press play. That decode used to build the
-  // *module* engine unconditionally — cueing a SID fed it to libopenmpt, which
-  // failed inside the WASM ("openmpt_module_create_from_memory2: ERROR: error
-  // loading file") and stranded the transport. A SID has no pattern to decode.
+  // so the grid is ready when you press play. A SID has no pattern to decode,
+  // and cueing one must not build the *module* engine — libopenmpt rejects SID
+  // bytes inside the WASM and strands the transport.
   // Asserted on the *network*, not the console: the failure happens inside a
-  // Worker, and worker console output isn't part of the page's console events —
-  // an earlier version of this test watched the console and passed even with the
-  // bug present. Which decoder got built is directly observable instead.
+  // Worker, and worker console output isn't part of the page's console events.
+  // Which decoder got built is directly observable instead.
   const fetched: string[] = [];
   page.on("request", (r) => fetched.push(r.url()));
 

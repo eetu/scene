@@ -2,6 +2,7 @@
   // Master output oscilloscope — draws the playback waveform from the player's
   // AnalyserNode. (A first scope; per-channel FT2 scopes would need the worklet
   // to expose per-channel PCM.)
+  import { fitCanvas2d } from "./canvas2d";
   import { playback, readScope, SCOPE_SIZE } from "./player.svelte";
   import { driveFrames } from "./raf";
   import { theme } from "@scene/design";
@@ -11,22 +12,15 @@
   $effect(() => {
     const el = canvas;
     if (!el) return;
-    const ctx = el.getContext("2d");
-    if (!ctx) return;
-    const g2: CanvasRenderingContext2D = ctx;
 
     let w = 0;
     let h = 0;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const ro = new ResizeObserver(() => {
-      const r = el.getBoundingClientRect();
-      w = r.width;
-      h = r.height;
-      el.width = Math.max(1, Math.round(w * dpr));
-      el.height = Math.max(1, Math.round(h * dpr));
-      g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const fit = fitCanvas2d(el, (fw, fh) => {
+      w = fw;
+      h = fh;
     });
-    ro.observe(el);
+    if (!fit) return;
+    const g2 = fit.ctx;
 
     const buf = new Uint8Array(SCOPE_SIZE);
     // Canvas can't use CSS vars directly — resolve the themed colours from
@@ -87,7 +81,7 @@
 
     return () => {
       stopFrames();
-      ro.disconnect();
+      fit.stop();
     };
   });
 </script>

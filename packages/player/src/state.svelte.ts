@@ -4,6 +4,7 @@
 // import from the big player.svelte.ts orchestration file.
 
 import type { Track, TrackNote } from "./host";
+import { readPref } from "./persist";
 import type { Song } from "./player.svelte";
 
 /**
@@ -103,15 +104,14 @@ export const playback = $state({
   muted: false,
   // Downmix output to mono (accessibility). Persisted; applied once the engine
   // is ready. Read at startup so the choice survives reloads.
-  mono: typeof localStorage !== "undefined" && localStorage.getItem("player:mono") === "1",
+  mono: readPref("player:mono") === "1",
   // Master output level, 0..1, applied to the engine's gain node. Persisted for the same
   // reason mono is: a level you have to re-set on every reload is worse than no control.
   // `muted` is orthogonal and rides on top — unmuting restores this, rather than 1.
-  volume:
-    typeof localStorage === "undefined" ? 1 : initialVolume(localStorage.getItem("player:volume")),
+  volume: initialVolume(readPref("player:volume")),
   // Persisted so random mode survives a reload (the seeded order lives in
   // player.svelte.ts, keyed by player:shuffleSeed).
-  shuffle: typeof localStorage !== "undefined" && localStorage.getItem("player:shuffle") === "1",
+  shuffle: readPref("player:shuffle") === "1",
   repeat: false, // loop the current module forever (libopenmpt repeat_count = -1)
   // Position in the play queue (the ordered list the current track was opened
   // from), so next/prev and auto-advance work. -1 = no queue.

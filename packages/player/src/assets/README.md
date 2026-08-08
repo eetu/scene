@@ -24,42 +24,11 @@ reads `no dancer.fbx`, and no model is fetched.
 
 ### Replacing it, from Mixamo
 
-[Mixamo](https://www.mixamo.com/) is the easy source — free with an Adobe account, and
-the licence covers use in a project like this.
-
-1. **Characters tab first — pick an actual character.** Skip this and Mixamo applies
-   the animation to its default grey mannequin (Y Bot / X Bot), which is what you'll
-   get in the viz: a figure with no hair and no shape. Choosing the character is the
-   step that's easy to miss, because the animation preview works fine without it.
-2. **Animations tab** — pick a dance, with that character still selected.
-3. **Download → Format: `FBX Binary(.fbx)`.** Mixamo offers no glTF export, only FBX
-   and Collada, so FBX is what this expects.
-4. **Skin: "With Skin"** — "Without Skin" is animation data only, no body to draw.
-5. Save it here as `dancer.fbx`.
-
-A ~4-second looping dance is plenty: playback is tempo-locked to the tune (scaled
-around 120 BPM), so a short loop reads fine.
-
-### Choosing for silhouette
-
-This renders as a flat black cut-out, so **the mesh outline is the only thing that
-survives** — textures, materials and colours are all discarded. Choose accordingly:
-
-- **Long loose hair and a skirt or dress read instantly.** A tight ponytail reads as a
-  spike; short hair and trousers read androgynous, which is why the default mannequin
-  looks like nothing in particular.
-- **Mixamo's hair is rigid**, weighted to the head bone — it won't flow, lag or swing.
-  With no shading to distract from the outline, that stiffness shows more than it
-  would on a textured model.
-- **Interior detail is wasted, but the outline isn't.** Textures and materials are
-  discarded outright, and the mesh decimates hard — 6k triangles is plenty. What does
-  survive is the *silhouette*, and more of it reads than you'd expect: with the camera
-  framed this close, individual fingers are clearly legible. Don't strip finger bones
-  to save animation data; the hand goes stiff and it shows.
-
-If none of Mixamo's characters suit, its **Auto-Rigger** takes your own T-posed mesh
-(FBX/OBJ), rigs it, and then any Mixamo animation can be applied to it — so a
-CC0 model from elsewhere can be used, with only the geometry needing a licence.
+On [Mixamo](https://www.mixamo.com/) (free with an Adobe account): pick a
+**character first** (skipping this yields the default grey mannequin), then a dance
+on the Animations tab; download as **`FBX Binary(.fbx)`** (no glTF export) with
+**Skin: "With Skin"** ("Without Skin" has no body to draw); save here as
+`dancer.fbx`. A ~4-second loop is plenty — playback is tempo-locked to the tune.
 
 ### What the loader needs
 
@@ -71,10 +40,5 @@ CC0 model from elsewhere can be used, with only the geometry needing a licence.
 - Materials don't matter. Every surface is repainted flat black, so an untextured rig
   is ideal — and smaller.
 
-### Size
-
-Mixamo FBX runs to several MB and ships whole to the browser. A silhouette needs no
-texture or mesh detail, so it's worth shrinking: converting to `.glb` (Blender, or
-`FBX2glTF`) typically cuts it several-fold, and decimating the mesh costs nothing
-visually when the result is a black cut-out. Drop the converted file in as
-`dancer.glb` — the loader picks the format off the extension.
+To shrink the multi-MB Mixamo FBX, convert it to `.glb` (Blender, or `FBX2glTF`) and
+drop it in as `dancer.glb` — the loader picks the format off the extension.

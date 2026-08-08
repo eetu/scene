@@ -36,7 +36,7 @@ export const PANEL_FRAME: [number, number] = [320, 64];
  */
 export type PanelSize = "full" | "mini";
 
-export const MINI_FRAME: [number, number] = [208, 40];
+const MINI_FRAME: [number, number] = [208, 40];
 
 export function panelFrame(size: PanelSize): [number, number] {
   return size === "mini" ? MINI_FRAME : PANEL_FRAME;

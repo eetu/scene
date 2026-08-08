@@ -9,6 +9,7 @@
       "types": "./src/index.ts",
       "svelte": "./src/index.ts"
     },
-    "./halo.css": "./src/halo.css"
+    "./halo.css": "./src/halo.css",
+    "./modal.css": "./src/modal.css"
   }
 }

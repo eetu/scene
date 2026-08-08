@@ -3,6 +3,8 @@
   // runtime + WASM (~1.4 MB+, or ~7.9 MB for the DOSBox-X core) load only when the
   // user clicks Launch — never on page view. Everything is same-origin, so the
   // strict CSP is unchanged.
+  import "./emu-bar.css";
+
   import { Keyboard, Maximize, Play, Power, Volume2, X } from "@lucide/svelte";
   import { onDestroy } from "svelte";
 
@@ -177,7 +179,7 @@
     ci?.simulateKeyPress(KBD_ESC);
   }
 
-  // --- Mobile soft keyboard → DOSBox -------------------------------------
+  // Mobile soft keyboard → DOSBox.
   // Focus the off-screen input (within the tap gesture) to raise the soft
   // keyboard. Only on coarse pointers — on desktop js-dos handles the physical
   // keyboard itself, and stealing focus here would break it.
@@ -439,29 +441,7 @@
     gap: 6px;
     transition: opacity 0.2s ease;
   }
-  .bar button {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--panel);
-    color: var(--text);
-    font-size: 12px;
-    cursor: pointer;
-  }
-  .bar button:hover:not(:disabled) {
-    border-color: var(--accent);
-  }
-  .bar button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .bar button.exit:hover {
-    border-color: #ff4136;
-    color: #ff4136;
-  }
+  /* Button chrome comes from the shared emu-bar.css. */
   .bar button.active {
     border-color: var(--accent);
     color: var(--accent);

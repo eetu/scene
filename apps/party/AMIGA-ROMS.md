@@ -1,23 +1,18 @@
 # Amiga Kickstart ROMs (party app)
 
-Amiga demos need a **Kickstart ROM** (the Amiga's boot firmware). ROMs are
-copyrighted, so they are **not** bundled — you supply them. There are two ways to
-provide one:
-
-1. **Server-side** — drop the ROM in the party's support dir; it's served to all
-   visitors. Do this for ROMs you're licensed to redistribute in your deployment.
-2. **Client-side upload** — a visitor supplies their own ROM in the browser; it's
-   injected into the emulator and never sent to the server (see *Client-side ROMs*).
-
-Without a ROM, PUAE falls back to the built-in **AROS** replacement (lower
-compatibility — many AGA demos misbehave or drop to a CLI).
+Amiga demos need a **Kickstart ROM** (boot firmware). ROMs are copyrighted and
+**not** bundled — supply them either **server-side** (drop in the support dir,
+served to all visitors — for ROMs you're licensed to redistribute) or
+**client-side** (a visitor uploads their own in the browser, never sent to the
+server — see *Client-side ROMs*). Without one, PUAE falls back to the built-in
+**AROS** replacement (lower compatibility — many AGA demos misbehave or drop to
+a CLI).
 
 ## Which ROMs, and where
 
-Place ROMs in **`<PARTY_ROOT>/.support/`** (the shared, unscanned support dir that
-spans all parties — the same place as `results.txt`-adjacent assets). **Filenames
-matter**: PUAE (libretro-uae) selects the ROM by the machine model's expected
-filename, so the name must be exact.
+Place ROMs in **`<PARTY_ROOT>/.support/`** (the shared, unscanned support dir
+spanning all parties). **Filenames matter**: PUAE (libretro-uae) selects the ROM
+by the machine model's expected filename — exact names only.
 
 | filename | Kickstart | size | CRC32 | MD5 | used by (demo filename tag) |
 | --- | --- | --- | --- | --- | --- |
@@ -29,7 +24,9 @@ filename, so the name must be exact.
 > different ROMs** (different CRC). You can't rename one to the other.
 
 ROMs must be **raw/decrypted** dumps (no `rom.key`, no `AMIROMTYPE1` header). The
-CRC32/MD5 above are for the raw dumps — verify yours match.
+CRC32/MD5 above are for the raw dumps — verify yours match. `.support/` (ROMs
+included) is baked into the data image by `just package-party-data` — see
+`parties/README.md`, Step 8.
 
 ## How the app picks the machine + ROM
 
@@ -52,21 +49,21 @@ just amiga "Desert Dream"      # ambiguous → it lists the matches and stops
 just amiga "/path/to/Demo (AGA).hdf"
 ```
 
-**Why bother when the app runs them in a browser:** the in-browser core
-(libretro-uae under EmulatorJS) has **no JIT**. A 68020+ demo pushing a full-rate
-AGA display is exactly the workload that needs one, so AGA entries can crawl in the
-SPA while being perfectly fine on the hardware they targeted. fs-uae JITs. That
-makes this the way to tell **"this demo is broken"** from **"the WASM core is too
-slow"** — a distinction you can't make from the browser alone, and the one that
-matters when deciding whether an `.hdf` needs rebuilding.
+The in-browser core (libretro-uae under EmulatorJS) has **no JIT**; fs-uae JITs.
+A 68020+ AGA demo can crawl in the SPA and still be fine on its target hardware —
+if it runs at speed in fs-uae, the image is good and the browser is the limit
+(don't rebuild the `.hdf`).
 
 The recipe derives the machine and Kickstart from the same filename tags as the
-table above, so a local run reproduces what the app *aims* for. It mirrors the two
-app defaults that bite if you hand-roll the command:
+table above, and mirrors the two app defaults that bite if you hand-roll the
+command:
 
-- **8 MB fast RAM on A1200.** The model preset implies it, but a bare
-  `--amiga_model=A1200` leaves any sizable demo aborting with *"not enough memory
-  available"* — the single most common reason a freshly-imaged demo "doesn't start".
+- **8 MB fast RAM on A1200.** The model preset implies it, but the individual
+  memory options default to fast = 0 and **override the preset** — any sizable
+  demo then aborts with *"not enough memory available"* / returncode 10 and drops
+  to the CLI. The single most common reason a freshly-imaged demo "doesn't
+  start". The app forces `puae_fastmem_size = "8"`
+  (`frontend/src/lib/EjsEmulator.svelte`); the recipe passes `--fast_memory=8192`.
 - **`(030)` → `A4000` + `--cpu=68030`**, since fs-uae has no `A4000/030` model.
 
 Equivalent by hand:
@@ -76,9 +73,9 @@ fs-uae --amiga_model=A1200 --kickstart_file="$PARTY_ROOT/.support/kick40068.A120
 ```
 
 Floppy images (`.adf`/`.dms`/`.adz`/`.ipf`) go to DF0 instead of a hard drive; the
-recipe picks by extension. Walking the tree over SMB takes minutes, so the image
-list is cached at `~/.cache/scene-amiga-images.txt` and rebuilt only when a search
-misses — which also picks up newly-added demos on its own.
+recipe picks by extension. The image list is cached at
+`~/.cache/scene-amiga-images.txt` (SMB walks are slow) and rebuilt when a search
+misses, which also picks up newly-added demos.
 
 ## Verifying a ROM
 
@@ -95,16 +92,9 @@ dump of your own hardware. Amiga Forever ROMs may be encrypted (`rom.key`); decr
 to raw before placing (or keep `rom.key` alongside — libretro-uae can read encrypted
 ROMs if the key is present, but raw is simplest).
 
-## Deploy
-
-`.support/` is packaged with the party data. `just package-party-data` strips macOS
-junk (`._*`, `.DS_Store`) — those sidecar files next to the ROMs are harmless. Just
-ensure the real ROM files are present with the exact names above.
-
 ## Client-side ROMs
 
-When the server doesn't have a ROM a demo needs, the Amiga player shows an **upload**
-control. The visitor picks their own ROM file; the SPA injects it into the emulator
-(client-side only — the ROM is never uploaded to the server) and can remember it
-(IndexedDB) so it isn't re-picked every launch. This lets a deployment ship *no*
-copyrighted ROMs while still letting users who own them run the demos.
+When the server lacks a ROM a demo needs, the Amiga player shows an **upload**
+control: the visitor picks their own ROM, the SPA injects it into the emulator
+(never uploaded to the server) and remembers it (IndexedDB). A deployment can ship
+*no* copyrighted ROMs while users who own them still run the demos.

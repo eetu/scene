@@ -856,21 +856,15 @@ describe("the segment repertoire", () => {
     // `l` stem, and two arms taking it must SHARE that stem. Sharing the stem is what a Y is.
     // There is no pair of strokes meeting at the bottom centre.
     //
-    // So the achievable Vs are: `h j` (symmetric but half-height, floating in the top half —
-    // rc.1), `h j l` (a Y — rc.3), or `e f j k` (full height, the arms meeting at the bottom
-    // LEFT — rc.5, and the conventional 16-segment V). rc.5 is right.
+    // So the achievable Vs are: `h j` (symmetric but half-height, floating in the top half),
+    // `h j l` (a Y), or `e f j k` (full height, the arms meeting at the bottom LEFT — the
+    // conventional 16-segment V, and the right one). Asserted here: the letter must reach
+    // the bottom, and it must not be a Y.
     //
-    // This test asked for the symmetric form for three releases. It was wrong, and the mask
-    // it recommended — `f b k m` — would have rendered as four disconnected pieces, since f
-    // and b stop at the mid-line and k and m start at MC. Reasoning about geometry from
-    // segment NAMES is guesswork; the lattice above is the actual answer.
-    //
-    // What is left to assert is the two things that were genuinely broken: the letter must
-    // reach the bottom (rc.1's floated), and it must not be a Y (rc.3's was).
     // Two cells, "UV", and the canvas matched to the frame's aspect so the plate is not
     // letterboxed inside it. U is the reference: it is unambiguous, uses the full cell, and
     // gives a height to measure V against — a V measured only against ITSELF is full-height
-    // by definition, which is exactly how rc.1's floating half-height V would slip through.
+    // by definition.
     const c = host(600, 500);
     const p = createVfdPanel(c, {
       frame: [120, 100],

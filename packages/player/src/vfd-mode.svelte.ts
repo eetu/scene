@@ -7,48 +7,40 @@
 //
 // `grilles` is whether the speakers are wearing their covers, which is the other thing
 // everyone had an opinion about and the only one you set by touching the speaker itself.
-import { isVfdFace, type VfdFace, VFD_FACES } from "./vfd-face";
+import { readPref, writePref } from "./persist";
+import { persistedMode } from "./persisted-mode.svelte";
+import { type VfdFace, VFD_FACES } from "./vfd-face";
 
 export { type VfdFace, VFD_FACES };
 
-const KEY = "scene-vfd-face";
 const GRILLE_KEY = "scene-hifi-grilles";
 
-function read(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null; // no storage — fall through to the default
-  }
-}
-
-function write(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* no storage — the choice just won't outlive the session */
-  }
-}
-
-function initialFace(): VfdFace {
-  const saved = read(KEY);
-  return isVfdFace(saved) ? saved : "spectrum";
-}
+const face = persistedMode<VfdFace>("scene-vfd-face", VFD_FACES, "spectrum");
 
 /** Covers on by default: that is how the thing arrived in the box, and taking them off is
  *  the discovery. */
-function initialGrilles(): boolean {
-  return read(GRILLE_KEY) !== "off";
-}
+const grilleState = $state({ on: readPref(GRILLE_KEY) !== "off" });
 
-export const vfdView = $state({ face: initialFace(), grilles: initialGrilles() });
+export const vfdView = {
+  get face(): VfdFace {
+    return face.view.mode;
+  },
+  set face(f: VfdFace) {
+    face.view.mode = f;
+  },
+  get grilles(): boolean {
+    return grilleState.on;
+  },
+  set grilles(on: boolean) {
+    grilleState.on = on;
+  },
+};
 
-export function setVfdFace(face: VfdFace) {
-  vfdView.face = face;
-  write(KEY, face);
+export function setVfdFace(f: VfdFace) {
+  face.set(f);
 }
 
 export function setGrilles(on: boolean) {
-  vfdView.grilles = on;
-  write(GRILLE_KEY, on ? "on" : "off");
+  grilleState.on = on;
+  writePref(GRILLE_KEY, on ? "on" : "off");
 }

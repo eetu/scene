@@ -9,9 +9,9 @@
 // the track changes. Per frame this leaves the two tape packs, the door, two meter needles
 // and a handful of lamps — which is what keeps a scene with this much surface detail in it
 // affordable next to the shader visualisers.
+import { accentColor } from "./accent";
 import { type DeckState, reelState } from "./cassette";
 import {
-  accentColor,
   brushed,
   CASS_ASPECT,
   type ChassisTheme,
@@ -74,8 +74,7 @@ export type HifiLayout = {
   volume: { x: number; y: number; r: number };
   /** The lamp cluster on the deck's rule — L peak, R peak, play — as centre + radius.
    *  Here rather than in the painter because both passes need it (the dark bezels are
-   *  cached, the light is not) and because two lamps that overlap is a defect a test can
-   *  see and a screenshot can't. */
+   *  cached, the light is not). */
   lamps: { x: number; y: number; r: number }[];
   /** Everything pressable, for the component to lay real controls over. */
   buttons: HifiButton[];
@@ -103,8 +102,7 @@ export type ChassisInput = {
   pressed: HifiButtonId | null;
   /** Master level, 0..1 — where the volume knob is pointing. */
   volume: number;
-  /** The walkman's HOLD switch. Ignored by the stack, which has no such thing — a home
-   *  component was never in anybody's pocket. */
+  /** The walkman's HOLD switch. Ignored by the stack, which has no such thing. */
   hold: boolean;
   /** Whether the speakers are wearing their grille covers. Only the stack has speakers. */
   grilles: boolean;
@@ -117,31 +115,20 @@ export type ChassisInput = {
   powered: boolean;
 };
 
-// ─── layout ────────────────────────────────────────────────────────────────────────────
-
 export function layoutHifi(w: number, h: number): HifiLayout {
   const pad = Math.max(6, Math.min(w, h) * 0.04);
   const inner: Rect = { x: pad, y: pad, w: Math.max(1, w - pad * 2), h: Math.max(1, h - pad * 2) };
 
-  // Speakers only when there is width for them to be speakers rather than slivers. A
-  // 20%-wide cabinet reads as a cabinet; a 9% one reads as a mistake, and taking the width
-  // off the stack to draw it makes the cassette — the thing worth looking at — smaller.
+  // Speakers only when there is width for them to read as cabinets rather than slivers.
   const wide = w / h >= 1.5 && w >= 560;
   const gap = inner.w * 0.022;
   const spkW = wide ? inner.w * 0.185 : 0;
   const stackW = wide ? inner.w - (spkW + gap) * 2 : inner.w;
   const stackX = inner.x + (wide ? spkW + gap : 0);
 
-  // The stack is 34% amplifier, the rest deck — the ratio a tuner-amp over a single-well
-  // deck actually had. Both are then capped against the stack's WIDTH, which is the thing
-  // that keeps this working at any pane shape: past the cap a tall pane gets dark room
-  // above and below the stack rather than components stretched to fill it. Left to fill,
-  // a portrait pane produced a square cassette deck — an object that has never existed —
-  // with the door marooned in the middle of a field of brushed metal.
-  //
-  // The other half of the trick is that capping both makes the stack's own proportions
-  // CONSTANT, so the door/controls split inside the deck is the same on a phone as on a
-  // desktop and there is only ever one deck layout to get right.
+  // 34% amplifier, the rest deck — the ratio a tuner-amp over a single-well deck had.
+  // Both heights are capped against the stack's WIDTH, so the stack's proportions stay
+  // constant at any pane shape; a tall pane gets dark room above and below instead.
   const seam = Math.max(2, inner.h * 0.008);
   const ampH = Math.min((inner.h - seam) * 0.34, stackW * 0.26);
   const deckH = Math.min(inner.h - seam - ampH, stackW * 0.55);
@@ -165,29 +152,16 @@ export function layoutHifi(w: number, h: number): HifiLayout {
     h: glassH,
   };
 
-  // The well takes the left of the deck, the controls the right. Sized FROM the cassette
-  // outward rather than as a fraction of the faceplate: a door is a door-sized hole, and a
-  // deck that happens to be tall should have more metal around its door, not a taller one
-  // with the cassette floating in the middle of it.
-  // A band across the top of the deck belongs to the model name, and one across the bottom
-  // to the eject notch and its legend. Reserving them explicitly, and centring the door in
-  // what is left, is what keeps silkscreen off the hardware — a label crowding the opening
-  // it names reads as a printing fault.
+  // The well takes the left of the deck, the controls the right, sized FROM the cassette
+  // outward rather than as a fraction of the faceplate. The head band is reserved for the
+  // model name and the foot band for the eject key; the door is centred in what is left.
   const deckHead = Math.min(deck.h * 0.14, deck.w * 0.05);
   const deckFoot = Math.min(deck.h * 0.1, deck.w * 0.04);
   const cw = Math.min(deck.w * 0.54 * 0.92, (deck.h - deckHead - deckFoot) * 0.92 * CASS_ASPECT);
   const ch = cw / CASS_ASPECT;
-  // Working clearance around the shell — and MORE of it below, because that is not
-  // clearance, it is where the mechanism goes. The head carriage rises in the strip between
-  // the cassette's bottom edge and the floor of the well (see drawTransport), and at an even
-  // margin all round there was not enough of that strip to see anything happen in.
-  // Only a little more, though. The opening is what HIDES the mechanism: a real carriage
-  // moves a few millimetres and you see the top of it at the bottom of the well, so a bay
-  // deep enough to show a whole part is a bay with the deck's guts hanging out of it.
-  //
-  // The clearance is what shrank to get there, NOT the cassette — `cw` is worked out from
-  // the faceplate above and does not know this number exists. A tighter window with the same
-  // tape in it is a better-fitting door; a smaller cassette is a different object.
+  // Working clearance around the shell, plus a bay strip below it where the head carriage
+  // rises (see drawTransport). The bay stays shallow: the opening is what HIDES the
+  // mechanism, and one deep enough to show a whole part leaves the deck's guts on show.
   const clear = cw * 0.032;
   const bayH = clear;
   const wellH = ch + clear + bayH;
@@ -199,7 +173,6 @@ export function layoutHifi(w: number, h: number): HifiLayout {
   };
   const cass: Rect = { x: well.x + clear, y: well.y + clear, w: cw, h: ch };
 
-  // The controls sit level with the door, so the two halves of the faceplate stay a pair.
   const ctl: Rect = {
     x: deck.x + deck.w * 0.62,
     y: well.y,
@@ -213,9 +186,6 @@ export function layoutHifi(w: number, h: number): HifiLayout {
     h: Math.min(ctl.h * 0.3, ctl.w * 0.26),
   };
 
-  // The twin VU meters, where the REC LEVEL and BALANCE knobs used to be. A deck's
-  // illuminated dials are the most recognisable thing about one, and unlike a knob they
-  // have something to say — the knobs were furniture that never moved.
   const mH = ctl.h * 0.36;
   const mW = ctl.w * 0.47;
   const meters: [Rect, Rect] = [
@@ -223,9 +193,7 @@ export function layoutHifi(w: number, h: number): HifiLayout {
     { x: ctl.x + ctl.w - mW, y: ctl.y, w: mW, h: mH },
   ];
   // Radius capped against the spacing rather than floored at a fixed pixel size, so the
-  // lamps cannot touch at any pane size. A `Math.max(1.5, …)` floor reads as defensive and
-  // is the opposite: on a small pane it is the floor that wins, and it knows nothing about
-  // how far apart the lamps are.
+  // lamps cannot touch at any pane size.
   const lampGap = ctl.w * (LAMPS[1][0] - LAMPS[0][0]);
   const lampR = Math.max(0.8, Math.min(ctl.w * LAMP_R, lampGap * 0.45));
   const vr = Math.min(amp.h * 0.32, amp.w * 0.055);
@@ -259,14 +227,6 @@ export function layoutHifi(w: number, h: number): HifiLayout {
     },
     {
       id: "eject",
-      // A key, not a notch. At the lip's own height and flat it reads as a moulding line
-      // rather than as the one control on this half of the faceplate.
-      //
-      // Centred in whatever strip is left under the door, and allowed to SHRINK into it. A
-      // fixed height is fine until the pane hits a shape where the well's own centring
-      // leaves less foot than the key wants, and then a key sized in the abstract hangs off
-      // the bottom of the faceplate. Sizing it against the space it has to live in cannot do
-      // that at any pane shape.
       rect: ejectRect(deck, well, lip),
       label: "Eject",
     },
@@ -288,13 +248,9 @@ export function layoutHifi(w: number, h: number): HifiLayout {
   return { amp, glass, deck, well, cass, ctl, keys, meters, volume, lamps, buttons, speakers };
 }
 
-// ─── the deck's lamps and the speakers ─────────────────────────────────────────────────
-
 /** The lamp cluster on the deck's rule: L peak, R peak, play — as fractions of the control
- *  column's width, plus the colour each one's dark bezel is tinted.
- *
- *  The spacing has to clear LAMP_R twice over. At 0.03 apart with a 0.032 diameter the two
- *  peak lamps ran into each other and read as one smeared blob instead of as L and R. */
+ *  column's width, plus the colour each one's dark bezel is tinted. The spacing has to
+ *  clear LAMP_R twice over, or the two peak lamps merge into one blob. */
 const LAMP_R = 0.016;
 const LAMPS: [number, string][] = [
   [0.85, "#140b0a"],
@@ -321,16 +277,8 @@ function ejectRect(deck: Rect, well: Rect, lip: number): Rect {
   return { x: well.x + (well.w - w) / 2, y: top + (strip - h) / 2, w, h };
 }
 
-/**
- * The drivers' own shading, fixed rather than themed.
- *
- * PALETTES already says the drivers do not follow the finish, because cones were black on
- * silver cabinets too — but their SHADOWS were still following it, and on the light palette
- * `edgeHi` is a strong white and `edgeLo` a soft grey. Right for a silver panel in a lit
- * room; wrong for black hardware bolted into it. It put a white halo round the bass port,
- * turned the tweeter's waveguide throat pale, and greyed the outer rim of the cone. Black
- * plastic is black in any room, and the light falling on it is the same light.
- */
+/** The drivers' own shading, fixed rather than themed: black plastic is black in either
+ *  finish, so the drivers do not follow the palette's edge colours. */
 const DRIVER = {
   hi: "rgba(255,255,255,0.10)",
   lo: "rgba(0,0,0,0.80)",
@@ -341,15 +289,13 @@ const DRIVER = {
 };
 
 function paintSpeaker(ctx: CanvasRenderingContext2D, r: Rect) {
-  // Cabinet.
   rr(ctx, r.x, r.y, r.w, r.h, Math.max(2, r.w * 0.03));
   brushed(ctx, r, INK.cabTop, INK.cabBot);
   ctx.strokeStyle = INK.edgeHi;
   ctx.lineWidth = 1;
   rr(ctx, r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1, Math.max(2, r.w * 0.03));
   ctx.stroke();
-  // A recessed baffle, so the drivers sit in something. Dark in either finish, and so is the
-  // shadow it sits in — a recess is a recess.
+  // A recessed baffle, so the drivers sit in something; dark in either finish.
   const b: Rect = { x: r.x + r.w * 0.08, y: r.y + r.h * 0.05, w: r.w * 0.84, h: r.h * 0.9 };
   ctx.fillStyle = DRIVER.baffle;
   rr(ctx, b.x, b.y, b.w, b.h, Math.max(2, r.w * 0.02));
@@ -421,8 +367,6 @@ function wooferOf(r: Rect): { x: number; y: number; r: number } {
   };
 }
 
-// ─── the handle ────────────────────────────────────────────────────────────────────────
-
 export type Chassis = {
   /** Which object is on screen. Decided by the pane's shape, in `resize`. */
   readonly mode: "stack" | "walkman";
@@ -451,25 +395,11 @@ export type Chassis = {
 };
 
 /**
- * Which object suits a pane of this shape.
- *
- * A separates stack is a WIDE object. Drawn honestly in a frame that isn't wide, it leaves
- * most of the frame empty with the cassette small in the middle of it — so a pane that isn't
- * wide gets the personal stereo, which is the machine designed around one cassette standing
- * upright and is therefore the object that suits the shape.
- *
- * Two ways to not be wide, and the second one matters more than it looks:
- *
- *   - taller than it is wide, which is a phone;
- *   - or simply NARROW. A desktop browser window shrunk down is still landscape — 700 × 500
- *     is a small pane and an entirely normal aspect — so a portrait-only rule means the
- *     walkman appears once at a phone size and never comes back however small the window
- *     gets. That reads as the switch being stuck, and it was the first thing anyone noticed.
- *     Below ~480px the stack's amplifier, deck and control column stop being separate things
- *     you can read, whatever the height.
- *
- * The narrow case still asks for some height, because the walkman is itself a tall object and
- * a 460 × 200 letterbox suits neither machine — that one keeps the stack as the lesser evil.
+ * Which object suits a pane of this shape. The separates stack is a WIDE object, so the
+ * walkman takes any pane that is taller than wide — and also narrow-landscape ones: below
+ * ~480px the stack's amplifier, deck and control column stop reading as separate things,
+ * whatever the height. The narrow case still asks for some height, because the walkman is
+ * itself a tall object; a 460 × 200 letterbox suits neither machine and keeps the stack.
  */
 export function chassisMode(w: number, h: number): "stack" | "walkman" {
   if (h > w * 1.02) return "walkman";
@@ -556,18 +486,14 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
 
     if (speakers) for (const s of speakers) paintSpeaker(g, s);
 
-    // ── amplifier ──
     rr(g, amp.x, amp.y, amp.w, amp.h, Math.max(2, amp.h * 0.06));
     brushed(g, amp, INK.face, INK.faceLo);
     g.strokeStyle = INK.edgeHi;
     g.lineWidth = 1;
     rr(g, amp.x + 0.5, amp.y + 0.5, amp.w - 1, amp.h - 1, Math.max(2, amp.h * 0.06));
     g.stroke();
-    // No champagne rule across the foot of the amplifier. On the real thing that stripe
-    // SEPARATED something — it ran between a row of source buttons and the panel below it.
-    // Here there is nothing under it but the panel's own edge, so it was a line drawn
-    // across the bottom of a plate for its own sake. The deck keeps its rule, which does
-    // divide the Dolby legend and the lamps from the key row.
+    // No champagne rule across the foot of the amplifier: on the real thing that stripe
+    // separated a button row from the panel below, and here there is nothing under it.
 
     // The display cutout: a black recess with a chrome lip. The VFD canvas is parked
     // exactly on `glass`, so nothing is drawn inside it here.
@@ -617,13 +543,8 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
     g.lineWidth = Math.max(1, jr * 0.25);
     g.stroke();
 
-    // Small buttons between the glass and the volume knob. Two, not three: a third fits
-    // physically and its silkscreen lands under the knob, and a label a knob is sitting on
-    // is the kind of thing that never left a real factory.
-    //
-    // DISPLAY is not decoration. On the real thing it was a momentary press that cycled
-    // what the big window showed, and here it is the same button doing the same job — which
-    // is why this visualiser has no chip row bolted on top of the picture.
+    // Two small buttons between the glass and the volume knob, not three: a third's
+    // silkscreen would land under the knob.
     (["display", "dimmer"] as const).forEach((id) => {
       const b = btn(id);
       g.fillStyle = INK.btn;
@@ -668,7 +589,6 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
       g.stroke();
     }
 
-    // ── deck ──
     rr(g, deck.x, deck.y, deck.w, deck.h, Math.max(2, deck.h * 0.04));
     brushed(g, deck, INK.face, INK.faceLo);
     g.strokeStyle = INK.edgeHi;
@@ -685,9 +605,7 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
     g.lineWidth = 1;
     rr(g, well.x - lip + 0.5, well.y - lip + 0.5, well.w + lip * 2 - 1, well.h + lip * 2 - 1, lip);
     g.stroke();
-    // EJECT: the same cap as the transport row, because it is the same kind of thing — a key
-    // you press — and giving it its own treatment made the one control under the door look
-    // like part of the door.
+    // EJECT: the same cap as the transport row — it is the same kind of thing, a key.
     const ej = btn("eject");
     const ejg = g.createLinearGradient(0, ej.y, 0, ej.y + ej.h);
     ejg.addColorStop(0, INK.keyTop);
@@ -701,8 +619,7 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
     g.stroke();
     g.fillStyle = INK.edgeHi;
     g.fillRect(ej.x + ej.w * 0.1, ej.y + 1, ej.w * 0.8, 1);
-    // The glyph every deck printed on this key: a triangle standing on a bar. It says which
-    // way the door goes in a way the word never does.
+    // The glyph every deck printed on this key: a triangle standing on a bar.
     const gy = ej.y + ej.h * 0.46;
     const gw = Math.min(ej.w * 0.3, ej.h * 0.5);
     g.fillStyle = INK.print;
@@ -713,8 +630,6 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
     g.closePath();
     g.fill();
     g.fillRect(ej.x + ej.w / 2 - gw * 0.5, gy + gw * 0.45, gw, Math.max(1, gw * 0.2));
-    // No printed EJECT beside it: the key carries the glyph, and a label repeating what the
-    // button already says is silkscreen for its own sake.
 
     // The meters' recessed bezels. The dials themselves move, so they are painted per
     // frame; what is cached is the hole they sit in.
@@ -722,9 +637,8 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
       g.fillStyle = INK.meterWell;
       rr(g, m.x, m.y, m.w, m.h, Math.max(2, m.w * 0.04));
       g.fill();
-      // Themed rather than a flat near-black. The dial inside is lit amber whatever the
-      // room, but the bezel is faceplate — a hard black frame round each meter was the last
-      // thing left punching two dark holes in the silver panel.
+      // Themed rather than a flat near-black: the dial inside is lit amber whatever the
+      // room, but the bezel is faceplate.
       g.strokeStyle = INK.edgeLo;
       g.lineWidth = Math.max(1, m.h * 0.04);
       g.stroke();
@@ -736,8 +650,6 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
 
     const ruleY = lamps[0].y;
     label(g, "DOLBY B·C NR", ctl.x, ruleY, Math.max(4, ctl.w * 0.075), INK.print);
-    // The peak lamps are their own cluster at the right of the same rule, with their own
-    // label, clear of the Dolby legend — which is where they always were.
     label(
       g,
       "PEAK",
@@ -758,9 +670,7 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
     trimLine(g, ctl.x, ctl.y + ctl.h * 0.52, ctl.w);
     paintKeys(g, keys);
 
-    // The model name sits in the header band the layout reserved for it, vertically
-    // centred in it rather than at a fraction of the whole faceplate — which is what used
-    // to walk it into the top of the door on a tall pane.
+    // The model name, vertically centred in the header band the layout reserved for it.
     label(
       g,
       "STEREO CASSETTE DECK",
@@ -866,7 +776,6 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
       ctx.clearRect(0, 0, W, H);
       ctx.drawImage(still, 0, 0, W, H);
 
-      // ── the well ──
       ctx.save();
       rr(ctx, well.x, well.y, well.w, well.h, Math.max(2, well.w * 0.012));
       ctx.clip();
@@ -939,7 +848,6 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
       }
       ctx.restore();
 
-      // ── meters ──
       // Ballistics live here rather than in the caller: a moving-coil movement is a damped
       // mass, and feeding it the raw level makes the needle chatter in a way a real
       // instrument physically cannot.
@@ -950,19 +858,15 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
         drawVuMeter(ctx, m.x, m.y, m.w, m.h, needle[i], i ? "R" : "L");
       }
 
-      // ── volume ──
-      // The knob points where the level is. A knob that never moves is furniture; this one
-      // is the only volume control the app has, so it had better show its own setting.
+      // The knob points where the level is — the only volume control the app has.
       const vol = layout.volume;
       paintKnob(ctx, vol.x, vol.y, vol.r, VOL_MIN + (VOL_MAX - VOL_MIN) * clamp01(input.volume));
 
-      // ── the control being held ──
       if (input.pressed) {
         const b = buttons.find((k) => k.id === input.pressed);
         if (b && !b.inert) paintPressed(ctx, b.rect);
       }
 
-      // ── lamps ──
       const live = input.playing && !input.paused;
       // Power, always on: the stack is switched on for as long as you are looking at it.
       lamp(
@@ -981,12 +885,8 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
         lamp(ctx, l.x, l.y, l.r, i === 2 ? INK.ledGreen : INK.ledRed, on[i]);
       });
 
-      // ── woofers, and the covers over them ──
-      //
-      // The cone is drawn either way and the cloth goes over it, rather than the cover
-      // being a reason to skip it: the weave is laid down just short of opaque, so a
-      // covered woofer is still there as a ghost moving under it. That is what a grille
-      // looks like, and it is the whole argument for being able to take them off.
+      // The cone is drawn even under the cover: the grille weave is laid down just short
+      // of opaque, so a covered woofer is still there as a ghost moving under it.
       if (speakers) {
         for (let i = 0; i < 2; i++) {
           const w0 = wooferOf(speakers[i]);
@@ -1001,16 +901,9 @@ export function createChassis(canvas: HTMLCanvasElement): Chassis | null {
         }
       }
 
-      // ── the display's own light on the metal around it ──
-      //
-      // It is the DISPLAY's light, so it goes out with the display. POWER only reached the
-      // panel handle, which left a green wash lying on the faceplate around a tube that was
-      // no longer lit — a glow with nothing making it.
-      //
-      // Faded rather than cut, and not for softness: a vacuum-fluorescent tube has a heated
-      // filament, so it dims over a moment instead of snapping off. A hard cut on a wash
-      // this large also reads as a rendering glitch, which is the one thing a light coming
-      // off a surface must not do.
+      // The display's own light on the metal around it, so it goes out with the display.
+      // Faded rather than cut: a vacuum-fluorescent tube has a heated filament, so it dims
+      // over a moment instead of snapping off.
       glow += ((input.powered ? 1 : 0) - glow) * 0.16;
       // Snapped at both ends. An exponential ease only approaches its target, so without
       // this `settling` never goes false and the frame loop would be held awake for good by

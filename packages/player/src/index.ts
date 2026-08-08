@@ -16,6 +16,8 @@ export { default as CopperBars } from "./CopperBars.svelte";
 export { default as DiscoBall } from "./DiscoBall.svelte";
 export { default as FlipDots } from "./FlipDots.svelte";
 export { flip, setFlipMode } from "./flip-mode.svelte";
+export { fmtTime, hex2 } from "./format";
+export { readPref, writePref } from "./persist";
 export { type FlipMode, FLIP_MODES, isFlipMode } from "./flip-modes";
 export { default as GlowWave } from "./GlowWave.svelte";
 export { default as HarmonyScope } from "./HarmonyScope.svelte";

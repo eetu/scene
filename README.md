@@ -55,19 +55,17 @@ packages/        shared FRONTEND libs (yarn workspace, source-only)
   player/          @scene/player  — libopenmpt engine + transport UI
   design/          @scene/design  — halo design tokens, fonts, theme
 apps/
-  tracker/{backend,frontend,e2e}
+  tracker/{backend,frontend,integration}
   party/{backend,frontend,parties}
 services/
   transcoder/      ffmpeg sidecar (own image)
-Cargo.toml         one Rust workspace (all backends + e2e + transcoder)
+Cargo.toml         one Rust workspace (all backends + integration + transcoder)
 package.json       one yarn workspace (packages/* + apps/*/frontend)
 justfile           task runner
 ```
 
-**Two workspaces, one repo:** frontends use yarn (Berry, vendored — no global
-yarn needed); backends are one cargo workspace sharing a single `Cargo.lock` and
-`target/`. Shared packages export raw `.svelte`/`.ts`; the consuming app's Vite
-transpiles them (no build step in `packages/*`).
+Two workspaces, one repo — yarn for frontends (Berry, vendored), one cargo
+workspace for backends; conventions in [CLAUDE.md](CLAUDE.md).
 
 ## Develop
 

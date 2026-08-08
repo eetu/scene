@@ -2,7 +2,7 @@
 name = "tracker-backend"
 version.workspace = true
 edition.workspace = true
-# The crate ships two bins (the server + the offline `tracker-migrate` tool), so
+# The crate ships two bins (the server + the offline `tracker-enrich` tool), so
 # a bare `cargo run` (what bacon's run job / `just dev tracker` use) is otherwise
 # ambiguous — pin the server as the default.
 default-run = "tracker-backend"
@@ -10,12 +10,6 @@ default-run = "tracker-backend"
 [[bin]]
 name = "tracker-backend"
 path = "src/main.rs"
-
-# Offline migration planner: TSV snapshot → seeded library.json + dupe/alias
-# reports. Read-only over the collection.
-[[bin]]
-name = "tracker-migrate"
-path = "src/bin/migrate.rs"
 
 # Offline metadata enrichment: extract module text → corpus for LLM triage;
 # merge reviewed proposals into library.json.
@@ -28,6 +22,7 @@ name = "tracker_backend"
 path = "src/lib.rs"
 
 [dependencies]
+scene-backend = { workspace = true }
 axum = { workspace = true }
 rusqlite = { workspace = true }
 walkdir = { workspace = true }

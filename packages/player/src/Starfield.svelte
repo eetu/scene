@@ -7,6 +7,8 @@
   //
   // Intentionally dark: a deep-space scene, not a themed panel — it does NOT follow
   // the app's light/dark theme (it only reads --accent to tint a couple of stars).
+  import { accentHex, parseHex } from "./accent";
+  import { fitCanvas2d } from "./canvas2d";
   import { playback } from "./player.svelte";
   import { driveFrames } from "./raf";
   import bgUrl from "./assets/starfield-bg.jpg";
@@ -32,14 +34,6 @@
     "160,200,255",
   ];
 
-  // "#rgb"/"#rrggbb" → "r,g,b"; falls back to the amber accent if unparseable.
-  function hexToRgb(hex: string): string {
-    const m = hex.replace("#", "").trim();
-    const full = m.length === 3 ? [...m].map((c) => c + c).join("") : m;
-    const n = parseInt(full, 16);
-    if (full.length !== 6 || !Number.isFinite(n)) return "247,143,8";
-    return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
-  }
   function lighten(rgb: string, amt: number): string {
     const [r, g, b] = rgb.split(",").map(Number);
     const up = (c: number) => Math.round(c + (255 - c) * amt);
@@ -49,24 +43,17 @@
   $effect(() => {
     const el = canvas;
     if (!el) return;
-    const ctx = el.getContext("2d");
-    if (!ctx) return;
-    const g2: CanvasRenderingContext2D = ctx;
     // Non-null handle so the frame closure can read the canvas without re-widening.
     const cnv: HTMLCanvasElement = el;
 
     let w = 0;
     let h = 0;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const ro = new ResizeObserver(() => {
-      const r = el.getBoundingClientRect();
-      w = r.width;
-      h = r.height;
-      el.width = Math.max(1, Math.round(w * dpr));
-      el.height = Math.max(1, Math.round(h * dpr));
-      g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const fit = fitCanvas2d(el, (fw, fh) => {
+      w = fw;
+      h = fh;
     });
-    ro.observe(el);
+    if (!fit) return;
+    const g2 = fit.ctx;
 
     const bg = new Image();
     bg.src = bgUrl;
@@ -77,7 +64,7 @@
     const bctx = buf.getContext("2d");
 
     // Accent-tinted stars follow the theme accent (orange/purple).
-    const accentRgb = hexToRgb(getComputedStyle(el).getPropertyValue("--accent") || "#f78f08");
+    const accentRgb = parseHex(accentHex(el)).join(",");
     const PALETTE = [...BASE_TINTS, accentRgb, lighten(accentRgb, 0.55)];
 
     // Stars in a normalized space: x,y in [-1,1], z (depth) in (0,1].
@@ -334,7 +321,7 @@
 
     return () => {
       stopFrames();
-      ro.disconnect();
+      fit.stop();
     };
   });
 </script>

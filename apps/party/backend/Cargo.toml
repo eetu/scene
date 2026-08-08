@@ -12,6 +12,7 @@ name = "party_backend"
 path = "src/lib.rs"
 
 [dependencies]
+scene-backend = { workspace = true }
 axum = { workspace = true }
 rusqlite = { workspace = true }
 walkdir = { workspace = true }

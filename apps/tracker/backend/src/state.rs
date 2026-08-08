@@ -25,6 +25,13 @@ pub struct ScanProgress {
     pub last: Mutex<Option<ScanOutcome>>,
 }
 
+// Lets `scene_backend::scan::ScanFlagGuard` manage the `scanning` flag.
+impl AsRef<AtomicBool> for ScanProgress {
+    fn as_ref(&self) -> &AtomicBool {
+        &self.scanning
+    }
+}
+
 /// The result of one finished scan, for `/status`.
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct ScanOutcome {

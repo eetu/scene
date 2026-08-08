@@ -29,8 +29,10 @@
     DancerScene,
     DiscoBall,
     FlipDots,
+    fmtTime,
     GlowWave,
     HarmonyScope,
+    hex2,
     HiFiDeck,
     LedBars,
     mountCrt,
@@ -62,10 +64,30 @@
   import { isSid } from "$lib/library";
   import { library, toggleFavorite } from "$lib/library.svelte";
   import PatternViewScroll from "$lib/PatternViewScroll.svelte";
-  import { pv, VIZ } from "$lib/player-view.svelte";
+  import { pv, VIZ, type VizMode } from "$lib/player-view.svelte";
   import { settings } from "$lib/settings.svelte";
   import { patch, peek } from "$lib/tracks.svelte";
   import { buildShareUrl } from "$lib/url-state";
+
+  // Every visualiser taking the uniform `active` prop; BoingBall (the `ball`
+  // fallback) has its own energy/live/react contract and stays a literal branch.
+  const VIZ_COMPONENTS: Partial<Record<VizMode, typeof VuMeters>> = {
+    vu: VuMeters,
+    flip: FlipDots,
+    board: ScrollerBoard,
+    hifi: HiFiDeck,
+    harmony: HarmonyScope,
+    cube: LedBars,
+    wave: GlowWave,
+    stars: Starfield,
+    copper: CopperBars,
+    plasma: Plasma,
+    tunnel: Tunnel,
+    disco: DiscoBall,
+    paint: SpeakerPaint,
+    tubes: NixieScene,
+    dancer: DancerScene,
+  };
 
   let {
     transportH,
@@ -84,16 +106,6 @@
     onEdit: (t: Track) => void;
     onToast: (msg: string, kind?: "ok" | "err") => void;
   } = $props();
-
-  function fmtTime(sec: number): string {
-    if (!sec || !isFinite(sec)) return "0:00";
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  }
-  function hex2(n: number): string {
-    return n.toString(16).toUpperCase().padStart(2, "0");
-  }
 
   // The full library Track for the loaded module (the player store holds only a
   // minimal shape), so the header can favourite / add / rename it.
@@ -226,10 +238,6 @@
   // ("too many active WebGL contexts, the oldest context will be lost"), blacking out
   // whichever visualiser was on screen. The screen tracks canvases appearing and
   // disappearing by itself, so a switch needs nothing from us.
-  // …and skipped entirely for the visualisers a tube does not belong in front of (see
-  // crtSuits). Mounting is already keyed on the toggle, so this adds a mount/unmount
-  // only when a switch crosses the mechanical/emissive line — not on every switch, which
-  // is the case the warning above is about.
   $effect(() => {
     const host = vizBody;
     if (!host || !crtLive) return;
@@ -557,36 +565,9 @@
         {/if}
         <div class="vizstage">
           <div class="vizbody" bind:this={vizBody}>
-            {#if pv.vizMode === "flip"}
-              <FlipDots active={vizActive} />
-            {:else if pv.vizMode === "board"}
-              <ScrollerBoard active={vizActive} />
-            {:else if pv.vizMode === "hifi"}
-              <HiFiDeck active={vizActive} />
-            {:else if pv.vizMode === "harmony"}
-              <HarmonyScope active={vizActive} />
-            {:else if pv.vizMode === "cube"}
-              <LedBars active={vizActive} />
-            {:else if pv.vizMode === "wave"}
-              <GlowWave active={vizActive} />
-            {:else if pv.vizMode === "vu"}
-              <VuMeters active={vizActive} />
-            {:else if pv.vizMode === "stars"}
-              <Starfield active={vizActive} />
-            {:else if pv.vizMode === "copper"}
-              <CopperBars active={vizActive} />
-            {:else if pv.vizMode === "plasma"}
-              <Plasma active={vizActive} />
-            {:else if pv.vizMode === "tunnel"}
-              <Tunnel active={vizActive} />
-            {:else if pv.vizMode === "disco"}
-              <DiscoBall active={vizActive} />
-            {:else if pv.vizMode === "paint"}
-              <SpeakerPaint active={vizActive} />
-            {:else if pv.vizMode === "tubes"}
-              <NixieScene active={vizActive} />
-            {:else if pv.vizMode === "dancer"}
-              <DancerScene active={vizActive} />
+            {#if VIZ_COMPONENTS[pv.vizMode]}
+              {@const Viz = VIZ_COMPONENTS[pv.vizMode]}
+              <Viz active={vizActive} />
             {:else}
               <BoingBall energy={vizActive ? vuEnergy : 0} live={vizActive} react />
             {/if}

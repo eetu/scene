@@ -1,12 +1,8 @@
-// Transport lifecycle as an explicit state machine (XState v5).
-//
-// Why a machine: the play state used to be a handful of booleans
-// (playing/paused/song) set imperatively down several paths. On the cold-restore
-// path (a ?t= reload, no user gesture) they drifted into an *impossible*
-// combination — "playing" (pause icon) while the module never decoded and the
-// clock sat frozen at 0:00. Modelling load→decode→transport as states makes that
-// combination unrepresentable: you reach `playing` only through `loading`
-// (a gesture), and `decoding` can't hang forever (it has a timeout → `error`).
+// Transport lifecycle as an explicit state machine (XState v5). Modelling
+// load→decode→transport as states makes impossible combinations (a pause icon
+// with nothing decoded and the clock at 0:00) unrepresentable: you reach
+// `playing` only through `loading` (a gesture), and `decoding` can't hang
+// forever (it has a timeout → `error`).
 //
 // The machine is PURE: its only side effects are two injected actors, so it unit-
 // tests in node with mocks. The store provides the real actors (which talk to the
