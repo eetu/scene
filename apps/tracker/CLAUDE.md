@@ -180,6 +180,15 @@ Rust(axum) + SvelteKit, halo-design; layout in the monorepo root CLAUDE.md.
 ## Next / deferred
 
 - **Next:** FT2 pixel font/chrome polish.
+- **Cache the shaped rows in `AppState`** — `/api/library/ids` re-reads and
+  re-allocates *every* joined row (94k with HVSC in) per request and filters in
+  Rust, so any query costs ~0.65s regardless of how little it matches; a
+  4-character search returning 268 bytes takes as long as no filter at all.
+  Debouncing the search box removed the 8-requests-per-word storm that made this
+  read as ~10s, so what remains is one 0.7s wait. The fix is a cached
+  `Vec<library::Row>` next to the manifest, rebuilt on scan/meta/stats writes —
+  not SQL-side filtering, since the shaper needs the whole set for the facet
+  lists anyway.
 - **HVSC as a versioned data image** — deferred: the SMB mount works, and
   every tune is separately copyrighted (redistribution wants the crew's
   permission, `HVSC.faq` [25]) — a public image is the wrong shape. If

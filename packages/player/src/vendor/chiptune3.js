@@ -28,6 +28,9 @@ const defaultCfg = {
 	workerUrl: (import.meta.env.BASE_URL || '/') + 'vendor/chiptune3/decoder.worker.js'
 };
 
+/** Smallest response `load()` will hand to a decoder. See the note there. */
+const MIN_TUNE_BYTES = 128;
+
 export class ChiptuneJsPlayer {
 	constructor(cfg) {
 		this.config = { ...defaultCfg, ...cfg };
@@ -300,9 +303,23 @@ export class ChiptuneJsPlayer {
 	// be undone by it. 0 is every module and every single-tune file.
 	load(url, subsong = 0) {
 		fetch(url)
-			.then((r) => r.arrayBuffer())
-			.then((ab) => this.play(ab, subsong))
-			.catch(() => this.fireEvent('onError', { type: 'Load' }));
+			.then((r) => {
+				// fetch only rejects on a *network* failure, so an error status (or a
+				// 200 with no body) otherwise reaches the decoder as bytes. Both engines
+				// then report the failure in their own vocabulary from deep inside the
+				// WASM — a truncated SID surfaces as "SID buffer too small", which reads
+				// like a bug in the player rather than "the file never arrived".
+				if (!r.ok) throw new Error(`HTTP ${r.status}`);
+				return r.arrayBuffer();
+			})
+			.then((ab) => {
+				// A PSID header alone is 0x7c bytes and the smallest module is larger
+				// still, so nothing under this floor can be a tune — it's an empty or
+				// truncated response.
+				if (ab.byteLength < MIN_TUNE_BYTES) throw new Error(`${ab.byteLength} bytes`);
+				this.play(ab, subsong);
+			})
+			.catch((e) => this.fireEvent('onError', { type: `Load (${e.message})` }));
 	}
 	play(buffer, subsong = 0) {
 		this.gen++;

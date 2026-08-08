@@ -331,6 +331,17 @@ describe("flat favourites view", () => {
     expect(new Set(keys).size).toBe(keys.length); // stable, unique keys
   });
 
+  test("flatRows drops a repeated id, which would key two rows the same", () => {
+    // A track in two buckets (multi-group / multi-album) arrives twice in the
+    // flattened id stream; flattening keys by bucket + id, so rendering both
+    // crashed the list with each_key_duplicate.
+    const rows = flatRows([7, 9, 7]);
+    expect(rows.map((r) => (r.kind === "track" ? r.id : null))).toEqual([7, 9]);
+    expect(rows.map((r) => (r.kind === "track" ? r.last : null))).toEqual([false, true]);
+    const keys = rows.map(rowKey);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
   test("favSubLabel shows artist · group, hiding the groupless sentinel", () => {
     expect(favSubLabel(track({ artist: "Coder", group: "Acme" }))).toBe("Coder · Acme");
     expect(favSubLabel(track({ artist: "Coder", group: GROUPLESS }))).toBe("Coder");

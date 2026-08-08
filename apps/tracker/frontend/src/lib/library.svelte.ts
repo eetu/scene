@@ -35,6 +35,7 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** The query the last reshape ran with, so a repeated view change is a no-op. */
 let lastQueryKey = "";
+let lastQuery: LibraryQuery | null = null;
 /** Generation counter: a slower in-flight reshape must not overwrite a newer
  *  one's result (typing in the search box fires several in quick succession). */
 let reshapeGen = 0;
@@ -42,17 +43,35 @@ let reshapeGen = 0;
 /** Re-fetch the shaped library for `q` (defaults to the current view). */
 async function reshape(q: LibraryQuery = queryFromView()): Promise<void> {
   lastQueryKey = JSON.stringify(q);
+  lastQuery = q;
   const gen = ++reshapeGen;
   const shaped = await api.libraryIds(q);
   if (gen !== reshapeGen) return; // superseded by a newer query
   library.shaped = shaped;
 }
 
+/** How long the search box waits for a pause before it shapes. Shaping is a
+ *  whole-index pass server-side (~0.7s over HVSC), so a keystroke each costs far
+ *  more than it returns — the intermediate results are superseded before they
+ *  can be read. Facet/sort/tab changes are single events and never wait. */
+const QUERY_DEBOUNCE_MS = 250;
+let queryTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** True when `a` and `b` differ only in their free-text query. */
+function typing(a: LibraryQuery, b: LibraryQuery): boolean {
+  return a.q !== b.q && JSON.stringify({ ...a, q: "" }) === JSON.stringify({ ...b, q: "" });
+}
+
 /** Reshape unless the query is unchanged — the view store fires on any edit,
  *  including ones that don't affect the shaping. */
 export function reshapeIfChanged(q: LibraryQuery): void {
   if (JSON.stringify(q) === lastQueryKey) return;
-  void reshape(q).catch((e) => (library.error = msg(e)));
+  // A pending keystroke is always stale once anything newer arrives, whether
+  // that's another keystroke or a facet change.
+  clearTimeout(queryTimer);
+  const run = () => void reshape(q).catch((e) => (library.error = msg(e)));
+  if (lastQuery && typing(lastQuery, q)) queryTimer = setTimeout(run, QUERY_DEBOUNCE_MS);
+  else run();
 }
 
 export const library = $state({
