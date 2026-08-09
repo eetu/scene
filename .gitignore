@@ -46,6 +46,7 @@ apps/tracker/frontend/static/demo/
 packages/player/src/__tests__/viz-gallery/
 packages/player/src/__tests__/crt/
 packages/player/src/__tests__/vfd-plate/
+packages/player/src/__tests__/nixie-shakedown/
 
 # Raw Mixamo source for the dancer viz. Kept local, never committed: Mixamo's
 # terms forbid redistributing their assets as standalone files. The committed
