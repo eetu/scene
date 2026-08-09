@@ -50,7 +50,6 @@
     setEditOctave,
     setEditStep,
     setFollowPlay,
-    SpeakerPaint,
     Starfield,
     toggleCrt,
     Tunnel,
@@ -83,7 +82,6 @@
     plasma: Plasma,
     tunnel: Tunnel,
     disco: DiscoBall,
-    paint: SpeakerPaint,
     tubes: NixieScene,
     dancer: DancerScene,
   };

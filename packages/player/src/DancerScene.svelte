@@ -12,29 +12,32 @@
   // that smears a digit as it changes, and `age`, which gives this unit the
   // uneven wear of hardware that's been powered on for decades.
   //
-  // The backdrop and dancer are one WebGL scene (./sota-scene), lazy-imported so
-  // three.js stays out of the main bundle. The model is optional — with none
-  // present the backdrop and readout still run, only the figure is missing.
+  // The backdrop and dancer are one WebGL scene (./sota-gl). The dances are
+  // optional — with none present the backdrop and readout still run, only the
+  // figure is missing.
   import { SevenSegment } from "@glowbox/svelte";
   import { onMount } from "svelte";
 
-  import type { SotaScene } from "./sota-scene";
+  import { createSotaScene, type SotaScene } from "./sota-gl";
   import { crt } from "./crt.svelte";
   import { beatBpm, playback, sampleBands } from "./player.svelte";
   import { driveFrames } from "./raf";
 
   let { active = true }: { active?: boolean } = $props();
 
-  // The dancer model, built by ./assets/build-dancer.py. Resolved at build time,
-  // so an absent asset is an empty object rather than a build error — see
-  // ./assets/README.md. `?url` because it's binary: it has to resolve to an
-  // emitted asset URL, not be parsed as a module (which the SSR pass would try).
-  const DANCER_GLOB = import.meta.glob<string>("./assets/dancer.{glb,fbx}", {
+  // The baked dances, built by ./assets/build-dancer.py — one file of poses per
+  // dance. Resolved at build time, so absent assets are an empty object rather
+  // than a build error (see ./assets/README.md); `?url` because they're binary
+  // and have to resolve to emitted asset URLs, not be parsed as modules. Sorted
+  // so the dance you get on a cold load doesn't depend on glob order.
+  const DANCER_GLOB = import.meta.glob<string>("./assets/dancer-*.bin", {
     eager: true,
     query: "?url",
     import: "default",
   });
-  const dancerUrl = Object.values(DANCER_GLOB)[0] ?? null;
+  const dancerUrls = Object.keys(DANCER_GLOB)
+    .sort()
+    .map((k) => DANCER_GLOB[k]);
 
   let stage: HTMLDivElement;
   let sceneHost: HTMLDivElement | undefined = $state();
@@ -143,16 +146,14 @@
     // or not a model is present — a missing .fbx costs the figure, not the viz.
     void (async () => {
       try {
-        const { createSotaScene } = await import("./sota-scene");
         if (stopped || !sceneHost) return;
-        const built = await createSotaScene(sceneHost, { url: dancerUrl, stepFps: 12 });
-        // Re-check AFTER the await. That call is slow — three.js plus a 1.12 MB glb —
-        // so the component can be torn down while it's in flight, and the old code
-        // assigned the finished scene to a `scene` that nobody would ever dispose. Its
-        // WebGL context then leaked, and since a browser keeps only ~16 alive, a few
-        // quick visualiser switches were enough for it to start dropping live ones and
-        // blacking out the pane. This is the dancer's own leak, separate from anything
-        // the CRT screen does.
+        const built = await createSotaScene(sceneHost, { urls: dancerUrls });
+        // Re-check AFTER the await: the first dance's poses are fetched in there, so
+        // the component can be torn down while it's in flight. The old code assigned
+        // the finished scene to a `scene` nobody would ever dispose; its WebGL context
+        // then leaked, and since a browser keeps only ~16 alive, a few quick
+        // visualiser switches were enough for it to start dropping live ones and
+        // blacking out the pane.
         if (stopped) {
           built.dispose();
           return;
@@ -211,7 +212,7 @@
        sweep far further than the centres move, which CSS gradients can't do. -->
   <div class="scene" bind:this={sceneHost} data-testid="dancer-scene"></div>
 
-  {#if !dancerUrl}
+  {#if !dancerUrls.length}
     <!-- No model: say so quietly rather than leaving a mystery gap. -->
     <p class="nodancer">no dancer model</p>
   {/if}

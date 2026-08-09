@@ -1,4 +1,4 @@
-// Do the three.js visualisers get a usable size inside the app's ACTUAL pane layout?
+// Do the 3D visualisers get a usable size inside the app's ACTUAL pane layout?
 //
 // Every other test in here mounts a visualiser into a bare full-viewport div, which
 // is nothing like PlayerView: there the pane is a flex item, nested in a column flex
@@ -10,7 +10,6 @@ import { expect, test } from "vitest";
 
 import DancerScene from "../DancerScene.svelte";
 import NixieScene from "../NixieScene.svelte";
-import SpeakerPaint from "../SpeakerPaint.svelte";
 import { installTheme, startVizFeed } from "./viz-feed";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -38,12 +37,11 @@ function appPane(withContainerType: boolean): { body: HTMLElement; root: HTMLEle
 }
 
 const CASES = [
-  { id: "paint", comp: SpeakerPaint },
   { id: "tubes", comp: NixieScene },
   { id: "dancer", comp: DancerScene },
 ];
 
-test("three.js visualisers get a real size in the app pane", { timeout: 240000 }, async () => {
+test("3D visualisers get a real size in the app pane", { timeout: 240000 }, async () => {
   installTheme("dark");
   const rows: string[] = [];
 

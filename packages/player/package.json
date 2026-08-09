@@ -26,7 +26,6 @@
     "@glowbox/vfd": "^1.10.0",
     "@scene/design": "workspace:*",
     "libsidplayfp-wasm": "^1.0.1",
-    "three": "^0.185.1",
     "xstate": "^5.32.5"
   },
   "peerDependencies": {
@@ -34,7 +33,6 @@
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.2.0",
-    "@types/three": "^0.185.3",
     "@vitest/browser-playwright": "^4.1.10",
     "playwright": "^1.62.1",
     "svelte": "^5.56.8",

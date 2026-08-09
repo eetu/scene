@@ -8,13 +8,9 @@ declare module "*.webp" {
   const url: string;
   export default url;
 }
-// Operator-supplied 3D assets (the dancer viz's figure). Imported via
+// The dancer viz's baked poses (see ./README.md). Imported via
 // `import.meta.glob`, so an absent file is simply no match — never a build error.
-declare module "*.glb" {
-  const url: string;
-  export default url;
-}
-declare module "*.fbx" {
+declare module "*.bin" {
   const url: string;
   export default url;
 }

@@ -148,7 +148,7 @@ export async function captureViz(
     props: (opts.props ?? { active: true }) as never,
   });
 
-  await sleep(opts.settleMs ?? 2200); // lazy three.js imports + first layout
+  await sleep(opts.settleMs ?? 2200); // geometry build, asset fetch, first layout
   await opts.onReady?.(host);
 
   const loc = (page as unknown as { elementLocator: (e: Element) => unknown }).elementLocator(host);

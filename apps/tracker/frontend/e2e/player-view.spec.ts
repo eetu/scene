@@ -84,7 +84,7 @@ test("on a phone the viz picker is a stepper row with a sheet for the full set",
   const tiles = sheet.locator(".sheetgrid button");
   await expect(tiles).toHaveCount(vizCount);
   // A cheap 2D effect on purpose. This test is about the picker, and picking one of the
-  // three.js scenes (tubes, paint, dancer) drags a lazy three.js import and a scene build
+  // 3D scenes (tubes, dancer) drags a geometry build and a pose fetch
   // into it — slow anywhere, and on a runner falling back to software WebGL slow enough
   // to time out.
   await sheet.getByRole("button", { name: "copper", exact: true }).click();
@@ -129,7 +129,7 @@ test("the CRT bezel takes its grey from the theme", async ({ context, page }) =>
   // `vu`, and the screen deliberately does not mount over that one — a moving-coil meter is
   // an object in a room, not a picture, so a raster over it claims it is emitting (see
   // `crtSuits`). `copper` for the same reason the picker test picks it: a cheap 2D effect,
-  // where one of the three.js scenes would drag a lazy import and a scene build into a test
+  // where one of the 3D scenes would drag a geometry build and an asset fetch into a test
   // that is about neither.
   await overlay.locator(".vizpick").getByRole("button", { name: "copper", exact: true }).click();
 

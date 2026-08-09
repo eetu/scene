@@ -19,7 +19,7 @@ export function drawBackdrop(w: number, h: number, time: number, pulse = 0.3): H
   const gl = canvas.getContext("webgl2");
   if (!gl) throw new Error("no webgl2");
 
-  // The shader is authored for WebGL1-style three.js; promote it to GLSL ES 3.00.
+  // The shader is authored WebGL1-style; promote it to GLSL ES 3.00.
   // Precision has to be declared before the `out` variable, so the body's own
   // precision line is lifted to the top rather than left where it is.
   const fs = [

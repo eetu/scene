@@ -65,7 +65,7 @@ export const CRT_OPTIONS: CrtOptions = {
  * straight from an `$effect`.
  *
  * Deliberately just the one call. It can be made before the pane has been laid out or
- * has produced a canvas — the visualisers lazy-import three.js and build their
+ * has produced a canvas — the object visualisers build their renderers
  * renderers asynchronously — because @glowbox/crt tracks canvases as they appear and
  * heals its own output size every frame. Those two properties are what make this safe
  * to call blind, and crt-element-mode.svelte.test.ts pins them, so losing either fails
