@@ -32,6 +32,13 @@ a jam keyboard that plays the module's raw sample PCM:
 | --- | --- |
 | ![tracker — the tunnel visualiser](docs/tracker-viz.jpg) | ![tracker — the sample browser](docs/tracker-samples.png) |
 
+Not all of them are raster effects. The hi-fi deck plays the module as a
+cassette — the tune on the inlay card, a VFD spectrum, moving-coil VU meters,
+and a tape that ejects and swaps when the track changes. Every part of it is
+drawn to canvas; there are no images behind it:
+
+![tracker — the hi-fi deck visualiser](docs/hifi.png)
+
 **party** — the landing page, one card per archived demoparty (logos are each
 party's winning graphics entry):
 
