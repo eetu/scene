@@ -12,7 +12,7 @@
 
 import { type Chip, decodeChips, noteFor, type Voice } from "./registers";
 
-/** One voice's cell on one row. `···` fields are continuations, not silence. */
+/** One voice's cell on one row. Dotted fields are continuations, not silence. */
 export type TraceCell = {
   /** Voice index across all chips, so a 2SID tune runs 0..5. */
   index: number;
@@ -31,14 +31,29 @@ export type TraceCell = {
   gate: boolean;
 };
 
-const GLYPH = { triangle: "△", saw: "◺", pulse: "▭", noise: "▨" } as const;
+/** Waveform glyphs, chosen from the C64's own character ROM.
+ *
+ *  The grid renders in C64 Pro Mono, whose repertoire is exactly the 304 glyphs
+ *  of that ROM — a shape outside it falls back to another face and lands with a
+ *  different advance width, which breaks the column. So these are all PETSCII:
+ *  the two diagonals, the upper half block and the checkerboard. The diagonals
+ *  read as ramps (up for triangle, down for saw) and the checkerboard as noise;
+ *  the column header carries the legend, because ╱ and ╲ don't self-explain. */
+const GLYPH = { triangle: "╱", saw: "╲", pulse: "▀", noise: "▒" } as const;
+
+/** Placeholder for a field that hasn't changed, or a voice with no waveform.
+ *
+ *  A period rather than the typographic middle dot: U+00B7 is NOT in the C64
+ *  character ROM, so it would fall back mid-row and break the grid it's meant
+ *  to quiet down. */
+export const DOT = ".";
 
 const hex = (n: number, w: number) => n.toString(16).toUpperCase().padStart(w, "0");
 
-/** The waveform select as glyphs, or `·` for none (which is silence, whatever
+/** The waveform select as glyphs, or a dot for none (which is silence, whatever
  *  the gate says). */
 export function waveGlyph(v: Voice): string {
-  if (!v.waveforms.length) return "·";
+  if (!v.waveforms.length) return DOT;
   return v.waveforms.map((w) => GLYPH[w]).join("");
 }
 

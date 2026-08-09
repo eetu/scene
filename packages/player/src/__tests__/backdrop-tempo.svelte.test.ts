@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { createSotaScene } from "../sota-scene";
+import { createSotaScene } from "../sota-gl";
 
 // How much of the backdrop changes over a short window — a proxy for drift speed.
 // The window is deliberately tiny: over a full second the measure saturates,
@@ -11,7 +11,7 @@ async function driftOver(ms: number, bpm: number): Promise<number> {
   host.style.cssText = "width:200px;height:200px;position:relative";
   document.body.appendChild(host);
   // No model: this is about the backdrop, and it keeps the test quick.
-  const scene = await createSotaScene(host, { url: null });
+  const scene = await createSotaScene(host, { urls: [] });
   const gl = host.querySelector("canvas") as HTMLCanvasElement;
   const probe = document.createElement("canvas");
   probe.width = gl.width;

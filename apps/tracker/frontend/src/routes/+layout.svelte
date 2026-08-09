@@ -60,6 +60,18 @@
     font-display: swap;
   }
 
+  /* The C64 character ROM (C64 Pro Mono, 8×8 bitmap) for the SID surfaces — a
+	   SID is a C64 chip and its trace should read as one. Self-hosted under
+	   Style's custom license, which permits @font-face embedding provided the
+	   files are unmodified and keep their original names. style64.org */
+  @font-face {
+    font-family: "C64 Pro Mono";
+    src:
+      url("/fonts/C64_Pro_Mono-STYLE.woff2") format("woff2"),
+      url("/fonts/C64_Pro_Mono-STYLE.woff") format("woff");
+    font-display: swap;
+  }
+
   /* App tokens are a thin mapping onto the halo-design palette (halo.css). The
 	   --halo-* vars flip with data-theme, so this single block covers both
 	   themes — no per-theme overrides needed here. */
@@ -94,6 +106,9 @@
 		   surfaces, Inter (halo body font) everywhere else. */
     --font-retro: "TopazPlus", ui-monospace, monospace;
     --font-mono-retro: "TopazPlus", ui-monospace, monospace;
+    /* …except the SID trace, which is a C64 surface. Square 8×8 cell, so it is
+		   only pixel-exact at multiples of 8px — the view sizes itself accordingly. */
+    --font-c64: "C64 Pro Mono", ui-monospace, monospace;
     font-family: var(--halo-font-body);
   }
 

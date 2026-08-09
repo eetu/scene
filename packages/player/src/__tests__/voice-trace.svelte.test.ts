@@ -16,8 +16,11 @@ import { playback } from "../state.svelte";
 import VoiceTrace from "../VoiceTrace.svelte";
 
 /** `n` frames of a plausible tune: voice 1 striking a new note every 4th frame,
- *  the others holding, so rows carry a mix of events and continuations. */
-function seed(n: number, chips = 1): Uint8Array[] {
+ *  the others holding, so rows carry a mix of events and continuations.
+ *
+ *  `retrigger` drops voice 1's gate on every 4th frame, the way a play routine
+ *  restarting a note does — the state the header's hold exists for. */
+function seed(n: number, chips = 1, retrigger = false): Uint8Array[] {
   const out: Uint8Array[] = [];
   for (let f = 0; f < n; f++) {
     const row = new Uint8Array(CHIP_REGS * chips);
@@ -25,13 +28,16 @@ function seed(n: number, chips = 1): Uint8Array[] {
       for (let v = 0; v < 3; v++) {
         const b = c * CHIP_REGS + v * 7;
         const freq = 0x2000 + (v === 0 ? Math.floor(f / 4) * 0x100 : v * 0x400);
+        const gate = retrigger && v === 0 && f % 4 === 0 ? 0 : 1;
         row[b] = freq & 0xff;
         row[b + 1] = freq >> 8;
         row[b + 3] = 0x08;
-        row[b + 4] = 0x41; // pulse + gate
+        row[b + 4] = 0x40 | gate; // pulse (+ gate)
         row[b + 5] = 0x09;
         row[b + 6] = 0xa0;
       }
+      row[c * CHIP_REGS + 23] = 0x75; // resonance 7 (hi nibble), voices 1+3 filtered (bits 0+2)
+      row[c * CHIP_REGS + 24] = 0x1f; // low-pass, full volume
     }
     out.push(row);
   }
@@ -174,6 +180,26 @@ test("a narrow pane pages a 3SID tune rather than squeezing it", async () => {
   });
 });
 
+test("row numbers fit their row instead of being shaved by the next one", async () => {
+  // The gutter inherits the grid's body text size, which sets a line box inside
+  // it regardless of how small the label is. At the small cell size the rows are
+  // shorter than that box — and because the gutter is opaque and stacked above
+  // the rows, the overflow isn't merely hidden, it's painted over by the rows
+  // either side, so every number loses its top and bottom.
+  //
+  // Phone width, because that's the size that has the problem.
+  await withTrace(320, seed(20), async (host) => {
+    const rows = [...host.querySelectorAll(".trow")].slice(0, 6) as HTMLElement[];
+    for (const row of rows) {
+      const gutter = row.querySelector(".rownum") as HTMLElement;
+      expect(
+        gutter.getBoundingClientRect().height,
+        "the row number's box is taller than its row",
+      ).toBeLessThanOrEqual(row.getBoundingClientRect().height + 0.5);
+    }
+  });
+});
+
 test("each header sits over the voice column it names", async () => {
   // The header is windowed and translated by the same frame as the rows, so a
   // drift here means the labels describe the wrong voices after paging.
@@ -265,6 +291,84 @@ test("an empty trace says so instead of drawing an empty grid", async () => {
     expect(host.querySelector(".tr-empty")).not.toBeNull();
     expect(host.querySelector(".trow")).toBeNull();
   });
+});
+
+// ---------- the chip state above the grid ----------
+//
+// This used to be a separate "voices" tab. What it kept is what the rows have no
+// column for: the pitch a voice is actually at, how it's routed, and the
+// chip-wide filter and volume.
+
+test("the chip's filter and volume show above the grid", async () => {
+  await withTrace(700, seed(20), async (host) => {
+    const chip = host.querySelector("[aria-label='SID 1 filter and volume']") as HTMLElement;
+    expect(chip, "no chip strip").not.toBeNull();
+    // The seed runs a low-pass at full volume; the lamp for the mode that IS on
+    // must be the lit one, or the strip is decorative rather than a readout.
+    const lit = [...chip.querySelectorAll(".modes i.lit")].map((e) => e.textContent);
+    expect(lit).toEqual(["LP"]);
+    expect(chip.textContent).toContain("Q7");
+  });
+});
+
+test("a 2SID tune gets a strip per chip", async () => {
+  await withTrace(1000, seed(20, 2), async (host) => {
+    expect(host.querySelectorAll("[aria-label$='filter and volume']")).toHaveLength(2);
+  });
+});
+
+test("each voice header reads its own pitch and routing", async () => {
+  await withTrace(1000, seed(20), async (host) => {
+    const heads = [...host.querySelectorAll(".vhead")] as HTMLElement[];
+    expect(heads).toHaveLength(3);
+    // Every voice in the seed is gated, so all three read a frequency rather
+    // than the idle dash.
+    for (const h of heads) expect(h.querySelector(".vhz")!.textContent).toContain("Hz");
+    // The seed filters voices 1 and 3 — the flag is per voice, and it is the
+    // one thing here the grid's columns cannot show at all.
+    const filtered = heads.map((h) => h.querySelectorAll(".flags i.lit").length);
+    expect(filtered).toEqual([1, 0, 1]);
+  });
+});
+
+test("a retriggering voice holds rather than strobing", async () => {
+  // A play routine drops the gate for a single frame to restart a note. At 50
+  // frames a second that reads as a voice flickering off and on; a voice
+  // retriggering steadily is continuously sounding, so the header holds it.
+  await withTrace(
+    1000,
+    seed(40, 1, true),
+    async (host) => {
+      const v1 = () => host.querySelector(".vhead") as HTMLElement;
+      // Land the playhead exactly on a gate-low frame — the worst case.
+      for (const at of [20, 24, 28]) {
+        playback.position = at * FRAME_SEC;
+        await tick();
+        expect(v1().className, `voice 1 dropped out on frame ${at}`).toContain("on");
+      }
+    },
+    20,
+  );
+});
+
+test("a voice that stops really does go quiet", async () => {
+  // The hold must not be so generous that it never lets go, or it stops being a
+  // readout of the chip.
+  const rows = seed(40);
+  for (const row of rows.slice(20)) row[4] &= ~1; // voice 1 gate off from frame 20
+  await withTrace(
+    1000,
+    rows,
+    async (host) => {
+      const v1 = () => host.querySelector(".vhead") as HTMLElement;
+      expect(v1().className).toContain("on");
+      playback.position = 39 * FRAME_SEC;
+      await tick();
+      expect(v1().className, "voice 1 never released").not.toContain("on");
+      expect(v1().querySelector(".vhz")!.textContent).toBe("—");
+    },
+    10,
+  );
 });
 
 test("a sample-streaming tune says the rows aren't the whole story", async () => {

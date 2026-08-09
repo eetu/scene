@@ -143,6 +143,17 @@ function window(regs: ArrayLike<number>, start: number, len: number): ArrayLike<
   return Array.prototype.slice.call(regs, start, start + len);
 }
 
+/** Just the gate bit for one voice, without decoding anything else.
+ *
+ *  For the trace grid's gate hold, which asks the question of several past
+ *  frames on every render. Decoding each of them in full would allocate a Chip
+ *  and three Voices per frame per render to read one bit. */
+export function gateOf(regs: ArrayLike<number>, voice: number): boolean {
+  const chip = Math.floor(voice / VOICES_PER_CHIP);
+  const ctrl = regs[chip * CHIP_REGS + (voice % VOICES_PER_CHIP) * VOICE_STRIDE + 4] ?? 0;
+  return !!(ctrl & 0x01);
+}
+
 /** Note name for a frequency, e.g. `A-4`. Empty below hearing — a gated-off
  *  voice often leaves a stale frequency behind, and labelling that as a note
  *  would imply it's sounding. */

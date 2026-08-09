@@ -66,10 +66,32 @@ does not place this project's own code under the GPL.)
 
 ### WebPlus IBM VGA (CP437) — CC BY-SA 4.0
 
-- `apps/{party,tracker}/frontend/static/fonts/WebPlus_IBM_VGA_8x16.woff`
+- `apps/party/frontend/static/fonts/WebPlus_IBM_VGA_8x16.woff`
 - "The Ultimate Oldschool PC Font Pack" by VileR —
   <https://int10h.org/oldschool-pc-fonts/>
 - Licensed <https://creativecommons.org/licenses/by-sa/4.0/>.
+
+### C64 Pro Mono — Style's C64 TrueType license
+
+- `apps/{party,tracker}/frontend/static/fonts/C64_Pro_Mono-STYLE.{woff,woff2}`
+- "The Ultimate Commodore 64 Font" by Style — <https://style64.org/c64-truetype>
+- Not a standard open license. The permission this project relies on:
+
+  > You MAY: … embed this font and or its .eot and .woff variants without any
+  > modification and using the same filenames they were provided with for
+  > display on any web site using @font-face rules; … include this font without
+  > any modification and using the same filenames they were provided with as
+  > part of a software package but ONLY if said software package is freely
+  > provided to end users.
+
+  Both apply: this is a freely-provided package, and the font is served only
+  through `@font-face`. The files are the archive's own, byte-for-byte and
+  under their original names — **do not rename, subset or re-encode them**,
+  which would forfeit both permissions. woff2 sits on the same footing: the
+  archive ships it as a webfont variant, and the clause's `.eot`/`.woff`
+  enumeration predates the format.
+- Selling it, bundling it in a font collection, or offering it for direct
+  download are all forbidden; any use beyond the above needs Style's permission.
 
 ## Deliberately NOT included
 

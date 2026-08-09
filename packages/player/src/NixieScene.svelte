@@ -1,19 +1,18 @@
 <script lang="ts">
-  // The 3D nixie-tube stopwatch viz: real bent-wire cathodes in refractive glass
-  // tubes on a stand, orbiting, showing MM:SS:CC of play time. The heavy WebGL work
-  // (three.js + bloom + the @glowbox/nixie geometry) lives in ./nixie-scene, lazy-
-  // imported here so three stays out of the main bundle and out of node unit tests.
-  // This component just feeds it: the smooth clock (advanced by frame dt, re-synced
-  // to playback.position on a seek), the theme accent as the glow colour, and bass
-  // energy as a pulse that throbs the glow + bloom.
+  // The 3D nixie-tube stopwatch viz: bent-wire cathodes stacked in depth inside
+  // glass tubes on a stand, orbiting, showing MM:SS:CC of play time. The WebGL work
+  // (geometry, bloom, orbit) lives in ./nixie-gl. This component just feeds it: the
+  // smooth clock (advanced by frame dt, re-synced to playback.position on a seek),
+  // the theme accent as the glow colour, and bass energy as a pulse that throbs the
+  // glow + bloom.
   //
-  // Intentionally dark: glowing tubes read only in the dark (nixie-scene even clamps
+  // Intentionally dark: glowing tubes read only in the dark (nixie-gl even clamps
   // the backdrop brightness), so this does NOT follow the app's light/dark theme —
   // it only tracks --accent for the glow colour.
   import { onMount } from "svelte";
 
   import { accentHex } from "./accent";
-  import type { NixieScene } from "./nixie-scene";
+  import { createNixieScene, type NixieScene } from "./nixie-gl";
   import { playback, sampleBands } from "./player.svelte";
   import { driveFrames } from "./raf";
 
@@ -34,61 +33,56 @@
       .padStart(2, "0");
     return `${mm}:${ss}:${cc}`.split("");
   }
+  // Built synchronously — no lazy import. The scene is a few hundred lines of our
+  // own WebGL now rather than three.js, small enough to live in the main bundle,
+  // which is what stopped selecting this viz from stalling the whole app while a
+  // 700KB chunk parsed.
   onMount(() => {
-    let stopped = false;
-    let scene: NixieScene | null = null;
-    let stopFrames: (() => void) | null = null;
+    const scene = createNixieScene(host, {
+      digits: timeDigits(playback.position || 0),
+      color: accentHex(),
+      glass: "#0b0f15",
+      backdrop: "#05060a",
+      style: "tall",
+    });
 
-    void (async () => {
-      const { createNixieScene } = await import("./nixie-scene");
-      if (stopped) return;
-      scene = createNixieScene(host, {
-        digits: timeDigits(playback.position || 0),
-        color: accentHex(),
-        glass: "#0b0f15",
-        backdrop: "#05060a",
-        style: "tall",
-      });
+    let pulse = 0;
+    let shown = 0; // smooth elapsed seconds
+    let lastColor = "";
+    let lastStr = "";
+    const stopFrames = driveFrames(
+      (dt) => {
+        pulse = Math.max(active ? sampleBands().bass : 0, pulse - dt * 1.6);
+        scene.setPulse(pulse);
+        scene.setActive(active); // idle-throttle the scene's own render loop
 
-      let pulse = 0;
-      let shown = 0; // smooth elapsed seconds
-      let lastColor = "";
-      let lastStr = "";
-      stopFrames = driveFrames(
-        (dt) => {
-          pulse = Math.max(active ? sampleBands().bass : 0, pulse - dt * 1.6);
-          scene!.setPulse(pulse);
-          scene!.setActive(active); // idle-throttle the scene's own render loop
+        const col = accentHex();
+        if (col !== lastColor) {
+          scene.setOptions({ color: col });
+          lastColor = col;
+        }
 
-          const col = accentHex();
-          if (col !== lastColor) {
-            scene!.setOptions({ color: col });
-            lastColor = col;
-          }
-
-          const pos = playback.position || 0;
-          if (active) {
-            shown += dt;
-            if (Math.abs(shown - pos) > 0.3) shown = pos;
-          } else {
-            shown = pos;
-          }
-          const str = timeDigits(shown).join("");
-          if (str !== lastStr) {
-            scene!.setDigits(str.split(""));
-            lastStr = str;
-          }
-        },
-        // The scene renders on its own capped loop; this only feeds it, so a
-        // modest rate is plenty (and drops right down when paused).
-        { fps: () => (active ? 30 : 10) },
-      );
-    })();
+        const pos = playback.position || 0;
+        if (active) {
+          shown += dt;
+          if (Math.abs(shown - pos) > 0.3) shown = pos;
+        } else {
+          shown = pos;
+        }
+        const str = timeDigits(shown).join("");
+        if (str !== lastStr) {
+          scene.setDigits(str.split(""));
+          lastStr = str;
+        }
+      },
+      // The scene renders on its own capped loop; this only feeds it, so a
+      // modest rate is plenty (and drops right down when paused).
+      { fps: () => (active ? 30 : 10) },
+    );
 
     return () => {
-      stopped = true;
-      stopFrames?.();
-      scene?.dispose();
+      stopFrames();
+      scene.dispose();
     };
   });
 </script>

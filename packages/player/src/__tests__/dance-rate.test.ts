@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { danceRate } from "../sota-scene";
+import { danceRate } from "../sota-gl";
 
 describe("danceRate", () => {
   it("runs at reference speed when the tempo is unknown", () => {

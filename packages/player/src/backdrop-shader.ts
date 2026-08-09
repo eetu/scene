@@ -14,8 +14,10 @@
 //
 // Everything is normalised by the SHORT axis, so the rings stay circular and keep
 // their spacing on a narrow phone screen instead of smearing into ellipses.
-export const BACKDROP_FRAGMENT = /* glsl */ `
+export const BACKDROP_FRAGMENT = /* glsl */ `#version 300 es
 precision highp float;
+
+out vec4 fragColor;
 
 uniform vec2 uRes;
 uniform float uTime;
@@ -82,10 +84,11 @@ void main() {
   // No scanlines or vignette here. The CRT screen over the whole viz pane owns
   // those (see ./crt.svelte.ts) — drawn in both places, the two scanline layers
   // beat against its phosphor mask and throw off chroma moiré in the periphery.
-  gl_FragColor = vec4(col, 1.0);
+  fragColor = vec4(col, 1.0);
 }
 `;
 
-export const BACKDROP_VERTEX = /* glsl */ `
-void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }
+export const BACKDROP_VERTEX = /* glsl */ `#version 300 es
+layout(location = 0) in vec2 aPos;
+void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
 `;

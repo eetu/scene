@@ -7,7 +7,7 @@
 import { describe, expect, test } from "vitest";
 
 import { CHIP_REGS } from "../sid/registers";
-import { traceCells, traceRow, waveGlyph } from "../sid/trace";
+import { DOT, traceCells, traceRow, waveGlyph } from "../sid/trace";
 
 /** One chip's registers. `freq` is the raw 16-bit value. */
 function frame(
@@ -112,7 +112,20 @@ describe("waveGlyph", () => {
     const combined = traceCells(frame([{ ...V, wave: 0x50 }]))[0]; // triangle+pulse
     expect(combined.wave.length).toBe(2);
     // No waveform bits at all is silence whatever the gate says.
-    expect(traceCells(frame([{ ...V, wave: 0x00 }]))[0].wave).toBe("·");
+    expect(traceCells(frame([{ ...V, wave: 0x00 }]))[0].wave).toBe(DOT);
+  });
+
+  test("every glyph exists in the C64 character ROM", () => {
+    // The grid renders in C64 Pro Mono, which covers exactly that ROM. A glyph
+    // outside it silently falls back to another face with a different advance
+    // width, and the column stops lining up — a failure that looks like a CSS
+    // bug rather than a missing character. These are the ROM's codepoints.
+    const ROM = new Set(["╱", "╲", "▀", "▒", "."]);
+    for (const wave of [0x10, 0x20, 0x40, 0x80, 0x00]) {
+      for (const g of traceCells(frame([{ ...V, wave }]))[0].wave) {
+        expect(ROM, `waveform bit 0x${wave.toString(16)} uses ${g}`).toContain(g);
+      }
+    }
   });
 });
 

@@ -23,6 +23,7 @@
   } from "@lucide/svelte";
   import {
     BoingBall,
+    C64Screen,
     CopperBars,
     crt,
     crtSuits,
@@ -40,7 +41,6 @@
     PatternView,
     Plasma,
     playback,
-    prefetchTubes,
     SampleBrowser,
     Scope,
     ScrollerBoard,
@@ -51,11 +51,9 @@
     setEditOctave,
     setEditStep,
     setFollowPlay,
-    SpeakerPaint,
     Starfield,
     toggleCrt,
     Tunnel,
-    VoiceMonitor,
     VoiceTrace,
     VuMeters,
   } from "@scene/player";
@@ -84,8 +82,8 @@
     plasma: Plasma,
     tunnel: Tunnel,
     disco: DiscoBall,
-    paint: SpeakerPaint,
     tubes: NixieScene,
+    c64: C64Screen,
     dancer: DancerScene,
   };
 
@@ -125,8 +123,6 @@
     // `pattern` is valid for both — for a module it's the score, for a SID the
     // reconstructed trace of what the chip was told.
     if (!playback.hasPatterns && pv.tab === "samples") pv.tab = "pattern";
-    // …and the reverse, so returning to a module never strands you on `voices`.
-    if (playback.hasPatterns && pv.tab === "voices") pv.tab = "pattern";
   });
 
   // Loudest channel VU drives the Boing-ball visualizer energy.
@@ -184,20 +180,6 @@
       onToast("Couldn't copy link", "err");
     }
   }
-
-  // While the viz tab is open, warm the tubes (nixie) chunk in the background —
-  // it pulls three.js, and doing that fetch+parse inline when tubes is selected
-  // can glitch the audio on mobile. Only fires once the user is in the viz area
-  // (so an unused viz tab costs nothing), and only fetches the module — no scene
-  // is built until tubes is actually mounted.
-  let tubesWarmed = false;
-  $effect(() => {
-    if (pv.tab === "viz" && !tubesWarmed) {
-      tubesWarmed = true;
-      const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 200));
-      idle(() => void prefetchTubes());
-    }
-  });
 
   // Fullscreen the visualiser (the 'f' shortcut + surfaces it below). In
   // fullscreen the viz picker auto-hides (slides up like a top drawer) after a
@@ -302,7 +284,7 @@
            6502 code driving chip registers. So `samples` is hidden rather than
            shown empty, and `pattern` becomes a *recording* of the chip — one row
            per raster frame, reconstructed from the register writes — rather than
-           a score. `voices` is the same state as a live meter. -->
+           a score, carrying the live chip state in its header. -->
       {#if playback.hasPatterns}
         <button class:on={pv.tab === "pattern"} onclick={() => (pv.tab = "pattern")}>pattern</button
         >
@@ -311,7 +293,6 @@
       {:else}
         <button class:on={pv.tab === "pattern"} onclick={() => (pv.tab = "pattern")}>pattern</button
         >
-        <button class:on={pv.tab === "voices"} onclick={() => (pv.tab = "voices")}>voices</button>
       {/if}
       <button class:on={pv.tab === "viz"} onclick={() => (pv.tab = "viz")}>viz</button>
     </div>
@@ -407,13 +388,7 @@
     </div>
   </div>
   <div class="pv-wrap" style:padding-bottom="{transportH}px">
-    {#if pv.tab === "voices"}
-      <!-- The SID pane: master scope over the live per-voice chip state. -->
-      {#if settings.scope}
-        <div class="scope-strip"><Scope /></div>
-      {/if}
-      <VoiceMonitor />
-    {:else if pv.tab === "pattern" && !playback.hasPatterns}
+    {#if pv.tab === "pattern" && !playback.hasPatterns}
       <!-- The SID's pattern equivalent: a recording of the chip, one row per
            raster frame. No order list — there are no orders to jump to. -->
       {#if settings.scope}

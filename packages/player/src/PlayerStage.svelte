@@ -12,8 +12,8 @@
     | "plasma"
     | "tunnel"
     | "disco"
-    | "paint"
     | "tubes"
+    | "c64"
     | "ball";
   const VIZ: VizMode[] = [
     "vu",
@@ -27,8 +27,8 @@
     "plasma",
     "tunnel",
     "disco",
-    "paint",
     "tubes",
+    "c64",
     "ball",
   ];
 
@@ -51,6 +51,7 @@
   // own sub-selector for the equalizer bars and the Amiga boing ball. Fills its
   // container's height. Pair it with <Transport/>. Shared by tracker + party.
   import BoingBall from "./BoingBall.svelte";
+  import C64Screen from "./C64Screen.svelte";
   import CopperBars from "./CopperBars.svelte";
   import DiscoBall from "./DiscoBall.svelte";
   import FlipDots from "./FlipDots.svelte";
@@ -64,7 +65,6 @@
   import SampleBrowser from "./SampleBrowser.svelte";
   import Scope from "./Scope.svelte";
   import ScrollerBoard from "./ScrollerBoard.svelte";
-  import SpeakerPaint from "./SpeakerPaint.svelte";
   import Starfield from "./Starfield.svelte";
   import Tunnel from "./Tunnel.svelte";
   import VuMeters from "./VuMeters.svelte";
@@ -176,10 +176,10 @@
             <Tunnel active={playing} />
           {:else if vizMode === "disco"}
             <DiscoBall active={playing} />
-          {:else if vizMode === "paint"}
-            <SpeakerPaint active={playing} />
           {:else if vizMode === "tubes"}
             <NixieScene active={playing} />
+          {:else if vizMode === "c64"}
+            <C64Screen active={playing} />
           {:else}
             <BoingBall energy={playing ? energy : 0} live={playing} react {format} />
           {/if}

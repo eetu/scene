@@ -6,6 +6,7 @@ import { page } from "vitest/browser";
 import { afterEach, expect, test } from "vitest";
 
 import { setBoardMode } from "../board-mode.svelte";
+import { setPlayerHost } from "../host";
 import { playInOrder } from "../player.svelte";
 import ScrollerBoard from "../ScrollerBoard.svelte";
 import { playback } from "../state.svelte";
@@ -24,6 +25,18 @@ const QUEUE = [
   { hash: "e", filename: "clouds above.xm", title: "Clouds above", duration: 196 },
 ];
 
+/** The minimum the play path needs. It never reaches the network here — the
+ *  engine fails first — but `@scene/player` refuses to run without a host at
+ *  all, on the grounds that a missing one is an app-wiring bug. */
+function installHost() {
+  setPlayerHost({
+    appName: "test",
+    fileUrl: (hash: string) => `/api/file/${hash}`,
+    play: async () => ({ play_count: 1 }),
+    putMeta: async () => {},
+  });
+}
+
 afterEach(() => {
   if (app) unmount(app);
   app = null;
@@ -41,7 +54,12 @@ test("the queue face draws the departures board", { timeout: 90000 }, async () =
   // A real queue, so the rows are the ones the transport would actually play next.
   // playInOrder starts a load; the fake feed keeps `playing` true either way, and the
   // face only reads the queue window and the position.
-  void playInOrder(QUEUE, QUEUE[0]);
+  //
+  // The load is expected to fail — there is no audio graph here — so the rejection is
+  // swallowed rather than left to surface as an unhandled one. It still needs a host,
+  // because the play path asks one for the track's play length before it gets that far.
+  installHost();
+  void playInOrder(QUEUE, QUEUE[0]).catch(() => {});
   playback.position = 42;
 
   setBoardMode("departures");

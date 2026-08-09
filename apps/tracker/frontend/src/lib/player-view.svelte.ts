@@ -3,9 +3,9 @@
 // settings) so the PlayerView overlay and +page's global key handler both read
 // it without prop-drilling. In-memory only — it resets on reload, like the
 // overlay's open state.
-/** `voices` replaces `pattern`/`samples` for a SID, which has neither — see
- *  `playback.hasPatterns`. */
-export type PvTab = "pattern" | "samples" | "viz" | "voices";
+/** A SID has no `samples` — see `playback.hasPatterns`. Its `pattern` tab is the
+ *  register trace, which carries the live chip state in its header. */
+export type PvTab = "pattern" | "samples" | "viz";
 
 export const VIZ = [
   "vu",
@@ -20,8 +20,8 @@ export const VIZ = [
   "plasma",
   "tunnel",
   "disco",
-  "paint",
   "tubes",
+  "c64",
   "dancer",
   "ball",
 ] as const;
@@ -31,7 +31,7 @@ export const pv = $state({
   tab: "pattern" as PvTab,
   // Copper bars rather than the VU meters, which is what this was and which are the most
   // modest thing in the set — two needles behind a window. Two reasons beyond taste:
-  // copper is a cheap 2D effect, so it is up the instant the tab opens (the three.js
+  // copper is a cheap 2D effect, so it is up the instant the tab opens (the 3D
   // scenes drag a lazy import and a scene build first, and a blank pane is nobody's first
   // impression); and the CRT screen does not mount over `vu` at all — it is on the
   // `crtSuits` exception list as an object rather than a picture — so defaulting there
