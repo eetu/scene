@@ -81,22 +81,6 @@ async function loadRoms(base: string): Promise<void> {
   }
 }
 
-/** Every installed chip's 32 registers, concatenated (chip 0 first).
- *
- *  This is the whole voice model: per voice, `$00-$01` frequency, `$02-$03`
- *  pulse width, `$04` control (waveform select + gate/sync/ring), `$05-$06`
- *  attack/decay + sustain/release; then `$15-$18` filter cutoff, resonance,
- *  routing and master volume. libsidplayfp exposes it directly. */
-function readRegisters(): number[] {
-  if (!engine) return [];
-  const out: number[] = [];
-  for (let c = 0; c < engine.getInstalledSids(); c++) {
-    const r = engine.getSidStatus(c);
-    if (r) out.push(...r);
-  }
-  return out;
-}
-
 /** Per-voice output level for the VU, derived from the live SID registers.
  *
  *  The chip exposes no envelope counter to read, so this is the gate bit scaled
@@ -241,12 +225,6 @@ function renderAndSend(): boolean {
   if (!engine || !pcmPort) return false;
   const pos = engine.getTimeMs() / 1000;
   const vu = voiceLevels();
-  // The 32 registers of each installed chip, flattened. This *is* the voice
-  // state — frequency, pulse width, waveform select, gate and ADSR per voice,
-  // plus filter routing and master volume — so the monitor needs no other
-  // source. Cheap: one small copy per ~21ms chunk.
-  const regs = readRegisters();
-
   const t0 = performance.now();
   // Cycles per chunk at the PAL dot clock; libsidplayfp clamps internally, so
   // asking for a chunk's worth is a request, not a guarantee.
@@ -309,7 +287,6 @@ function renderAndSend(): boolean {
       pattern: 0,
       row: 0,
       vu,
-      regs,
     },
     [left.buffer, right.buffer],
   );

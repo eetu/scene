@@ -64,6 +64,18 @@
     font-display: swap;
   }
 
+  /* The C64 character ROM (C64 Pro Mono, 8×8 bitmap), used by the player's C64
+	   visualiser. Self-hosted under Style's custom license, which permits
+	   @font-face embedding provided the files are unmodified and keep their
+	   original names. style64.org */
+  @font-face {
+    font-family: "C64 Pro Mono";
+    src:
+      url("/fonts/C64_Pro_Mono-STYLE.woff2") format("woff2"),
+      url("/fonts/C64_Pro_Mono-STYLE.woff") format("woff");
+    font-display: swap;
+  }
+
   /* App tokens are a thin mapping onto the halo-design palette (halo.css). The
 	   --halo-* vars flip with data-theme, so this single block covers both
 	   themes — no per-theme overrides needed here. */
@@ -96,6 +108,10 @@
     --font-mono-retro: "IBM VGA", ui-monospace, monospace;
     --font-dos: "IBM VGA", ui-monospace, monospace;
     --font-amiga: "TopazPlus", ui-monospace, monospace;
+    /* Square 8×8 cell, so it is only pixel-exact at multiples of 8px. Not wired
+		   into --tracker-font: the module grid's columns are sized for a half-em
+		   advance and a C64 cell would overflow them. */
+    --font-c64: "C64 Pro Mono", ui-monospace, monospace;
     font-family: var(--halo-font-body);
   }
 

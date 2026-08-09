@@ -66,9 +66,6 @@ export type ProgressMsg = {
   pattern?: number;
   row?: number;
   vu?: number[];
-  /** Every installed SID chip's 32 registers, concatenated. Absent for
-   *  libopenmpt, which has no chip to read. */
-  regs?: number[];
 };
 
 /** Per-pattern data from the (patched) worklet: each row is one formatted
@@ -563,7 +560,6 @@ function ensurePlayer(kind: EngineKind = "module"): Promise<void> {
     playback.pattern = d.pattern ?? 0;
     playback.row = d.row ?? 0;
     playback.vu = d.vu ?? [];
-    if (d.regs) playback.sidRegs = d.regs;
     if (playback.hasPatterns) noteRow(playback.order, playback.pattern, playback.row);
     else noteEnergy();
     maybeCountPlay(d.pos ?? 0);

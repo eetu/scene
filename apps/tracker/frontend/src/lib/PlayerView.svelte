@@ -23,6 +23,7 @@
   } from "@lucide/svelte";
   import {
     BoingBall,
+    C64Screen,
     CopperBars,
     crt,
     crtSuits,
@@ -53,7 +54,6 @@
     Starfield,
     toggleCrt,
     Tunnel,
-    VoiceMonitor,
     VoiceTrace,
     VuMeters,
   } from "@scene/player";
@@ -83,6 +83,7 @@
     tunnel: Tunnel,
     disco: DiscoBall,
     tubes: NixieScene,
+    c64: C64Screen,
     dancer: DancerScene,
   };
 
@@ -122,8 +123,6 @@
     // `pattern` is valid for both — for a module it's the score, for a SID the
     // reconstructed trace of what the chip was told.
     if (!playback.hasPatterns && pv.tab === "samples") pv.tab = "pattern";
-    // …and the reverse, so returning to a module never strands you on `voices`.
-    if (playback.hasPatterns && pv.tab === "voices") pv.tab = "pattern";
   });
 
   // Loudest channel VU drives the Boing-ball visualizer energy.
@@ -285,7 +284,7 @@
            6502 code driving chip registers. So `samples` is hidden rather than
            shown empty, and `pattern` becomes a *recording* of the chip — one row
            per raster frame, reconstructed from the register writes — rather than
-           a score. `voices` is the same state as a live meter. -->
+           a score, carrying the live chip state in its header. -->
       {#if playback.hasPatterns}
         <button class:on={pv.tab === "pattern"} onclick={() => (pv.tab = "pattern")}>pattern</button
         >
@@ -294,7 +293,6 @@
       {:else}
         <button class:on={pv.tab === "pattern"} onclick={() => (pv.tab = "pattern")}>pattern</button
         >
-        <button class:on={pv.tab === "voices"} onclick={() => (pv.tab = "voices")}>voices</button>
       {/if}
       <button class:on={pv.tab === "viz"} onclick={() => (pv.tab = "viz")}>viz</button>
     </div>
@@ -390,13 +388,7 @@
     </div>
   </div>
   <div class="pv-wrap" style:padding-bottom="{transportH}px">
-    {#if pv.tab === "voices"}
-      <!-- The SID pane: master scope over the live per-voice chip state. -->
-      {#if settings.scope}
-        <div class="scope-strip"><Scope /></div>
-      {/if}
-      <VoiceMonitor />
-    {:else if pv.tab === "pattern" && !playback.hasPatterns}
+    {#if pv.tab === "pattern" && !playback.hasPatterns}
       <!-- The SID's pattern equivalent: a recording of the chip, one row per
            raster frame. No order list — there are no orders to jump to. -->
       {#if settings.scope}

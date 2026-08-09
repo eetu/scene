@@ -2,6 +2,7 @@
 // Mirrors VIZ in apps/tracker/frontend/src/lib/player-view.svelte.ts, in the same order,
 // so a saved gallery reads like the picker does.
 import BoingBall from "../BoingBall.svelte";
+import C64Screen from "../C64Screen.svelte";
 import CopperBars from "../CopperBars.svelte";
 import DancerScene from "../DancerScene.svelte";
 import DiscoBall from "../DiscoBall.svelte";
@@ -31,6 +32,7 @@ export const VIZ = [
   { id: "tunnel", comp: Tunnel },
   { id: "disco", comp: DiscoBall },
   { id: "tubes", comp: NixieScene },
+  { id: "c64", comp: C64Screen },
   { id: "dancer", comp: DancerScene },
   { id: "ball", comp: BoingBall, props: { energy: 0.7, live: true, react: true } },
 ] as { id: string; comp: unknown; props?: Record<string, unknown> }[];
@@ -53,6 +55,10 @@ export const minFill = (id: string) => (id === "harmony" ? 0.4 : 2);
 export const minMotion = (id: string) => (id === "board" ? 0 : 0.05);
 
 /** The 2D-canvas effects are up on the first frame; the object scenes have a
- *  import and a scene build to get through first. */
+ *  import and a scene build to get through first.
+ *
+ *  `c64` is neither: it boots a machine, loads a tape and only then starts its first
+ *  demo part, which opens behind a wipe. Waited past all of that — shooting during
+ *  the wipe would gallery a screen of solid colour. */
 export const settleFor = (id: string) =>
-  id === "ball" || id === "copper" ? 600 : id === "board" ? 3500 : 2200;
+  id === "ball" || id === "copper" ? 600 : id === "board" ? 3500 : id === "c64" ? 5000 : 2200;

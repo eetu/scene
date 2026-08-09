@@ -91,7 +91,7 @@ test("plays a SID: libsidplayfp decodes and the transport clock advances", async
   await expectPlaybackAdvances(page);
 });
 
-test("a SID has no pattern grid, so the player offers voices instead", async ({
+test("a SID has no pattern data, so nothing claims to be decoding some", async ({
   context,
   page,
 }) => {
@@ -148,10 +148,7 @@ test("a deep-linked SID cues without handing its bytes to libopenmpt", async ({
   ).toEqual([]);
 });
 
-test("a SID gets both a trace grid and a voice monitor, landing on the grid", async ({
-  context,
-  page,
-}) => {
+test("a SID's trace grid carries the live chip state with it", async ({ context, page }) => {
   await mock(context);
   await page.goto("/");
   await page.locator("button.row").first().click();
@@ -167,22 +164,21 @@ test("a SID gets both a trace grid and a voice monitor, landing on the grid", as
   // And no claim to be decoding a grid this format doesn't have.
   await expect(page.getByText("decoding pattern…")).toHaveCount(0);
 
-  const vm = page.locator("[aria-label='SID voice monitor']");
-  await expect(vm).toHaveCount(0);
-  await page.getByRole("button", { name: "voices", exact: true }).click();
-  await expect(vm).toBeVisible();
+  // The live chip state rides along in the same view rather than in a second
+  // tab: the filter and volume above the grid, the per-voice pitch and routing
+  // in each column's header.
+  await expect(page.locator("[aria-label='SID 1 filter and volume']")).toBeVisible();
   // Three voices for a single-chip tune.
-  await expect(vm.locator(".voice")).toHaveCount(3);
+  await expect(page.locator(".vhead")).toHaveCount(3);
 
   // The fixture gates voice 1 with a sawtooth, so that voice must read as
-  // sounding — proving the registers are real chip state and not zeroes.
-  const v1 = vm.locator(".voice").first();
+  // sounding — proving the rows are real chip state and not zeroes.
+  const v1 = page.locator(".vhead").first();
   await expect(v1).toHaveClass(/\bon\b/);
-  await expect(v1.locator(".w.lit")).toHaveCount(1); // saw only
-  await expect(v1.locator(".note")).not.toHaveText("—");
+  await expect(v1.locator(".vhz")).not.toHaveText("—");
 
   // Voices 2 and 3 are untouched by the fixture: present, but not sounding.
-  await expect(vm.locator(".voice.on")).toHaveCount(1);
+  await expect(page.locator(".vhead.on")).toHaveCount(1);
 });
 
 test("plays without ROMs too — degraded, not broken", async ({ context, page }) => {

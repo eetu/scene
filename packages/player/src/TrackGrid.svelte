@@ -40,6 +40,9 @@
     vu?: number[];
     /** Narrowest a column may be before the view pages instead of shrinking. */
     minCell?: number;
+    /** Widest a column flexes to. Defaults to a natural tracker width; a view
+     *  whose cells are a different shape sets its own. */
+    maxCell?: number;
     /** Header height, px. 0 draws no header. */
     headH?: number;
     /** Extra classes for one row (active/playhead bands). */
@@ -77,6 +80,7 @@
     centerAt = 0.5,
     vu = [],
     minCell,
+    maxCell,
     headH = 0,
     rowClass,
     stripClass,
@@ -105,7 +109,7 @@
   // Whole columns only; `offset` is stored unclamped and re-clamped on every
   // read, so a resize that shrinks how many fit self-corrects.
   let offset = $state(0);
-  const win = $derived(channelWindow(vpW, columns, offset, minCell, gutterW));
+  const win = $derived(channelWindow(vpW, columns, offset, minCell, gutterW, maxCell));
   const stripW = $derived(columns * win.colW);
   const shiftX = $derived(-win.offset * win.colW);
   function page(dir: 1 | -1) {

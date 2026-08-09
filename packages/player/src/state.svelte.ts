@@ -72,9 +72,6 @@ export const playback = $state({
   seqSpeed: 6,
   beat: 0, // bumps once per musical beat (see noteRow) — a reactive on-beat tick
   vu: [] as number[],
-  /** Live SID chip registers (32 per installed chip, concatenated), sampled at
-   *  the start of the chunk currently playing. Empty for module playback. */
-  sidRegs: [] as number[],
   /** The SID trace: one entry per PAL raster frame, oldest first, each a full
    *  register snapshot (`chips × 32`) reconstructed from that frame's writes.
    *

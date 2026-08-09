@@ -39,14 +39,24 @@ Rust(axum) + SvelteKit, halo-design; layout in the monorepo root CLAUDE.md.
   **with** the load so it can't race. C64 ROMs come from `TRACKER_ROMS_DIR`
   (`/api/roms/*`, filename allowlist + size check); unconfigured degrades to
   built-in images (a BASIC-driven RSID goes near-silent).
-- **SID's player pane is a voice monitor, not a pattern grid**
-  (`VoiceMonitor.svelte`, shown when `hasPatterns` is false): it reads the
-  live chip registers off the audio-synced relay (`ProgressMsg.regs` →
-  `playback.sidRegs`), so it matches what you hear; `sid/registers.ts` is the
-  only place that knows the register layout (pure, unit-tested). Beat is onset
-  detection (`BeatTracker.energy()`, bass-band + refractory window — the
-  ~50Hz interrupt is a tick, not a beat); per-voice VU derives from the same
-  registers.
+- **SID's pattern pane is a register trace** (`VoiceTrace.svelte`, shown when
+  `hasPatterns` is false): one row per PAL raster frame, in the module grid's
+  frame (`TrackGrid`). Above the grid it carries the chip state the rows have
+  no column for — the filter and master volume per chip, the live pitch and
+  R/S/F/T routing per voice — all decoded from the **playhead frame of the
+  same trace ring**, so nothing can disagree with the row on the line. There
+  is no separate voices tab and no live-register side channel: everything the
+  old `VoiceMonitor` showed beyond this was already a column here.
+  `sid/registers.ts` is the only place that knows the register layout (pure,
+  unit-tested). Beat is onset detection (`BeatTracker.energy()`, bass-band +
+  refractory window — the ~50Hz interrupt is a tick, not a beat); per-voice VU
+  comes from the worker's `voiceLevels()`.
+- **The trace renders in the C64 character ROM** (C64 Pro Mono, `--font-c64`).
+  Its cell is square — a full-em advance where TopazPlus is half — so the view
+  runs at 16px or 8px and picks between them per pane, using the large face
+  only where the column shows the same fields it would at the small one
+  (growing the pane must never *drop* data to buy bigger type). Glyphs are
+  constrained to that ROM: `·` U+00B7 is not in it, so continuations are `.`.
 - **HVSC indexes itself, and is never modified.** An `hvsc` root is built from
   `DOCUMENTS/Songlengths.md5` (`hvsc.rs`): one read yields every tune's path,
   content MD5 (becomes `content_hash`; 32 hex vs a scanned 64, can't collide)

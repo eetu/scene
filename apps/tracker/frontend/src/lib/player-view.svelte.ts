@@ -3,9 +3,9 @@
 // settings) so the PlayerView overlay and +page's global key handler both read
 // it without prop-drilling. In-memory only — it resets on reload, like the
 // overlay's open state.
-/** `voices` replaces `pattern`/`samples` for a SID, which has neither — see
- *  `playback.hasPatterns`. */
-export type PvTab = "pattern" | "samples" | "viz" | "voices";
+/** A SID has no `samples` — see `playback.hasPatterns`. Its `pattern` tab is the
+ *  register trace, which carries the live chip state in its header. */
+export type PvTab = "pattern" | "samples" | "viz";
 
 export const VIZ = [
   "vu",
@@ -21,6 +21,7 @@ export const VIZ = [
   "tunnel",
   "disco",
   "tubes",
+  "c64",
   "dancer",
   "ball",
 ] as const;

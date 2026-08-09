@@ -49,11 +49,15 @@ export function channelWindow(
   offset: number,
   minCell = CELL_W,
   gutterW = ROWNUM_W,
+  maxCell?: number,
 ): ChannelWindow {
   const avail = Math.max(0, containerW - gutterW);
   const fits = count === 0 || count <= Math.floor(avail / minCell);
   // On a narrow pane let columns flex wider so they fill the edge (see MAX_CELL_W_NARROW).
-  const maxCol = containerW <= NARROW_W ? MAX_CELL_W_NARROW : MAX_CELL_W;
+  // A caller may set its own cap instead: the SID trace's columns hold a fixed
+  // set of fields in a square-celled font and want roughly half again a
+  // module's width, so the module's cap would freeze them mid-detail.
+  const maxCol = maxCell ?? (containerW <= NARROW_W ? MAX_CELL_W_NARROW : MAX_CELL_W);
 
   let visible: number;
   let colW: number;
