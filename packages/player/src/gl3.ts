@@ -239,6 +239,16 @@ export function bindTarget(gl: GL, t: Target | null, canvasW = 0, canvasH = 0) {
   else gl.viewport(0, 0, canvasW, canvasH);
 }
 
+/** The vertex shader every post pass uses: one oversized triangle, with the
+ *  clip-space position handed on as a 0..1 texture coordinate. */
+export const FULLSCREEN_VERT = `#version 300 es
+layout(location = 0) in vec2 aPos;
+out vec2 vUv;
+void main() {
+  vUv = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
 /** A VAO holding the single oversized triangle every post pass draws. */
 export function createFullscreenTriangle(gl: GL): GpuMesh {
   const vao = gl.createVertexArray()!;

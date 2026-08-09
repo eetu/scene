@@ -7,10 +7,11 @@
 //
 // Three things carry the look, and all are deliberate:
 //
-//   * ECHO TRAIL. The figure is drawn several times, each a frame or two behind
-//     the last and slightly smaller, tinted along a gradient. Because the poses
-//     differ, the older copies peek out where the limbs *were* — motion blur
-//     built from discrete steps, which is what the era's hardware could do.
+//   * PHOSPHOR TRAIL. The figure leaves a soft, spreading wake that cools as it
+//     fades, the way a bright shape does on a long-persistence CRT. Drawn as
+//     persistence rather than as a row of discrete copies: copies are what the
+//     Amiga had to do, but they read as several dancers, and the blur between
+//     them is exactly what a tube would have supplied.
 //   * NO SHADING. Flat unlit colour. These are silhouettes with a tint, not lit
 //     objects; any shading breaks it.
 //   * STEPPED, NOT SMOOTH. The figure snaps between poses like traced film.
@@ -24,13 +25,17 @@
 // same buffer read at a different offset.
 import { BACKDROP_FRAGMENT, BACKDROP_VERTEX } from "./backdrop-shader";
 import {
+  bindTarget,
   compose,
   createContext,
   createFullscreenTriangle,
   createProgram,
+  createTarget,
   drawFullscreen,
+  FULLSCREEN_VERT,
   type GL,
   lookAt,
+  type Mat4,
   multiply,
   perspective,
   type Program,
@@ -42,12 +47,8 @@ export type SotaOptions = {
   urls: string[];
   /** Which dance, by index — wrapped, so any number is safe. */
   clip?: number;
-  /** Number of trailing copies behind the leading figure. */
-  echoes?: number;
-  /** Baked poses each echo lags the one in front. In *poses*, not seconds: the
-   *  dance is a discrete set of them, so a lag finer than one rounds every copy
-   *  onto the same pose and the trail disappears. */
-  echoLag?: number;
+  /** Seconds for the trail to fade to about a third — the tube's persistence. */
+  persistence?: number;
   /** Leading figure's colour, and the far end of the trail's gradient. */
   colorNear?: string;
   colorFar?: string;
@@ -164,6 +165,41 @@ uniform vec3 uColor;
 out vec4 frag;
 void main() { frag = vec4(uColor, 1.0); }`;
 
+/**
+ * The persistence pass: last frame's trail, dimmed, smeared and cooled.
+ *
+ * Run every frame over its own output, so the smear compounds along whatever
+ * path the figure took — which is what turns a series of stills into a wake. The
+ * four taps sit half a texel off the diagonals, so each is already a bilinear
+ * average of two texels and one pass covers a 3x3 neighbourhood.
+ */
+const TRAIL_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uTex;
+uniform vec2 uTexel;
+uniform vec3 uFar;
+uniform float uDecay, uCool;
+out vec4 frag;
+void main() {
+  vec4 c = texture(uTex, vUv + uTexel * vec2( 0.5,  0.5))
+         + texture(uTex, vUv + uTexel * vec2(-0.5,  0.5))
+         + texture(uTex, vUv + uTexel * vec2( 0.5, -0.5))
+         + texture(uTex, vUv + uTexel * vec2(-0.5, -0.5));
+  c *= 0.25 * uDecay;
+  // Cooling towards the palette's far colour as it dims, so the wake reads as one
+  // shape with a temperature gradient rather than a uniformly dimming clone.
+  frag = vec4(mix(c.rgb, uFar * max(max(c.r, c.g), c.b), uCool), c.a);
+}`;
+
+/** Straight blit of a premultiplied-alpha texture. */
+const BLIT_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uTex;
+out vec4 frag;
+void main() { frag = texture(uTex, vUv); }`;
+
 const CAM_FOV = (35 * Math.PI) / 180;
 /** How often the leading figure changes pose. Deliberately coarser than the bake:
  *  the snap is the look, while the echoes want the finer grid to lag on. */
@@ -197,12 +233,14 @@ export async function createSotaScene(host: HTMLElement, opts: SotaOptions): Pro
   const built = [
     createProgram(g, BACKDROP_VERTEX, BACKDROP_FRAGMENT, "dancer backdrop"),
     createProgram(g, FIGURE_VERT, FIGURE_FRAG, "dancer figure"),
+    createProgram(g, FULLSCREEN_VERT, TRAIL_FRAG, "dancer trail"),
+    createProgram(g, FULLSCREEN_VERT, BLIT_FRAG, "dancer blit"),
   ];
   if (built.some((p) => !p)) {
     built.forEach((p) => p?.destroy());
     return deadScene(canvas);
   }
-  const [backdrop, figure] = built as Program[];
+  const [backdrop, figure, trail, blit] = built as Program[];
   const tri = createFullscreenTriangle(g);
 
   // --- clips ----------------------------------------------------------------
@@ -288,29 +326,27 @@ export async function createSotaScene(host: HTMLElement, opts: SotaOptions): Pro
   // --- state ----------------------------------------------------------------
 
   const baseRate = opts.baseRate ?? 1;
-  // A short lag keeps the trail tight against the figure — a long one reads as
-  // several dancers rather than one in motion.
-  const echoLag = opts.echoLag ?? 1;
   const refBpm = opts.refBpm ?? 125; // the Mixamo house dances sit around here
-  const shrink = 0.007;
-  const echoCount = Math.max(1, opts.echoes ?? 2) + 1;
+  // Long enough to smear a limb into a stroke, short enough that the figure never
+  // disappears inside its own wake.
+  const persistence = Math.max(0.02, opts.persistence ?? 0.3);
 
-  let colors: [number, number, number][] = [];
+  let nearCol: [number, number, number] = [1, 1, 1];
+  let farCol: [number, number, number] = [0, 0, 0];
   function setPalette(index: number) {
     const [near, far] = PALETTES[wrap(index, PALETTES.length)];
-    const a = rgb(opts.colorNear ?? near);
-    const b = rgb(opts.colorFar ?? far);
-    const last = Math.max(1, echoCount - 1);
-    colors = Array.from({ length: echoCount }, (_, i) => {
-      const t = i / last;
-      return [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)] as [
-        number,
-        number,
-        number,
-      ];
-    });
+    nearCol = rgb(opts.colorNear ?? near);
+    farCol = rgb(opts.colorFar ?? far);
   }
   setPalette(opts.palette ?? 0);
+
+  // Persistence buffers, ping-ponged: one holds what the tube is still showing,
+  // the other receives it dimmed and smeared plus this frame's figure. Half
+  // resolution — the trail is a blur, so the pixels would only be thrown away,
+  // and the crisp figure is drawn separately to the canvas afterwards.
+  let trailA = createTarget(g, 1, 1, true);
+  let trailB = createTarget(g, 1, 1, true);
+  let trailCleared = false;
 
   // A full-screen high-contrast moiré that sweeps is a plausible trigger for
   // visual discomfort, so honour the OS setting: the pattern still draws, it just
@@ -362,7 +398,29 @@ export async function createSotaScene(host: HTMLElement, opts: SotaOptions): Pro
 
   // --- drawing --------------------------------------------------------------
 
-  function render() {
+  /** Draw the figure at `frame` with the current model transform. */
+  function drawFigure(clip: Clip, frame: number, viewProj: Mat4, color: number[]) {
+    figure.use();
+    g.uniformMatrix4fv(figure.loc("uViewProj"), false, viewProj);
+    g.uniform3fv(figure.loc("uScale"), clip.scale);
+    g.uniform3fv(figure.loc("uOffset"), clip.offset);
+    g.uniform3fv(figure.loc("uColor"), color);
+    // The figure swells on the bass — the only motion here that is not baked.
+    g.uniformMatrix4fv(figure.loc("uModel"), false, compose([0, 0, 0], scaleOf(1 + pulse * 0.02)));
+    g.bindVertexArray(clip.vao);
+    g.bindBuffer(g.ARRAY_BUFFER, clip.positions);
+    g.enableVertexAttribArray(0);
+    // Normalised: the bake stores 0..65535 across the clip's bounding box, and the
+    // shader maps that back through uScale/uOffset.
+    g.vertexAttribPointer(0, 3, g.UNSIGNED_SHORT, true, 0, frame * clip.vertexCount * 3 * 2);
+    g.enable(g.DEPTH_TEST);
+    g.clear(g.DEPTH_BUFFER_BIT);
+    g.drawElements(g.TRIANGLES, clip.indexCount, g.UNSIGNED_SHORT, 0);
+    g.disable(g.DEPTH_TEST);
+    g.bindVertexArray(null);
+  }
+
+  function render(dt = 0) {
     if (disposed) return;
     syncTheme();
     g.viewport(0, 0, canvas.width, canvas.height);
@@ -388,40 +446,49 @@ export async function createSotaScene(host: HTMLElement, opts: SotaOptions): Pro
       lookAt([0, camAimY, camDistance], [0, camAimY, 0], [0, 1, 0]),
     );
 
-    figure.use();
-    g.uniformMatrix4fv(figure.loc("uViewProj"), false, viewProj);
-    g.uniform3fv(figure.loc("uScale"), clip.scale);
-    g.uniform3fv(figure.loc("uOffset"), clip.offset);
-    g.enable(g.DEPTH_TEST);
-    g.bindVertexArray(clip.vao);
-    g.bindBuffer(g.ARRAY_BUFFER, clip.positions);
-    g.enableVertexAttribArray(0);
-
-    const stride = clip.vertexCount * 3 * 2; // bytes per pose
-    // The leading figure snaps at STEP_FPS; the echoes lag it by whole baked
-    // poses, which are finer, so the trail sits close behind rather than a tenth
-    // of a second back.
+    // The figure snaps between poses rather than sliding between them — the
+    // traced-film step is the look, and it is coarser than the bake so the trail
+    // has finer ground to smear over.
     const perStep = Math.max(1, Math.round(clip.fps / STEP_FPS));
-    const lead = Math.floor((clock * clip.fps) / perStep) * perStep;
-    // Oldest first, and the depth buffer cleared between passes: each figure has
-    // to occlude itself correctly while newer ones paint over the top.
-    for (let i = echoCount - 1; i >= 0; i--) {
-      const frame = wrap(lead - i * echoLag, clip.frames);
-      // Normalised: the bake stores 0..65535 across the clip's bounding box, and
-      // the shader maps that back through uScale/uOffset.
-      g.vertexAttribPointer(0, 3, g.UNSIGNED_SHORT, true, 0, frame * stride);
-      g.uniform3fv(figure.loc("uColor"), colors[i]);
-      // The trail shrinks a little with age and the whole figure swells on the
-      // bass — the only motion here that is not baked into the poses.
-      g.uniformMatrix4fv(
-        figure.loc("uModel"),
-        false,
-        compose([0, 0, 0], scaleOf(1 - i * shrink + pulse * 0.02)),
-      );
-      g.clear(g.DEPTH_BUFFER_BIT);
-      g.drawElements(g.TRIANGLES, clip.indexCount, g.UNSIGNED_SHORT, 0);
+    const frame = wrap(Math.floor((clock * clip.fps) / perStep) * perStep, clip.frames);
+
+    // 1. Persistence: last frame's trail, dimmed and smeared into the other
+    //    buffer, then this frame's figure drawn on top of it. Time-based rather
+    //    than per-frame, so the wake is the same length whatever the frame rate.
+    bindTarget(g, trailB);
+    if (!trailCleared) {
+      g.clearColor(0, 0, 0, 0);
+      g.clear(g.COLOR_BUFFER_BIT);
     }
-    g.bindVertexArray(null);
+    trail.use();
+    g.activeTexture(g.TEXTURE0);
+    g.bindTexture(g.TEXTURE_2D, trailA.texture);
+    g.uniform1i(trail.loc("uTex"), 0);
+    g.uniform2f(trail.loc("uTexel"), 1 / trailA.width, 1 / trailA.height);
+    g.uniform3fv(trail.loc("uFar"), farCol);
+    g.uniform1f(trail.loc("uDecay"), trailCleared ? Math.exp(-dt / persistence) : 0);
+    g.uniform1f(trail.loc("uCool"), 1 - Math.exp(-dt / (persistence * 1.6)));
+    drawFullscreen(g, tri);
+    trailCleared = true;
+    drawFigure(clip, frame, viewProj, nearCol);
+    [trailA, trailB] = [trailB, trailA];
+
+    // 2. The trail over the backdrop. Premultiplied: the figure goes in opaque and
+    //    the decay scales colour and alpha together, so they stay in step.
+    bindTarget(g, null, canvas.width, canvas.height);
+    blit.use();
+    g.activeTexture(g.TEXTURE0);
+    g.bindTexture(g.TEXTURE_2D, trailA.texture);
+    g.uniform1i(blit.loc("uTex"), 0);
+    g.enable(g.BLEND);
+    g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA);
+    drawFullscreen(g, tri);
+    g.disable(g.BLEND);
+
+    // 3. The figure again, crisp, on top of its own wake — the trail buffer is
+    //    half resolution and deliberately soft, which is right for a wake and
+    //    wrong for the dancer.
+    drawFigure(clip, frame, viewProj, nearCol);
   }
 
   function resize() {
@@ -431,6 +498,9 @@ export async function createSotaScene(host: HTMLElement, opts: SotaOptions): Pro
     if (w === canvas.width && h === canvas.height) return;
     canvas.width = w;
     canvas.height = h;
+    trailA.resize(Math.max(1, w >> 1), Math.max(1, h >> 1));
+    trailB.resize(Math.max(1, w >> 1), Math.max(1, h >> 1));
+    trailCleared = false; // a resized buffer holds whatever the driver left in it
     render();
   }
 
@@ -457,7 +527,7 @@ export async function createSotaScene(host: HTMLElement, opts: SotaOptions): Pro
       const rate = danceRate(bpm, refBpm);
       elapsed += dt * rate;
       clock += dt * baseRate * rate;
-      render();
+      render(dt);
     },
     setPulse(p) {
       pulse = Math.max(0, Math.min(1, p));
@@ -473,6 +543,7 @@ export async function createSotaScene(host: HTMLElement, opts: SotaOptions): Pro
       if (next === current) return;
       current = next;
       clock = 0;
+      trailCleared = false; // the previous dance must not ghost into this one
       if (!clips[next]) void loadClip(next).catch(() => {});
       else frameCamera(clips[next]!);
     },
@@ -480,8 +551,9 @@ export async function createSotaScene(host: HTMLElement, opts: SotaOptions): Pro
     dispose() {
       disposed = true;
       ro?.disconnect();
-      backdrop.destroy();
-      figure.destroy();
+      [backdrop, figure, trail, blit].forEach((p) => p.destroy());
+      trailA.destroy();
+      trailB.destroy();
       for (const c of clips) {
         if (!c) continue;
         g.deleteVertexArray(c.vao);

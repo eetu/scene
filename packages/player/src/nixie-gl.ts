@@ -33,6 +33,7 @@ import {
   createTarget,
   drawFullscreen,
   drawMesh,
+  FULLSCREEN_VERT,
   type GL,
   type GpuMesh,
   lookAt,
@@ -241,14 +242,6 @@ uniform vec3 uColor;
 out vec4 frag;
 void main() { frag = vec4(uColor, 1.0); }`;
 
-const POST_VERT = `#version 300 es
-layout(location = 0) in vec2 aPos;
-out vec2 vUv;
-void main() {
-  vUv = aPos * 0.5 + 0.5;
-  gl_Position = vec4(aPos, 0.0, 1.0);
-}`;
-
 const BRIGHT_FRAG = `#version 300 es
 precision highp float;
 in vec2 vUv;
@@ -333,9 +326,9 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
     createProgram(g, SOLID_VERT, SOLID_FRAG, "nixie solid"),
     createProgram(g, SOLID_VERT, GLASS_FRAG, "nixie glass"),
     createProgram(g, LINE_VERT, LINE_FRAG, "nixie line"),
-    createProgram(g, POST_VERT, BRIGHT_FRAG, "nixie bright"),
-    createProgram(g, POST_VERT, BLUR_FRAG, "nixie blur"),
-    createProgram(g, POST_VERT, COMPOSITE_FRAG, "nixie composite"),
+    createProgram(g, FULLSCREEN_VERT, BRIGHT_FRAG, "nixie bright"),
+    createProgram(g, FULLSCREEN_VERT, BLUR_FRAG, "nixie blur"),
+    createProgram(g, FULLSCREEN_VERT, COMPOSITE_FRAG, "nixie composite"),
   ];
   if (built.some((p) => !p)) {
     built.forEach((p) => p?.destroy());
