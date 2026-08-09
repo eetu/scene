@@ -8,12 +8,17 @@ import { defineConfig } from "vitest/config";
 //   browser — *.svelte.test.ts → real headless chromium (component render,
 //                                 WebGL shader compile — needs a real GL context)
 //   visual  — the screenshot suites, EXCLUDED from `yarn test` (see VISUAL below)
-const BROWSER = {
+// A factory, not a shared constant: vitest names each browser instance in place
+// (`<project> (chromium)`), so handing the same instance object to two projects
+// makes the second collide with the name the first was given — and bare
+// `vitest run` dies at startup with "project name browser (chromium) was
+// already defined" before a single test loads.
+const browser = () => ({
   enabled: true,
   headless: true,
   provider: playwright(),
   instances: [{ browser: "chromium" as const }],
-};
+});
 
 // The screenshot suites: they render whole visualisers and capture frames. Kept OUT of
 // the default `yarn test`, and therefore out of CI, on purpose.
@@ -63,7 +68,7 @@ export default defineConfig({
           name: "browser",
           include: ["src/**/*.svelte.{test,spec}.{js,ts}"],
           exclude: VISUAL,
-          browser: BROWSER,
+          browser: browser(),
         },
       },
       {
@@ -71,7 +76,7 @@ export default defineConfig({
         test: {
           name: "visual",
           include: VISUAL,
-          browser: BROWSER,
+          browser: browser(),
         },
       },
     ],

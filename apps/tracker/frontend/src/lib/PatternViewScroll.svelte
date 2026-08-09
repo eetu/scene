@@ -223,7 +223,10 @@
     overflow-x: hidden;
     overflow-y: auto;
     color: var(--surface-fg);
-    font-family: var(--font-mono-retro);
+    /* The same chain the shared frame uses (TrackGrid): this is the free-scroll
+       alternative to the same grid and must not drift from it. Never a bare
+       var() — an undefined one drops to the default serif. */
+    font-family: var(--tracker-font, var(--font-mono-retro, ui-monospace, monospace));
     font-size: 16px;
     line-height: 1.2;
     white-space: nowrap;
