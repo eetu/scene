@@ -44,8 +44,8 @@ export type SotaOptions = {
   clip?: number;
   /** Number of trailing copies behind the leading figure. */
   echoes?: number;
-  /** Baked poses each echo lags the one in front. In *frames*, not seconds: the
-   *  dance is stored one pose per 1/10s, so a lag under that rounds every copy
+  /** Baked poses each echo lags the one in front. In *poses*, not seconds: the
+   *  dance is a discrete set of them, so a lag finer than one rounds every copy
    *  onto the same pose and the trail disappears. */
   echoLag?: number;
   /** Leading figure's colour, and the far end of the trail's gradient. */
@@ -165,6 +165,9 @@ out vec4 frag;
 void main() { frag = vec4(uColor, 1.0); }`;
 
 const CAM_FOV = (35 * Math.PI) / 180;
+/** How often the leading figure changes pose. Deliberately coarser than the bake:
+ *  the snap is the look, while the echoes want the finer grid to lag on. */
+const STEP_FPS = 10;
 
 function rgb(hex: string): [number, number, number] {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
@@ -395,10 +398,15 @@ export async function createSotaScene(host: HTMLElement, opts: SotaOptions): Pro
     g.enableVertexAttribArray(0);
 
     const stride = clip.vertexCount * 3 * 2; // bytes per pose
+    // The leading figure snaps at STEP_FPS; the echoes lag it by whole baked
+    // poses, which are finer, so the trail sits close behind rather than a tenth
+    // of a second back.
+    const perStep = Math.max(1, Math.round(clip.fps / STEP_FPS));
+    const lead = Math.floor((clock * clip.fps) / perStep) * perStep;
     // Oldest first, and the depth buffer cleared between passes: each figure has
     // to occlude itself correctly while newer ones paint over the top.
     for (let i = echoCount - 1; i >= 0; i--) {
-      const frame = wrap(Math.floor(clock * clip.fps) - i * echoLag, clip.frames);
+      const frame = wrap(lead - i * echoLag, clip.frames);
       // Normalised: the bake stores 0..65535 across the clip's bounding box, and
       // the shader maps that back through uScale/uOffset.
       g.vertexAttribPointer(0, 3, g.UNSIGNED_SHORT, true, 0, frame * stride);

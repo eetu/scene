@@ -6,8 +6,8 @@ Run headless:
 One file per dance (`dancer-a.bin`, …): the viz shows one at a time and most
 listeners never cycle, so the others are fetched only if asked for.
 
-The viz draws flat unlit silhouettes stepped to ~12fps, so it needs neither
-materials nor a skeleton at runtime: every frame it could ever show is a fixed
+The viz draws flat unlit silhouettes that snap between poses, so it needs
+neither materials nor a skeleton at runtime: every frame it could ever show is a fixed
 set of vertex positions. This bakes exactly those — the deformed mesh evaluated
 once per output frame — which is why the player carries no glTF loader, no
 skinning and no animation system, and therefore no three.js.
@@ -38,12 +38,12 @@ out_dir, sources = argv[0], argv[1:]
 # Target triangle count. A flat unlit silhouette has no interior detail to lose,
 # so this goes far below what a lit character would tolerate — and here it also
 # sets the size of every baked frame, so it is the main lever on the asset. At
-# 1200 the outline is still smooth at the size the figure is drawn.
-TARGET_TRIS = 1200
-# Poses per second. The figure is meant to snap between poses like traced film,
-# so this is the look as much as it is the size: baking finer would store frames
-# the viz would only smooth away.
-BAKE_FPS = 10
+# 900 the outline is still smooth at the size the figure is drawn.
+TARGET_TRIS = 900
+# Poses per second. Finer than the ~10fps the figure snaps at, because the echo
+# trail lags in whole poses: at 10 the copies sat 100ms apart and read as several
+# dancers rather than one in motion.
+BAKE_FPS = 20
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 

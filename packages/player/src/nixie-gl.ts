@@ -169,7 +169,7 @@ precision highp float;
 in vec3 vNormal;
 in vec3 vWorld;
 uniform vec3 uAlbedo, uEmissive, uEye;
-uniform float uShine, uRim;
+uniform float uShine, uRim, uSky;
 out vec4 frag;
 
 const vec3 KEY_DIR = normalize(vec3(0.55, 0.72, 0.62));
@@ -185,13 +185,22 @@ void main() {
 
   float key = max(dot(n, KEY_DIR), 0.0);
   float rim = max(dot(n, RIM_DIR), 0.0);
-  vec3 lit = uAlbedo * (0.30 + 0.62 * key) + RIM_TINT * (0.20 * rim);
+  vec3 lit = uAlbedo * (0.30 + 0.62 * key) + RIM_TINT * (uSky * rim);
 
   vec3 h = normalize(KEY_DIR + view);
   lit += vec3(pow(max(dot(n, h), 0.0), 48.0) * uShine);
   lit += uAlbedo * pow(1.0 - max(dot(n, view), 0.0), 3.0) * uRim;
 
-  frag = vec4(lit + uEmissive, 1.0);
+  // Normalised by the PEAK CHANNEL rather than clamped per channel. The scene
+  // renders into an 8-bit target, so a glow brighter than white loses whichever
+  // channel saturates first — and on a saturated accent that is red, which
+  // turned the orange numerals yellow every time the bass pushed the emissive
+  // over 1.0. Scaling all three keeps the ratio, and the pulse still reads,
+  // through the bloom (its strength rises with it) rather than through a core
+  // that is already as bright as the display goes.
+  vec3 c = lit + uEmissive;
+  float peak = max(max(c.r, c.g), c.b);
+  frag = vec4(peak > 1.0 ? c / peak : c, 1.0);
 }`;
 
 // The glass envelope. Face-on it is nearly clear, so the cathode stack reads
@@ -288,7 +297,15 @@ void main() {
   vec3 bloom = texture(uBloom0, vUv).rgb
              + texture(uBloom1, vUv).rgb * 0.72
              + texture(uBloom2, vUv).rgb * 0.48;
-  frag = vec4(aces(texture(uScene, vUv).rgb + bloom * uStrength), 1.0);
+  vec3 c = texture(uScene, vUv).rgb + bloom * uStrength;
+
+  // Tone-mapped by the PEAK CHANNEL, not per channel. Applied per channel the
+  // curve compresses whichever channel is already highest, so a saturated accent
+  // shifts hue as it brightens: the orange numerals came out yellow, because red
+  // was clipping while green still had room. Scaling all three by the peak's
+  // factor keeps their ratio, and therefore the hue the theme asked for.
+  float peak = max(max(c.r, c.g), c.b);
+  frag = vec4(peak > 1e-4 ? c * (aces(vec3(peak)).x / peak) : c, 1.0);
 }`;
 
 // ---------------------------------------------------------------------------
@@ -552,11 +569,21 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
 
   // --- drawing --------------------------------------------------------------
 
-  function material(p: Program, albedo: number[], emissive: number[], shine: number, rim: number) {
+  /** `sky` is the cool rim light. It is zero on anything glowing: a blue-white
+   *  fill on top of a saturated emissive is what turns an orange numeral yellow. */
+  function material(
+    p: Program,
+    albedo: number[],
+    emissive: number[],
+    shine: number,
+    rim: number,
+    sky = 0.2,
+  ) {
     g.uniform3fv(p.loc("uAlbedo"), albedo);
     g.uniform3fv(p.loc("uEmissive"), emissive);
     g.uniform1f(p.loc("uShine"), shine);
     g.uniform1f(p.loc("uRim"), rim);
+    g.uniform1f(p.loc("uSky"), sky);
   }
 
   function drawObject(p: Program, m: GpuMesh, model: Mat4) {
@@ -587,7 +614,7 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
         const d = glyphPath(":");
         const m = d ? wireFor(":", d) : null;
         if (m) {
-          material(solid, litAlbedo, emissive, 0.1, 0.2);
+          material(solid, litAlbedo, emissive, 0, 0.2, 0);
           drawObject(solid, m, compose([t.x, 0, 0]));
         }
       } else {
@@ -599,8 +626,9 @@ export function createNixieScene(container: HTMLElement, opts: NixieSceneOptions
             solid,
             isLit ? litAlbedo : wireColor,
             isLit ? emissive : [0, 0, 0],
-            isLit ? 0.1 : 0.22,
+            isLit ? 0 : 0.22,
             isLit ? 0.25 : 0.07,
+            isLit ? 0 : 0.2,
           );
           // Each cathode sits at its own offset inside the squashed stack, one
           // STACK_SPACING deeper than the one in front of it. That depth is the
