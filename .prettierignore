@@ -51,5 +51,6 @@ wasm/**/out/
 # Sprite art. The format writes one frame row per line on purpose — a frame is
 # meant to read as a picture in the diff — and Prettier packs short arrays onto
 # one line, which turns the art back into a wall of quoted strings. Written and
-# rewritten by tools/sprite-editor (see packages/player/src/sprite-file.ts).
+# rewritten by dab, the pixel editor (../dab); the format lives in
+# packages/player/src/sprite-file.ts.
 packages/player/src/sprites/*.json

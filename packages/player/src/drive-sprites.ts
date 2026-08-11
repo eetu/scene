@@ -2,7 +2,7 @@
 //
 // The art itself is NOT here. Each sprite is a file under ./sprites — rows of
 // characters plus the palette those characters mean (see sprite-file.ts) —
-// authored in tools/sprite-editor and imported below. Text rather than an image
+// authored in dab (../dab) and imported below. Text rather than an image
 // because that is what a sprite was on the machines this scene is dressed as,
 // and because it keeps the art in the diff: a tweak to the car's roofline shows
 // up in review as a changed line, not as "Bin 4kB -> 4kB".
