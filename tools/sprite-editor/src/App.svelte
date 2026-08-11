@@ -12,11 +12,19 @@
 
   import Canvas from "./lib/Canvas.svelte";
   import {
+    clearSelection,
+    copySelection,
+    cutSelection,
+    deleteSelection,
     editor,
+    hasSelection,
     history,
     loadSprite,
     newSprite,
+    nudgeSelection,
+    pasteClipboard,
     redoEdit,
+    selectAll,
     type Tool,
     TOOLS,
     undoEdit,
@@ -136,10 +144,56 @@
       else undoEdit();
       return;
     }
+    // The selection's clipboard is the editor's own, not the system one: what is
+    // on it is a block of palette characters, which nothing outside this tool
+    // would know what to do with.
+    if (meta && e.key.toLowerCase() === "a") {
+      e.preventDefault();
+      editor.tool = "select";
+      selectAll();
+      return;
+    }
+    if (meta && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      copySelection();
+      return;
+    }
+    if (meta && e.key.toLowerCase() === "x") {
+      e.preventDefault();
+      cutSelection();
+      return;
+    }
+    if (meta && e.key.toLowerCase() === "v") {
+      e.preventDefault();
+      editor.tool = "select";
+      pasteClipboard();
+      return;
+    }
     if (meta) return;
+    if (e.key === "Escape") {
+      clearSelection();
+      return;
+    }
+    if ((e.key === "Backspace" || e.key === "Delete") && hasSelection()) {
+      e.preventDefault();
+      deleteSelection();
+      return;
+    }
     const tool = TOOLS.find((x) => x.key === e.key.toLowerCase());
     if (tool) {
       editor.tool = tool.id as Tool;
+      return;
+    }
+    // The arrows nudge a selection when there is one, and step frames when there
+    // is not. A selected block is the thing you are working on at that moment,
+    // and one pixel at a time is how it gets placed.
+    if (hasSelection() && e.key.startsWith("Arrow")) {
+      e.preventDefault();
+      const step = e.shiftKey ? 4 : 1;
+      if (e.key === "ArrowLeft") nudgeSelection(-step, 0);
+      if (e.key === "ArrowRight") nudgeSelection(step, 0);
+      if (e.key === "ArrowUp") nudgeSelection(0, -step);
+      if (e.key === "ArrowDown") nudgeSelection(0, step);
       return;
     }
     // Frame stepping on the arrows: the fastest way to check an animation lines
@@ -372,6 +426,11 @@
     gap: 1rem;
     align-content: start;
     overflow-y: auto;
+    /* Without this the panel's content sets its minimum height, the middle grid
+       row grows past the viewport, and the bottom of the rail — the frame strip —
+       goes off the screen with no scrollbar to bring it back. A grid item has to
+       be allowed to be shorter than its contents before `auto` can scroll. */
+    min-height: 0;
     background: var(--halo-bg-light);
   }
   .left {

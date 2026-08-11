@@ -14,6 +14,7 @@ import {
   fromJson,
   linePoints,
   moveFrame,
+  readStamp,
   rectPoints,
   removeColour,
   removeFrame,
@@ -21,7 +22,9 @@ import {
   resizeSprite,
   setPixel,
   setPixels,
+  shapePoints,
   type SpriteFile,
+  stampCells,
   toJson,
   unusedChars,
   validateSprite,
@@ -180,6 +183,75 @@ describe("flood fill", () => {
   test("a seed outside the frame fills nothing", () => {
     expect(floodPoints(frame, -1, 0)).toEqual([]);
     expect(floodPoints(frame, 0, 99)).toEqual([]);
+  });
+});
+
+describe("shape select", () => {
+  // Two shapes: an A/B blob top-left and a lone A bottom-right. The colours are
+  // deliberately shared across shapes, so a colour-based flood would join them.
+  const frame = ["AB..", "BB..", "....", "...A"];
+
+  test("it takes every connected pixel, whatever colour it is", () => {
+    const pts = shapePoints(frame, 0, 0);
+    expect(pts).toHaveLength(4);
+    expect(pts).toContainEqual([1, 0]); // B, a different colour, same shape
+    expect(pts).not.toContainEqual([3, 3]); // same colour, a different shape
+  });
+
+  test("empty space is not a shape: a transparent seed selects nothing", () => {
+    expect(shapePoints(frame, 3, 0)).toEqual([]);
+    expect(shapePoints(frame, 0, 2)).toEqual([]);
+  });
+
+  test("a seed outside the frame selects nothing", () => {
+    expect(shapePoints(frame, -1, 0)).toEqual([]);
+    expect(shapePoints(frame, 0, 99)).toEqual([]);
+  });
+});
+
+describe("blocks", () => {
+  const frame = ["AB..", ".C..", "....", "...."];
+
+  test("a stamp keeps the shape and offsets it from its own corner", () => {
+    const s = readStamp(frame, [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+    ]);
+    expect([s.w, s.h]).toEqual([2, 2]);
+    expect(s.cells).toEqual([
+      { dx: 0, dy: 0, ch: "A" },
+      { dx: 1, dy: 0, ch: "B" },
+      { dx: 1, dy: 1, ch: "C" },
+    ]);
+  });
+
+  test("putting one down moves the pixels, holes and all", () => {
+    // The 2×2 box around the art, including its transparent corner.
+    const pts: [number, number][] = [
+      [0, 0],
+      [1, 0],
+      [0, 1],
+      [1, 1],
+    ];
+    const s = readStamp(frame, pts);
+    const lifted = setPixels(frame, pts, ".");
+    expect(stampCells(lifted, s, 2, 2)).toEqual(["....", "....", "..AB", "...C"]);
+  });
+
+  test("a block dragged off the edge loses what left, and does not wrap", () => {
+    const s = readStamp(frame, [
+      [0, 0],
+      [1, 0],
+    ]);
+    // The A lands in the last column; the B that followed it is simply gone.
+    expect(stampCells(frame, s, 3, 0)).toEqual(["AB.A", ".C..", "....", "...."]);
+  });
+
+  test("an empty selection is an empty stamp, and puts nothing down", () => {
+    const s = readStamp(frame, []);
+    expect(s).toEqual({ w: 0, h: 0, cells: [] });
+    expect(stampCells(frame, s, 0, 0)).toBe(frame);
   });
 });
 

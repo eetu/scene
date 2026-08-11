@@ -16,6 +16,7 @@ import {
   floodPoints,
   linePoints,
   moveFrame as moveFrameIn,
+  readStamp,
   rectPoints,
   removeColour as removeColourFrom,
   removeFrame as removeFrameFrom,
@@ -23,11 +24,15 @@ import {
   resizeSprite,
   setColour as setColourIn,
   setPixels,
+  shapePoints,
   type SpriteFile,
+  type Stamp,
+  stampCells,
   TRANSPARENT,
 } from "@scene/player/sprite-file";
+import { SvelteSet } from "svelte/reactivity";
 
-export type Tool = "pencil" | "eraser" | "fill" | "picker" | "line" | "rect" | "ellipse";
+export type Tool = "pencil" | "eraser" | "fill" | "picker" | "line" | "rect" | "ellipse" | "select";
 
 /** The rail, in order. `key` is the single-press shortcut, as in nib. */
 export const TOOLS: { id: Tool; label: string; key: string; hint: string }[] = [
@@ -38,6 +43,12 @@ export const TOOLS: { id: Tool; label: string; key: string; hint: string }[] = [
   { id: "line", label: "Line", key: "l", hint: "Drag a straight run" },
   { id: "rect", label: "Rect", key: "r", hint: "Drag a box — hold Shift to fill" },
   { id: "ellipse", label: "Ellipse", key: "o", hint: "Drag a box — hold Shift to fill" },
+  {
+    id: "select",
+    label: "Select",
+    key: "m",
+    hint: "Click a shape or drag a box, then drag it — arrows nudge, ⌘C/X/V, ⌫ clears",
+  },
 ];
 
 const MAX_UNDO = 200;
@@ -174,6 +185,176 @@ export function fillAt(x: number, y: number) {
 export function pickAt(x: number, y: number) {
   const ch = editor.sprite.frames[editor.frame]?.[y]?.[x];
   if (ch) editor.ink = ch;
+}
+
+// ---------- selection ----------
+//
+// A selection is a set of cells, not a rectangle: clicking a shape selects the
+// connected run under the cursor, which is rarely box-shaped. The bounds come
+// along for the marquee to draw and for a paste to know where the block sits.
+//
+// Moving is a LIFT and a PUT-DOWN. On the first pixel of travel the selected
+// cells are cleared from the frame and kept as a stamp; every later step puts
+// that stamp down on the cleared frame at a new offset. So the undo stack gets
+// one entry for a whole drag — the state before the block moved — and the frame
+// is never a half-moved mess.
+
+const key = (x: number, y: number) => `${x},${y}`;
+
+export const selection = $state({
+  /** "x,y" of every selected cell. Empty means no selection. */
+  cells: new SvelteSet<string>(),
+  x0: 0,
+  y0: 0,
+  x1: 0,
+  y1: 0,
+  /** Ticks up on every fresh selection: the canvas flashes what just got picked,
+   *  because a one-pixel dashed outline is easy to miss on a dense sprite. */
+  flash: 0,
+});
+
+/** The lifted block mid-move, and the frame it was lifted out of. */
+let float: { stamp: Stamp; base: string[]; x: number; y: number } | null = null;
+export const clipboard = $state({ stamp: null as Stamp | null });
+
+export const hasSelection = () => selection.cells.size > 0;
+export const isSelected = (x: number, y: number) => selection.cells.has(key(x, y));
+
+function setSelection(points: Iterable<readonly [number, number]>) {
+  const cells = new SvelteSet<string>();
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const [x, y] of points) {
+    cells.add(key(x, y));
+    if (x < x0) x0 = x;
+    if (y < y0) y0 = y;
+    if (x > x1) x1 = x;
+    if (y > y1) y1 = y;
+  }
+  selection.cells = cells;
+  if (cells.size) {
+    selection.x0 = x0;
+    selection.y0 = y0;
+    selection.x1 = x1;
+    selection.y1 = y1;
+    selection.flash++;
+  }
+}
+
+/**
+ * Clicking picks the whole connected SHAPE under it, whatever colours are in it:
+ * what you point at is an object, not a colour. Fill's one-character rule would
+ * hand back a highlight and leave the body it sits on behind.
+ *
+ * A click on empty space drops the selection instead of selecting the emptiness.
+ * Nobody clicks the background meaning "select that", and every editor with a
+ * marquee already reads a click on nothing as "never mind".
+ */
+export function selectShapeAt(x: number, y: number) {
+  dropFloat();
+  const pts = shapePoints(editor.sprite.frames[editor.frame], x, y);
+  if (!pts.length) {
+    selection.cells = new SvelteSet();
+    return;
+  }
+  setSelection(pts);
+}
+
+export function selectBox(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  opaqueOnly = false,
+) {
+  dropFloat();
+  const rows = editor.sprite.frames[editor.frame];
+  const pts = rectPoints(from.x, from.y, to.x, to.y, true).filter(
+    ([x, y]) => !opaqueOnly || (rows[y]?.[x] ?? TRANSPARENT) !== TRANSPARENT,
+  );
+  setSelection(pts);
+}
+
+export function selectAll() {
+  dropFloat();
+  const { w, h } = editor.sprite;
+  setSelection(rectPoints(0, 0, w - 1, h - 1, true));
+}
+
+export function clearSelection() {
+  dropFloat();
+  selection.cells = new SvelteSet();
+}
+
+/** Let go of the block being moved. The pixels are already in the frame — the
+ *  float only exists so the NEXT step can move them again without stacking a
+ *  fresh undo entry per pixel of travel. */
+function dropFloat() {
+  float = null;
+}
+
+/**
+ * Shift the selection by a whole number of cells. The first call in a run lifts
+ * and takes the single undo snapshot; the rest ride on it.
+ */
+export function nudgeSelection(dx: number, dy: number) {
+  if (!hasSelection() || (dx === 0 && dy === 0)) return;
+  const rows = editor.sprite.frames[editor.frame];
+  if (!float) {
+    const pts = [...selection.cells].map((k) => k.split(",").map(Number) as [number, number]);
+    const stamp = readStamp(rows, pts);
+    const base = setPixels(rows, pts, TRANSPARENT);
+    commit(withFrame(base));
+    float = { stamp, base, x: selection.x0, y: selection.y0 };
+  }
+  float.x += dx;
+  float.y += dy;
+  editor.sprite = withFrame(stampCells(float.base, float.stamp, float.x, float.y));
+  editor.dirty = true;
+  // The marquee travels with the pixels.
+  const moved = [...selection.cells].map((k) => {
+    const [x, y] = k.split(",").map(Number);
+    return [x + dx, y + dy] as [number, number];
+  });
+  const flash = selection.flash;
+  setSelection(moved);
+  selection.flash = flash; // a move is not a fresh pick; don't re-flash it
+}
+
+/** Wipe the selected cells. */
+export function deleteSelection() {
+  if (!hasSelection()) return;
+  dropFloat();
+  const rows = editor.sprite.frames[editor.frame];
+  const pts = [...selection.cells].map((k) => k.split(",").map(Number) as [number, number]);
+  const next = setPixels(rows, pts, TRANSPARENT);
+  if (next !== rows) commit(withFrame(next));
+}
+
+export function copySelection() {
+  if (!hasSelection()) return;
+  const rows = editor.sprite.frames[editor.frame];
+  const pts = [...selection.cells].map((k) => k.split(",").map(Number) as [number, number]);
+  clipboard.stamp = readStamp(rows, pts);
+}
+
+export function cutSelection() {
+  copySelection();
+  deleteSelection();
+}
+
+/** Put the clipboard down at the top-left of the current selection, or where it
+ *  was cut from if nothing is selected, and select it — so a paste lands ready
+ *  to be dragged into place. */
+export function pasteClipboard(at?: { x: number; y: number }) {
+  const stamp = clipboard.stamp;
+  if (!stamp?.cells.length) return;
+  dropFloat();
+  const x = at?.x ?? (hasSelection() ? selection.x0 : 0);
+  const y = at?.y ?? (hasSelection() ? selection.y0 : 0);
+  const rows = editor.sprite.frames[editor.frame];
+  commit(withFrame(stampCells(rows, stamp, x, y)));
+  setSelection(stamp.cells.map((c) => [x + c.dx, y + c.dy] as [number, number]));
 }
 
 // ---------- document ----------

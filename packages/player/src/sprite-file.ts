@@ -182,6 +182,60 @@ export function setPixels(
   return touched ? rows.map((r) => r.join("")) : frame;
 }
 
+// ---------- blocks ----------
+
+/**
+ * A lifted block of pixels: what was there, and where each cell sat relative to
+ * the block's top-left corner.
+ *
+ * Relative rather than absolute so the same block can be put down anywhere — a
+ * move is a lift and a put-down at an offset, and a paste is a put-down of a
+ * block lifted earlier. Transparent cells are carried too: a block with a hole
+ * in it has to punch that hole out wherever it lands, or moving a shape leaves
+ * the ghost of its own gaps behind.
+ */
+export type Stamp = { w: number; h: number; cells: { dx: number; dy: number; ch: string }[] };
+
+/** Lift the given pixels out of a frame, keeping their shape. */
+export function readStamp(frame: string[], points: Iterable<readonly [number, number]>): Stamp {
+  const pts = [...points].filter(
+    ([x, y]) => y >= 0 && y < frame.length && x >= 0 && x < frame[y].length,
+  );
+  if (!pts.length) return { w: 0, h: 0, cells: [] };
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of pts) {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  return {
+    w: maxX - minX + 1,
+    h: maxY - minY + 1,
+    cells: pts.map(([x, y]) => ({ dx: x - minX, dy: y - minY, ch: frame[y][x] })),
+  };
+}
+
+/** Put a block down with its top-left corner at (x, y). Cells that fall outside
+ *  the frame are dropped, not wrapped — a block dragged half off the edge loses
+ *  the half that left. */
+export function stampCells(frame: string[], stamp: Stamp, x: number, y: number): string[] {
+  const rows = frame.map((r) => r.split(""));
+  let touched = false;
+  for (const c of stamp.cells) {
+    const px = x + c.dx;
+    const py = y + c.dy;
+    if (py < 0 || py >= rows.length || px < 0 || px >= rows[py].length) continue;
+    if (rows[py][px] === c.ch) continue;
+    rows[py][px] = c.ch;
+    touched = true;
+  }
+  return touched ? rows.map((r) => r.join("")) : frame;
+}
+
 // ---------- shapes ----------
 
 /** Bresenham. Integer steps only — a float line rounds to an uneven stair. */
@@ -284,6 +338,41 @@ export function floodPoints(frame: string[], x: number, y: number): [number, num
     if (px < 0 || px >= w || py < 0 || py >= h) continue;
     if (seen[py * w + px]) continue;
     if (frame[py][px] !== target) continue;
+    seen[py * w + px] = 1;
+    out.push([px, py]);
+    stack.push([px + 1, py], [px - 1, py], [px, py + 1], [px, py - 1]);
+  }
+  return out;
+}
+
+/**
+ * The connected SHAPE at a seed: every pixel touching it that has something in
+ * it, whatever colour that is.
+ *
+ * Flood fill's cousin, and deliberately not the same rule. Fill spreads over one
+ * character because it is about to paint them all; this is about to pick
+ * something up, and the thing you point at is an object rather than a colour. A
+ * car body is a dozen characters and one shape, and the fill rule would hand back
+ * the highlight and leave the paint behind.
+ *
+ * Empty space is not a shape: a transparent seed selects nothing. The connected
+ * background is technically a region, but nobody points at the emptiness meaning
+ * "that one" — so callers get an empty result and can treat the click as the
+ * "nothing here" it was.
+ */
+export function shapePoints(frame: string[], x: number, y: number): [number, number][] {
+  if (y < 0 || y >= frame.length || x < 0 || x >= frame[0].length) return [];
+  if (getPixel(frame, x, y) === TRANSPARENT) return [];
+  const w = frame[0].length;
+  const h = frame.length;
+  const seen = new Uint8Array(w * h);
+  const out: [number, number][] = [];
+  const stack: [number, number][] = [[x, y]];
+  while (stack.length) {
+    const [px, py] = stack.pop()!;
+    if (px < 0 || px >= w || py < 0 || py >= h) continue;
+    if (seen[py * w + px]) continue;
+    if (frame[py][px] === TRANSPARENT) continue;
     seen[py * w + px] = 1;
     out.push([px, py]);
     stack.push([px + 1, py], [px - 1, py], [px, py + 1], [px, py - 1]);

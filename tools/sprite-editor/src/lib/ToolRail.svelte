@@ -10,6 +10,7 @@
   import Pencil from "@lucide/svelte/icons/pencil";
   import Pipette from "@lucide/svelte/icons/pipette";
   import Square from "@lucide/svelte/icons/square";
+  import SquareDashedMousePointer from "@lucide/svelte/icons/square-dashed-mouse-pointer";
   import ZoomIn from "@lucide/svelte/icons/zoom-in";
   import ZoomOut from "@lucide/svelte/icons/zoom-out";
 
@@ -24,6 +25,7 @@
     line: Minus,
     rect: Square,
     ellipse: Circle,
+    select: SquareDashedMousePointer,
   };
 </script>
 
@@ -39,6 +41,9 @@
       onclick={() => (editor.tool = t.id)}
     >
       <Icon size={18} />
+      <!-- The shortcut, on the button. Eight icons in a rail is past the point
+           where a tooltip is discovery: the letter is how these get learned. -->
+      <span class="key">{t.key}</span>
     </button>
   {/each}
 
@@ -68,6 +73,11 @@
     align-items: center;
     gap: 0.25rem;
     padding: 0.5rem 0.35rem;
+    /* Eight tools plus the view controls is taller than a short window, and a
+       grid item that cannot shrink grows the whole app instead of scrolling. */
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
     background: var(--halo-bg-light);
     border-right: 1px solid var(--halo-border);
   }
@@ -78,6 +88,7 @@
     margin: 0.35rem 0;
   }
   .icon {
+    position: relative;
     display: grid;
     place-items: center;
     width: 2rem;
@@ -96,6 +107,19 @@
     color: var(--halo-accent);
     border-color: var(--halo-accent);
     background: var(--halo-accent-soft);
+  }
+  .key {
+    position: absolute;
+    right: 0.05rem;
+    bottom: -0.05rem;
+    font-size: 0.55rem;
+    line-height: 1;
+    text-transform: uppercase;
+    color: var(--halo-text-light);
+    pointer-events: none;
+  }
+  .icon.on .key {
+    color: var(--halo-accent);
   }
   .zoom {
     font-size: 0.7rem;
