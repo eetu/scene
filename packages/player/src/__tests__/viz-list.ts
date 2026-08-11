@@ -11,6 +11,7 @@ import GlowWave from "../GlowWave.svelte";
 import HarmonyScope from "../HarmonyScope.svelte";
 import HiFiDeck from "../HiFiDeck.svelte";
 import LedBars from "../LedBars.svelte";
+import NeonDrive from "../NeonDrive.svelte";
 import NixieScene from "../NixieScene.svelte";
 import Plasma from "../Plasma.svelte";
 import ScrollerBoard from "../ScrollerBoard.svelte";
@@ -30,6 +31,7 @@ export const VIZ = [
   { id: "copper", comp: CopperBars },
   { id: "plasma", comp: Plasma },
   { id: "tunnel", comp: Tunnel },
+  { id: "drive", comp: NeonDrive },
   { id: "disco", comp: DiscoBall },
   { id: "tubes", comp: NixieScene },
   { id: "c64", comp: C64Screen },

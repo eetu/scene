@@ -47,6 +47,10 @@ packages/player/src/__tests__/viz-gallery/
 packages/player/src/__tests__/crt/
 packages/player/src/__tests__/vfd-plate/
 packages/player/src/__tests__/nixie-shakedown/
+packages/player/src/__tests__/drive-shakedown/
+
+# Claude Code agent worktrees — transient checkouts, not repo source.
+.claude/worktrees/
 
 # Raw Mixamo source for the dancer viz. Kept local, never committed: Mixamo's
 # terms forbid redistributing their assets as standalone files. The committed

@@ -1,0 +1,62 @@
+{
+  "name": "signKanaHotel",
+  "w": 9,
+  "h": 23,
+  "palette": {},
+  "tints": [
+    "#ff3bd4",
+    "#39f6ff"
+  ],
+  "frames": [
+    [
+      "NNNNNNNNN",
+      "N.......N",
+      "N...N...N",
+      "N.NNNNN.N",
+      "N...N...N",
+      "N..N.N..N",
+      "N.N...N.N",
+      "N.......N",
+      "N.......N",
+      "N.NNNNN.N",
+      "N.......N",
+      "N..NNN..N",
+      "N...N...N",
+      "N..N....N",
+      "N.......N",
+      "N.......N",
+      "N.N..N..N",
+      "N.N..N..N",
+      "N.N..N..N",
+      "N..N.N..N",
+      "N...NNN.N",
+      "N.......N",
+      "NNNNNNNNN"
+    ],
+    [
+      "NNNNNNNNN",
+      "N.......N",
+      "N...N...N",
+      "N.NNNNN.N",
+      "N...N...N",
+      "N..N.N..N",
+      "N.N...N.N",
+      "N.......N",
+      "N.......N",
+      "N.NNNNN.N",
+      "N.......N",
+      "N..NNN..N",
+      "N...N...N",
+      "N..N....N",
+      "N.......N",
+      "N.......N",
+      "N.n..n..N",
+      "N.n..n..N",
+      "N.n..n..N",
+      "N..n.n..N",
+      "N...nnn.N",
+      "N.......N",
+      "NNNNNNNNN"
+    ]
+  ]
+}

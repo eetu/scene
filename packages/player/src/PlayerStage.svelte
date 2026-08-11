@@ -11,6 +11,7 @@
     | "copper"
     | "plasma"
     | "tunnel"
+    | "drive"
     | "disco"
     | "tubes"
     | "c64"
@@ -26,6 +27,7 @@
     "copper",
     "plasma",
     "tunnel",
+    "drive",
     "disco",
     "tubes",
     "c64",
@@ -58,6 +60,7 @@
   import GlowWave from "./GlowWave.svelte";
   import HiFiDeck from "./HiFiDeck.svelte";
   import LedBars from "./LedBars.svelte";
+  import NeonDrive from "./NeonDrive.svelte";
   import NixieScene from "./NixieScene.svelte";
   import PatternView from "./PatternView.svelte";
   import { playback } from "./player.svelte";
@@ -174,6 +177,8 @@
             <Plasma active={playing} />
           {:else if vizMode === "tunnel"}
             <Tunnel active={playing} />
+          {:else if vizMode === "drive"}
+            <NeonDrive active={playing} />
           {:else if vizMode === "disco"}
             <DiscoBall active={playing} />
           {:else if vizMode === "tubes"}

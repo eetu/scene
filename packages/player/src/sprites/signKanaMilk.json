@@ -1,0 +1,34 @@
+{
+  "name": "signKanaMilk",
+  "w": 15,
+  "h": 9,
+  "palette": {},
+  "tints": [
+    "#ff3bd4",
+    "#39f6ff"
+  ],
+  "frames": [
+    [
+      "NNNNNNNNNNNNNNN",
+      "N.............N",
+      "N.NNN...N..N..N",
+      "N....NN.N..N..N",
+      "N.NNN...N..N..N",
+      "N....NN..N.N..N",
+      "N.NNN.....NNN.N",
+      "N.............N",
+      "NNNNNNNNNNNNNNN"
+    ],
+    [
+      "NNNNNNNNNNNNNNN",
+      "N.............N",
+      "N.NNN...n..n..N",
+      "N....NN.n..n..N",
+      "N.NNN...n..n..N",
+      "N....NN..n.n..N",
+      "N.NNN.....nnn.N",
+      "N.............N",
+      "NNNNNNNNNNNNNNN"
+    ]
+  ]
+}

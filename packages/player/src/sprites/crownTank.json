@@ -1,0 +1,9 @@
+{
+  "name": "crownTank",
+  "w": 7,
+  "h": 5,
+  "palette": {
+    "C": "#2a1740"
+  },
+  "frames": [["..CCC..", ".CCCCC.", ".CCCCC.", "..C.C..", "..C.C.."]]
+}

@@ -50,6 +50,12 @@ dev app host="":
     fi
     wait
 
+# The sprite editor: a dev tool for the character-grid sprites the visualisers
+# draw from. Open packages/player/src/sprites in it (Chrome/Edge can save back
+# into that folder directly) and the scene picks the change up on reload.
+sprites:
+    {{yarn}} workspace sprite-editor run dev
+
 # Build everything: all frontends, then the whole rust workspace.
 build:
     {{yarn}} build
