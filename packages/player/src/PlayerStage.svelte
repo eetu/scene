@@ -279,6 +279,12 @@
     z-index: 3;
     background: color-mix(in srgb, var(--panel) 82%, transparent);
     backdrop-filter: blur(6px);
+    /* Fullscreen reaches the physical top of the screen, so the drawer has to
+       hold its buttons below the status bar and clear of a landscape notch — the
+       blurred fill still runs into the inset. env() is 0 where there is none, so
+       this costs a desktop nothing. */
+    padding: calc(6px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) 6px
+      calc(8px + env(safe-area-inset-left));
     transition:
       transform 0.3s ease,
       opacity 0.3s ease;
