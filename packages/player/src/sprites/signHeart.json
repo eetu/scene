@@ -1,0 +1,40 @@
+{
+  "name": "signHeart",
+  "w": 12,
+  "h": 12,
+  "palette": {},
+  "tints": [
+    "#ff3bd4",
+    "#39f6ff"
+  ],
+  "frames": [
+    [
+      "..nnn..nnn..",
+      ".nNNNnnNNNn.",
+      "nNNnNNNNNNNn",
+      "nNnNNNNNNNNn",
+      "nNnNNNNNNNNn",
+      "nNnNNNNNNNNn",
+      ".nNnNNNNNNn.",
+      ".nNNNNNNNNn.",
+      "..nNNNNNNn..",
+      "...nNNNNn...",
+      "....nNNn....",
+      ".....nn....."
+    ],
+    [
+      "..nnn..nnn..",
+      ".nNNNnnnnnn.",
+      "nNNnNNnnnnnn",
+      "nNnNNnNnnnnn",
+      "nNnNNNnnnnnn",
+      "nNnNNnNnnnnn",
+      ".nNnNNnnnnn.",
+      ".nNNNnNnnnn.",
+      "..nNNNnnnn..",
+      "...nNnNnn...",
+      "....nNnn....",
+      ".....nn....."
+    ]
+  ]
+}

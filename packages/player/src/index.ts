@@ -34,6 +34,7 @@ export { decodeChips, freqToHz, noteFor, PAL_CLOCK } from "./sid/registers";
 export type { Chip, Voice, Waveform } from "./sid/registers";
 export { type BoardMode, BOARD_MODES, boardView, setBoardMode } from "./board-mode.svelte";
 export { default as ScrollerBoard } from "./ScrollerBoard.svelte";
+export { default as NeonDrive } from "./NeonDrive.svelte";
 export { default as Plasma } from "./Plasma.svelte";
 export { default as Starfield } from "./Starfield.svelte";
 export { default as Tunnel } from "./Tunnel.svelte";

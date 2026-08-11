@@ -1,0 +1,9 @@
+{
+  "name": "crownStep",
+  "w": 9,
+  "h": 4,
+  "palette": {
+    "C": "#2a1740"
+  },
+  "frames": [["...CCC...", "..CCCCC..", ".CCCCCCC.", "CCCCCCCCC"]]
+}

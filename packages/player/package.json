@@ -15,6 +15,11 @@
     ".": {
       "types": "./src/index.ts",
       "svelte": "./src/index.ts"
+    },
+    "./sprite-file": {
+      "types": "./src/sprite-file.ts",
+      "svelte": "./src/sprite-file.ts",
+      "default": "./src/sprite-file.ts"
     }
   },
   "dependencies": {

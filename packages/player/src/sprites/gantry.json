@@ -1,0 +1,47 @@
+{
+  "name": "gantry",
+  "w": 22,
+  "h": 16,
+  "palette": {
+    "P": "#0b0512"
+  },
+  "tints": ["#ff3bd4", "#39f6ff"],
+  "frames": [
+    [
+      "PPPPPPPPPPPPPPPPPPPPPP",
+      "P.P.P.P.P.P.P.P.P.P.PP",
+      "PPPPPPPPPPPPPPPPPPPPPP",
+      "PP.......NNNNNN.....PP",
+      "PP.......N.nn.N.....PP",
+      "PP.......N.nn.N.....PP",
+      "PP.......NNNNNN.....PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP"
+    ],
+    [
+      "PPPPPPPPPPPPPPPPPPPPPP",
+      "P.P.P.P.P.P.P.P.P.P.PP",
+      "PPPPPPPPPPPPPPPPPPPPPP",
+      "PP.......NNNNNN.....PP",
+      "PP.......N.n..N.....PP",
+      "PP.......N..n.N.....PP",
+      "PP.......NNNNnN.....PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP",
+      "PP..................PP"
+    ]
+  ]
+}

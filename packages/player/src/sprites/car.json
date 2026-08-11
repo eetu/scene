@@ -1,0 +1,41 @@
+{
+  "name": "car",
+  "w": 72,
+  "h": 18,
+  "palette": {
+    "S": "#5e0f21",
+    "B": "#a81c33",
+    "b": "#c8253f",
+    "H": "#7de8ff",
+    "K": "#0d0810",
+    "M": "#ff3bd4",
+    "G": "#0d2233",
+    "g": "#4fbde0",
+    "T": "#ff2f6a",
+    "W": "#08080f",
+    "R": "#a7a0b8",
+    "L": "#fff0c0"
+  },
+  "frames": [
+    [
+      ".....................bbbbbbbbbbbbbbbbb..................................",
+      "..................BbbbbKKKKKKKKKKKKKKKbb................................",
+      "...............BbbbbbbbKGGKKGGGGGGGGGGKKbbb.............................",
+      "...........BbbbbbbbbbbWGGGGKKGGGGGGGGGGGKKKbb...........................",
+      ".BbbbbbbbbbbBBBBBBBBBbWGGGGKKGGGGGGGGGGGGGGKKbb.........................",
+      ".SSSBBBBBBBBBbbbbbbbBBWGGGGGKKGGGGGGGGGGGGGGGKKbbbbbbb..................",
+      ".KKSBBBBBSSSSSSSSSbbbbbWKKKKKKKKKKKKKKKKKKKKKKKbbbbbbbbbbb..............",
+      ".KLSBBBBBBBBBBBBBBSSSbbbbbbbbSbbbbbbbbbbbbbbbbSBBBBBBBBBBBbbbbbb........",
+      ".KKSBBBBBBBKWWWKBBBBBSSBBBBBBSBRBBBBBBBBBBBBBBSBBBBBKWWWKBBBBBBBbbbb....",
+      ".KMSBBBBBKWWWWWWWKBBBBBSKKKKKKKKKKSKSSSSSSSSSBSBBBKWWWWWWWKBBBBBBBBBbb..",
+      ".KKSBBBBKWWWWWWWWWKBBBBBKKSSBSBBBBBBBBBBBBBBBBSBBKWWWWWWWWWKSSSSSSSSSSSS",
+      "SBBSBBBBKWWWRRRWWWKBBBBBBKKKKKKKKSKSKSSSSSSSSBSBBKWWWRRRWWWKBBBBBBBBBBBS",
+      ".SSSBBBKWWWRRRRRWWWKBBBBBKKSBSBBBBBBBBBBBBBBBBSBKWWWRRRRRWWWKBLLBBBBBMMS",
+      "...SSSSKWWWRRRRRWWWKBBBBBBKKKKKKKSKSKSSSSSSSSBSBKWWWRRRRRWWWKBBBBBBBBLL.",
+      "......KKWWWRRRRRWWWKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKWWWRRRRRWWWKKKKKKKKKKK.",
+      ".......KKWWWRRRWWWKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKWWWRRRWWWKKKKKKKKKKKW.",
+      ".........WWWWWWWWW................................WWWWWWWWW.............",
+      "..........WWWWWWW..................................WWWWWWW.............."
+    ]
+  ]
+}

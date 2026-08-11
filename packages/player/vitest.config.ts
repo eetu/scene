@@ -38,6 +38,7 @@ const VISUAL = [
   "src/__tests__/crt-element-mode.svelte.test.ts",
   "src/__tests__/viz-layout.svelte.test.ts",
   "src/__tests__/nixie-shakedown.svelte.test.ts",
+  "src/__tests__/drive-shakedown.svelte.test.ts",
   "src/__tests__/dancer-readout.svelte.test.ts",
   "src/__tests__/flip-dot-shakedown.svelte.test.ts",
   "src/__tests__/split-flap-shakedown.svelte.test.ts",

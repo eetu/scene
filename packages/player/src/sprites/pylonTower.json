@@ -1,0 +1,38 @@
+{
+  "name": "pylonTower",
+  "w": 5,
+  "h": 26,
+  "palette": {
+    "P": "#0b0512"
+  },
+  "frames": [
+    [
+      "PP.PP",
+      "PPPPP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP",
+      "PPPPP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP",
+      "PPPPP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP",
+      "PPPPP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP",
+      "PP.PP"
+    ]
+  ]
+}

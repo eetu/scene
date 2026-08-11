@@ -1,0 +1,29 @@
+{
+  "name": "signArrow",
+  "w": 7,
+  "h": 7,
+  "palette": {
+
+  },
+  "tints": ["#ff3bd4","#39f6ff"],
+  "frames": [
+    [
+      "..NNN..",
+      ".NnnnN.",
+      "NnnNnnN",
+      "NnNNNnN",
+      "NnnNnnN",
+      ".NnnnN.",
+      "..NNN.."
+    ],
+    [
+      "..nnn..",
+      ".nNNNn.",
+      "nNnnnNn",
+      "nNnNnNn",
+      "nNnnnNn",
+      ".nNNNn.",
+      "..nnn.."
+    ]
+  ]
+}

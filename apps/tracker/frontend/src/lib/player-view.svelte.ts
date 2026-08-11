@@ -19,6 +19,7 @@ export const VIZ = [
   "copper",
   "plasma",
   "tunnel",
+  "drive",
   "disco",
   "tubes",
   "c64",

@@ -1,0 +1,31 @@
+{
+  "name": "signBar",
+  "w": 6,
+  "h": 8,
+  "palette": {
+
+  },
+  "tints": ["#ff3bd4","#39f6ff"],
+  "frames": [
+    [
+      "NNNNNN",
+      "N....N",
+      "N.NN.N",
+      "N.NN.N",
+      "N....N",
+      "NNNNNN",
+      "..NN..",
+      "NNNNNN"
+    ],
+    [
+      "NNNNNN",
+      "N....N",
+      "N.nn.N",
+      "N.nn.N",
+      "N....N",
+      "NNNNNN",
+      "..NN..",
+      "NNNNNN"
+    ]
+  ]
+}
