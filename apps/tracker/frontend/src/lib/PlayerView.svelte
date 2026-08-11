@@ -822,6 +822,16 @@
     display: flex;
     flex-direction: column;
     background: var(--panel);
+    /* Hold the sheet's content clear of the status bar, the notch and the home
+       indicator. It needs this even though it is only `absolute`: its containing
+       block is the nearest POSITIONED ancestor, and `.viz-view` is positioned
+       only in fullscreen — which iOS never grants a non-<video> element. So on a
+       phone this lands on the player overlay instead and covers the whole screen,
+       putting the header row and the first row of choices under the clock, where
+       iOS also swallows the taps. The fill still runs to the edges; only the
+       content is inset, the same way the shared full-screen modal does it. */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
   }
   .sheethead {
     flex: 0 0 auto;
