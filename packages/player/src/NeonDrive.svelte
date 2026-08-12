@@ -237,6 +237,19 @@
     let scroll = 0; // the near layer's travel, in buffer pixels
     let speed = 0; // eased, px/s
     let wheel = 0; // spoke frame accumulator
+    /**
+     * How far the car has dropped behind its mark, in buffer pixels.
+     *
+     * The camera is NOT welded to the car. When the music stops the shot coasts on
+     * a little further than the car does, so the car slides back toward the left
+     * edge of frame; on play it accelerates back up to its mark. That asymmetry is
+     * the only thing in the scene that says the car is being driven rather than
+     * parked in front of a moving backdrop — held at a third of the way in no
+     * matter what happens, it is a sprite with scenery behind it.
+     */
+    let lag = 0;
+    let lagVel = 0; // px/s — a spring, so both ends of the travel start from rest
+    let coasting = false; // still sliding back, so the frame loop must stay awake
     let pulse = 0; // beat kick, decays
     let level = 0; // eased overall energy
     let lastBeat = -1;
@@ -885,6 +898,11 @@
       }
     }
 
+    /** The car's left edge this frame: its mark a third in, less whatever ground it
+     *  has lost. Everything the car owns — its rut, its glow, its beam — has to
+     *  come off this and not off the mark, or the parts come apart as it slides. */
+    const carLeft = () => Math.round(bw * 0.3 - lag);
+
     /**
      * Snow on the road: the surface turns matte white, and the car cuts a rut in it.
      *
@@ -916,7 +934,7 @@
       // pixels into that contact patch and no further. Running it to the nose put
       // track on road the car has not reached yet.
       const frontWheel = Math.max(...CAR_WHEELS.map(([wx]) => wx));
-      const carEnd = Math.round(bw * 0.3) + frontWheel + 2;
+      const carEnd = carLeft() + frontWheel + 2;
       for (let x = 0; x < carEnd; x++) {
         const u = (x + scroll) | 0;
         // Sharp at the wheels and filling in again toward the edge of frame while
@@ -981,7 +999,7 @@
     }
 
     function paintCar(g: CanvasRenderingContext2D, sky: Sky) {
-      const cx = Math.round(bw * 0.3);
+      const cx = carLeft();
       // Suspension: a slow float plus a kick on the beat, rounded — a sprite
       // sitting between two pixels is the one way to lose the grid.
       //
@@ -1344,6 +1362,62 @@
           buf.height = bh;
         }
 
+        // The crop is worked out BEFORE the frame is painted, not after: the car's
+        // coast needs to know where the visible left edge of the buffer actually
+        // is, and that is this rectangle. (It is applied at the end — see Magnify.)
+        //
+        // The buffer is CROPPED to the pane's shape, never stretched to it. Its
+        // width is clamped, so a pane wider than 2.67:1 or narrower than 4:3 has
+        // no matching buffer to stretch from, and stretching one is what turned
+        // the pixels into rectangles the moment the window left that range.
+        // Cropping keeps them square at every size; the crop comes off the sky
+        // and off the far side of the frame, never off the road or the car.
+        const sw = Math.min(bw, Math.round((bh * w) / h));
+        const sh = Math.min(bh, Math.round((bw * h) / w));
+        const sx = Math.min(Math.max(0, Math.round(bw * 0.3 + CAR_W / 2 - sw / 2)), bw - sw);
+        // Vertically the crop comes off the sky, but not all of it: a few rows of
+        // the near shoulder go too, so a pane too wide even for the widest buffer
+        // does not end up half road. Never past the lane dashes — they are what
+        // the speed reads off.
+        const spare = bh - sh;
+        const sy = spare - Math.min(spare, bh - (GROUND_Y + 12));
+
+        // The coast. How far back the car may slide is whatever the crop leaves it
+        // — on a tall pane the visible frame starts well right of the buffer's edge
+        // and there is barely any room, which is correct: sliding out of shot is
+        // not the effect. Damped for anyone who asked for less motion.
+        const lagMax = Math.max(0, (Math.round(bw * 0.3) - sx - 14) * motion);
+        const lagTo = active ? 0 : lagMax;
+        // A spring rather than an ease, because the acceleration is the whole read:
+        // dropping back and pulling away are the same easing curve run backwards,
+        // and only a spring starts each of them from rest. Stiff coming back (the
+        // car is being driven, and it arrives with a shove that just overruns the
+        // mark) and slack going out (it is only coasting, and it must not bounce
+        // off the edge of frame).
+        const k = active ? 7.5 : 1.1;
+        const damp = 2 * Math.sqrt(k) * (active ? 0.86 : 1.08);
+        lagVel += ((lagTo - lag) * k - lagVel * damp) * dt;
+        const lagWas = lag;
+        const lagNext = lag + lagVel * dt;
+        lag = Math.max(active ? -7 : 0, Math.min(lagMax, lagNext));
+        // Hit a stop — the edge of frame, or the mark itself on the way back. Drop
+        // the velocity there instead of letting the spring wind up against it, or a
+        // car that has sat parked at the edge sets off further left when play lands.
+        if (lag !== lagNext) lagVel = 0;
+        // Ground the camera gained on the car goes into the scroll, so the scene
+        // really does travel the extra distance rather than the car merely sliding
+        // across a still picture. Only ever forward — taking it back out on the
+        // return would run the road backwards under the wheels.
+        if (lag > lagWas) scroll += lag - lagWas;
+        // And the wheels turn with the car's own ground, not the camera's: closing
+        // the gap means covering more road than the shot does, and the spokes are
+        // the one part that can say so.
+        wheel += Math.max(0, lagWas - lag) * 0.22;
+        // The driver freezes a paused viz after a short settle; a car stopped
+        // halfway through its slide would read as a stall, so hold the loop open
+        // until it has parked.
+        coasting = !active && lag < lagMax - 0.5;
+
         const phase = moonPhaseAt(clock, moonOffset);
 
         paintSky(p, sky);
@@ -1423,28 +1497,16 @@
         p.fillRect(0, 0, bw, bh);
 
         // Magnify. Nearest-neighbour is the point: this is the step that turns
-        // the buffer's pixels into the picture's pixels.
-        //
-        // The buffer is CROPPED to the pane's shape, never stretched to it. Its
-        // width is clamped, so a pane wider than 2.67:1 or narrower than 4:3 has
-        // no matching buffer to stretch from, and stretching one is what turned
-        // the pixels into rectangles the moment the window left that range.
-        // Cropping keeps them square at every size; the crop comes off the sky
-        // and off the far side of the frame, never off the road or the car.
-        const sw = Math.min(bw, Math.round((bh * w) / h));
-        const sh = Math.min(bh, Math.round((bw * h) / w));
-        const sx = Math.min(Math.max(0, Math.round(bw * 0.3 + CAR_W / 2 - sw / 2)), bw - sw);
-        // Vertically the crop comes off the sky, but not all of it: a few rows of
-        // the near shoulder go too, so a pane too wide even for the widest buffer
-        // does not end up half road. Never past the lane dashes — they are what
-        // the speed reads off.
-        const spare = bh - sh;
-        const sy = spare - Math.min(spare, bh - (GROUND_Y + 12));
+        // the buffer's pixels into the picture's pixels. The crop rectangle was
+        // worked out at the top of the frame; it stays anchored to the car's MARK
+        // and not to the car, which is what makes the coast visible at all.
         g2.imageSmoothingEnabled = false;
         g2.drawImage(buf, sx, sy, sw, sh, 0, 0, w, h);
         g2.imageSmoothingEnabled = true;
       },
-      { active: () => active },
+      // Coasting counts as active: the car has to reach the edge of frame before
+      // the loop is allowed to freeze on a resting frame.
+      { active: () => active || coasting },
     );
 
     return () => {

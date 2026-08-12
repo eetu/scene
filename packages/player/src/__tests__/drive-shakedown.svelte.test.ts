@@ -113,6 +113,45 @@ test("the drive scrolls, in layers, in hard pixels", { timeout: 120000 }, async 
   expect(cx).toBeGreaterThan(15);
   expect(cx).toBeLessThan(75);
 
+  // The coast: stop the music and the shot travels a little further than the car
+  // does, leaving it back toward the left edge. Measured off the brightest column
+  // of the car's band — the sprite, its glow and the head of its beam all live
+  // there, and all of them move with it — because the whole-frame centroid is
+  // dominated by the skyline and cannot see the car move at all.
+  const carColumn = (img: ImageData) => {
+    let best = 0;
+    let bestX = 0;
+    for (let x = 0; x < img.width; x++) {
+      let m = 0;
+      for (let y = 78; y < img.height; y++) {
+        const i = (y * img.width + x) * 4;
+        const l = 0.299 * img.data[i] + 0.587 * img.data[i + 1] + 0.114 * img.data[i + 2];
+        if (l > m) m = l;
+      }
+      if (m > best) {
+        best = m;
+        bestX = x;
+      }
+    }
+    return (bestX / img.width) * 100;
+  };
+  // Long enough to have finished coasting: the slide is a couple of seconds, and
+  // the loop is held open until it has parked.
+  const idle = await captureViz(NeonDrive, {
+    id: "idle",
+    outDir: OUT,
+    props: { active: false },
+    settleMs: 5000,
+    count: 2,
+  });
+  const drivingX = carColumn(wide.frames[wide.frames.length - 1]);
+  const idleX = carColumn(idle.frames[idle.frames.length - 1]);
+  expect(idleX, `the car did not drop back on pause (${idleX} vs ${drivingX})`).toBeLessThan(
+    drivingX - 8,
+  );
+  // ...but it stays in shot. Parking it off the left edge is not the effect.
+  expect(idleX, "the car coasted out of frame").toBeGreaterThan(1);
+
   // A tall narrow pane must not letterbox or crop the scene away.
   await page.viewport(420, 760);
   const tall = await captureViz(NeonDrive, { id: "tall", outDir: OUT, settleMs: 1500, count: 3 });
