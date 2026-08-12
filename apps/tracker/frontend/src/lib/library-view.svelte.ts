@@ -16,7 +16,6 @@ import { FAV_BUCKET, filterTracks, groupTracks, sortFlatTracks } from "$lib/libr
 import { library } from "$lib/library.svelte";
 import { manifestIndex } from "$lib/manifest.svelte";
 import { STANDALONE } from "$lib/standalone";
-import { put } from "$lib/tracks.svelte";
 import { queryFromView, view } from "$lib/view.svelte";
 
 /** Bucket name → the ordered ids it renders. */
@@ -59,8 +58,16 @@ function shapeFromServer(): Bucket[] {
   return (library.shaped?.groups ?? []).map((g) => [g.name, g.ids] as Bucket);
 }
 
-/** The backend-less build: shape in the browser with the pure helpers, then seed
- *  the hydration cache so every consumer reads rows the same way. */
+/**
+ * The backend-less build: shape in the browser with the pure helpers.
+ *
+ * PURE — it must not write anything. This ran `put(t)` for every filtered row to
+ * seed the hydration cache, which is a state write inside a `$derived`: Svelte
+ * throws `state_unsafe_mutation`, the reactive graph is left half-evaluated, and
+ * the list never paints while the facet lists and the counts (already computed)
+ * look perfectly correct. The seeding belongs where it happens for the backend
+ * too — `hydrate`, called from the virtualizer's effect.
+ */
 function shapeLocally(favView: boolean): Bucket[] {
   const filtered = filterTracks(library.tracks, {
     favView,
@@ -68,8 +75,6 @@ function shapeLocally(favView: boolean): Bucket[] {
     trackerFilter: view.trackerFilter,
     query: view.query,
   });
-  for (const t of filtered) put(t);
-
   // Favourites render as ONE flat, deduped song list (no group cards) — so the
   // manifest's many-to-many spread can't show the same tune twice.
   if (favView) {
