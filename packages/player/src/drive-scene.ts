@@ -266,6 +266,15 @@ export type Sign = {
   /** Blink rate in radians/second; the flicker frame rides on top of it. */
   rate: number;
   phase: number;
+  /**
+   * A sign whose tubes are out: drawn as the dark panel it is, with no colour and
+   * no glow.
+   *
+   * Most of the signs in a city are not lit. Three lit ones among nine dead is a
+   * lonelier street than twelve lit ones, and it reads as a place that has been
+   * there a while rather than a wall of advertising.
+   */
+  dead: boolean;
 };
 
 /** What a sign is assumed to measure when the caller did not say — the box signs
@@ -303,8 +312,11 @@ export type SkylineOpts = {
   /** Lit windows, and how many channels they spread over. */
   windows: boolean;
   channels?: number;
-  /** Chance per tower of carrying a neon sign. */
+  /** Chance per tower of carrying a sign at all. */
   signs?: number;
+  /** Of those, the share whose tubes are out. Most signs in a city are dark, and
+   *  the lit ones only read as special because of it. */
+  deadSigns?: number;
   /** How many sign sprites the sheet offers. */
   signSprites?: number;
   /** What each of those sprites measures, so a sign is only ever put on a face
@@ -334,6 +346,7 @@ export function buildSkyline(rnd: () => number, opts: SkylineOpts): Layer {
     windows,
     channels = 8,
     signs = 0,
+    deadSigns = 0.55,
     signSprites = 3,
     signSizes,
     crowns = 3,
@@ -396,12 +409,14 @@ export function buildSkyline(rnd: () => number, opts: SkylineOpts): Layer {
         hue: rnd() < 0.5 ? 0 : 1,
         rate: 0.6 + rnd() * 3.4,
         phase: rnd() * TAU,
+        // Most of them are out. The lit ones are what the eye goes to, and they
+        // only read as special because their neighbours are dark.
+        dead: rnd() < deadSigns,
       });
     };
     if (signs > 0 && rnd() < signs && w >= 9 && h >= 18) {
-      // A tower with the height for it carries two, stacked: one sign per building
-      // is a high street, and this city is meant to be plastered. They get a band
-      // of the face each, so the second can never land on top of the first.
+      // A tower with the height for it carries two, stacked. They get a band of
+      // the face each, so the second can never land on top of the first.
       const stacked = h >= 46 && rnd() < 0.45;
       const split = Math.round(h * 0.55);
       hang(3, stacked ? split : h - 3);
@@ -465,6 +480,49 @@ export type Prop = {
 /** Spacing of the bridge's suspension towers — the cable painter needs the same
  *  number, so it is a constant rather than a roll. */
 export const BRIDGE_TOWER_GAP = 240;
+
+// ---------- the foreground ----------
+
+/**
+ * Silhouettes that pass BETWEEN the camera and the car.
+ *
+ * The scene had nothing in front of the car, which is what made it read as four
+ * flat bands however many layers were behind it: depth is sold by something
+ * sweeping past close and fast, not by more detail far away. These are drawn as
+ * near-black shapes at almost twice the road's rate, and they are deliberately
+ * sparse — this close, anything regular is a strobe, and anything wide hides the
+ * car for too long.
+ */
+export type Fore = {
+  x: number;
+  /** `post` is a rail upright, `girder` an overhead beam's leg, `sign` the back of
+   *  a roadside board — a wider mass that briefly eclipses the car. */
+  kind: "post" | "girder" | "board";
+  /** Buffer pixels. Height is measured up from the bottom of the picture. */
+  w: number;
+  h: number;
+};
+
+/** How long the foreground strip is before it repeats. Coprime-ish with the
+ *  route and the skylines so the same pairing does not come round on a beat. */
+export const FORE_SPAN = 730;
+
+/** The foreground layer: a handful of uprights per strip, with the odd wider
+ *  mass. Gaps are large on purpose — the point is punctuation, not a fence. */
+export function buildFore(rnd: () => number): Fore[] {
+  const out: Fore[] = [];
+  let x = 0;
+  while (x < FORE_SPAN) {
+    x += 90 + rnd() * 150;
+    if (x >= FORE_SPAN) break;
+    const roll = rnd();
+    if (roll < 0.62) out.push({ x, kind: "post", w: 2 + ((rnd() * 2) | 0), h: 34 + rnd() * 26 });
+    else if (roll < 0.86)
+      out.push({ x, kind: "girder", w: 4 + ((rnd() * 3) | 0), h: 62 + rnd() * 34 });
+    else out.push({ x, kind: "board", w: 12 + ((rnd() * 10) | 0), h: 26 + rnd() * 18 });
+  }
+  return out;
+}
 
 /** The near layer's furniture, laid along the route: streets get lamps and
  *  palms, bridges get their towers, highways get gantries. Sparse everywhere —
