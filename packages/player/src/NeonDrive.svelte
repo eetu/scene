@@ -265,6 +265,16 @@
       t: number;
     } | null = null;
     let meteorAt = -99;
+    /**
+     * A single aircraft light, crossing the whole sky over half a minute.
+     *
+     * The quietest event the scene has: two pixels, one of which blinks. It is here
+     * because an empty road wants company that does not arrive — something moving
+     * far enough away to be no company at all. Nothing about it reacts to the
+     * music, and it takes long enough to cross that noticing it is luck.
+     */
+    let plane: { x: number; y: number; dir: 1 | -1; t: number; life: number } | null = null;
+    let planeAt = -99;
 
     const RAIN = 300;
     const rainD = Array.from({ length: RAIN }, () => ({
@@ -354,6 +364,25 @@
         // pixel each leaves them touching at the corners and the streak reads as
         // a dotted line. Overlapping by a column makes it one mark travelling.
         g.fillRect(meteor.dir > 0 ? px : px - 2, py, 3, 1);
+      }
+    }
+
+    /** The aircraft: a steady lamp and a red beacon that blinks over it. Drawn with
+     *  the stars because that is how far away it is. */
+    function paintPlane(g: CanvasRenderingContext2D, sky: Sky) {
+      if (!plane) return;
+      const across = (plane.t / plane.life) * (bw + 8);
+      const x = Math.round(plane.dir > 0 ? plane.x + across : plane.x - across);
+      const y = Math.round(plane.y);
+      if (x < 0 || x >= bw) return;
+      // It fades with the cloud the same way the stars do — it is behind the same air.
+      const a = clamp01(sky.stars * 0.9);
+      if (a < 0.05) return;
+      g.fillStyle = `rgba(220,228,255,${0.5 * a})`;
+      g.fillRect(x, y, 1, 1);
+      if (Math.sin(plane.t * 2.6) > 0.72) {
+        g.fillStyle = `rgba(255,80,90,${0.85 * a})`;
+        g.fillRect(x - plane.dir, y, 1, 1);
       }
     }
 
@@ -1267,6 +1296,22 @@
           // Shooting stars: only where there are stars to shoot, so the cloudy
           // moods never get one, and roughly one every half minute at best. Rare
           // enough that catching one is luck rather than a feature of the scene.
+          // Needs a sky worth crossing — in a downpour there is nothing to see — and
+          // a long gap, because two aircraft in a minute is an airport, not a night.
+          if (plane) {
+            plane.t += dt;
+            if (plane.t > plane.life) plane = null;
+          } else if (sky.stars > 0.25 && clock - planeAt > 90 && Math.random() < dt * 0.02) {
+            planeAt = clock;
+            const dir: 1 | -1 = Math.random() < 0.5 ? 1 : -1;
+            plane = {
+              x: dir > 0 ? -4 : bw + 4,
+              y: 6 + Math.random() * 26,
+              dir,
+              t: 0,
+              life: 26 + Math.random() * 16,
+            };
+          }
           if (meteor) {
             meteor.t += dt;
             if (meteor.t > meteor.life) meteor = null;
@@ -1305,6 +1350,7 @@
         paintLightning(p, sky, 0);
         paintStars(p, sky, bands.treble);
         paintMeteor(p);
+        paintPlane(p, sky);
         paintMoon(p, sky, Math.round(bw * 0.72), 30, phase);
         paintClouds(p, sky);
         paintSkyline(
@@ -1358,6 +1404,23 @@
           p.fillStyle = rgb(sky.grade, sky.gradeA);
           p.fillRect(0, 0, bw, bh);
         }
+        // A vignette, last of all. It pulls the eye to the middle of the frame where
+        // the car is, and it quietens the corners — which is where the busiest,
+        // least interesting things live: the ends of the rail band and the lane
+        // furniture running off both edges. Cheap, and it costs a dark scene nothing
+        // to be a little darker at its edges.
+        const vig = p.createRadialGradient(
+          bw / 2,
+          bh * 0.62,
+          bh * 0.35,
+          bw / 2,
+          bh * 0.62,
+          bw * 0.62,
+        );
+        vig.addColorStop(0, "rgba(0,0,0,0)");
+        vig.addColorStop(1, "rgba(0,0,0,0.34)");
+        p.fillStyle = vig;
+        p.fillRect(0, 0, bw, bh);
 
         // Magnify. Nearest-neighbour is the point: this is the step that turns
         // the buffer's pixels into the picture's pixels.
