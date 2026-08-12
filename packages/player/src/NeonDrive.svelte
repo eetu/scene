@@ -91,8 +91,11 @@
   const RAIL_Y = HORIZON + 9; // the guardrail on the far side of the road
   const GROUND_Y = 128; // the car's contact line
 
-  const FAR_SPAN = 420;
-  const MID_SPAN = 520;
+  // Wider strips than the towers used to need: the buildings below are between
+  // two and three times their old width, so the same span held a third as many of
+  // them and the repeat came round fast enough to notice.
+  const FAR_SPAN = 700;
+  const MID_SPAN = 900;
 
   // Mostly the scene's two colours; a minority of windows are the old sodium
   // yellow, which is what keeps the other two reading as neon.
@@ -158,22 +161,22 @@
       const rnd = rng(hashSeed(key || "drive"));
       far = buildSkyline(rnd, {
         span: FAR_SPAN,
-        minW: 5,
-        maxW: 13,
-        minH: 12,
-        maxH: 38,
+        minW: 10,
+        maxW: 30,
+        minH: 14,
+        maxH: 34,
         windows: false,
         crowns: CROWN_NAMES.length,
       });
       midCity = buildSkyline(rnd, {
         span: MID_SPAN,
-        minW: 9,
-        maxW: 22,
-        minH: 22,
-        maxH: 74,
+        minW: 18,
+        maxW: 46,
+        minH: 24,
+        maxH: 62,
         windows: true,
         channels: 8,
-        signs: 0.34,
+        signs: 0.44,
         signSprites: SIGN_NAMES.length,
         signSizes: SIGN_SIZES,
         crowns: CROWN_NAMES.length,
