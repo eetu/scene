@@ -1,0 +1,33 @@
+{
+  "name": "station",
+  "w": 30,
+  "h": 16,
+  "palette": {
+    "K": "#171220",
+    "k": "#241a33",
+    "R": "#d8483f",
+    "W": "#ffd9a0",
+    "w": "#b98a53",
+    "G": "#2a3550"
+  },
+  "frames": [
+    [
+      "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+      "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKK",
+      "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
+      ".WWWWWWWWWWWWWWWWWWWWWWWWWWWW.",
+      "...KK...............KK........",
+      "...KK...............KK........",
+      "...KK...............KKKKKKKKKK",
+      "...KK...............KKKKKKKKKK",
+      "...KK...............KKKGGGGGKK",
+      "...KK...KKKK..KKKK..KKKGWWWGKK",
+      "...KK...KwwK..KwwK..KKKGGGGGKK",
+      "...KK...KRKK..KRKK..KKKKKKKKKK",
+      "...KK...KKKK..KKKK..KKKKKKKKKK",
+      "...KK...KKKK..KKKK..KKKKKKKKKK",
+      "...KK...KKKK..KKKK..KKKKKKKKKK",
+      "kkkkkkkkkkkkkkkkkkkkkkKKKKKKKK"
+    ]
+  ]
+}
