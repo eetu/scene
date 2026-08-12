@@ -1296,6 +1296,14 @@
         paintRain(p, sky, wind);
         paintSnow(p, sky, wind);
         paintLightning(p, sky);
+        // The mood's colour cast, over the finished picture. Last, so it ties the
+        // sky, the city, the road and the weather into one image — the wet moods
+        // used to be the clear one with rain on top, because every layer below the
+        // sky carried its own fixed palette regardless of the weather.
+        if (sky.gradeA > 0.005) {
+          p.fillStyle = rgb(sky.grade, sky.gradeA);
+          p.fillRect(0, 0, bw, bh);
+        }
 
         // Magnify. Nearest-neighbour is the point: this is the step that turns
         // the buffer's pixels into the picture's pixels.

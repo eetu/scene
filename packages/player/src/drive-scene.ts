@@ -98,6 +98,17 @@ export type Sky = {
   bolt: number;
   top: RGB;
   horizon: RGB;
+  /**
+   * A veil laid over the finished frame — the mood's colour cast.
+   *
+   * Film grades the whole image, not the sky: without this the wet moods were the
+   * clear one with rain drawn on top, because every layer below the sky kept its
+   * own fixed palette. One translucent fill over everything ties the frame
+   * together and is the cheapest strong mood lever in the scene.
+   */
+  grade: RGB;
+  /** How much of that veil. Small numbers — this is a cast, not a filter. */
+  gradeA: number;
 };
 
 /** The five skies. Always night — these differ in weather, never in hour.
@@ -117,6 +128,8 @@ export const SKY: Record<Mood, Sky> = {
     bolt: 0,
     top: [8, 4, 26],
     horizon: [96, 16, 88],
+    grade: [36, 22, 96],
+    gradeA: 0.05,
   },
   drizzle: {
     stars: 0.32,
@@ -129,6 +142,8 @@ export const SKY: Record<Mood, Sky> = {
     bolt: 0,
     top: [12, 8, 32],
     horizon: [78, 18, 82],
+    grade: [46, 48, 104],
+    gradeA: 0.08,
   },
   rain: {
     stars: 0.12,
@@ -141,6 +156,8 @@ export const SKY: Record<Mood, Sky> = {
     bolt: 0,
     top: [10, 8, 28],
     horizon: [66, 14, 74],
+    grade: [32, 58, 100],
+    gradeA: 0.14,
   },
   storm: {
     stars: 0.04,
@@ -153,6 +170,8 @@ export const SKY: Record<Mood, Sky> = {
     bolt: 1,
     top: [8, 6, 20],
     horizon: [56, 10, 64],
+    grade: [18, 62, 62],
+    gradeA: 0.24,
   },
   snow: {
     stars: 0.34,
@@ -165,6 +184,8 @@ export const SKY: Record<Mood, Sky> = {
     bolt: 0,
     top: [16, 12, 38],
     horizon: [84, 30, 96],
+    grade: [120, 96, 128],
+    gradeA: 0.09,
   },
 };
 
@@ -198,6 +219,8 @@ export function mixSky(a: Sky, b: Sky, t: number): Sky {
     bolt: mix(a.bolt, b.bolt, f),
     top: mixRgb(a.top, b.top, f),
     horizon: mixRgb(a.horizon, b.horizon, f),
+    grade: mixRgb(a.grade, b.grade, f),
+    gradeA: mix(a.gradeA, b.gradeA, f),
   };
 }
 
