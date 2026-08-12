@@ -1150,17 +1150,20 @@
      * pass runs at the end and is what a close strike adds: a weaker wash over the
      * whole picture, road and car included.
      */
-    function paintLightning(g: CanvasRenderingContext2D, sky: Sky, behind: boolean) {
+    function paintLightning(g: CanvasRenderingContext2D, sky: Sky, stage: 0 | 1 | 2) {
       if (flash < 0.01) return;
       const a = flash * sky.bolt * (motion < 1 ? 0.25 : 1);
       // A distant strike puts almost everything into the sky pass; a near one keeps
-      // most of it for the pass over the finished frame.
-      const share = behind ? [1, 0.55, 0.2][boltDepth] : [0.12, 0.4, 0.75][boltDepth];
-      if (share <= 0) return;
-      if (behind) {
+      // most of it for the pass over the finished frame. The middle stage carries no
+      // wash at all — it exists so a bolt can stand between two layers.
+      const share =
+        stage === 0 ? [1, 0.55, 0.2][boltDepth] : stage === 2 ? [0.12, 0.4, 0.75][boltDepth] : 0;
+      const mine = boltDepth === stage;
+      if (share <= 0 && !mine) return;
+      if (stage === 0) {
         g.fillStyle = `rgba(226,214,255,${Math.min(0.62, a * 0.62 * share)})`;
         g.fillRect(0, 0, bw, HORIZON + 6);
-      } else {
+      } else if (stage === 2) {
         // Over everything, and dimmer toward the bottom: the flash reaches the far
         // road before it reaches the tarmac under the car.
         const wash = g.createLinearGradient(0, 0, 0, bh);
@@ -1169,13 +1172,20 @@
         g.fillStyle = wash;
         g.fillRect(0, 0, bw, bh);
       }
-      // The bolt itself is drawn in the pass that owns it, so the towers occlude a
-      // far one and a near one crosses in front of them.
-      if (behind !== boltDepth < 2) return;
+      // The bolt itself belongs to ONE stage, which is what puts it in the
+      // parallax: struck behind the far city it is drawn before either skyline and
+      // both of them occlude it; struck between them it is drawn over the far towers
+      // and the near ones cut across it; struck in front it crosses everything. The
+      // same three slots the scene already builds its depth out of.
+      if (!mine) return;
       if (bolt.length < 2 || flash <= 0.35) return;
+      // And it reaches only as far down as its own layer's feet — a bolt behind the
+      // far city ending on the road would give the whole trick away.
+      const floor = [FAR_BASE - 4, MID_BASE - 2, GROUND_Y - 18][boltDepth];
       for (let i = 1; i < bolt.length; i++) {
         const a0 = bolt[i - 1];
         const b0 = bolt[i];
+        if (a0.y > floor) break;
         const steps = Math.max(1, Math.round(b0.y - a0.y));
         for (let s = 0; s <= steps; s++) {
           const t = s / steps;
@@ -1289,7 +1299,7 @@
         const phase = moonPhaseAt(clock, moonOffset);
 
         paintSky(p, sky);
-        paintLightning(p, sky, true);
+        paintLightning(p, sky, 0);
         paintStars(p, sky, bands.treble);
         paintMeteor(p);
         paintMoon(p, sky, Math.round(bw * 0.72), 30, phase);
@@ -1307,6 +1317,7 @@
           bands.mid,
           1,
         );
+        paintLightning(p, sky, 1); // over the far city, under the near one
         collectReflections(midCity, 0.22, bands.mid);
         paintSkyline(
           p,
@@ -1335,7 +1346,7 @@
         );
         paintRain(p, sky, wind);
         paintSnow(p, sky, wind);
-        paintLightning(p, sky, false);
+        paintLightning(p, sky, 2);
         // The mood's colour cast, over the finished picture. Last, so it ties the
         // sky, the city, the road and the weather into one image — the wet moods
         // used to be the clear one with rain on top, because every layer below the
