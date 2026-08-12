@@ -92,6 +92,29 @@ describe("the city", () => {
     expect(dark.length).toBeLessThan(layer.towers.length);
   });
 
+  test("a street may carry one filling station, and nothing stands in its forecourt", () => {
+    // Seeds vary, so look across several: the station is a per-street coin toss and
+    // a single seed can legitimately have none.
+    let stations = 0;
+    for (const seed of ["a", "b", "c", "d", "e", "f", "g", "h"]) {
+      const rnd = rng(hashSeed(seed));
+      const route = buildRoute(rnd);
+      const props = buildProps(rnd, route);
+      for (const s of props.filter((p) => p.kind === "station")) {
+        stations++;
+        // Its light and its canopy own the ground around it.
+        for (const other of props) {
+          if (other === s) continue;
+          expect(Math.abs(other.x - s.x)).toBeGreaterThan(24);
+        }
+      }
+      // One per street at most — never two in a row.
+      const xs = props.filter((p) => p.kind === "station").map((p) => p.x);
+      expect(new Set(xs).size).toBe(xs.length);
+    }
+    expect(stations).toBeGreaterThan(0);
+  });
+
   test("props are spaced out — this layer is close enough to strobe", () => {
     const rnd = rng(hashSeed("props"));
     const route = buildRoute(rnd);

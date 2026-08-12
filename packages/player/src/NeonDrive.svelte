@@ -741,6 +741,37 @@
             drawSprite(g, atlas, "gantry", sx - 11, RAIL_Y - r.h, failing ? 1 : 0, pr.hue);
             continue;
           }
+          if (pr.kind === "station") {
+            const r = atlas.rect("station");
+            if (!r) continue;
+            const y = RAIL_Y - r.h + 2; // its forecourt sits just over the rail line
+            // The one warm light in the scene, and the only one that comes from a
+            // structure you can see. Everything else here is neon or moonlight, so
+            // this reads as somewhere still open on an empty road — which is the
+            // whole reason it exists. Drawn as light BEFORE the building, so the
+            // canopy sits inside its own glow rather than on top of it.
+            const cx = sx + r.w / 2;
+            const warm = 0.5 + level * 0.2;
+            const halo = g.createRadialGradient(cx, y + r.h, 2, cx, y + r.h, r.w * 0.9);
+            halo.addColorStop(0, `rgba(255,206,138,${0.3 * warm})`);
+            halo.addColorStop(0.55, `rgba(255,170,96,${0.12 * warm})`);
+            halo.addColorStop(1, "rgba(255,150,70,0)");
+            g.fillStyle = halo;
+            g.fillRect(sx - 20, y - 6, r.w + 40, r.h + 26);
+            drawSprite(g, atlas, "station", sx, y);
+            // Its light on the road: a pool under the canopy, and a longer smear
+            // when the tarmac is wet, the way the signs bleed.
+            const reach = Math.round(10 + sky.wet * 22);
+            for (let i = 0; i < reach; i++) {
+              const t = i / reach;
+              const a = (1 - t) * (1 - t) * (0.3 + sky.wet * 0.34) * warm;
+              if (a < 0.02) continue;
+              const spread = Math.round(r.w * (0.5 + t * 0.35));
+              g.fillStyle = `rgba(255,190,120,${a})`;
+              g.fillRect(Math.round(cx - spread / 2), RAIL_Y + 2 + i, spread, 1);
+            }
+            continue;
+          }
           g.fillStyle = "#1b0f2a";
           g.fillRect(sx, RAIL_Y, 1, 4); // rail post
           if (pr.kind === "palm") {

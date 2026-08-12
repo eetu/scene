@@ -470,7 +470,7 @@ export function routeAt(segs: Segment[], span: number, x: number): Segment {
 export type Prop = {
   x: number;
   /** Names a sprite on the sheet. */
-  kind: "lamp" | "pylon" | "palm" | "pylonTower" | "gantry";
+  kind: "lamp" | "pylon" | "palm" | "pylonTower" | "gantry" | "station";
   hue: 0 | 1;
   /** Which animation frame this one starts on, so a row of palms doesn't sway
    *  in lockstep. */
@@ -553,13 +553,31 @@ export function buildProps(rnd: () => number, segs: Segment[]): Prop[] {
       }
       continue;
     }
+    // At most one filling station per street, and not on every street. It is the
+    // only lit STRUCTURE on this road, so it has to be something you drive up to
+    // rather than scenery that repeats — and it is where the scene's one warm
+    // light comes from, which only works if it is rare.
+    const station =
+      seg.len > 420 && rnd() < 0.55 ? Math.round(seg.start + 120 + rnd() * (seg.len - 300)) : null;
+    // Gathered and sorted rather than pushed as they are decided: the list is
+    // consumed in order and every reader assumes ascending x, so dropping the
+    // station in first would put one prop out of sequence.
+    const here: Prop[] = [];
+    if (station !== null) here.push({ x: station, kind: "station", hue: 0, phase: rnd() * TAU });
+
     let x = seg.start + 10;
     while (x < seg.start + seg.len - 10) {
-      const roll = rnd();
-      const kind: Prop["kind"] = roll < 0.55 ? "lamp" : roll < 0.78 ? "palm" : "pylon";
-      props.push({ x, kind, hue: rnd() < 0.5 ? 0 : 1, phase: rnd() * TAU });
+      // Nothing else stands in the station's forecourt: a lamp post growing through
+      // the canopy is the tell of furniture that does not know the building is there.
+      if (station === null || Math.abs(x - station) > 40) {
+        const roll = rnd();
+        const kind: Prop["kind"] = roll < 0.55 ? "lamp" : roll < 0.78 ? "palm" : "pylon";
+        here.push({ x, kind, hue: rnd() < 0.5 ? 0 : 1, phase: rnd() * TAU });
+      }
       x += Math.round(30 + rnd() * 44);
     }
+    here.sort((a, b) => a.x - b.x);
+    props.push(...here);
   }
   return props;
 }
