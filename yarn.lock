@@ -807,10 +807,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sveltejs/load-config@npm:^0.2.1":
-  version: 0.2.1
-  resolution: "@sveltejs/load-config@npm:0.2.1"
-  checksum: 10/c850d7d04fee34c5a2842bf7c0f32baf396be7b91ec457f52d871112bbb04ef4f4154a0717d29da17d4fa94a6cbdfddf8dd453e842e853ae5a7d7dd8050b5792
+"@sveltejs/load-config@npm:^0.2.2":
+  version: 0.2.3
+  resolution: "@sveltejs/load-config@npm:0.2.3"
+  checksum: 10/cafc9bdf01ff68af1dbba16c416f688a855e0090497fb6855925177ae030775a5c0919243ffd6633046bb22f195e3f128a823345929f26acbf10490777caf030
   languageName: node
   linkType: hard
 
@@ -2488,7 +2488,7 @@ __metadata:
     prettier: "npm:^3.9.6"
     prettier-plugin-svelte: "npm:^4.0.1"
     svelte: "npm:^5.56.8"
-    svelte-check: "npm:^4.7.4"
+    svelte-check: "npm:^4.7.5"
     typescript: "npm:^6.0.2"
     vite: "npm:^8.2.1"
     vite-plugin-qrcode: "npm:^0.4.1"
@@ -2906,12 +2906,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"svelte-check@npm:^4.7.4":
-  version: 4.7.4
-  resolution: "svelte-check@npm:4.7.4"
+"svelte-check@npm:^4.7.5":
+  version: 4.7.5
+  resolution: "svelte-check@npm:4.7.5"
   dependencies:
     "@jridgewell/trace-mapping": "npm:^0.3.25"
-    "@sveltejs/load-config": "npm:^0.2.1"
+    "@sveltejs/load-config": "npm:^0.2.2"
     chokidar: "npm:^4.0.1"
     fdir: "npm:^6.2.0"
     picocolors: "npm:^1.0.0"
@@ -2921,7 +2921,7 @@ __metadata:
     typescript: ^5.0.0 || ^6.0.0
   bin:
     svelte-check: bin/svelte-check
-  checksum: 10/741f0a237f5bedf207b9e9e182f42fd2b4c5e9f52260efb5e43c335e732adce9ace8e46427c021f947ef4f4f17edc076085ffc11c6470b427a7b2fb4d6bf6932
+  checksum: 10/8a969c45a857d71e2e02f373a39624c6112c7ddf076b4bf6c6bf59359b41140991627d9e4fd6364a57b0aacf64ce16b2f9f6d4c5d298b7b0ac60c9512060a8e4
   languageName: node
   linkType: hard
 
@@ -3043,7 +3043,7 @@ __metadata:
     prettier: "npm:^3.9.6"
     prettier-plugin-svelte: "npm:^4.0.1"
     svelte: "npm:^5.56.8"
-    svelte-check: "npm:^4.7.4"
+    svelte-check: "npm:^4.7.5"
     typescript: "npm:^6.0.2"
     vite: "npm:^8.2.1"
     vite-plugin-qrcode: "npm:^0.4.1"
