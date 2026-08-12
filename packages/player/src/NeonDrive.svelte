@@ -243,6 +243,16 @@
     let flash = 0; // lightning, decays
     let snowPack = 0; // 0..1 snow settled on the road, slow to arrive and to go
     let boltAt = -99;
+    /**
+     * How far away the current strike is: 0 behind the city, 1 among it, 2 in front.
+     *
+     * One flash painted over the finished frame lights the sky, the buildings, the
+     * road and the car by the same amount, which is the one thing distance never
+     * does — and it is why the old lightning read as a white rectangle rather than
+     * as weather. A strike now belongs to a layer: a far one lights the sky and
+     * leaves the towers as silhouettes in front of it, a near one washes everything.
+     */
+    let boltDepth = 0;
     let bolt: { x: number; y: number }[] = [];
     // One at a time, and only ever in a clear sky. Null when there isn't one.
     let meteor: {
@@ -1134,15 +1144,51 @@
       bolt = pts;
     }
 
-    function paintLightning(g: CanvasRenderingContext2D, sky: Sky) {
+    /**
+     * The flash, painted in two passes at different depths.
+     *
+     * `behind` runs before the skylines: it lights the sky, so every tower drawn
+     * after it becomes a silhouette — which is what a distant storm actually looks
+     * like, and what one flat wash over the finished frame can never be. The second
+     * pass runs at the end and is what a close strike adds: a weaker wash over the
+     * whole picture, road and car included.
+     */
+    function paintLightning(g: CanvasRenderingContext2D, sky: Sky, stage: 0 | 1 | 2) {
       if (flash < 0.01) return;
       const a = flash * sky.bolt * (motion < 1 ? 0.25 : 1);
-      g.fillStyle = `rgba(226,214,255,${Math.min(0.62, a * 0.62)})`;
-      g.fillRect(0, 0, bw, HORIZON + 6);
+      // A distant strike puts almost everything into the sky pass; a near one keeps
+      // most of it for the pass over the finished frame. The middle stage carries no
+      // wash at all — it exists so a bolt can stand between two layers.
+      const share =
+        stage === 0 ? [1, 0.55, 0.2][boltDepth] : stage === 2 ? [0.12, 0.4, 0.75][boltDepth] : 0;
+      const mine = boltDepth === stage;
+      if (share <= 0 && !mine) return;
+      if (stage === 0) {
+        g.fillStyle = `rgba(226,214,255,${Math.min(0.62, a * 0.62 * share)})`;
+        g.fillRect(0, 0, bw, HORIZON + 6);
+      } else if (stage === 2) {
+        // Over everything, and dimmer toward the bottom: the flash reaches the far
+        // road before it reaches the tarmac under the car.
+        const wash = g.createLinearGradient(0, 0, 0, bh);
+        wash.addColorStop(0, `rgba(226,214,255,${Math.min(0.5, a * 0.5 * share)})`);
+        wash.addColorStop(1, `rgba(226,214,255,${Math.min(0.3, a * 0.22 * share)})`);
+        g.fillStyle = wash;
+        g.fillRect(0, 0, bw, bh);
+      }
+      // The bolt itself belongs to ONE stage, which is what puts it in the
+      // parallax: struck behind the far city it is drawn before either skyline and
+      // both of them occlude it; struck between them it is drawn over the far towers
+      // and the near ones cut across it; struck in front it crosses everything. The
+      // same three slots the scene already builds its depth out of.
+      if (!mine) return;
       if (bolt.length < 2 || flash <= 0.35) return;
+      // And it reaches only as far down as its own layer's feet — a bolt behind the
+      // far city ending on the road would give the whole trick away.
+      const floor = [FAR_BASE - 4, MID_BASE - 2, GROUND_Y - 18][boltDepth];
       for (let i = 1; i < bolt.length; i++) {
         const a0 = bolt[i - 1];
         const b0 = bolt[i];
+        if (a0.y > floor) break;
         const steps = Math.max(1, Math.round(b0.y - a0.y));
         for (let s = 0; s <= steps; s++) {
           const t = s / steps;
@@ -1181,6 +1227,9 @@
           if (SKY[mood].bolt > 0.5 && clock - boltAt > 1.2 && Math.random() < 0.3) {
             boltAt = clock;
             flash = 1;
+            // Mostly distant: a bolt in front of the camera every time would be a
+            // strobe, and a storm you are driving *past* is the moodier one.
+            boltDepth = Math.random() < 0.62 ? 0 : Math.random() < 0.75 ? 1 : 2;
             strike(Math.random());
           }
         }
@@ -1253,6 +1302,7 @@
         const phase = moonPhaseAt(clock, moonOffset);
 
         paintSky(p, sky);
+        paintLightning(p, sky, 0);
         paintStars(p, sky, bands.treble);
         paintMeteor(p);
         paintMoon(p, sky, Math.round(bw * 0.72), 30, phase);
@@ -1270,6 +1320,7 @@
           bands.mid,
           1,
         );
+        paintLightning(p, sky, 1); // over the far city, under the near one
         collectReflections(midCity, 0.22, bands.mid);
         paintSkyline(
           p,
@@ -1298,7 +1349,15 @@
         );
         paintRain(p, sky, wind);
         paintSnow(p, sky, wind);
-        paintLightning(p, sky);
+        paintLightning(p, sky, 2);
+        // The mood's colour cast, over the finished picture. Last, so it ties the
+        // sky, the city, the road and the weather into one image — the wet moods
+        // used to be the clear one with rain on top, because every layer below the
+        // sky carried its own fixed palette regardless of the weather.
+        if (sky.gradeA > 0.005) {
+          p.fillStyle = rgb(sky.grade, sky.gradeA);
+          p.fillRect(0, 0, bw, bh);
+        }
 
         // Magnify. Nearest-neighbour is the point: this is the step that turns
         // the buffer's pixels into the picture's pixels.
