@@ -26,12 +26,15 @@
   import { fitCanvas2d } from "./canvas2d";
   import {
     BRIDGE_TOWER_GAP,
+    buildFore,
     buildProps,
     buildRoute,
     buildSkyline,
     clamp01,
     dwellFor,
     FADE,
+    type Fore,
+    FORE_SPAN,
     hashSeed,
     type Layer,
     MARIA,
@@ -148,6 +151,7 @@
     let midCity: Layer = { span: MID_SPAN, towers: [] };
     let route: Segment[] = [{ start: 0, len: ROUTE_SPAN, kind: "street" }];
     let props: Prop[] = [];
+    let fore: Fore[] = [];
     let stars: { x: number; y: number; b: number }[] = [];
 
     function buildWorld(key: string) {
@@ -169,13 +173,14 @@
         maxH: 74,
         windows: true,
         channels: 8,
-        signs: 0.55,
+        signs: 0.34,
         signSprites: SIGN_NAMES.length,
         signSizes: SIGN_SIZES,
         crowns: CROWN_NAMES.length,
       });
       route = buildRoute(rnd);
       props = buildProps(rnd, route);
+      fore = buildFore(rnd);
       stars = Array.from({ length: 90 }, () => ({
         x: rnd(),
         y: 3 + rnd() * (HORIZON - 26),
@@ -429,7 +434,23 @@
       lit: boolean,
       vu: number[],
       mid: number,
+      /**
+       * How far away this layer reads, 0..1 — aerial perspective.
+       *
+       * Distance does not darken, it WASHES OUT: a far tower loses contrast
+       * against the sky it stands in, and that lost contrast is what the eye reads
+       * as distance. Every layer sat in the same register before, so the city was
+       * one busy wall and no amount of detail behind it read as depth. Mixing each
+       * tower toward the sky behind it — more with distance, and more again in
+       * haze — buys the hierarchy back, and it does it by REMOVING contrast rather
+       * than adding anything to look at.
+       */
+      depth: number,
     ) {
+      // Each tower carries its own `shade` (0..1 near→far within its layer), so a
+      // back tower in the mid city hazes more than a front one: depth inside a
+      // layer, not just between them.
+      const wash = (shade: number) => clamp01(depth * (0.42 + sky.haze * 0.5) * (1.25 - shade));
       const off = -(((scroll * factor) % layer.span) + layer.span) % layer.span;
       // As many copies of the strip as the buffer is wide enough to need. A fixed
       // two passes was right while the buffer was narrower than the strip and
@@ -439,10 +460,11 @@
           const sx = Math.round(ox + t.x);
           if (sx + t.w < 0 || sx > bw) continue;
           const dimming = 1 - sky.haze * 0.35;
+          const w0 = wash(t.shade);
           g.fillStyle = rgb([
-            mix(farC[0], near[0], t.shade) * dimming,
-            mix(farC[1], near[1], t.shade) * dimming,
-            mix(farC[2], near[2], t.shade) * dimming,
+            mix(mix(farC[0], near[0], t.shade) * dimming, sky.horizon[0], w0),
+            mix(mix(farC[1], near[1], t.shade) * dimming, sky.horizon[1], w0),
+            mix(mix(farC[2], near[2], t.shade) * dimming, sky.horizon[2], w0),
           ]);
           const topY = baseY - t.h;
           g.fillRect(sx, topY, t.w, t.h);
@@ -468,7 +490,9 @@
             // Every window has its own threshold, so a loud channel lights a
             // block of a tower rather than switching all of it at once.
             if (win.bias > 0.22 + chLevel * 0.6) continue;
-            g.globalAlpha = Math.min(1, (0.35 + chLevel * 0.6) * (1 - sky.haze * 0.5));
+            // Lights wash out with distance too, or a far tower stays a grid of
+            // hard dots on a soft silhouette.
+            g.globalAlpha = Math.min(1, (0.35 + chLevel * 0.6) * (1 - sky.haze * 0.5) * (1 - w0));
             // One hue per tower; the mixed towers (hue 2) split per window, and
             // a few windows everywhere burn the old sodium yellow.
             const hue = win.bias > 0.94 ? 2 : t.hue === 2 ? (win.bias < 0.5 ? 0 : 1) : t.hue;
@@ -481,10 +505,25 @@
             const name = SIGN_NAMES[sign.sprite];
             const r = atlas.rect(name);
             if (!r) continue;
-            const blink = Math.sin(clock * sign.rate + sign.phase);
-            if (blink < -0.8) continue; // a dead beat in the tube
             const x = sx + sign.dx;
             const y = topY + sign.dy;
+            // A dark sign is a panel, not a light: the box it is mounted in, a
+            // shade lighter than the tower so it reads as an object on the wall.
+            // Most of them are these, and that is what makes the lit ones land.
+            if (sign.dead) {
+              g.fillStyle = rgb(
+                [
+                  mix(near[0], sky.horizon[0], w0) + 6,
+                  mix(near[1], sky.horizon[1], w0) + 4,
+                  mix(near[2], sky.horizon[2], w0) + 10,
+                ],
+                1 - w0 * 0.4,
+              );
+              g.fillRect(x, y, r.w, r.h);
+              continue;
+            }
+            const blink = Math.sin(clock * sign.rate + sign.phase);
+            if (blink < -0.8) continue; // a dead beat in the tube
             const glow = 0.4 + 0.35 * Math.max(0, blink) + mid * 0.45;
             g.fillStyle = `rgba(${sign.hue === 0 ? "255,59,212" : "57,246,255"},${Math.min(0.3, glow * 0.2)})`;
             g.fillRect(x - 1, y - 1, r.w + 2, r.h + 2);
@@ -509,6 +548,7 @@
           const sx = Math.round(ox + t.x);
           if (sx + t.w < 0 || sx > bw) continue;
           for (const sign of t.signs) {
+            if (sign.dead) continue; // an unlit panel has nothing to reflect
             const r = atlas.rect(SIGN_NAMES[sign.sprite]);
             if (!r) continue;
             const blink = Math.sin(clock * sign.rate + sign.phase);
@@ -834,6 +874,46 @@
       }
     }
 
+    /**
+     * The foreground: silhouettes passing between the camera and the car.
+     *
+     * Near-black, hard-edged, and fast — 1.7× the road. Depth is sold by something
+     * close sweeping past, not by detail far away, and until this layer existed the
+     * scene was four flat bands however much was drawn behind the car. Deliberately
+     * sparse: this near the camera anything regular reads as a strobe, and anything
+     * wide sits on the car for too long.
+     *
+     * Drawn AFTER the car on purpose. A foreground that the subject occludes is not
+     * a foreground.
+     */
+    function paintFore(g: CanvasRenderingContext2D, sky: Sky) {
+      const off = -(((scroll * 1.7) % FORE_SPAN) + FORE_SPAN) % FORE_SPAN;
+      for (let ox = off; ox <= bw; ox += FORE_SPAN) {
+        for (const f of fore) {
+          const sx = Math.round(ox + f.x);
+          if (sx + f.w < 0 || sx > bw) continue;
+          const h = Math.round(f.h);
+          const y = bh - h;
+          // Not pure black: a hair of the sky's colour keeps it in the same night
+          // as everything else, and lightning has to be able to catch it.
+          g.fillStyle = `rgba(${(sky.top[0] * 0.35) | 0},${(sky.top[1] * 0.35) | 0},${(sky.top[2] * 0.4) | 0},0.97)`;
+          g.fillRect(sx, y, f.w, h);
+          // A lit leading edge, one pixel wide. Without it the lower half of every
+          // silhouette disappears — black on the near tarmac is black — and a shape
+          // that only exists where it crosses the bright band reads as a pole in the
+          // city rather than as something passing close.
+          g.fillStyle = `rgba(${sky.horizon[0] | 0},${sky.horizon[1] | 0},${sky.horizon[2] | 0},0.3)`;
+          g.fillRect(sx, y, 1, h);
+          // A board is a mass on a stem; without the stem it floats.
+          if (f.kind === "board") {
+            g.fillRect(sx + ((f.w / 2) | 0) - 1, y + h - 1, 2, bh - (y + h) + 1);
+            g.fillStyle = `rgba(${sky.horizon[0] | 0},${sky.horizon[1] | 0},${sky.horizon[2] | 0},0.12)`;
+            g.fillRect(sx, y, f.w, 1); // the city behind catching its top edge
+          }
+        }
+      }
+    }
+
     function paintCar(g: CanvasRenderingContext2D, sky: Sky) {
       const cx = Math.round(bw * 0.3);
       // Suspension: a slow float plus a kick on the beat, rounded — a sprite
@@ -1150,7 +1230,19 @@
         paintMeteor(p);
         paintMoon(p, sky, Math.round(bw * 0.72), 30, phase);
         paintClouds(p, sky);
-        paintSkyline(p, far, 0.08, FAR_BASE, [46, 24, 74], [26, 14, 46], sky, false, vu, bands.mid);
+        paintSkyline(
+          p,
+          far,
+          0.08,
+          FAR_BASE,
+          [46, 24, 74],
+          [26, 14, 46],
+          sky,
+          false,
+          vu,
+          bands.mid,
+          1,
+        );
         collectReflections(midCity, 0.22, bands.mid);
         paintSkyline(
           p,
@@ -1163,6 +1255,7 @@
           true,
           vu,
           bands.mid,
+          0.42,
         );
         paintRoad(p, sky);
         paintBand(p, sky);
@@ -1170,6 +1263,7 @@
         paintTarmac(p);
         paintSnowpack(p, sky);
         paintCar(p, sky);
+        paintFore(p, sky);
         // Gusts: two slow sines with no common period, so the wind rises and
         // drops without ever repeating on a beat you could count.
         const wind = clamp01(
