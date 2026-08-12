@@ -12,6 +12,8 @@
 import { SvelteMap } from "svelte/reactivity";
 
 import { api, type Track } from "$lib/api";
+import { STANDALONE } from "$lib/standalone";
+import * as standalone from "$lib/standalone/store.svelte";
 
 const cache = new SvelteMap<number, Track>();
 
@@ -40,6 +42,22 @@ export function peek(id: number): Track | null {
 export async function hydrate(ids: number[]): Promise<void> {
   const missing = ids.filter((id) => id > 0 && !cache.has(id) && !inFlight.has(id));
   if (!missing.length) return;
+
+  // The backend-less build has no `/api/tracks/batch` to ask: the rows are
+  // already in the browser-local store, and the id stream was shaped from them.
+  // Without this the list renders nothing — the ids arrive, every `peek` misses,
+  // and each row falls back to its placeholder — while the counts, which read the
+  // store directly, look perfectly correct.
+  if (STANDALONE) {
+    // A throwaway index for this call, not state: nothing renders from it.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const byId = new Map(standalone.tracks.map((t) => [t.id, t]));
+    for (const id of missing) {
+      const t = byId.get(id);
+      if (t) cache.set(id, t);
+    }
+    return;
+  }
 
   const batches: Promise<void>[] = [];
   for (let i = 0; i < missing.length; i += BATCH) {

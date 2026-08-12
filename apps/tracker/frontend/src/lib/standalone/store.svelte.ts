@@ -55,8 +55,10 @@ async function sha256(buf: ArrayBuffer): Promise<string> {
 }
 
 // The backend's `files.id` has no counterpart here, but Track requires one and
-// the queue keys on it. A monotonic counter is enough: ids only need to be
-// unique and stable for the session (nothing persists them).
+// the queue and the row cache both key on it, so a duplicate resolves the wrong
+// track. Ids DO persist — the catalog is stringified with them in it — so
+// `rehydrate` has to push the counter past whatever it restored, or the first
+// file added after a reload takes an id an existing row already holds.
 let nextId = 1;
 
 function makeTrack(relPath: string, hash: string, size: number): Track {
@@ -366,6 +368,7 @@ export async function rehydrate(): Promise<void> {
     if (!buf) continue; // bytes evicted — drop the stale catalog row
     urls.set(t.hash, URL.createObjectURL(new Blob([buf])));
     tracks.push(t);
+    if (t.id >= nextId) nextId = t.id + 1;
   }
   void parsePending();
 }
