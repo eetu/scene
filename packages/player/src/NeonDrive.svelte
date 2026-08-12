@@ -240,6 +240,16 @@
     let flash = 0; // lightning, decays
     let snowPack = 0; // 0..1 snow settled on the road, slow to arrive and to go
     let boltAt = -99;
+    /**
+     * How far away the current strike is: 0 behind the city, 1 among it, 2 in front.
+     *
+     * One flash painted over the finished frame lights the sky, the buildings, the
+     * road and the car by the same amount, which is the one thing distance never
+     * does — and it is why the old lightning read as a white rectangle rather than
+     * as weather. A strike now belongs to a layer: a far one lights the sky and
+     * leaves the towers as silhouettes in front of it, a near one washes everything.
+     */
+    let boltDepth = 0;
     let bolt: { x: number; y: number }[] = [];
     // One at a time, and only ever in a clear sky. Null when there isn't one.
     let meteor: {
@@ -1131,11 +1141,37 @@
       bolt = pts;
     }
 
-    function paintLightning(g: CanvasRenderingContext2D, sky: Sky) {
+    /**
+     * The flash, painted in two passes at different depths.
+     *
+     * `behind` runs before the skylines: it lights the sky, so every tower drawn
+     * after it becomes a silhouette — which is what a distant storm actually looks
+     * like, and what one flat wash over the finished frame can never be. The second
+     * pass runs at the end and is what a close strike adds: a weaker wash over the
+     * whole picture, road and car included.
+     */
+    function paintLightning(g: CanvasRenderingContext2D, sky: Sky, behind: boolean) {
       if (flash < 0.01) return;
       const a = flash * sky.bolt * (motion < 1 ? 0.25 : 1);
-      g.fillStyle = `rgba(226,214,255,${Math.min(0.62, a * 0.62)})`;
-      g.fillRect(0, 0, bw, HORIZON + 6);
+      // A distant strike puts almost everything into the sky pass; a near one keeps
+      // most of it for the pass over the finished frame.
+      const share = behind ? [1, 0.55, 0.2][boltDepth] : [0.12, 0.4, 0.75][boltDepth];
+      if (share <= 0) return;
+      if (behind) {
+        g.fillStyle = `rgba(226,214,255,${Math.min(0.62, a * 0.62 * share)})`;
+        g.fillRect(0, 0, bw, HORIZON + 6);
+      } else {
+        // Over everything, and dimmer toward the bottom: the flash reaches the far
+        // road before it reaches the tarmac under the car.
+        const wash = g.createLinearGradient(0, 0, 0, bh);
+        wash.addColorStop(0, `rgba(226,214,255,${Math.min(0.5, a * 0.5 * share)})`);
+        wash.addColorStop(1, `rgba(226,214,255,${Math.min(0.3, a * 0.22 * share)})`);
+        g.fillStyle = wash;
+        g.fillRect(0, 0, bw, bh);
+      }
+      // The bolt itself is drawn in the pass that owns it, so the towers occlude a
+      // far one and a near one crosses in front of them.
+      if (behind !== boltDepth < 2) return;
       if (bolt.length < 2 || flash <= 0.35) return;
       for (let i = 1; i < bolt.length; i++) {
         const a0 = bolt[i - 1];
@@ -1178,6 +1214,9 @@
           if (SKY[mood].bolt > 0.5 && clock - boltAt > 1.2 && Math.random() < 0.3) {
             boltAt = clock;
             flash = 1;
+            // Mostly distant: a bolt in front of the camera every time would be a
+            // strobe, and a storm you are driving *past* is the moodier one.
+            boltDepth = Math.random() < 0.62 ? 0 : Math.random() < 0.75 ? 1 : 2;
             strike(Math.random());
           }
         }
@@ -1250,6 +1289,7 @@
         const phase = moonPhaseAt(clock, moonOffset);
 
         paintSky(p, sky);
+        paintLightning(p, sky, true);
         paintStars(p, sky, bands.treble);
         paintMeteor(p);
         paintMoon(p, sky, Math.round(bw * 0.72), 30, phase);
@@ -1295,7 +1335,7 @@
         );
         paintRain(p, sky, wind);
         paintSnow(p, sky, wind);
-        paintLightning(p, sky);
+        paintLightning(p, sky, false);
         // The mood's colour cast, over the finished picture. Last, so it ties the
         // sky, the city, the road and the weather into one image — the wet moods
         // used to be the clear one with rain on top, because every layer below the
