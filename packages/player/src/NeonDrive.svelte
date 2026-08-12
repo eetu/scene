@@ -648,8 +648,10 @@
           g.fillRect(x, top, 2, depth);
           const cell = ((u / 6) | 0) * 2654435761;
           if ((cell & 31) === 3) {
-            g.fillStyle = "rgba(255,110,80,0.5)";
-            g.fillRect(x, top + depth - 3 - (cell % 3), 2, 1);
+            // On the far lane's line, not at a random height: scattered dots read
+            // as stray pixels, a run of them at one height reads as traffic.
+            g.fillStyle = "rgba(255,110,80,0.45)";
+            g.fillRect(x, top + depth - 3, 2, 1);
           }
           // Concrete barrier where the others have a rail.
           g.fillStyle = "#38304a";
@@ -661,43 +663,34 @@
             g.fillRect(x, RAIL_Y, 1, 1);
           }
         } else {
-          // Street: shopfront band. Lights are hashed from the world cell, so
-          // they belong to the street rather than to the screen.
+          // Street: a dark mass, and nothing else.
+          //
+          // This strip is the furthest GROUND in the picture, sitting on the
+          // horizon under towers that wash out with distance, so it belongs to the
+          // haze rather than to the detail budget. It used to carry lights at random
+          // heights in three colours and a strand of paper lanterns; at this
+          // resolution that is confetti — unidentifiable shapes in unexplained
+          // colours, which read as artifacts. A lit window is also a promise: it
+          // says there is a building there, and there is not. If this band ever
+          // gets light again it should come from something you can see — a gas
+          // station, a shuttered shop — passing as an event, not from a strip of
+          // free-floating pixels.
           g.fillStyle = "#100820";
           g.fillRect(x, top, 2, depth);
-          const cell = ((u / 8) | 0) * 2654435761;
-          if ((cell & 7) < 2) {
-            const warm = (cell & 63) < 9;
-            const colour = warm ? "255,208,112" : cell & 8 ? "255,59,212" : "57,246,255";
-            const a = (0.3 + level * 0.35) * (1 - sky.haze * 0.4);
-            g.fillStyle = `rgba(${colour},${a})`;
-            g.fillRect(x, top + 1 + ((cell >> 4) % Math.max(1, depth - 2)), 2, 1);
-          }
-          // Paper lanterns strung over the shopfronts: the one warm red in the
-          // scene, and what says this street has a market on it rather than an
-          // office block. Strung in runs with dark stretches between — a lantern
-          // every eighth pixel forever is bunting, not a shopfront.
-          const strand = ((u / 112) | 0) * 2654435761;
-          if ((strand & 7) === 1) {
-            const local = ((u % 112) + 112) % 112;
-            // The wire sags between its two ends, and the lanterns hang off it.
-            const sag = Math.round(Math.sin((local / 112) * Math.PI) * 2.4);
-            g.fillStyle = "rgba(90,60,110,0.5)";
-            g.fillRect(x, top + sag, 2, 1);
-            if (local % 10 < 2) {
-              const lit = 0.34 + level * 0.26 + Math.sin(clock * 1.6 + local) * 0.06;
-              g.fillStyle = `rgba(255,86,72,${lit})`;
-              g.fillRect(x, top + sag + 1, 2, 2);
-              g.fillStyle = `rgba(255,180,120,${lit * 0.5})`;
-              g.fillRect(x, top + sag + 1, 2, 1);
-            }
-          }
           g.fillStyle = "#241536";
           g.fillRect(x, RAIL_Y, 2, 2);
           g.fillStyle = "rgba(120,90,180,0.35)";
           g.fillRect(x, RAIL_Y, 2, 1);
         }
       }
+
+      // The band belongs to the haze. It is the furthest GROUND in the picture —
+      // it sits on the horizon, under towers that now wash out with distance — so
+      // without this it stayed the one crisp, contrasty stripe in the frame and
+      // pulled the eye straight to it.
+      const bandWash = 0.12 + sky.haze * 0.22;
+      g.fillStyle = rgb(sky.horizon, bandWash);
+      g.fillRect(0, top, bw, depth);
 
       // Bridge main cables: sagging between towers, drawn from the same grid
       // arithmetic that placed the towers so they always meet at the saddles.
