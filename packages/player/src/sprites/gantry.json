@@ -3,9 +3,13 @@
   "w": 22,
   "h": 16,
   "palette": {
-    "P": "#0b0512"
+    "P": "#0b0512",
+    "N": "#ff3bd4",
+    "n": "#6b1859"
   },
-  "tints": ["#ff3bd4", "#39f6ff"],
+  "variants": {
+    "cyan": {"N":"#39f6ff","n":"#17676b"}
+  },
   "frames": [
     [
       "PPPPPPPPPPPPPPPPPPPPPP",

@@ -17,48 +17,43 @@ export type SpriteFile = {
   /** Character → `#rrggbb`. Order is the palette's order in the editor. */
   palette: Record<string, string>;
   /**
-   * Optional recolour targets. `N` (bright) and `n` (dim) are baked once per
-   * entry, so one tube sprite can be magenta on one building and cyan on the
-   * next without a filter pass at runtime.
+   * Named alternate colours, each overriding a subset of `palette`. A consumer
+   * picks one by name; nothing here is required, and a sprite with no variants
+   * is simply drawn in its palette.
+   *
+   * This replaced a `tints` list plus two reserved characters (`N` bright, `n`
+   * dim) that took their colour from it. Variants do everything that did without
+   * reserving anything: a tube is an ordinary palette entry, and a second colour
+   * for it is a variant that recolours that entry. What is genuinely lost is that
+   * the dim half used to be DERIVED from the bright one — now it is a second hex
+   * to keep in step — and that is a consumer's problem to solve at bake time if
+   * it cares, not a reason for a general format to own two characters.
    */
-  tints?: string[];
+  variants?: Record<string, Record<string, string>>;
   /** One entry per animation frame; each is `h` rows of `w` characters. */
   frames: string[][];
 };
 
 export const TRANSPARENT = ".";
-/** Characters the tint pass owns — they take their colour from `tints`. */
-export const NEON_CHARS = ["N", "n"] as const;
-
-/** How dim the `n` half of a tube is against its `N` half. */
-export const NEON_DIM = 0.42;
 
 /**
- * The colour a neon cell bakes to.
+ * What a cell paints as: the variant's colour for that character if the named
+ * variant has one, otherwise the palette's.
  *
- * Lives here rather than in the renderer because the editor has to show what
- * the scene will bake — two copies of this number is two pictures that disagree.
+ * This is the whole rule a consumer needs — the reason the format is the contract
+ * and there is no library to depend on.
  */
-export function neonColour(hex: string, ch: string): string {
-  if (ch !== "n") return hex;
-  const n = parseInt(hex.slice(1), 16);
-  const r = ((n >> 16) & 255) * NEON_DIM;
-  const g = ((n >> 8) & 255) * NEON_DIM;
-  const b = (n & 255) * NEON_DIM;
-  return `rgb(${r | 0},${g | 0},${b | 0})`;
-}
-
-/** The tints a sprite gets when it is first made tintable: the scene's two. */
-export const DEFAULT_TINTS = ["#ff3bd4", "#39f6ff"];
-
-/** What a cell paints as, given the sprite and which tint is being previewed. */
-export function cellColour(s: SpriteFile, ch: string, tint = 0): string | null {
+export function cellColour(s: SpriteFile, ch: string, variant?: string | null): string | null {
   if (ch === TRANSPARENT) return null;
-  if (ch === "N" || ch === "n") {
-    return neonColour(s.tints?.[tint] ?? s.tints?.[0] ?? DEFAULT_TINTS[0], ch);
+  if (variant) {
+    const alt = s.variants?.[variant]?.[ch];
+    if (alt) return alt;
   }
   return s.palette[ch] ?? null;
 }
+
+/** The variant names a sprite offers, in declaration order. */
+export const variantNames = (s: SpriteFile): string[] => Object.keys(s.variants ?? {});
 
 export const blankFrame = (w: number, h: number): string[] =>
   Array.from({ length: h }, () => TRANSPARENT.repeat(w));
@@ -71,7 +66,9 @@ export function blankSprite(name: string, w: number, h: number): SpriteFile {
 export const cloneSprite = (s: SpriteFile): SpriteFile => ({
   ...s,
   palette: { ...s.palette },
-  tints: s.tints ? [...s.tints] : undefined,
+  variants: s.variants
+    ? Object.fromEntries(Object.entries(s.variants).map(([k, v]) => [k, { ...v }]))
+    : undefined,
   frames: s.frames.map((f) => [...f]),
 });
 
@@ -97,9 +94,33 @@ export function validateSprite(s: unknown): string[] {
       if (!/^#[0-9a-fA-F]{6}$/.test(hex)) errors.push(`${ch} is not a #rrggbb colour: ${hex}`);
     }
   }
+  // A variant may only recolour characters the palette already has: every cell
+  // needs a colour with no variant selected, or a sprite would draw with holes
+  // for anyone who ignored the variants.
+  if (sp.variants !== undefined) {
+    if (typeof sp.variants !== "object" || Array.isArray(sp.variants)) {
+      errors.push("variants must be an object of name → { character: colour }");
+    } else {
+      for (const [name, colours] of Object.entries(sp.variants)) {
+        if (!name) errors.push("a variant has no name");
+        if (!colours || typeof colours !== "object" || Array.isArray(colours)) {
+          errors.push(`variant ${name} is not an object of character → colour`);
+          continue;
+        }
+        for (const [ch, hex] of Object.entries(colours)) {
+          if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
+            errors.push(`variant ${name}: ${ch} is not a #rrggbb colour: ${hex}`);
+          }
+          if (!(ch in (sp.palette ?? {}))) {
+            errors.push(`variant ${name} recolours ${ch}, which the palette does not have`);
+          }
+        }
+      }
+    }
+  }
   if (!Array.isArray(sp.frames) || sp.frames.length === 0) errors.push("frames is empty");
   else {
-    const known = new Set([...Object.keys(sp.palette ?? {}), TRANSPARENT, ...NEON_CHARS]);
+    const known = new Set([...Object.keys(sp.palette ?? {}), TRANSPARENT]);
     sp.frames.forEach((frame, fi) => {
       if (!Array.isArray(frame) || frame.length !== sp.h) {
         errors.push(
@@ -384,14 +405,21 @@ export function toJson(s: SpriteFile): string {
   const frames = s.frames
     .map((f) => `    [\n${f.map((row) => `      ${JSON.stringify(row)}`).join(",\n")}\n    ]`)
     .join(",\n");
-  const tints = s.tints?.length ? `  "tints": ${JSON.stringify(s.tints)},\n` : "";
+  const names = Object.entries(s.variants ?? {});
+  const variants = names.length
+    ? `  "variants": {\n` +
+      names
+        .map(([name, colours]) => `    ${JSON.stringify(name)}: ${JSON.stringify(colours)}`)
+        .join(",\n") +
+      `\n  },\n`
+    : "";
   return (
     `{\n` +
     `  "name": ${JSON.stringify(s.name)},\n` +
     `  "w": ${s.w},\n` +
     `  "h": ${s.h},\n` +
     `  "palette": {\n${pal}\n  },\n` +
-    tints +
+    variants +
     `  "frames": [\n${frames}\n  ]\n` +
     `}\n`
   );

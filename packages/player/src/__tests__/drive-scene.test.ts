@@ -28,7 +28,7 @@ import {
   SKY,
 } from "../drive-scene";
 import { CROWN_NAMES, LANDMARK_NAMES, SIGN_NAMES, SPRITES } from "../drive-sprites";
-import { validateSprite } from "../sprite-file";
+import { validateSprite, variantNames } from "../sprite-file";
 
 const skyline = (seed: number) =>
   buildSkyline(rng(seed), {
@@ -375,11 +375,29 @@ describe("the sprite sheet", () => {
     }
   });
 
-  test("tinted sprites carry tints, and only they use the neon characters", () => {
+  test("the two-colour sprites offer the scene's second colour as a variant", () => {
+    // The signs and the roadside tubes are drawn magenta on one building and cyan on
+    // the next, which the atlas does by baking a sprite once per look. A tube sprite
+    // with no variant would bake one look and silently come out magenta everywhere.
+    for (const name of [...SIGN_NAMES, "lamp", "gantry"]) {
+      expect(variantNames(SPRITES[name]), `${name} offers the scene no second colour`).toEqual([
+        "cyan",
+      ]);
+    }
+  });
+
+  test("a variant only ever recolours, never introduces", () => {
+    // The whole reason the format needs no reserved characters: a variant is a
+    // recolour of the palette, so every cell has a colour with no variant selected.
     for (const [key, sprite] of Object.entries(SPRITES)) {
-      const usesNeon = sprite.frames.some((f) => f.some((r) => /[Nn]/.test(r)));
-      if (usesNeon)
-        expect(sprite.tints?.length, `${key} uses N/n but names no tints`).toBeGreaterThan(0);
+      for (const [variant, colours] of Object.entries(sprite.variants ?? {})) {
+        for (const ch of Object.keys(colours)) {
+          expect(
+            sprite.palette,
+            `${key}/${variant} recolours ${ch}, which it has no colour for`,
+          ).toHaveProperty(ch);
+        }
+      }
     }
   });
 });
