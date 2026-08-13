@@ -206,6 +206,21 @@ export function nextMood(current: Mood, rnd: () => number): Mood {
   return others[Math.min(others.length - 1, (rnd() * others.length) | 0)];
 }
 
+/**
+ * An index other than the one in use — the rule the moods already follow, for the
+ * things that are picked from a short list.
+ *
+ * `current` of -1 means nothing has been picked yet, so anything goes. Otherwise a
+ * repeat is impossible: with three of something, drawing the same one twice running
+ * reads as the picker having stalled rather than as chance.
+ */
+export function nextOther(current: number, count: number, rnd: () => number): number {
+  if (count <= 1) return 0;
+  if (current < 0 || current >= count) return Math.min(count - 1, (rnd() * count) | 0);
+  const roll = Math.min(count - 2, (rnd() * (count - 1)) | 0);
+  return roll >= current ? roll + 1 : roll;
+}
+
 export function mixSky(a: Sky, b: Sky, t: number): Sky {
   const f = clamp01(t);
   return {

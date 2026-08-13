@@ -65,6 +65,17 @@ export const SIGN_SIZES: ReadonlyArray<{ w: number; h: number }> = SIGN_NAMES.ma
 }));
 export const CROWN_NAMES = ["crownTank", "crownStep", "crownMast"] as const;
 
+/**
+ * Landmarks: real buildings, drawn as themselves.
+ *
+ * Every tower in this city is generated, which is what lets it run forever — and
+ * what means none of it is anywhere. These three are the exception: Näsinneula,
+ * Haukilahti's water tower and the Olympic stadium's tower, passing one at a time
+ * every few minutes. Frame 0 is the building with its aircraft light lit, frame 1
+ * the same building with the lamp dark; nothing else about them animates.
+ */
+export const LANDMARK_NAMES = ["nasinneula", "vesitorni", "stadion"] as const;
+
 export const CAR_W = SPRITES.car.w;
 export const CAR_H = SPRITES.car.h;
 /** Rim origins in the car's own sprite coordinates: where the spokes go. */
