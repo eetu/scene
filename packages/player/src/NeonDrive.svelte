@@ -304,6 +304,23 @@
      */
     let plane: { x: number; y: number; dir: 1 | -1; t: number; life: number } | null = null;
     let planeAt = -99;
+    /**
+     * A train on an elevated line, crossing between the two skylines.
+     *
+     * The city is scenery: it scrolls, its windows come and go on the beat, and
+     * nothing in it ever goes anywhere. A train is the one thing that can be seen
+     * to have a destination, which is what makes an empty road at night read as
+     * empty rather than as unpopulated — somebody is out there, going home, and
+     * the shot is not going with them.
+     *
+     * Drawn between the far city and the near one, so the near towers cut across
+     * it: that is what puts it in the city instead of in front of it. No viaduct
+     * — a permanent structure across the skyline for the sake of one event every
+     * few minutes buys nothing, and a lit strip at that height reads as elevated
+     * on its own.
+     */
+    let train: { x: number; dir: 1 | -1; cars: number; speed: number } | null = null;
+    let trainAt = -99;
 
     const RAIN = 300;
     const rainD = Array.from({ length: RAIN }, () => ({
@@ -412,6 +429,52 @@
       if (Math.sin(plane.t * 2.6) > 0.72) {
         g.fillStyle = `rgba(255,80,90,${0.85 * a})`;
         g.fillRect(x - plane.dir, y, 1, 1);
+      }
+    }
+
+    /** The train: carriages of lit windows, and nothing else. At this distance a
+     *  train IS its windows — a row of warm dashes travelling level through a city
+     *  that only moves sideways — so the body is barely darker than the sky it
+     *  crosses and the light does all the work. */
+    function paintTrain(g: CanvasRenderingContext2D, sky: Sky) {
+      if (!train) return;
+      const y = HORIZON - 7;
+      // Warm against the city's magenta and cyan: sodium light through glass, the
+      // same colour the filling station and the lit windows use.
+      const lit = 0.5 + sky.haze * 0.3;
+      // `train.x` is the nose; the carriages trail back from it, whichever way it
+      // is going. Anchoring the array's first car instead put the headlamp on the
+      // back of the train half the time.
+      for (let c = 0; c < train.cars; c++) {
+        const x0 = Math.round(train.dir > 0 ? train.x - 11 - c * 13 : train.x + 2 + c * 13);
+        if (x0 + 11 < 0 || x0 > bw) continue;
+        // The body: a shade under the horizon, so it is an object and not a hole.
+        g.fillStyle = rgb(
+          [sky.horizon[0] * 0.32, sky.horizon[1] * 0.28, sky.horizon[2] * 0.42],
+          0.95,
+        );
+        g.fillRect(x0, y, 11, 5);
+        // Windows: three to a carriage, one pixel each, and the odd one out — a
+        // train with every window lit is a diagram. Two-pixel windows at this
+        // pitch ran together into one warm bar the length of the train, which read
+        // as a lit girder rather than as carriages. Which window is dark comes off
+        // the world hash, so it does not crawl along the train as it goes.
+        for (let i = 0; i < 3; i++) {
+          if (noise(c * 7 + i, train.cars) < 0.18) continue;
+          g.fillStyle = `rgba(255,206,138,${lit})`;
+          g.fillRect(x0 + 2 + i * 3, y + 1, 1, 2);
+        }
+        // The underside catching the light it throws, and the roof line.
+        g.fillStyle = `rgba(255,206,138,${lit * 0.18})`;
+        g.fillRect(x0, y + 4, 11, 1);
+        g.fillStyle = `rgba(${sky.horizon[0] | 0},${sky.horizon[1] | 0},${sky.horizon[2] | 0},0.25)`;
+        g.fillRect(x0, y, 11, 1);
+      }
+      // The headlamp, at the nose.
+      const nose = Math.round(train.dir > 0 ? train.x : train.x - 2);
+      if (nose > -2 && nose < bw) {
+        g.fillStyle = `rgba(255,240,210,${0.7 * lit})`;
+        g.fillRect(nose, y + 2, 2, 1);
       }
     }
 
@@ -581,7 +644,7 @@
             // A dark sign is a panel, not a light: the box it is mounted in, a
             // shade lighter than the tower so it reads as an object on the wall.
             // Most of them are these, and that is what makes the lit ones land.
-            if (sign.dead) {
+            const panel = () => {
               g.fillStyle = rgb(
                 [
                   mix(near[0], sky.horizon[0], w0) + 6,
@@ -591,16 +654,44 @@
                 1 - w0 * 0.4,
               );
               g.fillRect(x, y, r.w, r.h);
+            };
+            if (sign.dead) {
+              panel();
+              continue;
+            }
+            // Every so often one shorts out: a second of stuttering, a second
+            // fully out, then it simply comes back — a tube striking is instant,
+            // and fading it in would be the one part of this that never happens.
+            //
+            // Derived from the clock and the sign's own phase rather than picked
+            // and tracked, which is what keeps it free: no state, no bookkeeping,
+            // and the phase spread means no two signs in the city ever go at the
+            // same moment. Once every 260 seconds each, so with a dozen lit on
+            // screen something fails every twenty seconds or so — often enough to
+            // catch, rare enough that it is never the thing you are watching.
+            const fu = (clock + sign.phase * 41) % 260;
+            const shorting = fu < 2.2;
+            // The tail of the fault: out cold, and the panel is all that is left.
+            if (shorting && fu > 1.3) {
+              panel();
+              continue;
+            }
+            // The stutter. Fast, uneven, and off more than it is on.
+            if (shorting && Math.sin(fu * 47) < 0.1) {
+              panel();
               continue;
             }
             const blink = Math.sin(clock * sign.rate + sign.phase);
             if (blink < -0.8) continue; // a dead beat in the tube
-            const glow = 0.4 + 0.35 * Math.max(0, blink) + mid * 0.45;
+            // Half power through the stutter: a tube that is going does not come
+            // back at full brightness between coughs.
+            const glow = (0.4 + 0.35 * Math.max(0, blink) + mid * 0.45) * (shorting ? 0.45 : 1);
             g.fillStyle = `rgba(${sign.hue === 0 ? "255,59,212" : "57,246,255"},${Math.min(0.3, glow * 0.2)})`;
             g.fillRect(x - 1, y - 1, r.w + 2, r.h + 2);
             // Frame 1 is the sign with sections failing — it flickers on the
-            // downbeat of its own blink, not on every frame.
-            const failing = blink < -0.55 && atlas.frames(name) > 1;
+            // downbeat of its own blink, not on every frame, and it is all a
+            // shorting sign has left to show.
+            const failing = (shorting || blink < -0.55) && atlas.frames(name) > 1;
             drawSprite(g, atlas, name, x, y, failing ? 1 : 0, sign.hue);
           }
         }
@@ -1495,8 +1586,36 @@
         // accelerating, but the stop is the shot fading out, and a fade that lingers
         // is just a slow scene. (The coast below keeps the road going a while yet.)
         speed += (targetSpeed - speed) * Math.min(1, dt * (active ? 2.2 : 3.4));
-        scroll += speed * dt * motion;
+        const rolled = speed * dt * motion;
+        scroll += rolled;
         wheel += speed * dt * 0.22;
+
+        // The train. It runs on its own, but the city it runs through is sliding
+        // past, so it is dragged at the near skyline's rate as well — a train that
+        // ignored the parallax would sit on the glass rather than in the city.
+        // Once every few minutes at best, and never two in one drive-past.
+        if (train) {
+          train.x += train.dir * train.speed * dt * motion - rolled * 0.1;
+          const len = train.cars * 13 + 14;
+          if (train.x > bw + len || train.x < -len) train = null;
+        } else if (active && clock - trainAt > 170 && Math.random() < dt * 0.02) {
+          trainAt = clock;
+          const dir: 1 | -1 = Math.random() < 0.5 ? 1 : -1;
+          const cars = 4 + ((Math.random() * 4) | 0);
+          train = {
+            // The nose enters at the frame edge and the carriages are already
+            // behind it, off-screen: starting the whole train outside would spend
+            // its first seconds crossing ground nobody can see.
+            x: dir > 0 ? -1 : bw + 1,
+            dir,
+            cars,
+            // Fast enough to actually cross. The drag is why: at speed the mid
+            // layer sweeps left at some 30px/s, and the first version — a stately
+            // 25px/s train — was carried backwards off the frame it had just
+            // entered, having crossed nothing. Six to nine seconds now, either way.
+            speed: 40 + Math.random() * 16,
+          };
+        }
 
         if (w <= 0 || h <= 0) return;
         const wantW = Math.max(BUF_W_MIN, Math.min(BUF_W_MAX, Math.round((BUF_H * w) / h)));
@@ -1626,6 +1745,7 @@
           bands.mid,
           0.42,
         );
+        paintTrain(p, sky);
         paintRoad(p, sky);
         paintBand(p, sky);
         paintProps(p, sky);
