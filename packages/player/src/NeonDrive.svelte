@@ -250,6 +250,22 @@
     let lag = 0;
     let lagVel = 0; // px/s — a spring, so both ends of the travel start from rest
     let coasting = false; // still sliding back, so the frame loop must stay awake
+    /**
+     * What the brakes leave behind: rubber on the tarmac, and smoke off the tyres.
+     *
+     * Both are anchored in WORLD x (`u`), never in screen x, because a car brakes on
+     * a patch of road and not on a patch of the screen — the marks have to sit still
+     * on the tarmac and scroll away with it. Spawned once, on the frame the music
+     * stops, and only if the car was travelling fast enough to have something to
+     * lose.
+     */
+    let skids: { wx: number; u: number; len: number; born: number; heat: number; live: boolean }[] =
+      [];
+    let puffs: { u: number; y: number; t: number; life: number; r: number; rise: number }[] = [];
+    let wasActive = true; // to catch the one frame the music stops on
+    let brakeHeat = 0; // 0 unless the brakes are on; how hard the stop is while they are
+    let puffAcc = 0; // spare seconds between puffs, so the rate is frame-independent
+    const SKID_LIFE = 7; // seconds of rubber, which outlasts the smoke by plenty
     let pulse = 0; // beat kick, decays
     let level = 0; // eased overall energy
     let lastBeat = -1;
@@ -904,6 +920,131 @@
     const carLeft = () => Math.round(bw * 0.3 - lag);
 
     /**
+     * The brakes go on: lay rubber under each wheel and light up the tyre smoke.
+     *
+     * Called once, on the frame the music stops. `v` is the speed it was carrying —
+     * pausing a car that has already rolled to a stop leaves nothing behind, which
+     * is why this is scaled by it rather than fired flat.
+     */
+    function startBrake(v: number) {
+      brakeHeat = clamp01((v - 40) / 120);
+      if (brakeHeat <= 0.05) {
+        brakeHeat = 0;
+        return;
+      }
+      const cx = carLeft();
+      // Both wheels lock, and at this scale they lay the same line — so a mark per
+      // wheel, and the eye joins them up.
+      for (const [wx] of CAR_WHEELS) {
+        skids.push({ wx, u: scroll + cx + wx, len: 0, born: clock, heat: brakeHeat, live: true });
+      }
+      puffAcc = 0;
+    }
+
+    /**
+     * Lay rubber and shed smoke for as long as the stop lasts.
+     *
+     * The marks GROW from the wheels rather than being stamped down whole: their
+     * leading end tracks the tyre, so when the car comes to rest the rubber runs
+     * right up to it, and only the older end trails away behind. Stamped at full
+     * length the instant the music stopped, they were off the left of frame before
+     * they could be read — the car travels a couple of its own lengths after the
+     * brakes go on, and everything anchored to the road travels with it.
+     *
+     * `travel` is the car's own ground this frame, not the camera's.
+     */
+    function runBrake(dt: number, travel: number) {
+      const cx = carLeft();
+      for (const s of skids) {
+        if (!s.live) continue;
+        s.u = scroll + cx + s.wx;
+        // Short. The car parks near the left edge, so a long mark is mostly off
+        // frame; a stub that stays under and just behind the tyres is what reads.
+        s.len = Math.min(20, s.len + travel);
+      }
+      // Smoke on a clock rather than per frame, so the rate does not follow the
+      // frame rate. A puff every twentieth of a second is a stop's worth.
+      puffAcc += dt;
+      while (puffAcc > 0.05 / Math.max(0.2, motion)) {
+        puffAcc -= 0.05 / Math.max(0.2, motion);
+        const [wx] = CAR_WHEELS[Math.floor(Math.random() * CAR_WHEELS.length)];
+        puffs.push({
+          u: scroll + cx + wx + Math.random() * 5 - 2,
+          y: GROUND_Y - 1 - Math.random() * 2,
+          t: 0,
+          life: 1.1 + Math.random() * 0.8,
+          // Small. Several little squares read as smoke; two big ones read as a
+          // sprite the artist forgot to finish.
+          r: 1 + Math.random() * 1.2,
+          rise: 0.6 + Math.random() * 0.8,
+        });
+      }
+    }
+
+    /** The car is down to walking pace: stop laying rubber, and let what is on the
+     *  road fade in its own time. */
+    function endBrake() {
+      for (const s of skids) s.live = false;
+      brakeHeat = 0;
+      puffAcc = 0;
+    }
+
+    /** The rubber, under everything the car has: laid on the road, so the car and its
+     *  glow sit on top of it. Two rows like the rut — one row of anything at this
+     *  magnification reads as a wire rather than as a mark on a surface. */
+    function paintSkids(g: CanvasRenderingContext2D) {
+      for (const s of skids) {
+        const gone = (clock - s.born) / SKID_LIFE;
+        const x = Math.round(s.u - scroll);
+        const len = Math.round(s.len);
+        if (x < -len || x > bw) continue;
+        // Behind the wheel, never in front of it: the car was moving forward over
+        // this tarmac when it locked up.
+        //
+        // Darker over snow than over wet asphalt, because there it is not a stain
+        // but the road showing through — the same thing the rut is.
+        const a = (1 - gone) * s.heat * (0.62 + snowPack * 0.3);
+        g.fillStyle = `rgba(12,7,20,${a})`;
+        g.fillRect(x - len, GROUND_Y - 1, len, 2);
+        // A lit lip along the top of it. Rubber on a road this dark is black on
+        // black and vanishes; what actually makes a mark legible here is the edge
+        // catching light, the same trick the snow rut uses to read at all.
+        g.fillStyle = `rgba(150,140,190,${a * 0.5})`;
+        g.fillRect(x - len, GROUND_Y - 2, len, 1);
+        // A hot streak up the middle while it is fresh: rubber that has just been
+        // put down catches the underglow before the road takes it back.
+        if (gone < 0.12) {
+          g.fillStyle = `rgba(255,120,90,${(0.12 - gone) * 2 * s.heat})`;
+          g.fillRect(x - len, GROUND_Y - 1, len, 1);
+        }
+      }
+    }
+
+    /** The smoke, over the car's wheels but under the foreground: it rises, spreads
+     *  and thins, and it drifts back with the road because it is anchored to it. */
+    function paintSmoke(g: CanvasRenderingContext2D) {
+      for (const q of puffs) {
+        if (q.t < 0) continue;
+        const f = clamp01(q.t / q.life);
+        const x = Math.round(q.u - scroll);
+        const y = Math.round(q.y - f * 7 * q.rise);
+        const r = Math.max(1, Math.round(q.r + f * 1.8));
+        if (x < -r || x > bw + r) continue;
+        // Fading as the square of what is left, so it thins out early and lingers
+        // faintly rather than switching off at full strength.
+        const a = (1 - f) * (1 - f);
+        g.fillStyle = `rgba(206,202,224,${a * 0.42})`;
+        g.fillRect(x - (r >> 1), y - (r >> 1), r, r);
+        // A denser heart to it while it is new, so a puff has some body before it
+        // becomes a flat grey square drifting up the frame.
+        if (f < 0.45) {
+          g.fillStyle = `rgba(226,222,240,${a * 0.45})`;
+          g.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+
+    /**
      * Snow on the road: the surface turns matte white, and the car cuts a rut in it.
      *
      * A flat tint, NOT accumulated grains. Dithered cover is the obvious way to
@@ -1389,21 +1530,27 @@
         // — on a tall pane the visible frame starts well right of the buffer's edge
         // and there is barely any room, which is correct: sliding out of shot is
         // not the effect. Damped for anyone who asked for less motion.
-        const lagMax = Math.max(0, (Math.round(bw * 0.3) - sx - 14) * motion);
+        const lagMax = Math.max(0, (Math.round(bw * 0.3) - sx - 22) * motion);
         const lagTo = active ? 0 : lagMax;
         // A spring rather than an ease, because the acceleration is the whole read:
         // dropping back and pulling away are the same easing curve run backwards,
         // and only a spring starts each of them from rest.
         //
-        // The coast is the quicker of the two — about a second, against a second
-        // and a bit coming back — and both are damped just under critical, the
-        // fastest arrival that still cannot bounce. Softer springs were the first
-        // guess and the wrong one: what kills the effect is the tail, a car
-        // creeping the last few pixels toward the edge of frame, which reads as a
-        // scene that has not finished loading rather than as one coming to rest.
-        // The slide has to be over before it is examined.
-        const k = active ? 7.5 : 22;
-        const damp = 2 * Math.sqrt(k) * (active ? 0.86 : 0.9);
+        // The coast has NO damping at all. What kills the effect is its tail — a car
+        // creeping the last few pixels toward the edge of frame reads as a scene that
+        // has not finished loading rather than as one coming to rest — and every
+        // damped version tried here died of exactly that, however stiff. Undamped,
+        // the car accelerates the whole way and is still gaining speed when it
+        // arrives; the stop below takes the velocity off it in one frame. The edge of
+        // frame is the brake, and the skid marks and smoke are what that costs.
+        //
+        // Undamped means a quarter period to cross, so the stiffness alone sets the
+        // time: ~0.7s at k=5. It cannot ring, because the target IS the stop.
+        //
+        // The return is the opposite case — a car accelerating rather than a shot
+        // running out — so it stays nearly critical and lands on its mark by itself.
+        const k = active ? 7.5 : 5;
+        const damp = active ? 2 * Math.sqrt(k) * 0.86 : 0;
         lagVel += ((lagTo - lag) * k - lagVel * damp) * dt;
         const lagWas = lag;
         const lagNext = lag + lagVel * dt;
@@ -1421,10 +1568,26 @@
         // the gap means covering more road than the shot does, and the spokes are
         // the one part that can say so.
         wheel += Math.max(0, lagWas - lag) * 0.22;
+        // The brakes: armed on the one frame the music stops, with whatever speed the
+        // car still had at that point, then fed for as long as the stop takes.
+        if (wasActive && !active) startBrake(speed);
+        wasActive = active;
+        if (brakeHeat > 0) {
+          // Down to 12px/s is walking pace: the last wisps come off at rest, which
+          // is where they can actually be seen.
+          if (!active && speed > 12) runBrake(dt, speed * dt * motion);
+          else endBrake();
+        }
+        if (puffs.length) {
+          for (const q of puffs) q.t += dt;
+          puffs = puffs.filter((q) => q.t < q.life);
+        }
+        if (skids.length) skids = skids.filter((s) => clock - s.born < SKID_LIFE);
+
         // The driver freezes a paused viz after a short settle; a car stopped
-        // halfway through its slide would read as a stall, so hold the loop open
-        // until it has parked.
-        coasting = !active && lag < lagMax - 0.5;
+        // halfway through its slide would read as a stall, and smoke stopped
+        // mid-air worse, so hold the loop open until both have finished.
+        coasting = !active && (lag < lagMax - 0.5 || puffs.length > 0);
 
         const phase = moonPhaseAt(clock, moonOffset);
 
@@ -1468,7 +1631,9 @@
         paintProps(p, sky);
         paintTarmac(p);
         paintSnowpack(p, sky);
+        paintSkids(p);
         paintCar(p, sky);
+        paintSmoke(p); // over the wheels, under the foreground posts
         paintFore(p, sky);
         // Gusts: two slow sines with no common period, so the wind rises and
         // drops without ever repeating on a beat you could count.
