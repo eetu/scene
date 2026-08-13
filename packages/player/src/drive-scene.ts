@@ -423,6 +423,20 @@ export function buildSkyline(rnd: () => number, opts: SkylineOpts): Layer {
         if (s.w <= w - 2 && s.h <= to - from) fits.push(i);
       }
       if (!fits.length) return;
+      // A big face takes a big sign. The city was rebuilt to the car's scale and
+      // its towers went to 46 pixels wide; a 6×8 box hung on one of those reads as
+      // a postage stamp, and the kana columns — the whole point of the signage —
+      // are the ones that lose most. So a wide tower only draws from the larger
+      // half of what fits it. Small towers keep the full range: that is where the
+      // little box signs belong anyway.
+      if (w >= 26 && fits.length > 2) {
+        const area = (i: number) => {
+          const s = signSizes?.[i] ?? DEFAULT_SIGN_SIZE;
+          return s.w * s.h;
+        };
+        fits.sort((a, b) => area(b) - area(a));
+        fits.length = Math.ceil(fits.length / 2);
+      }
       const sprite = fits[Math.min(fits.length - 1, (rnd() * fits.length) | 0)];
       const s = signSizes?.[sprite] ?? DEFAULT_SIGN_SIZE;
       tower.signs.push({
@@ -536,7 +550,11 @@ export function buildFore(rnd: () => number): Fore[] {
   const out: Fore[] = [];
   let x = 0;
   while (x < FORE_SPAN) {
-    x += 90 + rnd() * 150;
+    // Gaps widened once these became the main depth cue: at 1.7× the road's rate
+    // one every 165 world-pixels put something across the car every couple of
+    // seconds, which stops being punctuation and becomes a picket fence. Three to
+    // a strip, not four and a half.
+    x += 140 + rnd() * 180;
     if (x >= FORE_SPAN) break;
     const roll = rnd();
     if (roll < 0.62) out.push({ x, kind: "post", w: 2 + ((rnd() * 2) | 0), h: 34 + rnd() * 26 });
