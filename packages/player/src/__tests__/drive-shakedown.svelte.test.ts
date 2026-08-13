@@ -135,13 +135,13 @@ test("the drive scrolls, in layers, in hard pixels", { timeout: 120000 }, async 
     }
     return (bestX / img.width) * 100;
   };
-  // Long enough to have finished coasting: the slide is a couple of seconds, and
-  // the loop is held open until it has parked.
+  // Long enough to have finished coasting: the slide is about two seconds, and the
+  // loop is held open until it has parked.
   const idle = await captureViz(NeonDrive, {
     id: "idle",
     outDir: OUT,
     props: { active: false },
-    settleMs: 5000,
+    settleMs: 2600,
     count: 2,
   });
   const drivingX = carColumn(wide.frames[wide.frames.length - 1]);

@@ -1350,7 +1350,10 @@
         }
 
         const targetSpeed = active ? 30 + level * 150 + pulse * 45 : 3;
-        speed += (targetSpeed - speed) * Math.min(1, dt * 2.2);
+        // Quicker to shed the speed than to pick it up: pulling away is a car
+        // accelerating, but the stop is the shot fading out, and a fade that lingers
+        // is just a slow scene. (The coast below keeps the road going a while yet.)
+        speed += (targetSpeed - speed) * Math.min(1, dt * (active ? 2.2 : 3.4));
         scroll += speed * dt * motion;
         wheel += speed * dt * 0.22;
 
@@ -1392,10 +1395,16 @@
         // dropping back and pulling away are the same easing curve run backwards,
         // and only a spring starts each of them from rest. Stiff coming back (the
         // car is being driven, and it arrives with a shove that just overruns the
-        // mark) and slack going out (it is only coasting, and it must not bounce
-        // off the edge of frame).
-        const k = active ? 7.5 : 1.1;
-        const damp = 2 * Math.sqrt(k) * (active ? 0.86 : 1.08);
+        // mark), a little slacker going out — it is coasting, not braking.
+        //
+        // Both ends damped essentially critically. The coast was overdamped at
+        // first and the extra damping is exactly what made it feel wrong: an
+        // overdamped spring has a slow second root, so the last stretch of travel
+        // crawls, and four seconds of a car creeping the last few pixels toward the
+        // edge reads as a scene that has not finished loading rather than as one
+        // coming to rest. Critical is the fastest arrival that cannot bounce.
+        const k = active ? 7.5 : 5.5;
+        const damp = 2 * Math.sqrt(k) * (active ? 0.86 : 0.95);
         lagVel += ((lagTo - lag) * k - lagVel * damp) * dt;
         const lagWas = lag;
         const lagNext = lag + lagVel * dt;
