@@ -336,6 +336,92 @@
       ph: Math.random() * Math.PI * 2,
     }));
 
+    // ---- the wet road ----
+
+    /** The tarmac: from the near lip of the verge down to the bottom of the frame.
+     *  Everything that happens ON the road is placed in this band. */
+    const ROAD_TOP = RAIL_Y + 2;
+    const ROAD_DEPTH = bh - 1 - ROAD_TOP;
+
+    /**
+     * How fast a row of road travels, as a multiple of the scroll.
+     *
+     * The road is seen almost edge-on, so its depth is its ROWS: the bottom of the
+     * frame is a metre from the camera and the verge is a street away. A splash is
+     * a mark on a surface, so it has to move at the rate of the surface it is on —
+     * near the kerb that is faster than the car, out by the verge it barely crawls.
+     * The curve is fitted to the furniture already on the road: 1.0 at the car's
+     * contact line, ~1.35 at the cat's eyes, and a slow far edge.
+     */
+    const roadPar = (z: number) => 0.42 + z * 0.55 + z * z * 0.4;
+
+    /**
+     * Standing water, as a field over the tarmac rather than as objects.
+     *
+     * Rain does not wet a road evenly: it collects in the ruts and along the low
+     * side, and the dry-ish crown between them stays dark. A hash over a patch of
+     * ROAD (not of screen) says which is which, so a patch keeps its water while it
+     * scrolls past — and the splashes get most of their variety from whether they
+     * land in it.
+     *
+     * TWO grids, at coprime-ish periods, rather than one: a single grid of cells put
+     * its wet patches on a lattice, and because each row band scrolls at its own rate
+     * that lattice sheared — the splashes it brightened came out in straight diagonal
+     * chains across the tarmac, which is the most artificial thing a road can do. Two
+     * fields summed have no lattice left to see.
+     */
+    const PUD_W = 26; // world pixels per patch
+    const PUD_ROWS = 5; // rows per patch — a puddle lies at a depth, not across one
+    const puddleAt = (u: number, y: number) => {
+      const r = y - ROAD_TOP;
+      return (
+        noise(Math.floor(u / PUD_W), Math.floor(r / PUD_ROWS)) * 0.55 +
+        noise(Math.floor(u / 61) + 977, Math.floor(r / 9) + 31) * 0.45
+      );
+    };
+
+    /**
+     * Rain hitting the road: one entry per impact, alive for a fraction of a second.
+     *
+     * A pool with independent lives, NOT a set stamped out on a timer. The splashes
+     * used to be eighteen dots reseeded every 140ms, and a set that begins and ends
+     * on the same frame reads as a pattern blinking rather than as rain — the eye
+     * finds the rhythm long before it finds the water. Every impact here is born
+     * when it is born and dies when it is done.
+     *
+     * Anchored in WORLD x like the skid marks, with the scroll rate of the row it
+     * landed on, so the field of them fans out into depth instead of sliding along
+     * as one sheet.
+     */
+    const SPLASH = 200;
+    type Splash = {
+      /** Where on the road it landed, and the rate that row travels at. */
+      u: number;
+      par: number;
+      y: number;
+      /** 0 at the far verge, 1 at the bottom of the frame. */
+      z: number;
+      /** Seconds since impact; negative is a free slot. */
+      t: number;
+      life: number;
+      /** 1 if it landed in standing water: a bigger, brighter, longer ring. */
+      pud: number;
+      /** Pixels the crown is blown over, from the gust that dropped it. */
+      lean: number;
+    };
+    const splashes: Splash[] = Array.from({ length: SPLASH }, () => ({
+      u: 0,
+      par: 1,
+      y: 0,
+      z: 0,
+      t: -1,
+      life: 0,
+      pud: 0,
+      lean: 0,
+    }));
+    let splashNext = 0; // ring cursor — the pool is a queue, so nothing is searched
+    let splashAcc = 0; // spare seconds, so the rate is frame-rate independent
+
     // ---------- painters ----------
 
     /** Sky in bands rather than one gradient: a hard step between colours is
@@ -1366,27 +1452,187 @@
           g.fillRect(run ? x0 + ((k / run) | 0) : x0, py, 1, 1);
         }
       }
+    }
 
-      // Splashes: without them heavy rain falls onto a road it never hits.
-      //
-      // Each one is a place on the ROAD, so it scrolls away to the left with the
-      // road it landed on. The old version put the set at `(tick * K) % bw`, and
-      // a multiplier stepped once per tick walks its whole output across the
-      // screen at a fixed rate: a rank of dots travelling the wrong way, against
-      // the traffic, tied to nothing else in the frame. That reads as a glitch
-      // because it is one. (It also multiplied past exact integers after about
-      // forty minutes of playing, at which point they clumped into columns.)
-      if (amt < 0.45) return;
-      const tick = (clock * 7) | 0; // a new set every ~140ms
-      const age = clock * 7 - tick; // 0..1 through this set's life
-      for (let i = 0; i < 18; i++) {
-        const x = Math.round(noise(tick, i * 31) * bw - age * speed * 0.14 * motion);
-        if (x < 0 || x >= bw) continue;
-        const y = GROUND_Y + 4 + ((noise(tick, i * 31 + 7) * 12) | 0);
-        g.fillStyle = `rgba(200,225,255,${(0.18 + amt * 0.2) * (1 - age * 0.7)})`;
-        g.fillRect(x, y, 2, 1);
-        // The kick-up, for the first half of its life only.
-        if (age < 0.5) g.fillRect(x, y - 1, 1, 1);
+    /**
+     * The water the splashes land in.
+     *
+     * Standing water on a dark road is not lighter than the road — it is the same
+     * road with the sky in it — so it is drawn as the city's own colour laid over the
+     * tarmac at a few percent. In STREAKS along the direction of travel, one row
+     * high, never as filled patches: a patch is a rectangle, and a pale rectangle on
+     * a road reads as wear in the tarmac. (It did. The first version of this put
+     * grey slabs down the near lane.) Striated is also what water on a road actually
+     * looks like from a car — the surface is grooved, and the film sits in the
+     * grooves.
+     *
+     * The streaks live in the same patch field the splashes test, so the wet stretches
+     * and the busy stretches are the same stretches.
+     */
+    function paintPuddles(g: CanvasRenderingContext2D, sky: Sky) {
+      const wet = sky.wet * (1 - snowPack);
+      if (wet < 0.2) return;
+      const cx = carLeft();
+      const nose = cx + CAR_W;
+      const reach = Math.max(24, bw - nose);
+      const tint = sky.horizon;
+      for (let row = ROAD_TOP; row < bh; row++) {
+        const z = clamp01((row - ROAD_TOP) / ROAD_DEPTH);
+        const shift = scroll * roadPar(z);
+        const band = Math.floor((row - ROAD_TOP) / PUD_ROWS);
+        const first = Math.floor((shift - PUD_W) / PUD_W);
+        const last = Math.ceil((shift + bw) / PUD_W);
+        for (let c = first; c <= last; c++) {
+          // Sampled at the cell's centre, off the same field the splashes test, so
+          // the wet stretches and the busy stretches are the same stretches.
+          const n = puddleAt(c * PUD_W + PUD_W / 2, row);
+          if (n <= 0.62) continue;
+          const deep = (n - 0.62) / 0.38; // how much water this patch is holding
+          // At most one streak per row of a patch, and not on every row: the gaps are
+          // what keep it reading as a surface rather than as a block of colour.
+          const r = noise(c * 31 + row, band * 7 + 3);
+          if (r < 0.45) continue;
+          const len = 4 + Math.round(r * 12 * (0.5 + z));
+          const x = Math.round(c * PUD_W - shift + ((r * 137) % (PUD_W - 3)));
+          if (x + len < 0 || x >= bw) continue;
+          const beam =
+            x > nose && row > GROUND_Y - 15 && row < GROUND_Y + 9
+              ? clamp01(1 - (x - nose) / reach)
+              : 0;
+          // In the headlights water stops being subtle: a wet stretch inside a beam
+          // glares, and that is the one thing that says which parts of a night road
+          // are water and which are only dark. Drawn before the beam itself, so the
+          // beam tints these rather than replacing them.
+          const a = Math.min(0.3, wet * deep * (0.05 + z * 0.06) * (1 + beam * 2.5));
+          g.fillStyle = `rgba(${mix(tint[0], 255, beam) | 0},${mix(tint[1], 236, beam) | 0},${mix(tint[2], 205, beam) | 0},${a})`;
+          g.fillRect(x, row, len, 1);
+        }
+      }
+    }
+
+    /**
+     * Lay down new impacts.
+     *
+     * Rate rises with the rain and with how wet the road already is — the first
+     * spits onto dry tarmac make almost nothing, a downpour onto a road that has
+     * been wet a minute is all splash — and it rides the gust, so the fizz on the
+     * ground rises and falls with the sheet in the air instead of sitting flat.
+     *
+     * Per hundred columns of buffer, not per frame: a wide pane shows more road, and
+     * the rain over that road is not thinner for being seen.
+     */
+    function runSplash(dt: number, sky: Sky, wind: number) {
+      for (const s of splashes) {
+        if (s.t < 0) continue;
+        s.t += dt;
+        if (s.t > s.life) s.t = -1;
+      }
+      const amt = sky.rain * (1 - snowPack);
+      if (amt < 0.03 || sky.wet < 0.1 || bw <= 0) return;
+      // Quadratic in the rain: doubling the fall more than doubles what the road
+      // shows, which is the difference between a drizzle you have to look for and a
+      // downpour you cannot see the tarmac through.
+      const rate = (bw / 100) * (10 + amt * amt * 150) * (0.85 + wind * 0.3) * sky.wet;
+      const step = 1 / rate;
+      splashAcc = Math.min(splashAcc + dt, 0.25); // a long frame does not spawn a wall
+      while (splashAcc > step) {
+        splashAcc -= step;
+        const s = splashes[splashNext];
+        splashNext = (splashNext + 1) % SPLASH;
+        // Rows crowd toward the far verge because the road does: an even scatter
+        // over the GROUND puts more of itself in the rows where the surface is most
+        // foreshortened, and that gradient is what stops the band reading as flat.
+        const y = ROAD_TOP + Math.round(ROAD_DEPTH * Math.pow(Math.random(), 1.45));
+        const z = (y - ROAD_TOP) / ROAD_DEPTH;
+        const par = roadPar(z);
+        const u = scroll * par + Math.random() * (bw + 8) - 4;
+        const pud = puddleAt(u, y) > 0.62 ? 1 : 0;
+        s.u = u;
+        s.par = par;
+        s.y = y;
+        s.z = z;
+        s.t = 0;
+        // Near impacts are bigger events, and water landing in water rings for
+        // longer than water landing on stone.
+        s.life = (0.15 + z * 0.16) * (1 + pud * 0.5);
+        s.pud = pud;
+        s.lean = wind * (1 + z * 2.5);
+      }
+    }
+
+    /**
+     * The impacts, drawn as rings on a surface seen almost edge-on.
+     *
+     * A splash from this angle is not a crown, it is a flat ellipse — so it is a
+     * dash spreading sideways from where the drop landed, with a bright point at the
+     * centre while the water is still leaving the road and a second row for the near
+     * ones, where the ring stands proud of the surface. Nothing is drawn as a
+     * circle: at this magnification a two-pixel ring is a square, and a square on
+     * the road reads as a chip in it.
+     *
+     * The headlights are the whole of the contrast here. Out of the beam a splash is
+     * a grey tick on grey tarmac; in it, it is the brightest thing in the frame —
+     * which is exactly what makes a wet road look wet from a car at night.
+     *
+     * `near` splits the pass either side of the car's contact line: what lands
+     * beyond it is road that the lamp posts and the car stand ON, so it goes down
+     * before them and they occlude it, and what lands in front of it rides over the
+     * lane markings.
+     */
+    function paintSplash(g: CanvasRenderingContext2D, sky: Sky, near: boolean) {
+      const base = (0.14 + sky.rain * 0.3) * (0.3 + sky.wet * 0.7) * (1 - snowPack);
+      if (sky.rain < 0.03 || base < 0.02) return;
+      const cx = carLeft();
+      const nose = cx + CAR_W;
+      const reach = Math.max(24, bw - nose);
+      for (const s of splashes) {
+        if (s.t < 0) continue;
+        if (near !== s.y >= GROUND_Y) continue; // the other pass owns this one
+        const x = Math.round(s.u - scroll * s.par);
+        if (x < -4 || x > bw + 4) continue;
+        const f = s.t / s.life;
+        // Fading as the square of what is left: a ring thins out early and lingers
+        // faintly rather than switching off at full strength.
+        const fall = (1 - f) * (1 - f);
+        const beam =
+          x > nose && s.y > GROUND_Y - 15 && s.y < GROUND_Y + 9
+            ? clamp01(1 - (x - nose) / reach)
+            : 0;
+        const a = base * fall * (0.4 + s.z * 0.7) * (1 + s.pud * 0.6) * (1 + beam * 3.4);
+        if (a < 0.015) continue;
+        // Cool where the city lights it, warm where the car does.
+        const col = `${mix(196, 255, beam) | 0},${mix(216, 236, beam) | 0},${mix(255, 198, beam) | 0}`;
+        // The ring, spreading. Rounded rather than truncated: a ring that spends
+        // most of its life below one pixel of half-width is a dot that fades, and a
+        // road covered in fading dots is a road covered in dust. Capped at seven
+        // pixels across, because past that a pale dash on the tarmac stops being
+        // water and starts being litter.
+        const hw = Math.min(3, Math.round((0.3 + s.z * 1.3 + s.pud * 0.8) * (0.45 + f * 1.2)));
+        g.fillStyle = `rgba(${col},${a})`;
+        g.fillRect(x - hw, s.y, hw * 2 + 1, 1);
+        // Its far lip, a row up. One row, never two: this is water, not a wall.
+        if (hw > 0 && s.z > 0.5) {
+          g.fillStyle = `rgba(${col},${a * 0.5})`;
+          g.fillRect(x - hw + 1, s.y - 1, hw * 2 - 1, 1);
+        }
+        // The point of impact, and the crown over it blown downwind — only where
+        // there are pixels to spend on one. Out at the verge the whole splash is a
+        // single tick, and it should be. Kept well under white unless the beam is on
+        // it: a road of white points reads as gravel, and it was the one thing that
+        // made an earlier pass of this look like grit rather than water.
+        if (f < 0.42 && s.z > 0.2) {
+          g.fillStyle = `rgba(${mix(226, 255, beam) | 0},${mix(240, 248, beam) | 0},255,${Math.min(0.85, a * 2)})`;
+          g.fillRect(x, s.y, 1, 1);
+          if (s.z > 0.4) g.fillRect(x + Math.round(s.lean), s.y - 1, 1, 1);
+        }
+        // The rebound: one drop thrown up and coming back down, for the nearest
+        // impacts only. Held within two rows of its own ring — a lone pixel any
+        // further off reads as a defect in the road rather than as water.
+        if (s.z > 0.62 && f < 0.8) {
+          const rise = 1 + Math.round(Math.sin((f / 0.8) * Math.PI) * (0.6 + s.z * 1.6));
+          g.fillStyle = `rgba(${col},${Math.min(0.8, a * 1.6)})`;
+          g.fillRect(x + Math.round(s.lean * (0.6 + f * 2)), s.y - rise, 1, 1);
+        }
       }
     }
 
@@ -1531,6 +1777,13 @@
         // Smootherstep, so no layer starts or stops abruptly at either end.
         const f = fade * fade * fade * (fade * (fade * 6 - 15) + 10);
         const sky = mixSky(SKY[prevMood], SKY[mood], f);
+        // Gusts: two slow sines with no common period, so the wind rises and drops
+        // without ever repeating on a beat you could count. Worked out here rather
+        // than at the weather layers, because the road wants it too — what the wind
+        // does to the sheet in the air, it does to the splashes it lands as.
+        const wind = clamp01(
+          sky.wind * (0.8 + 0.3 * Math.sin(clock * 0.19) + 0.15 * Math.sin(clock * 0.73)),
+        );
 
         // Snow settles over about half a minute and leaves faster than it came:
         // rain takes a road back to black long before the cold gives it up. Slow
@@ -1697,6 +1950,11 @@
           if (!active && speed > 12) runBrake(dt, speed * dt * motion);
           else endBrake();
         }
+        // The rain on the road. Only while something is playing, for the same reason
+        // the weather is: a paused viz should be the same night when you come back
+        // to it, and rings still spreading over a frozen sheet of rain would be the
+        // one part of the picture that had noticed.
+        if (active) runSplash(dt, sky, wind);
         if (puffs.length) {
           for (const q of puffs) q.t += dt;
           puffs = puffs.filter((q) => q.t < q.life);
@@ -1748,18 +2006,21 @@
         paintTrain(p, sky);
         paintRoad(p, sky);
         paintBand(p, sky);
+        paintPuddles(p, sky);
+        // Splashes out beyond the car's contact line: road that the furniture and the
+        // car stand on, so they go down before it and are occluded by it.
+        paintSplash(p, sky, false);
         paintProps(p, sky);
         paintTarmac(p);
         paintSnowpack(p, sky);
         paintSkids(p);
         paintCar(p, sky);
+        // ...and the ones in front of it, AFTER the car: what the headlights pick out
+        // of the near lane has to sit on top of the wash they throw down it, or the
+        // beam paints over the very splashes it is lighting.
+        paintSplash(p, sky, true);
         paintSmoke(p); // over the wheels, under the foreground posts
         paintFore(p, sky);
-        // Gusts: two slow sines with no common period, so the wind rises and
-        // drops without ever repeating on a beat you could count.
-        const wind = clamp01(
-          sky.wind * (0.8 + 0.3 * Math.sin(clock * 0.19) + 0.15 * Math.sin(clock * 0.73)),
-        );
         paintRain(p, sky, wind);
         paintSnow(p, sky, wind);
         paintLightning(p, sky, 2);
