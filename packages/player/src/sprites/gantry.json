@@ -3,18 +3,22 @@
   "w": 22,
   "h": 16,
   "palette": {
-    "P": "#0b0512"
+    "P": "#0b0512",
+    "N": "#ff3bd4",
+    "n": "#6b1859"
   },
-  "tints": ["#ff3bd4", "#39f6ff"],
+  "variants": {
+    "cyan": {"N":"#39f6ff","n":"#17676b"}
+  },
   "frames": [
     [
       "PPPPPPPPPPPPPPPPPPPPPP",
       "P.P.P.P.P.P.P.P.P.P.PP",
       "PPPPPPPPPPPPPPPPPPPPPP",
-      "PP.......NNNNNN.....PP",
-      "PP.......N.nn.N.....PP",
-      "PP.......N.nn.N.....PP",
-      "PP.......NNNNNN.....PP",
+      "PP......NNNNNNN.....PP",
+      "PP......NnNnNnN.....PP",
+      "PP......NnNnNnN.....PP",
+      "PP......NNNNNNN.....PP",
       "PP..................PP",
       "PP..................PP",
       "PP..................PP",
@@ -29,10 +33,10 @@
       "PPPPPPPPPPPPPPPPPPPPPP",
       "P.P.P.P.P.P.P.P.P.P.PP",
       "PPPPPPPPPPPPPPPPPPPPPP",
-      "PP.......NNNNNN.....PP",
-      "PP.......N.n..N.....PP",
-      "PP.......N..n.N.....PP",
-      "PP.......NNNNnN.....PP",
+      "PP......NNNNNNN.....PP",
+      "PP......NNnNnNN.....PP",
+      "PP......NNnNnNN.....PP",
+      "PP......NNNNNNN.....PP",
       "PP..................PP",
       "PP..................PP",
       "PP..................PP",

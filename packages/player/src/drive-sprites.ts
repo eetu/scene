@@ -10,13 +10,21 @@
 // Everything is baked once at mount. Per frame the scene issues drawImage calls
 // against the atlas, so the cost of a lamp post is the same whether it is six
 // pixels or six hundred, and the pixels themselves are never recomputed.
-import { DEFAULT_TINTS, neonColour, type SpriteFile } from "./sprite-file";
+import { cellColour, type SpriteFile, variantNames } from "./sprite-file";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
 export type Atlas = {
   canvas: HTMLCanvasElement;
-  rect(name: string, frame?: number, tint?: number): Rect | null;
+  /**
+   * Where a sprite's pixels are on the sheet.
+   *
+   * `look` is an index into the sprite's looks: 0 is its own palette, then its
+   * variants in declaration order. The scene carries a number rather than a
+   * variant's name because that is what its world model has — a sign is generated
+   * with `hue: 0 | 1` long before anything knows a sheet exists.
+   */
+  rect(name: string, frame?: number, look?: number): Rect | null;
   /** Frames a sprite has, for callers stepping an animation. */
   frames(name: string): number;
 };
@@ -65,6 +73,17 @@ export const SIGN_SIZES: ReadonlyArray<{ w: number; h: number }> = SIGN_NAMES.ma
 }));
 export const CROWN_NAMES = ["crownTank", "crownStep", "crownMast"] as const;
 
+/**
+ * Landmarks: real buildings, drawn as themselves.
+ *
+ * Every tower in this city is generated, which is what lets it run forever — and
+ * what means none of it is anywhere. These three are the exception: Näsinneula,
+ * Haukilahti's water tower and the Olympic stadium's tower, passing one at a time
+ * every few minutes. Frame 0 is the building with its aircraft light lit, frame 1
+ * the same building with the lamp dark; nothing else about them animates.
+ */
+export const LANDMARK_NAMES = ["nasinneula", "vesitorni", "stadion"] as const;
+
 export const CAR_W = SPRITES.car.w;
 export const CAR_H = SPRITES.car.h;
 /** Rim origins in the car's own sprite coordinates: where the spokes go. */
@@ -74,7 +93,11 @@ export const CAR_WHEELS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /**
- * Bake every sprite, tint and frame into one canvas.
+ * Bake every sprite, look and frame into one canvas.
+ *
+ * A sprite's LOOKS are its own palette followed by each of its variants, so a
+ * tube sprite is baked once magenta and once cyan and the scene picks between two
+ * rects rather than recolouring anything per frame.
  *
  * Shelf packing, left to right and wrapping at a fixed width: an atlas this
  * small does not need a real packer, and a stable layout means a frame's rect
@@ -83,15 +106,16 @@ export const CAR_WHEELS: ReadonlyArray<readonly [number, number]> = [
  */
 export function bakeAtlas(defs: Record<string, SpriteFile> = SPRITES): Atlas {
   const MAX_ROW = 256;
-  type Placed = { rect: Rect; sprite: SpriteFile; frame: number; neon: string };
+  type Placed = { rect: Rect; sprite: SpriteFile; frame: number; variant: string | null };
   const placed: { key: string; entry: Placed }[] = [];
   let penX = 0;
   let penY = 0;
   let shelfH = 0;
 
   for (const [name, sprite] of Object.entries(defs)) {
-    const tints = sprite.tints?.length ? sprite.tints : [DEFAULT_TINTS[0]];
-    for (let t = 0; t < tints.length; t++) {
+    // Index 0 is the palette itself — `null`, i.e. no variant selected.
+    const looks: (string | null)[] = [null, ...variantNames(sprite)];
+    for (let t = 0; t < looks.length; t++) {
       for (let f = 0; f < sprite.frames.length; f++) {
         if (penX + sprite.w > MAX_ROW) {
           penX = 0;
@@ -104,7 +128,7 @@ export function bakeAtlas(defs: Record<string, SpriteFile> = SPRITES): Atlas {
             rect: { x: penX, y: penY, w: sprite.w, h: sprite.h },
             sprite,
             frame: f,
-            neon: tints[t],
+            variant: looks[t],
           },
         });
         penX += sprite.w + 1;
@@ -128,10 +152,7 @@ export function bakeAtlas(defs: Record<string, SpriteFile> = SPRITES): Atlas {
     for (let y = 0; y < rows.length; y++) {
       const row = rows[y];
       for (let x = 0; x < row.length; x++) {
-        const ch = row[x];
-        // Neon takes the tint being baked; everything else its own palette.
-        const colour =
-          ch === "N" || ch === "n" ? neonColour(entry.neon, ch) : entry.sprite.palette[ch];
+        const colour = cellColour(entry.sprite, row[x], entry.variant);
         if (!colour) continue;
         ctx.fillStyle = colour;
         ctx.fillRect(entry.rect.x + x, entry.rect.y + y, 1, 1);
@@ -141,7 +162,7 @@ export function bakeAtlas(defs: Record<string, SpriteFile> = SPRITES): Atlas {
 
   return {
     canvas,
-    rect: (name, frame = 0, tint = 0) => index.get(`${name}/${frame}/${tint}`) ?? null,
+    rect: (name, frame = 0, look = 0) => index.get(`${name}/${frame}/${look}`) ?? null,
     frames: (name) => counts.get(name) ?? 0,
   };
 }
@@ -155,9 +176,9 @@ export function drawSprite(
   x: number,
   y: number,
   frame = 0,
-  tint = 0,
+  look = 0,
 ): void {
-  const r = atlas.rect(name, frame, tint);
+  const r = atlas.rect(name, frame, look);
   if (!r) return;
   ctx.drawImage(atlas.canvas, r.x, r.y, r.w, r.h, Math.round(x), Math.round(y), r.w, r.h);
 }

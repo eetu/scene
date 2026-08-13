@@ -7,6 +7,7 @@ import {
   addColour,
   addFrame,
   blankSprite,
+  cellColour,
   cloneSprite,
   duplicateFrame,
   ellipsePoints,
@@ -25,6 +26,7 @@ import {
   toJson,
   unusedChars,
   validateSprite,
+  variantNames,
 } from "../sprite-file";
 
 const sprite = (
@@ -65,8 +67,44 @@ describe("validation", () => {
     expect(validateSprite(sprite(["..."], { ".": "#ffffff" })).join(" ")).toContain("transparent");
   });
 
-  test("the neon characters need no palette entry — the tint pass colours them", () => {
-    expect(validateSprite(sprite(["NnN", "..."], {}))).toEqual([]);
+  test("every character needs a colour — nothing is reserved", () => {
+    // `N` and `n` used to be special, coloured by the tint pass and legal without a
+    // palette entry. They are ordinary characters now, so a sprite that uses them and
+    // does not name them is a sprite with holes in it.
+    expect(validateSprite(sprite(["NnN", "..."], {})).length).toBe(2);
+    expect(validateSprite(sprite(["NnN", "..."], { N: "#ff3bd4", n: "#6b1859" }))).toEqual([]);
+  });
+
+  test("a variant may only recolour characters the palette has", () => {
+    // Otherwise a cell has no colour at all with the variant unselected, and the
+    // sprite draws with a hole for anyone who ignored the variants.
+    const s = sprite(["A."], { A: "#ff3bd4" });
+    expect(validateSprite({ ...s, variants: { cyan: { A: "#39f6ff" } } })).toEqual([]);
+    expect(validateSprite({ ...s, variants: { cyan: { Z: "#39f6ff" } } }).join(" ")).toContain(
+      "which the palette does not have",
+    );
+    expect(validateSprite({ ...s, variants: { cyan: { A: "nope" } } }).join(" ")).toContain(
+      "#rrggbb",
+    );
+    expect(validateSprite({ ...s, variants: { "": { A: "#39f6ff" } } }).join(" ")).toContain(
+      "no name",
+    );
+  });
+
+  test("a cell takes the variant's colour where it has one, the palette's otherwise", () => {
+    const s: SpriteFile = {
+      ...sprite(["AB"], { A: "#ff3bd4", B: "#0b0512" }),
+      variants: { cyan: { A: "#39f6ff" } },
+    };
+    expect(cellColour(s, "A")).toBe("#ff3bd4");
+    expect(cellColour(s, "A", "cyan")).toBe("#39f6ff");
+    // Not overridden by that variant, so it stays as the palette has it.
+    expect(cellColour(s, "B", "cyan")).toBe("#0b0512");
+    // A variant nobody declared is not an error, it is just the palette.
+    expect(cellColour(s, "A", "amber")).toBe("#ff3bd4");
+    expect(cellColour(s, ".", "cyan")).toBe(null);
+    expect(variantNames(s)).toEqual(["cyan"]);
+    expect(variantNames(sprite(["A."]))).toEqual([]);
   });
 });
 
@@ -270,7 +308,7 @@ describe("serialisation", () => {
     w: 3,
     h: 2,
     palette: { A: "#ff00ff" },
-    tints: ["#ff3bd4", "#39f6ff"],
+    variants: { cyan: { A: "#39f6ff" } },
     frames: [
       ["A.A", ".A."],
       ["...", "AAA"],
@@ -295,7 +333,9 @@ describe("serialisation", () => {
     const copy = cloneSprite(s);
     copy.frames[0][0] = "...";
     copy.palette.A = "#000000";
+    copy.variants!.cyan.A = "#000000";
     expect(s.frames[0][0]).toBe("A.A");
     expect(s.palette.A).toBe("#ff00ff");
+    expect(s.variants!.cyan.A).toBe("#39f6ff");
   });
 });

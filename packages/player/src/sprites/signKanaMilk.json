@@ -2,11 +2,13 @@
   "name": "signKanaMilk",
   "w": 15,
   "h": 9,
-  "palette": {},
-  "tints": [
-    "#ff3bd4",
-    "#39f6ff"
-  ],
+  "palette": {
+    "N": "#ff3bd4",
+    "n": "#6b1859"
+  },
+  "variants": {
+    "cyan": {"N":"#39f6ff","n":"#17676b"}
+  },
   "frames": [
     [
       "NNNNNNNNNNNNNNN",

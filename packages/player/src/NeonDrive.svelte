@@ -45,6 +45,7 @@
     moonLit,
     moonPhaseAt,
     nextMood,
+    nextOther,
     noise,
     type Prop,
     rgb,
@@ -63,6 +64,7 @@
     CAR_WHEELS,
     CROWN_NAMES,
     drawSprite,
+    LANDMARK_NAMES,
     SIGN_NAMES,
     SIGN_SIZES,
   } from "./drive-sprites";
@@ -321,6 +323,26 @@
      */
     let train: { x: number; dir: 1 | -1; cars: number; speed: number } | null = null;
     let trainAt = -99;
+    /**
+     * A real building, crossing the city now and then.
+     *
+     * Every tower in this skyline is generated, which is what lets it run forever —
+     * and it is also why none of it is anywhere. A landmark is the exception: three
+     * Finnish structures drawn as themselves, passing at their own parallax between
+     * the far city and the near one, so the near towers cut across their feet and
+     * they stand IN the place rather than in front of it. One at a time, minutes
+     * apart, and never the same one twice running — somewhere you recognise is only
+     * worth anything if it is a surprise.
+     *
+     * Near-silhouettes with a lit deck and an aircraft light, not postcards: the
+     * point is that this city has a skyline of its own, not that a photograph of
+     * Tampere has been dropped into it.
+     */
+    let landmark: { name: string; x: number } | null = null;
+    let landmarkAt = -99;
+    let landmarkPick = -1;
+    const LANDMARK_PAR = 0.15; // between the far city's 0.08 and the near one's 0.22
+    const LANDMARK_BASE = HORIZON + 2; // its feet, between the two skylines' bases
 
     const RAIN = 300;
     const rainD = Array.from({ length: RAIN }, () => ({
@@ -516,6 +538,23 @@
         g.fillStyle = `rgba(255,80,90,${0.85 * a})`;
         g.fillRect(x - plane.dir, y, 1, 1);
       }
+    }
+
+    /**
+     * The landmark, and the obstruction light on top of it.
+     *
+     * The lamp is on for a moment and off for a second and a bit — an aircraft light,
+     * not a blinking sign. Both frames are the same building; only the lamp differs,
+     * so nothing about the structure flickers.
+     */
+    function paintLandmark(g: CanvasRenderingContext2D) {
+      if (!landmark) return;
+      const r = atlas.rect(landmark.name);
+      if (!r) return;
+      const x = Math.round(landmark.x);
+      if (x > bw || x + r.w < 0) return;
+      const dark = atlas.frames(landmark.name) > 1 && clock % 1.6 > 0.45;
+      drawSprite(g, atlas, landmark.name, x, LANDMARK_BASE - r.h, dark ? 1 : 0);
     }
 
     /** The train: carriages of lit windows, and nothing else. At this distance a
@@ -1870,6 +1909,19 @@
           };
         }
 
+        // The landmark. Pure scenery, so it moves only because the city does — and
+        // it enters from the right, because that is the only side this world arrives
+        // from. Long gate: two and a half minutes at the very least, and about three
+        // between them in practice, which is roughly one a tune.
+        if (landmark) {
+          landmark.x -= rolled * LANDMARK_PAR;
+          if (landmark.x + (atlas.rect(landmark.name)?.w ?? 0) < 0) landmark = null;
+        } else if (active && clock - landmarkAt > 150 && Math.random() < dt * 0.05) {
+          landmarkAt = clock;
+          landmarkPick = nextOther(landmarkPick, LANDMARK_NAMES.length, Math.random);
+          landmark = { name: LANDMARK_NAMES[landmarkPick], x: bw + 2 };
+        }
+
         if (w <= 0 || h <= 0) return;
         const wantW = Math.max(BUF_W_MIN, Math.min(BUF_W_MAX, Math.round((BUF_H * w) / h)));
         if (wantW !== bw) {
@@ -1988,6 +2040,7 @@
           bands.mid,
           1,
         );
+        paintLandmark(p); // behind the near city, in front of the far one
         paintLightning(p, sky, 1); // over the far city, under the near one
         collectReflections(midCity, 0.22, bands.mid);
         paintSkyline(

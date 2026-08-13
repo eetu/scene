@@ -21,13 +21,14 @@ import {
   type Mood,
   mixSky,
   nextMood,
+  nextOther,
   rng,
   ROUTE_SPAN,
   routeAt,
   SKY,
 } from "../drive-scene";
-import { CROWN_NAMES, SIGN_NAMES, SPRITES } from "../drive-sprites";
-import { validateSprite } from "../sprite-file";
+import { CROWN_NAMES, LANDMARK_NAMES, SIGN_NAMES, SPRITES } from "../drive-sprites";
+import { validateSprite, variantNames } from "../sprite-file";
 
 const skyline = (seed: number) =>
   buildSkyline(rng(seed), {
@@ -178,6 +179,26 @@ describe("the weather", () => {
     expect([...seen].sort()).toEqual([...MOODS].sort());
   });
 
+  test("picking from a short list never repeats, and reaches all of it", () => {
+    // The landmarks use this: three of them, one at a time, minutes apart. Drawing
+    // the same one twice running is the whole thing it exists to prevent — that reads
+    // as the picker having stalled rather than as chance.
+    const rnd = rng(77);
+    const seen = new Set<number>();
+    let pick = -1; // nothing chosen yet, so the first roll may be anything
+    for (let i = 0; i < 300; i++) {
+      const next = nextOther(pick, 3, rnd);
+      expect(next).toBeGreaterThanOrEqual(0);
+      expect(next).toBeLessThan(3);
+      if (pick >= 0) expect(next).not.toBe(pick);
+      seen.add(next);
+      pick = next;
+    }
+    expect([...seen].sort()).toEqual([0, 1, 2]);
+    // A list of one has nowhere else to go, and must not spin looking for it.
+    expect(nextOther(0, 1, rnd)).toBe(0);
+  });
+
   test("moods hold for the best part of a minute or more", () => {
     const rnd = rng(99);
     for (let i = 0; i < 200; i++) {
@@ -320,20 +341,63 @@ describe("the sprite sheet", () => {
   });
 
   test("the sheet still has what the scene asks it for", () => {
-    for (const name of [...SIGN_NAMES, ...CROWN_NAMES, "car", "spoke", "lamp", "palm"]) {
+    for (const name of [
+      ...SIGN_NAMES,
+      ...CROWN_NAMES,
+      ...LANDMARK_NAMES,
+      "car",
+      "spoke",
+      "lamp",
+      "palm",
+    ]) {
       expect(Object.keys(SPRITES)).toContain(name);
     }
     // Multi-frame sprites are the animated ones; a single-frame spoke would
     // stop the wheels dead without failing anything else.
     expect(SPRITES.spoke.frames.length).toBeGreaterThan(1);
     for (const name of SIGN_NAMES) expect(SPRITES[name].frames.length).toBeGreaterThan(1);
+    // A landmark's second frame is the same building with its aircraft light out. One
+    // frame means a beacon stuck on, which is the tell of a half-finished sprite.
+    for (const name of LANDMARK_NAMES) expect(SPRITES[name].frames.length).toBe(2);
   });
 
-  test("tinted sprites carry tints, and only they use the neon characters", () => {
+  test("the landmarks stand clear of the city they pass behind", () => {
+    // They are drawn at their own parallax with their feet just under the horizon, so
+    // the only thing that decides whether one is visible at all is its height against
+    // the near skyline — whose towers top out 62 above their base. Anything shorter
+    // than that is a landmark nobody ever sees, and it is not a thing a screenshot
+    // reliably shows: it depends which tower it happens to pass behind.
+    for (const name of LANDMARK_NAMES) {
+      expect(SPRITES[name].h, `${name} would hide behind the near towers`).toBeGreaterThan(64);
+      // ...and short enough to survive the crop on a very wide pane, which takes its
+      // rows off the top of the buffer.
+      expect(SPRITES[name].h, `${name} would be cropped on a wide pane`).toBeLessThan(84);
+    }
+  });
+
+  test("the two-colour sprites offer the scene's second colour as a variant", () => {
+    // The signs and the roadside tubes are drawn magenta on one building and cyan on
+    // the next, which the atlas does by baking a sprite once per look. A tube sprite
+    // with no variant would bake one look and silently come out magenta everywhere.
+    for (const name of [...SIGN_NAMES, "lamp", "gantry"]) {
+      expect(variantNames(SPRITES[name]), `${name} offers the scene no second colour`).toEqual([
+        "cyan",
+      ]);
+    }
+  });
+
+  test("a variant only ever recolours, never introduces", () => {
+    // The whole reason the format needs no reserved characters: a variant is a
+    // recolour of the palette, so every cell has a colour with no variant selected.
     for (const [key, sprite] of Object.entries(SPRITES)) {
-      const usesNeon = sprite.frames.some((f) => f.some((r) => /[Nn]/.test(r)));
-      if (usesNeon)
-        expect(sprite.tints?.length, `${key} uses N/n but names no tints`).toBeGreaterThan(0);
+      for (const [variant, colours] of Object.entries(sprite.variants ?? {})) {
+        for (const ch of Object.keys(colours)) {
+          expect(
+            sprite.palette,
+            `${key}/${variant} recolours ${ch}, which it has no colour for`,
+          ).toHaveProperty(ch);
+        }
+      }
     }
   });
 });
