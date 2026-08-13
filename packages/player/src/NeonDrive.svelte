@@ -1393,18 +1393,17 @@
         const lagTo = active ? 0 : lagMax;
         // A spring rather than an ease, because the acceleration is the whole read:
         // dropping back and pulling away are the same easing curve run backwards,
-        // and only a spring starts each of them from rest. Stiff coming back (the
-        // car is being driven, and it arrives with a shove that just overruns the
-        // mark), a little slacker going out — it is coasting, not braking.
+        // and only a spring starts each of them from rest.
         //
-        // Both ends damped essentially critically. The coast was overdamped at
-        // first and the extra damping is exactly what made it feel wrong: an
-        // overdamped spring has a slow second root, so the last stretch of travel
-        // crawls, and four seconds of a car creeping the last few pixels toward the
-        // edge reads as a scene that has not finished loading rather than as one
-        // coming to rest. Critical is the fastest arrival that cannot bounce.
-        const k = active ? 7.5 : 5.5;
-        const damp = 2 * Math.sqrt(k) * (active ? 0.86 : 0.95);
+        // The coast is the quicker of the two — about a second, against a second
+        // and a bit coming back — and both are damped just under critical, the
+        // fastest arrival that still cannot bounce. Softer springs were the first
+        // guess and the wrong one: what kills the effect is the tail, a car
+        // creeping the last few pixels toward the edge of frame, which reads as a
+        // scene that has not finished loading rather than as one coming to rest.
+        // The slide has to be over before it is examined.
+        const k = active ? 7.5 : 22;
+        const damp = 2 * Math.sqrt(k) * (active ? 0.86 : 0.9);
         lagVel += ((lagTo - lag) * k - lagVel * damp) * dt;
         const lagWas = lag;
         const lagNext = lag + lagVel * dt;
