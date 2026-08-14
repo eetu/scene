@@ -30,7 +30,8 @@ import {
 import {
   CAR_CONTACTS,
   CROWN_NAMES,
-  LAMP_RAISE,
+  LAMP_CLOSE,
+  LAMP_OPEN,
   LANDMARK_NAMES,
   SIGN_NAMES,
   SPRITES,
@@ -428,15 +429,21 @@ describe("the sprite sheet", () => {
     // wheel counted twice.
     expect(Math.abs(CAR_CONTACTS[0] - CAR_CONTACTS[1])).toBeGreaterThan(SPRITES.car.w / 3);
 
-    // The pop-up lamps' raise is the clip the art declares, and it has to end
-    // somewhere other than where it starts or nothing pops up.
-    expect(LAMP_RAISE.length).toBeGreaterThan(1);
-    expect(LAMP_RAISE[LAMP_RAISE.length - 1]).not.toBe(LAMP_RAISE[0]);
+    // The pop-up lamps are the clips the art declares, and each has to end somewhere
+    // other than where it starts or nothing moves.
     const lamp = SPRITES.car.parts?.find((p) => p.name === "lights");
     expect(lamp && isPartBody(lamp)).toBe(true);
-    for (const f of LAMP_RAISE) {
-      expect(f).toBeLessThan(lamp && isPartBody(lamp) ? lamp.frames.length : 0);
+    const frames = lamp && isPartBody(lamp) ? lamp.frames.length : 0;
+    for (const clip of [LAMP_OPEN, LAMP_CLOSE]) {
+      expect(clip.length).toBeGreaterThan(1);
+      expect(clip[clip.length - 1]).not.toBe(clip[0]);
+      for (const f of clip) expect(f).toBeLessThan(frames);
     }
+    // Each ends where the other begins: the lamps go up when the music starts and
+    // down when it stops, and a pair of clips that did not meet would jump a frame
+    // every time the transport was touched.
+    expect(LAMP_CLOSE[0]).toBe(LAMP_OPEN[LAMP_OPEN.length - 1]);
+    expect(LAMP_OPEN[0]).toBe(LAMP_CLOSE[LAMP_CLOSE.length - 1]);
   });
 
   test("the two-colour sprites offer the scene's second colour as a variant", () => {

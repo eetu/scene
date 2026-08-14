@@ -131,15 +131,19 @@ export const CAR_CONTACTS: number[] = (SPRITES.car.parts ?? [])
   .map((p) => p.x + (SPRITES.wheel.w >> 1));
 
 /**
- * The pop-up headlights coming up, as the frames the sprite says are that move.
+ * The pop-up headlights, as the two clips the art declares over the lamp part's
+ * three frames.
  *
- * The lamp part carries `open` and `close` clips over its three frames, so the
- * order is the art's to state and not the scene's to assume.
+ * Both directions are read rather than one played backwards: a clip is the art
+ * saying what the move is, and a scene that assumes `close` is `open` reversed is
+ * back to knowing things about the sprite that the sprite already says.
  */
-export const LAMP_RAISE: number[] = (() => {
+const lampClip = (name: string): number[] => {
   const lamp = partNamed(SPRITES.car, "lights");
-  return (lamp && !isPartRef(lamp) && clipFrames(lamp, "open")) || [0];
-})();
+  return (lamp && !isPartRef(lamp) && clipFrames(lamp, name)) || [0];
+};
+export const LAMP_OPEN = lampClip("open");
+export const LAMP_CLOSE = lampClip("close");
 
 /**
  * Bake every sprite, part, look and frame into one canvas.

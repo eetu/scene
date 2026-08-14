@@ -64,7 +64,8 @@
     CAR_CONTACTS,
     CROWN_NAMES,
     drawSprite,
-    LAMP_RAISE,
+    LAMP_CLOSE,
+    LAMP_OPEN,
     LANDMARK_NAMES,
     type Placed,
     SIGN_NAMES,
@@ -279,10 +280,13 @@
     /**
      * How far up the pop-up headlights are, 0 flush to 1 raised.
      *
-     * They come up once, as the drive starts, and stay up: the beam is thrown for
-     * as long as there is a car on screen — including while it is parked at the
-     * left edge — and a lamp lying flush under a lit beam is the one detail on this
-     * sprite that could argue with the light it is casting.
+     * They come up when the music starts and go back down when it stops, which is
+     * the one thing on the car that says it has been switched off rather than merely
+     * parked. Linear, not eased: a pop-up lamp is a motor running at one speed.
+     *
+     * The BEAM goes with them — see `paintCar`. A lamp lying flush while its light
+     * still falls down the road is the one detail on this sprite that can argue with
+     * the rest of the frame.
      */
     let lampUp = 0;
     /**
@@ -1429,19 +1433,25 @@
       g.fillStyle = ug;
       g.fillRect(cx - 12, GROUND_Y - 10, CAR_W + 24, 20);
 
-      // Headlight wash, thrown forward down the road.
-      const beam = g.createLinearGradient(cx + CAR_W, GROUND_Y - 6, bw, GROUND_Y + 6);
-      const ba = (0.3 + level * 0.4) * (0.6 + sky.haze * 0.7);
-      beam.addColorStop(0, `rgba(255,240,200,${Math.min(0.8, ba)})`);
-      beam.addColorStop(1, "rgba(255,220,160,0)");
-      g.fillStyle = beam;
-      g.beginPath();
-      g.moveTo(cx + CAR_W - 2, y + 6);
-      g.lineTo(bw, GROUND_Y - 16);
-      g.lineTo(bw, GROUND_Y + 8);
-      g.lineTo(cx + CAR_W - 2, y + 10);
-      g.closePath();
-      g.fill();
+      // Headlight wash, thrown forward down the road — and only as far as the lamps
+      // are up. They come down when the music stops, so the road ahead goes out with
+      // them; a beam still falling out of a shut bonnet is the one thing this cannot
+      // do. The lamps take a third of a second, which is long enough to read as the
+      // lights being switched off rather than as a frame being dropped.
+      if (lampUp > 0.02) {
+        const beam = g.createLinearGradient(cx + CAR_W, GROUND_Y - 6, bw, GROUND_Y + 6);
+        const ba = (0.3 + level * 0.4) * (0.6 + sky.haze * 0.7) * lampUp;
+        beam.addColorStop(0, `rgba(255,240,200,${Math.min(0.8, ba)})`);
+        beam.addColorStop(1, "rgba(255,220,160,0)");
+        g.fillStyle = beam;
+        g.beginPath();
+        g.moveTo(cx + CAR_W - 2, y + 6);
+        g.lineTo(bw, GROUND_Y - 16);
+        g.lineTo(bw, GROUND_Y + 8);
+        g.lineTo(cx + CAR_W - 2, y + 10);
+        g.closePath();
+        g.fill();
+      }
 
       // Tail glow: three stacked runs, each shorter and fainter than the one
       // below it, so the light falls off in both directions instead of trailing
@@ -1498,8 +1508,11 @@
      */
     function paintCarGroup(g: CanvasRenderingContext2D, cx: number, y: number) {
       const spin = WHEEL_FRAMES ? Math.floor(wheel) % WHEEL_FRAMES : 0;
-      const lamp =
-        LAMP_RAISE[Math.min(LAMP_RAISE.length - 1, Math.round(lampUp * (LAMP_RAISE.length - 1)))];
+      // Whichever way the lamps are going, read off that clip: `lampUp` is how far
+      // through the move they are, and the clip says which frame that is.
+      const clip = active ? LAMP_OPEN : LAMP_CLOSE;
+      const t = active ? lampUp : 1 - lampUp;
+      const lamp = clip[Math.min(clip.length - 1, Math.round(t * (clip.length - 1)))];
       const frameFor = (p: Placed) => (p.key === "wheel" ? spin : p.name === "lights" ? lamp : 0);
       for (const p of CAR_PARTS) {
         if (p.behind) drawSprite(g, atlas, p.key, cx + p.x, y + p.y, frameFor(p));
@@ -1613,7 +1626,7 @@
           if (x + len < 0 || x >= bw) continue;
           const beam =
             x > nose && row > GROUND_Y - 15 && row < GROUND_Y + 9
-              ? clamp01(1 - (x - nose) / reach)
+              ? clamp01(1 - (x - nose) / reach) * lampUp
               : 0;
           // In the headlights water stops being subtle: a wet stretch inside a beam
           // glares, and that is the one thing that says which parts of a night road
@@ -1710,9 +1723,11 @@
         // Fading as the square of what is left: a ring thins out early and lingers
         // faintly rather than switching off at full strength.
         const fall = (1 - f) * (1 - f);
+        // Lit by the lamps, so it goes out with them: the splashes in front of a
+        // switched-off car are as grey as the ones behind it.
         const beam =
           x > nose && s.y > GROUND_Y - 15 && s.y < GROUND_Y + 9
-            ? clamp01(1 - (x - nose) / reach)
+            ? clamp01(1 - (x - nose) / reach) * lampUp
             : 0;
         const a = base * fall * (0.4 + s.z * 0.7) * (1 + s.pud * 0.6) * (1 + beam * 3.4);
         if (a < 0.015) continue;
@@ -1958,9 +1973,9 @@
         const rolled = speed * dt * motion;
         scroll += rolled;
         wheel += speed * dt * 0.22;
-        // The lamps come up as the drive starts, over about a third of a second,
-        // and never go back down — see `lampUp`.
-        if (active) lampUp = Math.min(1, lampUp + dt * 3);
+        // The lamps, a third of a second either way. NOT gated on `active`: going
+        // down is the half of this that happens once the music has stopped.
+        lampUp = clamp01(lampUp + (active ? dt * 3 : -dt * 3));
 
         // The train. It runs on its own, but the city it runs through is sliding
         // past, so it is dragged at the near skyline's rate as well — a train that
@@ -2096,7 +2111,9 @@
         // The driver freezes a paused viz after a short settle; a car stopped
         // halfway through its slide would read as a stall, and smoke stopped
         // mid-air worse, so hold the loop open until both have finished.
-        coasting = !active && (lag < lagMax - 0.5 || puffs.length > 0);
+        // ...and until the lamps are down: a loop that froze mid-close would leave
+        // one headlight half swallowed by the bonnet.
+        coasting = !active && (lag < lagMax - 0.5 || puffs.length > 0 || lampUp > 0);
 
         const phase = moonPhaseAt(clock, moonOffset);
 
