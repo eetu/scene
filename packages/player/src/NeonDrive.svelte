@@ -61,10 +61,12 @@
     bakeAtlas,
     CAR_H,
     CAR_W,
-    CAR_WHEELS,
+    CAR_CONTACTS,
     CROWN_NAMES,
     drawSprite,
+    LAMP_RAISE,
     LANDMARK_NAMES,
+    type Placed,
     SIGN_NAMES,
     SIGN_SIZES,
   } from "./drive-sprites";
@@ -127,7 +129,9 @@
     const bh = BUF_H;
 
     const atlas: Atlas = bakeAtlas();
-    const SPOKE_FRAMES = atlas.frames("spoke");
+    const WHEEL_FRAMES = atlas.frames("wheel");
+    /** What is placed on the car, once: the parts list is art, not state. */
+    const CAR_PARTS = atlas.parts("car");
     const PALM_FRAMES = atlas.frames("palm");
 
     // The moon is the one sprite that cannot be authored: it has to be redrawn
@@ -238,7 +242,16 @@
     let clock = 0; // seconds of playback: weather, moon and every wobble
     let scroll = 0; // the near layer's travel, in buffer pixels
     let speed = 0; // eased, px/s
-    let wheel = 0; // spoke frame accumulator
+    let wheel = 0; // wheel frame accumulator
+    /**
+     * How far up the pop-up headlights are, 0 flush to 1 raised.
+     *
+     * They come up once, as the drive starts, and stay up: the beam is thrown for
+     * as long as there is a car on screen — including while it is parked at the
+     * left edge — and a lamp lying flush under a lit beam is the one detail on this
+     * sprite that could argue with the light it is casting.
+     */
+    let lampUp = 0;
     /**
      * How far the car has dropped behind its mark, in buffer pixels.
      *
@@ -1065,7 +1078,7 @@
       const cx = carLeft();
       // Both wheels lock, and at this scale they lay the same line — so a mark per
       // wheel, and the eye joins them up.
-      for (const [wx] of CAR_WHEELS) {
+      for (const wx of CAR_CONTACTS) {
         skids.push({ wx, u: scroll + cx + wx, len: 0, born: clock, heat: brakeHeat, live: true });
       }
       puffAcc = 0;
@@ -1097,7 +1110,7 @@
       puffAcc += dt;
       while (puffAcc > 0.05 / Math.max(0.2, motion)) {
         puffAcc -= 0.05 / Math.max(0.2, motion);
-        const [wx] = CAR_WHEELS[Math.floor(Math.random() * CAR_WHEELS.length)];
+        const wx = CAR_CONTACTS[Math.floor(Math.random() * CAR_CONTACTS.length)];
         puffs.push({
           u: scroll + cx + wx + Math.random() * 5 - 2,
           y: GROUND_Y - 1 - Math.random() * 2,
@@ -1204,7 +1217,7 @@
       // It ends under the FRONT TYRE, which is the thing laying it — a couple of
       // pixels into that contact patch and no further. Running it to the nose put
       // track on road the car has not reached yet.
-      const frontWheel = Math.max(...CAR_WHEELS.map(([wx]) => wx));
+      const frontWheel = Math.max(...CAR_CONTACTS);
       const carEnd = carLeft() + frontWheel + 2;
       for (let x = 0; x < carEnd; x++) {
         const u = (x + scroll) | 0;
@@ -1321,14 +1334,13 @@
         tail.addColorStop(0, "rgba(255,47,106,0)");
         tail.addColorStop(1, `rgba(255,47,106,${Math.min(0.8, ta * (1 - i * 0.25))})`);
         g.fillStyle = tail;
-        g.fillRect(cx - len, y + 5 + i * 2, len + 2, 2);
+        // Level with the lamps the glow is supposed to be coming out of — rows 8
+        // to 10 of the sprite. It used to start three rows above them, which put
+        // the streak along the boot lid rather than behind the lights.
+        g.fillRect(cx - len, y + 7 + i * 2, len + 2, 2);
       }
 
-      drawSprite(g, atlas, "car", cx, y);
-      // Spokes over the baked wheels: the only moving part on the car, and the
-      // one that says the wheels are turning rather than the world sliding.
-      const frame = SPOKE_FRAMES ? Math.floor(wheel) % SPOKE_FRAMES : 0;
-      for (const [wx, wy] of CAR_WHEELS) drawSprite(g, atlas, "spoke", cx + wx, y + wy, frame);
+      paintCarGroup(g, cx, y);
 
       // The city catching the car on the beat.
       //
@@ -1341,9 +1353,35 @@
       if (pulse > 0.02) {
         g.globalCompositeOperation = "lighter";
         g.globalAlpha = Math.min(0.45, pulse * 0.3);
-        drawSprite(g, atlas, "car", cx, y);
+        paintCarGroup(g, cx, y);
         g.globalAlpha = 1;
         g.globalCompositeOperation = "source-over";
+      }
+    }
+
+    /**
+     * The car and everything placed on it: the seat behind the body, the door over
+     * it, the wheels, and the headlights.
+     *
+     * The car stopped being one grid when it grew parts. Which frame each part is
+     * showing is the SCENE's state, not the art's — the wheels are turning at the
+     * road's rate and the lamps are wherever the pop-up has got to — so the sprite
+     * carries the pixels and the clips, and this decides where in them we are.
+     *
+     * Drawn twice per frame, once flat and once in `lighter` for the beat, so it is
+     * a function rather than a passage inside `paintCar`.
+     */
+    function paintCarGroup(g: CanvasRenderingContext2D, cx: number, y: number) {
+      const spin = WHEEL_FRAMES ? Math.floor(wheel) % WHEEL_FRAMES : 0;
+      const lamp =
+        LAMP_RAISE[Math.min(LAMP_RAISE.length - 1, Math.round(lampUp * (LAMP_RAISE.length - 1)))];
+      const frameFor = (p: Placed) => (p.key === "wheel" ? spin : p.name === "lights" ? lamp : 0);
+      for (const p of CAR_PARTS) {
+        if (p.behind) drawSprite(g, atlas, p.key, cx + p.x, y + p.y, frameFor(p));
+      }
+      drawSprite(g, atlas, "car", cx, y);
+      for (const p of CAR_PARTS) {
+        if (!p.behind) drawSprite(g, atlas, p.key, cx + p.x, y + p.y, frameFor(p));
       }
     }
 
@@ -1628,6 +1666,9 @@
         const rolled = speed * dt * motion;
         scroll += rolled;
         wheel += speed * dt * 0.22;
+        // The lamps come up as the drive starts, over about a third of a second,
+        // and never go back down — see `lampUp`.
+        if (active) lampUp = Math.min(1, lampUp + dt * 3);
 
         // The train. It runs on its own, but the city it runs through is sliding
         // past, so it is dragged at the near skyline's rate as well — a train that

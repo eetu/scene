@@ -1,41 +1,164 @@
 {
   "name": "car",
   "w": 72,
-  "h": 18,
+  "h": 21,
   "palette": {
-    "S": "#5e0f21",
     "B": "#a81c33",
     "b": "#c8253f",
+    "S": "#5e0f21",
     "H": "#7de8ff",
-    "K": "#0d0810",
     "M": "#ff3bd4",
+    "K": "#0d0810",
     "G": "#0d2233",
     "g": "#4fbde0",
     "T": "#ff2f6a",
     "W": "#08080f",
     "R": "#a7a0b8",
-    "L": "#fff0c0"
+    "L": "#fff0c0",
+    "A": "#eda750",
+    "C": "#BF6F2A"
   },
   "frames": [
     [
-      ".....................bbbbbbbbbbbbbbbbb..................................",
-      "..................BbbbbKKKKKKKKKKKKKKKbb................................",
-      "...............BbbbbbbbKGGKKGGGGGGGGGGKKbbb.............................",
-      "...........BbbbbbbbbbbWGGGGKKGGGGGGGGGGGKKKbb...........................",
-      ".BbbbbbbbbbbBBBBBBBBBbWGGGGKKGGGGGGGGGGGGGGKKbb.........................",
-      ".SSSBBBBBBBBBbbbbbbbBBWGGGGGKKGGGGGGGGGGGGGGGKKbbbbbbb..................",
-      ".KKSBBBBBSSSSSSSSSbbbbbWKKKKKKKKKKKKKKKKKKKKKKKbbbbbbbbbbb...........b..",
-      ".KLSBBBBBBBBBBBBBBSSSbbbbbbbbSbbbbbbbbbbbbbbbbSBBBBBBBBBBBbbbbbb...bbB..",
-      ".KKSBBBBBBBKWWWKBBBBBSSBBBBBBSBRBBBBBBBBBBBBBBSBBBBBKWWWKBBBBBBBbbbbBB..",
-      ".KMSBBBBBKWWWWWWWKBBBBBSKKKKKKKKKKKKSSSSSSSSSBSBBBKWWWWWWWKBBBBBBBBBbb..",
-      ".KKSBBBBKWWWWWWWWWKBBBBBKKKSSSBBBBBBBBBBBBBBBBSBBKWWWWWWWWWKSSSSSSSSSSSS",
-      "SBBSBBBBKWWWRRRWWWKBBBBBBKKKKKKKKKKKKSSSSSSSSBSBBKWWWRRRWWWKBBBBBBBBBBBS",
-      ".SSSBBBKWWWRRRRRWWWKBBBBBKKKSSBBBBBBBBBBBBBBBBSBKWWWRRRRRWWWKBLLBBBBBMMS",
-      "...SSSSKWWWRRRRRWWWKBBBBBBKKKKKKKKKKKSSSSSSSSBSBKWWWRRRRRWWWKBBBBBBBBLL.",
-      "......KKWWWRRRRRWWWKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKWWWRRRRRWWWKKKKKKKKKKK.",
-      ".......KKWWWRRRWWWKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKWWWRRRWWWKKKKKKKKKKKW.",
-      ".........WWWWWWWWW................................WWWWWWWWW.............",
-      "..........WWWWWWW..................................WWWWWWW.............."
+      ".....................KKKKKKKKKKKKKKKKK..................................",
+      "..................KKKbbbbbbbbbbbbbbbbbKK................................",
+      "...............KKKbbbBBKKKK...........bbKKK.............................",
+      "...........KKKKbbbBBBBBKGGK.............bbbKK...........................",
+      ".KKKKKKKKKKbbbbBBBBBBBKGGGGK...CC..........bbKK.........................",
+      "KbbbbbbbbbbSSSSSSSBBBBKGGGGK...CC...........KbbKKKKKKK..................",
+      "KBBBBSBSBSbbbbbbbbSSSSWGGGGGK..CC..........KKKSbbbbbbbKKKK..............",
+      ".KKKBbBbBbBSSSSSSbbbbbBKKKKKK..CAC........KKKKSbbbbbbbbbbbKKKKKK........",
+      ".KLKBBBBBBBBBBBBbSSSSbbBBBBBBS.CAC.......KK.KKSBBBBBBBBBBBbbbbbbKKKK....",
+      ".KKKBBBBBBBKWWKKBbbbbSSbbbbbbS.CAAC..........KSBBBBBKWWWKBBBBBBBbbbbKK..",
+      ".KMKBBBBBKK.....WKBBBbbKKKKKKS.CCAC..........KSBBBKW.....WKBBBBBBBBBbbKK",
+      ".KKKBBBBK.........KBBBBKSSBBBS..CAC...........SBBK.........KSSSSSSSSSSSK",
+      "KBBKBBBBK.........KBBBBBKKKKKS..CCCCCCCCCC...KSBBK.........KBBBBBBBBBBBK",
+      ".KSKBBBK...........KBRRBKSSBBS...CAAAAAAAAC.KKSBK...........KBLLBBBBBMMK",
+      "..KKSSBK...........KBBBBBKKKKS...CCCCCCCCCCKKKSBK...........KBBBBBBBBLLK",
+      "....KSSK...........KBBBBBBBBBSSSSSSSSSSSSSSSSSSBK...........KBBBBBBBBBBK",
+      ".....KKK...........KKKKKKKKKKKKKKKKKKKKKKKKKKKKKK...........KKKKKKKKKKWK",
+      "......K.............KKKKKKKKKKKKKKKKKKKKKKKKKKKK.............KKKKKKKKKKK",
+      "........................................................................",
+      "........................................................................",
+      "........................................................................"
     ]
+  ],
+  "parts": [
+    {
+      "name": "lights",
+      "x": 65,
+      "y": 6,
+      "w": 5,
+      "h": 4,
+      "palette": {
+      "S": "#5e0f21",
+      "B": "#a81c33",
+      "b": "#c8253f",
+      "K": "#0d0810"
+    },
+      "clips": {
+      "open": [0,1,2],
+      "close": [2,1,0]
+    },
+      "frames": [
+      [
+        ".....",
+        ".....",
+        "KKK..",
+        "...KK"
+      ],
+      [
+        ".....",
+        "...KK",
+        "KKKBB",
+        "....."
+      ],
+      [
+        "...KK",
+        ".KKSB",
+        "KKKBB",
+        "....."
+      ]
+    ]
+    },
+    {
+      "name": "door_l",
+      "x": 25,
+      "y": 2,
+      "behind": true,
+      "w": 22,
+      "h": 15,
+      "palette": {
+      "S": "#5e0f21",
+      "B": "#a81c33",
+      "b": "#c8253f",
+      "H": "#7de8ff",
+      "K": "#0d0810",
+      "M": "#ff3bd4",
+      "G": "#0d2233",
+      "g": "#4fbde0",
+      "T": "#ff2f6a",
+      "W": "#08080f",
+      "R": "#a7a0b8",
+      "L": "#fff0c0",
+      "A": "#4D2F1C"
+    },
+      "frames": [
+      [
+        "..KKKKKKKKKKK.........",
+        "..KGGGGGGGGGGKK.......",
+        "...KGGGGGGGGGGGKKK....",
+        "...KGGGGGGGGGGGGGGKK..",
+        "....KGGGGGGGGGGGGGGGKK",
+        "....KKKKKKKKKKKKKKKKKK",
+        "....AAAAAAAAAAAAAAAAKK",
+        "....AAAAAAAAAAAAAAAKKK",
+        "....AAAAAAAAAAAAAAKKKK",
+        "....AAAAAAAAAAAAAKKKKA",
+        "....AAAAAAAAAAAKKKKKAA",
+        "....KKKKKKKKKKKKKKKAAA",
+        "....KKKKKKKKKKKKKKAAAA",
+        "....KKKKKKKKKKKKKKKKKK",
+        "......................"
+      ]
+    ]
+    },
+    {
+      "name": "door_r",
+      "x": 25,
+      "y": 2,
+      "w": 22,
+      "h": 15,
+      "palette": {
+      "S": "#5e0f21",
+      "B": "#a81c33",
+      "b": "#c8253f",
+      "K": "#0d0810",
+      "G": "#0d2233",
+      "g": "#4fbde0",
+      "R": "#a7a0b8"
+    },
+      "frames": [
+      [
+        "..KKKKKKKKKKK.........",
+        "..KGGGGGGGGGGKK.......",
+        "...KGGGGGGGGGGGKKK....",
+        "...KGGGGGGGGGGGGGGKK..",
+        "....KGGGGGGGGGGGGGGGKK",
+        "....KKKKKKKKKKKKKKKKKK",
+        "....KBBBBBBBBBBBBBBBBK",
+        "....KbRbbbbbbbbbbbBBBK",
+        "....KKKKKKKSSSSSSSSBBK",
+        "....KBBBBBBBBBBBBBBBBK",
+        "....KKKKKKKKSSSSSBBBBK",
+        "....KBBBBBBBBBBBBBBBBK",
+        "....KKKKKKKKSSSSSBBBBK",
+        "....KBBBBBBBBBBBBBBBBK",
+        "....KKKKKKKKKKKKKKKKKK"
+      ]
+    ]
+    },
+    { "name": "wheel_r", "x": 8, "y": 10, "use": "wheel" },
+    { "name": "wheel_f", "x": 49, "y": 10, "use": "wheel" }
   ]
 }
