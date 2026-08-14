@@ -134,6 +134,39 @@
     const CAR_PARTS = atlas.parts("car");
     const PALM_FRAMES = atlas.frames("palm");
 
+    /**
+     * The car, composited: the whole group flattened into one image.
+     *
+     * The beat brightens the car by drawing it over itself in `lighter`, and with
+     * parts that has to be the FLATTENED car or it is not the same picture. Adding
+     * the group layer by layer makes the sum of every layer — so the vents and the
+     * seat behind the near door added straight through it, and the door glowed with
+     * the detail it is supposed to be hiding.
+     *
+     * Sized off the parts rather than off the body: a part may hang outside its
+     * parent's box (a raised lamp above the bonnet is the case in hand), and
+     * clipping it here would show as a part that stops catching the beat.
+     */
+    const carBox = CAR_PARTS.reduce(
+      (box, p) => {
+        const r = atlas.rect(p.key);
+        if (!r) return box;
+        const x0 = Math.min(box.x, p.x);
+        const y0 = Math.min(box.y, p.y);
+        return {
+          x: x0,
+          y: y0,
+          w: Math.max(box.x + box.w, p.x + r.w) - x0,
+          h: Math.max(box.y + box.h, p.y + r.h) - y0,
+        };
+      },
+      { x: 0, y: 0, w: CAR_W, h: CAR_H },
+    );
+    const carCnv = document.createElement("canvas");
+    carCnv.width = carBox.w;
+    carCnv.height = carBox.h;
+    const carCtx = carCnv.getContext("2d");
+
     // The moon is the one sprite that cannot be authored: it has to be redrawn
     // whenever its phase moves, so it is baked here and re-baked only when the
     // terminator has actually shifted a pixel's worth.
@@ -1430,16 +1463,22 @@
 
       // The city catching the car on the beat.
       //
-      // The sprite drawn over itself in `lighter`, NOT a rectangle: a band was
-      // a guess at where the car is, and on this sprite it landed square on the
-      // greenhouse and read as a glowing side window. Compositing the art with
-      // itself brightens what is already bright — the cyan roof rim, the glass
-      // sheen, the tail — and leaves the dark body dark, which is what a passing
-      // light actually does to a car.
-      if (pulse > 0.02) {
+      // The car drawn over itself in `lighter`, NOT a rectangle: a band was a guess
+      // at where the car is, and on this sprite it landed square on the greenhouse
+      // and read as a glowing side window. Compositing the art with itself
+      // brightens what is already bright — the cyan roof rim, the glass sheen, the
+      // tail — and leaves the dark body dark, which is what a passing light
+      // actually does to a car.
+      //
+      // It is the FLATTENED car that goes down, not the group again: `lighter` sums
+      // everything it is given, so re-drawing the layers made the door glow with the
+      // vents and the seat behind it.
+      if (pulse > 0.02 && carCtx) {
+        carCtx.clearRect(0, 0, carBox.w, carBox.h);
+        paintCarGroup(carCtx, -carBox.x, -carBox.y);
         g.globalCompositeOperation = "lighter";
         g.globalAlpha = Math.min(0.45, pulse * 0.3);
-        paintCarGroup(g, cx, y);
+        g.drawImage(carCnv, cx + carBox.x, y + carBox.y);
         g.globalAlpha = 1;
         g.globalCompositeOperation = "source-over";
       }
