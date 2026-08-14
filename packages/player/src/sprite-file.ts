@@ -24,7 +24,8 @@ export type Flip = "h" | "v" | "hv";
 export type SpriteBody = {
   w: number;
   h: number;
-  /** Character → `#rrggbb`. */
+  /** Character → `#rrggbb`, or `#rrggbbaa` for a translucent one. The car's glass
+   *  is the case in hand: the seat behind the body shows through it. */
   palette: Record<string, string>;
   /** Named alternate colours, each overriding a subset of `palette` and
    *  inheriting the rest. */
