@@ -1,341 +1,117 @@
-// The sprite format and its edit operations. Every tool in the editor ends in
-// one of these functions, so this is where a paint bug is caught — a canvas is
-// the worst place to find out that flood fill leaks through a diagonal.
+// The reader half of the sprite format: the four questions the scene asks of a
+// sprite. The editing operations and the validator live in ../dab, which owns the
+// format and tests them there — this file used to be a copy of those tests, and
+// two copies of a format that has grown parts and nesting is two readers that
+// drift apart.
 import { describe, expect, test } from "vitest";
 
 import {
-  addColour,
-  addFrame,
-  blankSprite,
   cellColour,
-  cloneSprite,
-  duplicateFrame,
-  ellipsePoints,
-  floodPoints,
-  fromJson,
-  linePoints,
-  moveFrame,
-  rectPoints,
-  removeColour,
-  removeFrame,
-  renameChar,
-  resizeSprite,
-  setPixel,
-  setPixels,
+  clipFrames,
+  flipRows,
+  isPartBody,
+  isPartRef,
+  type Part,
+  partNamed,
   type SpriteFile,
-  toJson,
-  unusedChars,
-  validateSprite,
   variantNames,
 } from "../sprite-file";
 
-const sprite = (
-  rows: string[],
-  palette: Record<string, string> = { A: "#ff0000" },
-): SpriteFile => ({
+const sprite = (over: Partial<SpriteFile> = {}): SpriteFile => ({
   name: "test",
-  w: rows[0].length,
-  h: rows.length,
-  palette,
-  frames: [rows],
+  w: 2,
+  h: 1,
+  palette: { A: "#ff3bd4", B: "#0b0512" },
+  frames: [["AB"]],
+  ...over,
 });
 
-describe("validation", () => {
-  test("a blank sprite is valid", () => {
-    expect(validateSprite(blankSprite("x", 4, 3))).toEqual([]);
-  });
-
-  test("it names every way a file can be wrong, not just the first", () => {
-    const errors = validateSprite({
-      name: "",
-      w: 3,
-      h: 2,
-      palette: { AB: "#fff", C: "nope" },
-      frames: [["...", "..", "..."]],
-    });
-    expect(errors.some((e) => e.includes("name"))).toBe(true);
-    expect(errors.some((e) => e.includes("one character"))).toBe(true);
-    expect(errors.some((e) => e.includes("#rrggbb"))).toBe(true);
-    expect(errors.some((e) => e.includes("rows"))).toBe(true);
-  });
-
-  test("a pixel with no colour behind it is an error", () => {
-    expect(validateSprite(sprite(["A.Z"]))).toEqual(["frame 0 row 0 uses Z, which has no colour"]);
-  });
-
-  test("`.` is transparent and may not be given a colour", () => {
-    expect(validateSprite(sprite(["..."], { ".": "#ffffff" })).join(" ")).toContain("transparent");
-  });
-
-  test("every character needs a colour — nothing is reserved", () => {
-    // `N` and `n` used to be special, coloured by the tint pass and legal without a
-    // palette entry. They are ordinary characters now, so a sprite that uses them and
-    // does not name them is a sprite with holes in it.
-    expect(validateSprite(sprite(["NnN", "..."], {})).length).toBe(2);
-    expect(validateSprite(sprite(["NnN", "..."], { N: "#ff3bd4", n: "#6b1859" }))).toEqual([]);
-  });
-
-  test("a variant may only recolour characters the palette has", () => {
-    // Otherwise a cell has no colour at all with the variant unselected, and the
-    // sprite draws with a hole for anyone who ignored the variants.
-    const s = sprite(["A."], { A: "#ff3bd4" });
-    expect(validateSprite({ ...s, variants: { cyan: { A: "#39f6ff" } } })).toEqual([]);
-    expect(validateSprite({ ...s, variants: { cyan: { Z: "#39f6ff" } } }).join(" ")).toContain(
-      "which the palette does not have",
-    );
-    expect(validateSprite({ ...s, variants: { cyan: { A: "nope" } } }).join(" ")).toContain(
-      "#rrggbb",
-    );
-    expect(validateSprite({ ...s, variants: { "": { A: "#39f6ff" } } }).join(" ")).toContain(
-      "no name",
-    );
-  });
-
+describe("colour", () => {
   test("a cell takes the variant's colour where it has one, the palette's otherwise", () => {
-    const s: SpriteFile = {
-      ...sprite(["AB"], { A: "#ff3bd4", B: "#0b0512" }),
-      variants: { cyan: { A: "#39f6ff" } },
-    };
+    const s = sprite({ variants: { cyan: { A: "#39f6ff" } } });
     expect(cellColour(s, "A")).toBe("#ff3bd4");
     expect(cellColour(s, "A", "cyan")).toBe("#39f6ff");
-    // Not overridden by that variant, so it stays as the palette has it.
+    // Not named by that variant, so it stays as the palette has it.
     expect(cellColour(s, "B", "cyan")).toBe("#0b0512");
     // A variant nobody declared is not an error, it is just the palette.
     expect(cellColour(s, "A", "amber")).toBe("#ff3bd4");
     expect(cellColour(s, ".", "cyan")).toBe(null);
-    expect(variantNames(s)).toEqual(["cyan"]);
-    expect(variantNames(sprite(["A."]))).toEqual([]);
+    // Nothing about a character is reserved: an unknown one has no colour, and
+    // that is all it means.
+    expect(cellColour(s, "Z")).toBe(null);
+  });
+
+  test("looks are the palette and then the variants, in declaration order", () => {
+    expect(variantNames(sprite())).toEqual([]);
+    expect(variantNames(sprite({ variants: { cyan: {}, amber: {} } }))).toEqual(["cyan", "amber"]);
   });
 });
 
-describe("pixels", () => {
-  test("setPixel replaces one cell and leaves the row's length alone", () => {
-    const frame = ["....", "...."];
-    const out = setPixel(frame, 2, 1, "A");
-    expect(out[1]).toBe("..A.");
-    expect(out[0]).toBe("....");
-    expect(out[1].length).toBe(4);
+describe("clips", () => {
+  test("a clip is its frames in order, and an unknown name is null", () => {
+    const s = sprite({ frames: [["AB"], ["BA"], ["AA"]], clips: { open: [0, 1, 2], up: [2] } });
+    expect(clipFrames(s, "open")).toEqual([0, 1, 2]);
+    expect(clipFrames(s, "up")).toEqual([2]);
+    // Null rather than the whole strip: a silent fallback hides a typo.
+    expect(clipFrames(s, "nope")).toBe(null);
+    expect(clipFrames(sprite(), "open")).toBe(null);
   });
 
-  test("writing off the edge is a no-op, not a ragged row", () => {
-    const frame = ["...."];
-    expect(setPixel(frame, 9, 0, "A")).toBe(frame);
-    expect(setPixel(frame, 0, -1, "A")).toBe(frame);
-  });
-
-  test("an edit that changes nothing returns the same array", () => {
-    // The editor's undo stack pushes on identity, so a no-op stroke must not
-    // fill history with copies of the same frame.
-    const frame = ["A..."];
-    expect(setPixel(frame, 0, 0, "A")).toBe(frame);
-    expect(setPixels(frame, [[0, 0]], "A")).toBe(frame);
-  });
-
-  test("setPixels writes a whole stroke at once", () => {
-    const out = setPixels(
-      ["....", "...."],
-      [
-        [0, 0],
-        [1, 1],
-        [9, 9],
-      ],
-      "A",
-    );
-    expect(out).toEqual(["A...", ".A.."]);
+  test("the list is copied, so a consumer cannot edit the sprite by playing it", () => {
+    const s = sprite({ clips: { open: [0] } });
+    clipFrames(s, "open")!.push(9);
+    expect(s.clips!.open).toEqual([0]);
   });
 });
 
-describe("shapes", () => {
-  test("a line is a Bresenham run with no gaps and no doubled pixels", () => {
-    const pts = linePoints(0, 0, 5, 2);
-    expect(pts[0]).toEqual([0, 0]);
-    expect(pts[pts.length - 1]).toEqual([5, 2]);
-    expect(new Set(pts.map((p) => p.join(","))).size).toBe(pts.length);
-    for (let i = 1; i < pts.length; i++) {
-      expect(Math.abs(pts[i][0] - pts[i - 1][0])).toBeLessThanOrEqual(1);
-      expect(Math.abs(pts[i][1] - pts[i - 1][1])).toBeLessThanOrEqual(1);
-    }
-  });
-
-  test("a line drawn backwards covers the same pixels", () => {
-    const key = (p: [number, number][]) =>
-      p
-        .map((q) => q.join(","))
-        .sort()
-        .join(" ");
-    expect(key(linePoints(1, 4, 7, 0))).toBe(key(linePoints(7, 0, 1, 4)));
-  });
-
-  test("an unfilled rectangle is its border only", () => {
-    const pts = rectPoints(0, 0, 3, 2, false);
-    expect(pts.length).toBe(4 * 2 + (3 - 1) * 2 - 2 * 2 + 2); // perimeter of 4x3
-    expect(pts.some(([x, y]) => x === 1 && y === 1)).toBe(false);
-    expect(rectPoints(0, 0, 3, 2, true).length).toBe(12);
-  });
-
-  test("a rectangle is the same whichever corner the drag started from", () => {
-    const key = (p: [number, number][]) =>
-      p
-        .map((q) => q.join(","))
-        .sort()
-        .join(" ");
-    expect(key(rectPoints(3, 2, 0, 0, true))).toBe(key(rectPoints(0, 0, 3, 2, true)));
-  });
-
-  test("a square drag gives a circle, and the outline is hollow", () => {
-    const filled = ellipsePoints(0, 0, 8, 8, true);
-    const ring = ellipsePoints(0, 0, 8, 8, false);
-    expect(ring.length).toBeLessThan(filled.length);
-    expect(ring.some(([x, y]) => x === 4 && y === 4)).toBe(false);
-    expect(filled.some(([x, y]) => x === 4 && y === 4)).toBe(true);
-    // Round, not square: the corners of the drag box are outside the disc.
-    expect(filled.some(([x, y]) => x === 0 && y === 0)).toBe(false);
-  });
-});
-
-describe("flood fill", () => {
-  const frame = ["AA..", "A.B.", "..BB", "AAAA"];
-
-  test("it takes the connected run and stops at a different colour", () => {
-    const pts = floodPoints(frame, 0, 0);
-    expect(pts).toContainEqual([0, 0]);
-    expect(pts).toContainEqual([1, 0]);
-    expect(pts).toContainEqual([0, 1]);
-    expect(pts).not.toContainEqual([2, 2]); // B
-    expect(pts).not.toContainEqual([0, 3]); // same colour, not connected
-  });
-
-  test("it is 4-connected: it does not leak through a diagonal", () => {
-    // The `.` at (1,1) reaches (1,2) and (0,2) straight down and left. The `.`
-    // at (2,0) is the same colour and touches the region only at a corner —
-    // an 8-connected fill would take it, a 4-connected one must not.
-    const pts = floodPoints(frame, 1, 1);
-    expect(pts).toContainEqual([0, 2]);
-    expect(pts).not.toContainEqual([2, 0]);
-    expect(pts).not.toContainEqual([2, 2]); // B, a different colour
-  });
-
-  test("a seed outside the frame fills nothing", () => {
-    expect(floodPoints(frame, -1, 0)).toEqual([]);
-    expect(floodPoints(frame, 0, 99)).toEqual([]);
-  });
-});
-
-describe("resize", () => {
-  const s = sprite(["AB", "CD"], { A: "#000000", B: "#111111", C: "#222222", D: "#333333" });
-
-  test("growing pads with transparent and keeps the art where it was", () => {
-    const out = resizeSprite(s, 4, 3);
-    expect(out.frames[0]).toEqual(["AB..", "CD..", "...."]);
-    expect(out.w).toBe(4);
-    expect(out.h).toBe(3);
-  });
-
-  test("shrinking crops rather than scaling — pixel art has no resample", () => {
-    expect(resizeSprite(s, 1, 1).frames[0]).toEqual(["A"]);
-  });
-
-  test("centred growth puts the old art in the middle", () => {
-    expect(resizeSprite(s, 4, 4, "center").frames[0]).toEqual(["....", ".AB.", ".CD.", "...."]);
-  });
-
-  test("every frame resizes, not just the first", () => {
-    const two = duplicateFrame(s, 0);
-    const out = resizeSprite(two, 3, 2);
-    expect(out.frames).toHaveLength(2);
-    for (const f of out.frames) expect(f.every((r) => r.length === 3)).toBe(true);
-  });
-});
-
-describe("frames", () => {
-  const s = blankSprite("x", 2, 1);
-
-  test("add, duplicate, move and remove", () => {
-    let out = addFrame(s);
-    expect(out.frames).toHaveLength(2);
-    out = { ...out, frames: [["AA"], ["BB"]] };
-    out = duplicateFrame(out, 0);
-    expect(out.frames.map((f) => f[0])).toEqual(["AA", "AA", "BB"]);
-    out = moveFrame(out, 2, 0);
-    expect(out.frames.map((f) => f[0])).toEqual(["BB", "AA", "AA"]);
-    out = removeFrame(out, 0);
-    expect(out.frames.map((f) => f[0])).toEqual(["AA", "AA"]);
-  });
-
-  test("the last frame cannot be removed — a sprite with no frames is not a sprite", () => {
-    expect(removeFrame(s, 0).frames).toHaveLength(1);
-  });
-
-  test("duplicating copies the rows rather than aliasing them", () => {
-    const two = duplicateFrame(sprite(["AA"]), 0);
-    const edited = { ...two, frames: [setPixel(two.frames[0], 0, 0, "."), two.frames[1]] };
-    expect(edited.frames[1][0]).toBe("AA");
-  });
-});
-
-describe("palette", () => {
-  test("a new colour takes the next free character", () => {
-    const out = addColour(blankSprite("x", 1, 1), "#123456");
-    expect(Object.entries(out.palette)).toEqual([["A", "#123456"]]);
-    expect(Object.keys(addColour(out, "#654321").palette)).toEqual(["A", "B"]);
-  });
-
-  test("dropping a colour erases the pixels that used it", () => {
-    const out = removeColour(sprite(["AB.", "BA."], { A: "#000000", B: "#ffffff" }), "B");
-    expect(out.frames[0]).toEqual(["A..", ".A."]);
-    expect(out.palette).toEqual({ A: "#000000" });
-  });
-
-  test("renaming a character rewrites every pixel that used it", () => {
-    const out = renameChar(sprite(["AA."], { A: "#000000" }), "A", "Z");
-    expect(out.frames[0]).toEqual(["ZZ."]);
-    expect(out.palette).toEqual({ Z: "#000000" });
-  });
-
-  test("renaming onto a taken character is refused rather than merging two colours", () => {
-    const s = sprite(["AB"], { A: "#000000", B: "#ffffff" });
-    expect(renameChar(s, "A", "B")).toBe(s);
-  });
-
-  test("unused entries are reported so they can be swept up", () => {
-    expect(unusedChars(sprite(["A."], { A: "#000000", Q: "#ffffff" }))).toEqual(["Q"]);
-  });
-});
-
-describe("serialisation", () => {
-  const s: SpriteFile = {
-    name: "sign",
-    w: 3,
-    h: 2,
-    palette: { A: "#ff00ff" },
-    variants: { cyan: { A: "#39f6ff" } },
-    frames: [
-      ["A.A", ".A."],
-      ["...", "AAA"],
-    ],
+describe("parts", () => {
+  const wheel: Part = { name: "wheel_f", x: 49, y: 10, use: "wheel" };
+  const lamp: Part = {
+    name: "lights",
+    x: 66,
+    y: 6,
+    w: 1,
+    h: 1,
+    palette: { b: "#c8253f" },
+    frames: [["."], ["b"]],
+    clips: { open: [0, 1] },
   };
 
-  test("a round trip through JSON is the same sprite", () => {
-    const back = fromJson(toJson(s));
-    expect("sprite" in back && back.sprite).toEqual(s);
+  test("a part either names a sprite or carries its own pixels", () => {
+    expect(isPartRef(wheel)).toBe(true);
+    expect(isPartBody(wheel)).toBe(false);
+    expect(isPartRef(lamp)).toBe(false);
+    expect(isPartBody(lamp)).toBe(true);
   });
 
-  test("one row per line, so a frame reads as a picture in the diff", () => {
-    expect(toJson(s)).toContain('      "A.A",\n      ".A."');
+  test("a part with pixels IS a sprite, so the readers work on it unchanged", () => {
+    expect(isPartBody(lamp) && cellColour(lamp, "b")).toBe("#c8253f");
+    expect(isPartBody(lamp) && clipFrames(lamp, "open")).toEqual([0, 1]);
   });
 
-  test("a bad file comes back as errors rather than throwing", () => {
-    expect(fromJson("{oh no")).toHaveProperty("errors");
-    expect(fromJson('{"name":"x"}')).toHaveProperty("errors");
+  test("parts are found by name", () => {
+    const s = sprite({ parts: [wheel, lamp] });
+    expect(partNamed(s, "lights")).toBe(lamp);
+    expect(partNamed(s, "wheel_f")).toBe(wheel);
+    expect(partNamed(s, "boot")).toBe(null);
+    expect(partNamed(sprite(), "lights")).toBe(null);
+  });
+});
+
+describe("flip", () => {
+  const rows = ["AB.", "..C"];
+
+  test("no flip is the rows themselves", () => {
+    expect(flipRows(rows)).toBe(rows);
   });
 
-  test("cloning leaves the original alone", () => {
-    const copy = cloneSprite(s);
-    copy.frames[0][0] = "...";
-    copy.palette.A = "#000000";
-    copy.variants!.cyan.A = "#000000";
-    expect(s.frames[0][0]).toBe("A.A");
-    expect(s.palette.A).toBe("#ff00ff");
-    expect(s.variants!.cyan.A).toBe("#39f6ff");
+  test("h mirrors each row, v reverses their order, hv does both", () => {
+    expect(flipRows(rows, "h")).toEqual([".BA", "C.."]);
+    expect(flipRows(rows, "v")).toEqual(["..C", "AB."]);
+    expect(flipRows(rows, "hv")).toEqual(["C..", ".BA"]);
+  });
+
+  test("flipping twice is where it started", () => {
+    expect(flipRows(flipRows(rows, "hv"), "hv")).toEqual(rows);
   });
 });
