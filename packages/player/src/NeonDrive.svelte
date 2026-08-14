@@ -61,10 +61,13 @@
     bakeAtlas,
     CAR_H,
     CAR_W,
-    CAR_WHEELS,
+    CAR_CONTACTS,
     CROWN_NAMES,
     drawSprite,
+    LAMP_CLOSE,
+    LAMP_OPEN,
     LANDMARK_NAMES,
+    type Placed,
     SIGN_NAMES,
     SIGN_SIZES,
   } from "./drive-sprites";
@@ -127,8 +130,43 @@
     const bh = BUF_H;
 
     const atlas: Atlas = bakeAtlas();
-    const SPOKE_FRAMES = atlas.frames("spoke");
+    const WHEEL_FRAMES = atlas.frames("wheel");
+    /** What is placed on the car, once: the parts list is art, not state. */
+    const CAR_PARTS = atlas.parts("car");
     const PALM_FRAMES = atlas.frames("palm");
+
+    /**
+     * The car, composited: the whole group flattened into one image.
+     *
+     * The beat brightens the car by drawing it over itself in `lighter`, and with
+     * parts that has to be the FLATTENED car or it is not the same picture. Adding
+     * the group layer by layer makes the sum of every layer — so the vents and the
+     * seat behind the near door added straight through it, and the door glowed with
+     * the detail it is supposed to be hiding.
+     *
+     * Sized off the parts rather than off the body: a part may hang outside its
+     * parent's box (a raised lamp above the bonnet is the case in hand), and
+     * clipping it here would show as a part that stops catching the beat.
+     */
+    const carBox = CAR_PARTS.reduce(
+      (box, p) => {
+        const r = atlas.rect(p.key);
+        if (!r) return box;
+        const x0 = Math.min(box.x, p.x);
+        const y0 = Math.min(box.y, p.y);
+        return {
+          x: x0,
+          y: y0,
+          w: Math.max(box.x + box.w, p.x + r.w) - x0,
+          h: Math.max(box.y + box.h, p.y + r.h) - y0,
+        };
+      },
+      { x: 0, y: 0, w: CAR_W, h: CAR_H },
+    );
+    const carCnv = document.createElement("canvas");
+    carCnv.width = carBox.w;
+    carCnv.height = carBox.h;
+    const carCtx = carCnv.getContext("2d");
 
     // The moon is the one sprite that cannot be authored: it has to be redrawn
     // whenever its phase moves, so it is baked here and re-baked only when the
@@ -238,7 +276,19 @@
     let clock = 0; // seconds of playback: weather, moon and every wobble
     let scroll = 0; // the near layer's travel, in buffer pixels
     let speed = 0; // eased, px/s
-    let wheel = 0; // spoke frame accumulator
+    let wheel = 0; // wheel frame accumulator
+    /**
+     * How far up the pop-up headlights are, 0 flush to 1 raised.
+     *
+     * They come up when the music starts and go back down when it stops, which is
+     * the one thing on the car that says it has been switched off rather than merely
+     * parked. Linear, not eased: a pop-up lamp is a motor running at one speed.
+     *
+     * The BEAM goes with them — see `paintCar`. A lamp lying flush while its light
+     * still falls down the road is the one detail on this sprite that can argue with
+     * the rest of the frame.
+     */
+    let lampUp = 0;
     /**
      * How far the car has dropped behind its mark, in buffer pixels.
      *
@@ -1151,7 +1201,7 @@
       const cx = carLeft();
       // Both wheels lock, and at this scale they lay the same line — so a mark per
       // wheel, and the eye joins them up.
-      for (const [wx] of CAR_WHEELS) {
+      for (const wx of CAR_CONTACTS) {
         skids.push({ wx, u: scroll + cx + wx, len: 0, born: clock, heat: brakeHeat, live: true });
       }
       puffAcc = 0;
@@ -1183,7 +1233,7 @@
       puffAcc += dt;
       while (puffAcc > 0.05 / Math.max(0.2, motion)) {
         puffAcc -= 0.05 / Math.max(0.2, motion);
-        const [wx] = CAR_WHEELS[Math.floor(Math.random() * CAR_WHEELS.length)];
+        const wx = CAR_CONTACTS[Math.floor(Math.random() * CAR_CONTACTS.length)];
         puffs.push({
           u: scroll + cx + wx + Math.random() * 5 - 2,
           y: GROUND_Y - 1 - Math.random() * 2,
@@ -1290,7 +1340,7 @@
       // It ends under the FRONT TYRE, which is the thing laying it — a couple of
       // pixels into that contact patch and no further. Running it to the nose put
       // track on road the car has not reached yet.
-      const frontWheel = Math.max(...CAR_WHEELS.map(([wx]) => wx));
+      const frontWheel = Math.max(...CAR_CONTACTS);
       const carEnd = carLeft() + frontWheel + 2;
       for (let x = 0; x < carEnd; x++) {
         const u = (x + scroll) | 0;
@@ -1383,19 +1433,25 @@
       g.fillStyle = ug;
       g.fillRect(cx - 12, GROUND_Y - 10, CAR_W + 24, 20);
 
-      // Headlight wash, thrown forward down the road.
-      const beam = g.createLinearGradient(cx + CAR_W, GROUND_Y - 6, bw, GROUND_Y + 6);
-      const ba = (0.3 + level * 0.4) * (0.6 + sky.haze * 0.7);
-      beam.addColorStop(0, `rgba(255,240,200,${Math.min(0.8, ba)})`);
-      beam.addColorStop(1, "rgba(255,220,160,0)");
-      g.fillStyle = beam;
-      g.beginPath();
-      g.moveTo(cx + CAR_W - 2, y + 6);
-      g.lineTo(bw, GROUND_Y - 16);
-      g.lineTo(bw, GROUND_Y + 8);
-      g.lineTo(cx + CAR_W - 2, y + 10);
-      g.closePath();
-      g.fill();
+      // Headlight wash, thrown forward down the road — and only as far as the lamps
+      // are up. They come down when the music stops, so the road ahead goes out with
+      // them; a beam still falling out of a shut bonnet is the one thing this cannot
+      // do. The lamps take a third of a second, which is long enough to read as the
+      // lights being switched off rather than as a frame being dropped.
+      if (lampUp > 0.02) {
+        const beam = g.createLinearGradient(cx + CAR_W, GROUND_Y - 6, bw, GROUND_Y + 6);
+        const ba = (0.3 + level * 0.4) * (0.6 + sky.haze * 0.7) * lampUp;
+        beam.addColorStop(0, `rgba(255,240,200,${Math.min(0.8, ba)})`);
+        beam.addColorStop(1, "rgba(255,220,160,0)");
+        g.fillStyle = beam;
+        g.beginPath();
+        g.moveTo(cx + CAR_W - 2, y + 6);
+        g.lineTo(bw, GROUND_Y - 16);
+        g.lineTo(bw, GROUND_Y + 8);
+        g.lineTo(cx + CAR_W - 2, y + 10);
+        g.closePath();
+        g.fill();
+      }
 
       // Tail glow: three stacked runs, each shorter and fainter than the one
       // below it, so the light falls off in both directions instead of trailing
@@ -1407,29 +1463,63 @@
         tail.addColorStop(0, "rgba(255,47,106,0)");
         tail.addColorStop(1, `rgba(255,47,106,${Math.min(0.8, ta * (1 - i * 0.25))})`);
         g.fillStyle = tail;
-        g.fillRect(cx - len, y + 5 + i * 2, len + 2, 2);
+        // Level with the lamps the glow is supposed to be coming out of — rows 8
+        // to 10 of the sprite. It used to start three rows above them, which put
+        // the streak along the boot lid rather than behind the lights.
+        g.fillRect(cx - len, y + 7 + i * 2, len + 2, 2);
       }
 
-      drawSprite(g, atlas, "car", cx, y);
-      // Spokes over the baked wheels: the only moving part on the car, and the
-      // one that says the wheels are turning rather than the world sliding.
-      const frame = SPOKE_FRAMES ? Math.floor(wheel) % SPOKE_FRAMES : 0;
-      for (const [wx, wy] of CAR_WHEELS) drawSprite(g, atlas, "spoke", cx + wx, y + wy, frame);
+      paintCarGroup(g, cx, y);
 
       // The city catching the car on the beat.
       //
-      // The sprite drawn over itself in `lighter`, NOT a rectangle: a band was
-      // a guess at where the car is, and on this sprite it landed square on the
-      // greenhouse and read as a glowing side window. Compositing the art with
-      // itself brightens what is already bright — the cyan roof rim, the glass
-      // sheen, the tail — and leaves the dark body dark, which is what a passing
-      // light actually does to a car.
-      if (pulse > 0.02) {
+      // The car drawn over itself in `lighter`, NOT a rectangle: a band was a guess
+      // at where the car is, and on this sprite it landed square on the greenhouse
+      // and read as a glowing side window. Compositing the art with itself
+      // brightens what is already bright — the cyan roof rim, the glass sheen, the
+      // tail — and leaves the dark body dark, which is what a passing light
+      // actually does to a car.
+      //
+      // It is the FLATTENED car that goes down, not the group again: `lighter` sums
+      // everything it is given, so re-drawing the layers made the door glow with the
+      // vents and the seat behind it.
+      if (pulse > 0.02 && carCtx) {
+        carCtx.clearRect(0, 0, carBox.w, carBox.h);
+        paintCarGroup(carCtx, -carBox.x, -carBox.y);
         g.globalCompositeOperation = "lighter";
         g.globalAlpha = Math.min(0.45, pulse * 0.3);
-        drawSprite(g, atlas, "car", cx, y);
+        g.drawImage(carCnv, cx + carBox.x, y + carBox.y);
         g.globalAlpha = 1;
         g.globalCompositeOperation = "source-over";
+      }
+    }
+
+    /**
+     * The car and everything placed on it: the seat behind the body, the door over
+     * it, the wheels, and the headlights.
+     *
+     * The car stopped being one grid when it grew parts. Which frame each part is
+     * showing is the SCENE's state, not the art's — the wheels are turning at the
+     * road's rate and the lamps are wherever the pop-up has got to — so the sprite
+     * carries the pixels and the clips, and this decides where in them we are.
+     *
+     * Drawn twice per frame, once flat and once in `lighter` for the beat, so it is
+     * a function rather than a passage inside `paintCar`.
+     */
+    function paintCarGroup(g: CanvasRenderingContext2D, cx: number, y: number) {
+      const spin = WHEEL_FRAMES ? Math.floor(wheel) % WHEEL_FRAMES : 0;
+      // Whichever way the lamps are going, read off that clip: `lampUp` is how far
+      // through the move they are, and the clip says which frame that is.
+      const clip = active ? LAMP_OPEN : LAMP_CLOSE;
+      const t = active ? lampUp : 1 - lampUp;
+      const lamp = clip[Math.min(clip.length - 1, Math.round(t * (clip.length - 1)))];
+      const frameFor = (p: Placed) => (p.key === "wheel" ? spin : p.name === "lights" ? lamp : 0);
+      for (const p of CAR_PARTS) {
+        if (p.behind) drawSprite(g, atlas, p.key, cx + p.x, y + p.y, frameFor(p));
+      }
+      drawSprite(g, atlas, "car", cx, y);
+      for (const p of CAR_PARTS) {
+        if (!p.behind) drawSprite(g, atlas, p.key, cx + p.x, y + p.y, frameFor(p));
       }
     }
 
@@ -1536,7 +1626,7 @@
           if (x + len < 0 || x >= bw) continue;
           const beam =
             x > nose && row > GROUND_Y - 15 && row < GROUND_Y + 9
-              ? clamp01(1 - (x - nose) / reach)
+              ? clamp01(1 - (x - nose) / reach) * lampUp
               : 0;
           // In the headlights water stops being subtle: a wet stretch inside a beam
           // glares, and that is the one thing that says which parts of a night road
@@ -1633,9 +1723,11 @@
         // Fading as the square of what is left: a ring thins out early and lingers
         // faintly rather than switching off at full strength.
         const fall = (1 - f) * (1 - f);
+        // Lit by the lamps, so it goes out with them: the splashes in front of a
+        // switched-off car are as grey as the ones behind it.
         const beam =
           x > nose && s.y > GROUND_Y - 15 && s.y < GROUND_Y + 9
-            ? clamp01(1 - (x - nose) / reach)
+            ? clamp01(1 - (x - nose) / reach) * lampUp
             : 0;
         const a = base * fall * (0.4 + s.z * 0.7) * (1 + s.pud * 0.6) * (1 + beam * 3.4);
         if (a < 0.015) continue;
@@ -1881,6 +1973,9 @@
         const rolled = speed * dt * motion;
         scroll += rolled;
         wheel += speed * dt * 0.22;
+        // The lamps, a third of a second either way. NOT gated on `active`: going
+        // down is the half of this that happens once the music has stopped.
+        lampUp = clamp01(lampUp + (active ? dt * 3 : -dt * 3));
 
         // The train. It runs on its own, but the city it runs through is sliding
         // past, so it is dragged at the near skyline's rate as well — a train that
@@ -2016,7 +2111,9 @@
         // The driver freezes a paused viz after a short settle; a car stopped
         // halfway through its slide would read as a stall, and smoke stopped
         // mid-air worse, so hold the loop open until both have finished.
-        coasting = !active && (lag < lagMax - 0.5 || puffs.length > 0);
+        // ...and until the lamps are down: a loop that froze mid-close would leave
+        // one headlight half swallowed by the bonnet.
+        coasting = !active && (lag < lagMax - 0.5 || puffs.length > 0 || lampUp > 0);
 
         const phase = moonPhaseAt(clock, moonOffset);
 

@@ -10,23 +10,53 @@
 // Everything is baked once at mount. Per frame the scene issues drawImage calls
 // against the atlas, so the cost of a lamp post is the same whether it is six
 // pixels or six hundred, and the pixels themselves are never recomputed.
-import { cellColour, type SpriteFile, variantNames } from "./sprite-file";
+import {
+  cellColour,
+  clipFrames,
+  type Flip,
+  flipRows,
+  isPartRef,
+  partNamed,
+  type SpriteBody,
+  type SpriteFile,
+  variantNames,
+} from "./sprite-file";
 
 export type Rect = { x: number; y: number; w: number; h: number };
+
+/**
+ * One of a sprite's parts, ready to draw: the atlas key its pixels are under, the
+ * offset it sits at, and whether it goes down before its parent's own grid.
+ *
+ * A part with its own pixels is baked under `parent/name`; a part that names
+ * another sprite (`use`) is that sprite's own entry, so a wheel is baked once
+ * however many cars are placed on it.
+ */
+export type Placed = {
+  key: string;
+  name: string;
+  x: number;
+  y: number;
+  behind: boolean;
+  frames: number;
+};
 
 export type Atlas = {
   canvas: HTMLCanvasElement;
   /**
    * Where a sprite's pixels are on the sheet.
    *
-   * `look` is an index into the sprite's looks: 0 is its own palette, then its
-   * variants in declaration order. The scene carries a number rather than a
-   * variant's name because that is what its world model has — a sign is generated
-   * with `hue: 0 | 1` long before anything knows a sheet exists.
+   * `key` names a sprite, or one of its inline parts as `parent/part`. `look` is
+   * an index into the looks: 0 is the sprite's own palette, then its variants in
+   * declaration order. The scene carries a number rather than a variant's name
+   * because that is what its world model has — a sign is generated with
+   * `hue: 0 | 1` long before anything knows a sheet exists.
    */
-  rect(name: string, frame?: number, look?: number): Rect | null;
+  rect(key: string, frame?: number, look?: number): Rect | null;
   /** Frames a sprite has, for callers stepping an animation. */
-  frames(name: string): number;
+  frames(key: string): number;
+  /** What is placed on a sprite, in draw order. Empty for a plain sprite. */
+  parts(key: string): Placed[];
 };
 
 /**
@@ -86,18 +116,45 @@ export const LANDMARK_NAMES = ["nasinneula", "vesitorni", "stadion"] as const;
 
 export const CAR_W = SPRITES.car.w;
 export const CAR_H = SPRITES.car.h;
-/** Rim origins in the car's own sprite coordinates: where the spokes go. */
-export const CAR_WHEELS: ReadonlyArray<readonly [number, number]> = [
-  [11, 11],
-  [52, 11],
-];
 
 /**
- * Bake every sprite, look and frame into one canvas.
+ * Where the car's tyres meet the road, in its own coordinates.
+ *
+ * Read off the car's parts rather than written down here: the wheels are two
+ * placements of the `wheel` sprite, and the middle of one is the contact patch —
+ * which is what the skid marks, the tyre smoke and the snow rut are all actually
+ * asking for. It used to be a pair of hardcoded rim origins, and the art moving
+ * three pixels was a silent bug in three effects.
+ */
+export const CAR_CONTACTS: number[] = (SPRITES.car.parts ?? [])
+  .filter((p) => isPartRef(p) && p.use === "wheel")
+  .map((p) => p.x + (SPRITES.wheel.w >> 1));
+
+/**
+ * The pop-up headlights, as the two clips the art declares over the lamp part's
+ * three frames.
+ *
+ * Both directions are read rather than one played backwards: a clip is the art
+ * saying what the move is, and a scene that assumes `close` is `open` reversed is
+ * back to knowing things about the sprite that the sprite already says.
+ */
+const lampClip = (name: string): number[] => {
+  const lamp = partNamed(SPRITES.car, "lights");
+  return (lamp && !isPartRef(lamp) && clipFrames(lamp, name)) || [0];
+};
+export const LAMP_OPEN = lampClip("open");
+export const LAMP_CLOSE = lampClip("close");
+
+/**
+ * Bake every sprite, part, look and frame into one canvas.
  *
  * A sprite's LOOKS are its own palette followed by each of its variants, so a
  * tube sprite is baked once magenta and once cyan and the scene picks between two
- * rects rather than recolouring anything per frame.
+ * rects rather than recolouring anything per frame. Its PARTS are baked as
+ * grids of their own under `parent/part`, because that is what they are — a
+ * subject that is not one grid, said without multiplying its frame strip by every
+ * combination of its doors, lamps and wheels. A part that names another sprite
+ * (`use`) is not baked again; it is that sprite's own entry.
  *
  * Shelf packing, left to right and wrapping at a fixed width: an atlas this
  * small does not need a real packer, and a stable layout means a frame's rect
@@ -106,53 +163,74 @@ export const CAR_WHEELS: ReadonlyArray<readonly [number, number]> = [
  */
 export function bakeAtlas(defs: Record<string, SpriteFile> = SPRITES): Atlas {
   const MAX_ROW = 256;
-  type Placed = { rect: Rect; sprite: SpriteFile; frame: number; variant: string | null };
-  const placed: { key: string; entry: Placed }[] = [];
+  type Cell = { rect: Rect; body: SpriteBody; frame: number; variant: string | null; flip?: Flip };
+  const cells: { key: string; entry: Cell }[] = [];
+  const counts = new Map<string, number>();
+  const placements = new Map<string, Placed[]>();
   let penX = 0;
   let penY = 0;
   let shelfH = 0;
 
-  for (const [name, sprite] of Object.entries(defs)) {
+  /** One grid — a sprite or an inline part — and then whatever is placed on it. */
+  const walk = (key: string, body: SpriteBody, flip?: Flip) => {
+    counts.set(key, body.frames.length);
     // Index 0 is the palette itself — `null`, i.e. no variant selected.
-    const looks: (string | null)[] = [null, ...variantNames(sprite)];
+    const looks: (string | null)[] = [null, ...variantNames(body)];
     for (let t = 0; t < looks.length; t++) {
-      for (let f = 0; f < sprite.frames.length; f++) {
-        if (penX + sprite.w > MAX_ROW) {
+      for (let f = 0; f < body.frames.length; f++) {
+        if (penX + body.w > MAX_ROW) {
           penX = 0;
           penY += shelfH + 1;
           shelfH = 0;
         }
-        placed.push({
-          key: `${name}/${f}/${t}`,
+        cells.push({
+          key: `${key}/${f}/${t}`,
           entry: {
-            rect: { x: penX, y: penY, w: sprite.w, h: sprite.h },
-            sprite,
+            rect: { x: penX, y: penY, w: body.w, h: body.h },
+            body,
             frame: f,
             variant: looks[t],
+            flip,
           },
         });
-        penX += sprite.w + 1;
-        shelfH = Math.max(shelfH, sprite.h);
+        penX += body.w + 1;
+        shelfH = Math.max(shelfH, body.h);
       }
     }
-  }
+    const placed: Placed[] = [];
+    for (const p of body.parts ?? []) {
+      const childKey = isPartRef(p) ? p.use : `${key}/${p.name}`;
+      if (!isPartRef(p)) walk(childKey, p, p.flip);
+      placed.push({
+        key: childKey,
+        name: p.name,
+        x: p.x,
+        y: p.y,
+        behind: p.behind === true,
+        // A `use` part's frame count is the referenced sprite's, which may not have
+        // been walked yet — so it is read off the definition, not off `counts`.
+        frames: isPartRef(p) ? (defs[p.use]?.frames.length ?? 0) : p.frames.length,
+      });
+    }
+    if (placed.length) placements.set(key, placed);
+  };
+
+  for (const [name, sprite] of Object.entries(defs)) walk(name, sprite);
 
   const canvas = document.createElement("canvas");
   canvas.width = MAX_ROW;
   canvas.height = penY + shelfH + 1;
   const ctx = canvas.getContext("2d");
   const index = new Map<string, Rect>();
-  const counts = new Map<string, number>();
-  for (const [name, sprite] of Object.entries(defs)) counts.set(name, sprite.frames.length);
 
-  for (const { key, entry } of placed) {
+  for (const { key, entry } of cells) {
     index.set(key, entry.rect);
     if (!ctx) continue;
-    const rows = entry.sprite.frames[entry.frame];
+    const rows = flipRows(entry.body.frames[entry.frame], entry.flip);
     for (let y = 0; y < rows.length; y++) {
       const row = rows[y];
       for (let x = 0; x < row.length; x++) {
-        const colour = cellColour(entry.sprite, row[x], entry.variant);
+        const colour = cellColour(entry.body, row[x], entry.variant);
         if (!colour) continue;
         ctx.fillStyle = colour;
         ctx.fillRect(entry.rect.x + x, entry.rect.y + y, 1, 1);
@@ -162,8 +240,9 @@ export function bakeAtlas(defs: Record<string, SpriteFile> = SPRITES): Atlas {
 
   return {
     canvas,
-    rect: (name, frame = 0, look = 0) => index.get(`${name}/${frame}/${look}`) ?? null,
-    frames: (name) => counts.get(name) ?? 0,
+    rect: (key, frame = 0, look = 0) => index.get(`${key}/${frame}/${look}`) ?? null,
+    frames: (key) => counts.get(key) ?? 0,
+    parts: (key) => placements.get(key) ?? [],
   };
 }
 

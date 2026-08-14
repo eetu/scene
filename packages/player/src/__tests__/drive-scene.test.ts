@@ -27,8 +27,16 @@ import {
   routeAt,
   SKY,
 } from "../drive-scene";
-import { CROWN_NAMES, LANDMARK_NAMES, SIGN_NAMES, SPRITES } from "../drive-sprites";
-import { validateSprite, variantNames } from "../sprite-file";
+import {
+  CAR_CONTACTS,
+  CROWN_NAMES,
+  LAMP_CLOSE,
+  LAMP_OPEN,
+  LANDMARK_NAMES,
+  SIGN_NAMES,
+  SPRITES,
+} from "../drive-sprites";
+import { isPartBody, isPartRef, type SpriteBody, variantNames } from "../sprite-file";
 
 const skyline = (seed: number) =>
   buildSkyline(rng(seed), {
@@ -318,12 +326,44 @@ describe("the moon", () => {
 });
 
 describe("the sprite sheet", () => {
-  // The files are art, edited in a separate tool by hand and by the editor.
-  // Everything the format promises is checked on the way in, so a bad save
-  // fails here rather than as a hole in the scene.
-  test("every sprite file is valid", () => {
+  // The files are art, drawn in ../dab, which validates the format itself and will
+  // not save a file that fails it. What is checked here is narrower and is the
+  // scene's own business: that every grid the scene will bake is rectangular and
+  // that every character in it has a colour. A hole in either draws as a hole.
+  test("every grid is rectangular and every character has a colour", () => {
+    const bodies = (node: SpriteBody, at: string): [SpriteBody, string][] => [
+      [node, at],
+      ...(node.parts ?? []).filter(isPartBody).flatMap((p) => bodies(p, `${at}/${p.name}`)),
+    ];
     for (const [key, sprite] of Object.entries(SPRITES)) {
-      expect(validateSprite(sprite), `${key} is not a valid sprite file`).toEqual([]);
+      for (const [body, at] of bodies(sprite, key)) {
+        const known = new Set([...Object.keys(body.palette), "."]);
+        for (const [f, frame] of body.frames.entries()) {
+          expect(frame.length, `${at} frame ${f} is ${frame.length} rows, not ${body.h}`).toBe(
+            body.h,
+          );
+          for (const row of frame) {
+            expect(row.length, `${at} frame ${f} has a row ${row.length} wide, not ${body.w}`).toBe(
+              body.w,
+            );
+            for (const ch of row) {
+              expect(known, `${at} frame ${f} uses ${ch}, which has no colour`).toContain(ch);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  test("every part that names a sprite names one the sheet has", () => {
+    // A `use` is a link across files, so it is the one thing in a sprite that can
+    // dangle — a renamed wheel would draw as nothing at all.
+    for (const [key, sprite] of Object.entries(SPRITES)) {
+      const names = (sprite.parts ?? []).map((p) => p.name);
+      expect(new Set(names).size, `${key} has two parts with one name`).toBe(names.length);
+      for (const p of sprite.parts ?? []) {
+        if (isPartRef(p)) expect(Object.keys(SPRITES), `${key}/${p.name}`).toContain(p.use);
+      }
     }
   });
 
@@ -346,15 +386,15 @@ describe("the sprite sheet", () => {
       ...CROWN_NAMES,
       ...LANDMARK_NAMES,
       "car",
-      "spoke",
+      "wheel",
       "lamp",
       "palm",
     ]) {
       expect(Object.keys(SPRITES)).toContain(name);
     }
-    // Multi-frame sprites are the animated ones; a single-frame spoke would
-    // stop the wheels dead without failing anything else.
-    expect(SPRITES.spoke.frames.length).toBeGreaterThan(1);
+    // Multi-frame sprites are the animated ones; a single-frame wheel would stop
+    // the car's wheels dead without failing anything else.
+    expect(SPRITES.wheel.frames.length).toBeGreaterThan(1);
     for (const name of SIGN_NAMES) expect(SPRITES[name].frames.length).toBeGreaterThan(1);
     // A landmark's second frame is the same building with its aircraft light out. One
     // frame means a beacon stuck on, which is the tell of a half-finished sprite.
@@ -373,6 +413,37 @@ describe("the sprite sheet", () => {
       // rows off the top of the buffer.
       expect(SPRITES[name].h, `${name} would be cropped on a wide pane`).toBeLessThan(84);
     }
+  });
+
+  test("the car's wheels and lamps are read off its parts, not written down twice", () => {
+    // The skid marks, the tyre smoke and the snow rut are all placed at a contact
+    // patch, and the wheels are two placements of one sprite. Hardcoding those
+    // offsets is how the art moving three pixels became a silent bug in three
+    // effects, so the numbers come from the file.
+    expect(CAR_CONTACTS.length).toBe(2);
+    for (const wx of CAR_CONTACTS) {
+      expect(wx).toBeGreaterThan(0);
+      expect(wx).toBeLessThan(SPRITES.car.w);
+    }
+    // Front and rear, well apart: two contacts a few pixels apart would be one
+    // wheel counted twice.
+    expect(Math.abs(CAR_CONTACTS[0] - CAR_CONTACTS[1])).toBeGreaterThan(SPRITES.car.w / 3);
+
+    // The pop-up lamps are the clips the art declares, and each has to end somewhere
+    // other than where it starts or nothing moves.
+    const lamp = SPRITES.car.parts?.find((p) => p.name === "lights");
+    expect(lamp && isPartBody(lamp)).toBe(true);
+    const frames = lamp && isPartBody(lamp) ? lamp.frames.length : 0;
+    for (const clip of [LAMP_OPEN, LAMP_CLOSE]) {
+      expect(clip.length).toBeGreaterThan(1);
+      expect(clip[clip.length - 1]).not.toBe(clip[0]);
+      for (const f of clip) expect(f).toBeLessThan(frames);
+    }
+    // Each ends where the other begins: the lamps go up when the music starts and
+    // down when it stops, and a pair of clips that did not meet would jump a frame
+    // every time the transport was touched.
+    expect(LAMP_CLOSE[0]).toBe(LAMP_OPEN[LAMP_OPEN.length - 1]);
+    expect(LAMP_OPEN[0]).toBe(LAMP_CLOSE[LAMP_CLOSE.length - 1]);
   });
 
   test("the two-colour sprites offer the scene's second colour as a variant", () => {
