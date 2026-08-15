@@ -18,6 +18,7 @@ import {
   DARK_GREY,
   HUE_WHEEL,
   LIGHT_BLUE,
+  LIGHT_GREY,
   RASTER_RAMP,
   WHITE,
 } from "./c64-palette";
@@ -316,10 +317,23 @@ export function stepDemo(d: Demo, dt: number, feed: Feed): void {
 
   // The border is a single register, so a beat can only be a colour change —
   // which is exactly what a C64 demo did with it.
-  d.screen.border = d.sinceBeat < 0.09 ? RASTER_RAMP[RASTER_RAMP.length - 1] : BLACK;
+  //
+  // A COLOUR change, though, and never white. Snapping the whole border to white
+  // on every beat is a full-frame strobe twice a second at any normal tempo: the
+  // border is a quarter of the picture, white is the brightest thing the VIC has,
+  // and 125BPM is squarely in the range that is a problem to look at rather than
+  // merely loud. It steps up the raster ramp instead, as far as the kick pushes it
+  // and no further than the ramp's cool half, then falls back over a fifth of a
+  // second — so a beat still lands on the border, as a bar of colour rather than
+  // as a flash. Quiet passages barely move it.
+  const decay = Math.max(0, 1 - d.sinceBeat / 0.2);
+  const kick = Math.min(1, decay * (0.3 + feed.bass * 0.7));
+  const COOL = 2; // BLUE, PURPLE, LIGHT_BLUE — the ramp's dark end
+  d.screen.border = kick > 0.1 ? RASTER_RAMP[Math.round(kick * COOL)] : BLACK;
   // …and a bar of it either side of the scroller strip, so the split reads as
-  // deliberate rather than as the effect having stopped short.
+  // deliberate rather than as the effect having stopped short. One row of
+  // characters rather than a quarter of the frame, so this one may brighten.
   for (let x = 0; x < COLS; x++) {
-    poke(d.screen, x, PART_ROWS, CHAR.HLINE, d.sinceBeat < 0.09 ? WHITE : DARK_GREY);
+    poke(d.screen, x, PART_ROWS, CHAR.HLINE, kick > 0.1 ? LIGHT_GREY : DARK_GREY);
   }
 }
