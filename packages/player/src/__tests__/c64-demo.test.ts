@@ -8,7 +8,7 @@
 import { describe, expect, test } from "vitest";
 
 import { createDemo, scrollText, stepDemo, type Feed } from "../c64-demo";
-import { VIC_PALETTE } from "../c64-palette";
+import { CYAN, LIGHT_GREY, VIC_PALETTE, WHITE } from "../c64-palette";
 import {
   createFire,
   createStars,
@@ -292,6 +292,29 @@ describe("the demo", () => {
     // The counter not advancing means no new beat — the flash must decay.
     for (let t = 0; t < 0.5; t += DT) stepDemo(d, DT, feed({ beat: 1 }));
     expect(d.screen.border).toBe(resting);
+  });
+
+  test("the border never strobes: a beat is a colour, not a white frame", () => {
+    // The border is a quarter of the picture. It used to snap to white on every
+    // beat, which at any normal tempo is a full-frame strobe a couple of times a
+    // second — the difference between a demo effect and something you have to look
+    // away from. It may brighten; it may not go anywhere near the top of the ramp.
+    const d = createDemo();
+    for (let t = 0; t < 5; t += DT) stepDemo(d, DT, feed());
+    const seen = new Set<number>();
+    // Loudest possible bass on every frame, and a beat every fifth of a second —
+    // busier than any real tune, so nothing quieter can reach further.
+    let beats = 0;
+    for (let t = 0; t < 6; t += DT) {
+      if (t % 0.2 < DT) beats++;
+      stepDemo(d, DT, feed({ beat: beats, bass: 1, mid: 1, treble: 1 }));
+      seen.add(d.screen.border);
+    }
+    for (const c of seen) {
+      expect([WHITE, CYAN, LIGHT_GREY], `border used ${c}`).not.toContain(c);
+    }
+    // ...but it is not simply parked on black either: the beat still lands on it.
+    expect(seen.size, "the beat stopped showing on the border at all").toBeGreaterThan(1);
   });
 
   test("every colour it emits is one the VIC-II had", () => {
