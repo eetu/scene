@@ -17,6 +17,7 @@
   import type { FlipDotBoard } from "@glowbox/flip-dot";
   import { flip, setFlipMode } from "./flip-mode.svelte";
   import { createFlipRenderer, FLIP_MODES } from "./flip-modes";
+  import { loadReel, REEL_IDS, type Reel, reelFrameAt, reelIdFor, sampleReel } from "./flip-reel";
   import { playback } from "./state.svelte";
   import { driveFrames } from "./raf";
 
@@ -24,6 +25,16 @@
 
   let host: HTMLDivElement;
   let canvas: HTMLCanvasElement | undefined = $state();
+
+  /**
+   * The reel, waved away.
+   *
+   * A clip takes the board over for the one tune it belongs to, and pressing any mode
+   * hands it straight back — an easter egg you cannot get out of is a fault. Not
+   * persisted and not remembered past the track: the next tune that has a reel gets to
+   * show it, because the whole point is coming across it.
+   */
+  let reelOff = $state(false);
 
   // Dots are square, so the grid follows the pane's aspect rather than a fixed panel.
   // ~40 columns keeps them chunky enough to read as discs at typical pane sizes; the
@@ -79,10 +90,35 @@
       let lastBeat = -1;
       let sinceUpdate = 0;
 
+      // The reel: a clip cut for one particular tune, if the folder holds one and the
+      // loaded track is that tune. Nothing here is fetched otherwise — with no reels
+      // built, `REEL_IDS` is empty and this is a string compare per track change.
+      let reelTrack: string | null = null;
+      let reel: Reel | null = null;
+      let reelGrid = new Uint8Array(0);
+
+      function pickReel() {
+        const t = playback.current;
+        const key = t ? (t.hash ?? t.filename ?? "") : "";
+        if (key === reelTrack) return;
+        reelTrack = key;
+        reel = null;
+        reelOff = false;
+        if (!t || !REEL_IDS.length) return;
+        const id = reelIdFor(REEL_IDS, t.title, t.filename);
+        if (!id) return;
+        void loadReel(id).then((r) => {
+          // A track change while the fetch was in flight wins: the board belongs to
+          // whatever is playing now, not to what was playing when this was asked for.
+          if (!stopped && reelTrack === key) reel = r;
+        });
+      }
+
       stopFrames = driveFrames(
         (dt) => {
           const b = board;
           if (!b) return;
+          pickReel();
 
           // ~14Hz, plus an immediate frame on the beat so hits land on time. Still
           // outside the 38ms flip, so a disc finishes before it is asked to turn again.
@@ -92,6 +128,16 @@
           const step = sinceUpdate;
           lastBeat = playback.beat;
           sinceUpdate = 0;
+
+          // A reel is not driven by dt: it is a film, and where it is up to is where
+          // the playhead is. Seeking the tune seeks the picture, which is the only way
+          // the two stay together over three minutes.
+          if (reel && !reelOff) {
+            if (reelGrid.length !== b.cols * b.rows) reelGrid = new Uint8Array(b.cols * b.rows);
+            sampleReel(reel, reelFrameAt(reel, playback.position), b.cols, b.rows, reelGrid);
+            b.setFrame((x, y) => reelGrid[y * b.cols + x] === 1);
+            return;
+          }
 
           render.render(flip.mode, b.cols, b.rows, step, active, onBeat);
           b.setFrame((x, y) => render.dot(x, y));
@@ -118,7 +164,10 @@
     {#each FLIP_MODES as m (m.id)}
       <button
         class:on={flip.mode === m.id}
-        onclick={() => setFlipMode(m.id)}
+        onclick={() => {
+          reelOff = true;
+          setFlipMode(m.id);
+        }}
         aria-pressed={flip.mode === m.id}>{m.label}</button
       >
     {/each}

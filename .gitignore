@@ -58,3 +58,8 @@ packages/player/src/__tests__/drive-shakedown/
 # only this viz can read, i.e. incorporated into this project rather than
 # republished.
 packages/player/src/assets/*.fbx
+
+# Built reels for the flip-dot board's easter egg (see the player's assets/README.md).
+# These are derived frames of somebody else's video: built locally from a file you
+# have, never committed. Absent, the board just keeps showing its own modes.
+packages/player/src/assets/reels/
