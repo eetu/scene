@@ -17,15 +17,7 @@
   import type { FlipDotBoard } from "@glowbox/flip-dot";
   import { flip, setFlipMode } from "./flip-mode.svelte";
   import { createFlipRenderer, FLIP_MODES } from "./flip-modes";
-  import {
-    loadReel,
-    REEL_IDS,
-    type Reel,
-    reelFrameAt,
-    reelIdFor,
-    sampleReel,
-    trackNames,
-  } from "./flip-reel";
+  import { reelFrameAt, sampleReel, watchReel } from "./reel";
   import { playback } from "./state.svelte";
   import { driveFrames } from "./raf";
 
@@ -35,14 +27,14 @@
   let canvas: HTMLCanvasElement | undefined = $state();
 
   /**
-   * The reel, waved away.
+   * The clip for this track, if there is one — see `watchReel`.
    *
-   * A clip takes the board over for the one tune it belongs to, and pressing any mode
-   * hands it straight back — an easter egg you cannot get out of is a fault. Not
-   * persisted and not remembered past the track: the next tune that has a reel gets to
-   * show it, because the whole point is coming across it.
+   * A reel takes the board over for the one tune it belongs to, and pressing any mode
+   * hands it straight back: an easter egg you cannot get out of is a fault. The
+   * dismissal is not persisted and not remembered past the track, because the whole
+   * point is coming across it.
    */
-  let reelOff = $state(false);
+  const reels = watchReel(playback);
 
   // Dots are square, so the grid follows the pane's aspect rather than a fixed panel.
   // ~40 columns keeps them chunky enough to read as discs at typical pane sizes; the
@@ -98,44 +90,13 @@
       let lastBeat = -1;
       let sinceUpdate = 0;
 
-      // The reel: a clip cut for one particular tune, if the folder holds one and the
-      // loaded track is that tune. Nothing here is fetched otherwise — with no reels
-      // built, `REEL_IDS` is empty and this is a string compare per track change.
-      let reelTrack: string | null = null;
-      let reelNotes = -1;
-      let reel: Reel | null = null;
       let reelGrid = new Uint8Array(0);
-
-      function pickReel() {
-        const t = playback.current;
-        const key = t ? (t.hash ?? t.filename ?? "") : "";
-        // The notes are fetched after the track loads, and for a SID they are where the
-        // thing it covers is written down — so a match has to be looked for again when
-        // they land, not once when the tune starts.
-        const notes = playback.notes.length;
-        if (key === reelTrack && notes === reelNotes) return;
-        const fresh = key !== reelTrack;
-        reelTrack = key;
-        reelNotes = notes;
-        if (fresh) {
-          reel = null;
-          reelOff = false;
-        } else if (reel) return; // already showing this track's reel
-        if (!t || !REEL_IDS.length) return;
-        const id = reelIdFor(REEL_IDS, ...trackNames(t, playback.notes));
-        if (!id) return;
-        void loadReel(id).then((r) => {
-          // A track change while the fetch was in flight wins: the board belongs to
-          // whatever is playing now, not to what was playing when this was asked for.
-          if (!stopped && reelTrack === key) reel = r;
-        });
-      }
 
       stopFrames = driveFrames(
         (dt) => {
           const b = board;
           if (!b) return;
-          pickReel();
+          reels.poll();
 
           // ~14Hz, plus an immediate frame on the beat so hits land on time. Still
           // outside the 38ms flip, so a disc finishes before it is asked to turn again.
@@ -149,7 +110,8 @@
           // A reel is not driven by dt: it is a film, and where it is up to is where
           // the playhead is. Seeking the tune seeks the picture, which is the only way
           // the two stay together over three minutes.
-          if (reel && !reelOff) {
+          const reel = reels.reel;
+          if (reel) {
             if (reelGrid.length !== b.cols * b.rows) reelGrid = new Uint8Array(b.cols * b.rows);
             sampleReel(reel, reelFrameAt(reel, playback.position), b.cols, b.rows, reelGrid);
             b.setFrame((x, y) => reelGrid[y * b.cols + x] === 1);
@@ -165,6 +127,7 @@
 
     return () => {
       stopped = true;
+      reels.stop();
       stopFrames?.();
       ro?.disconnect();
       board?.dispose();
@@ -182,7 +145,7 @@
       <button
         class:on={flip.mode === m.id}
         onclick={() => {
-          reelOff = true;
+          reels.dismiss();
           setFlipMode(m.id);
         }}
         aria-pressed={flip.mode === m.id}>{m.label}</button

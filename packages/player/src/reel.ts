@@ -234,3 +234,79 @@ export async function loadReel(id: string): Promise<Reel | null> {
     return null;
   }
 }
+
+/**
+ * Watch the transport and hold the clip the current track should be showing.
+ *
+ * Three displays play reels — the flip board, the LED cube, the deck's VFD — and each
+ * one asked the same four questions: has the track changed, have its notes arrived, is
+ * there a clip for it, and has the viewer waved it away. That is one behaviour, so it
+ * lives here once; a display is left with `watch.reel` and its own idea of how to draw
+ * a frame.
+ *
+ * Polled from the frame loop rather than being an effect, because every caller already
+ * has one and a reel only ever changes on a track change.
+ */
+export type ReelWatch = {
+  /** The clip to show, or null: no clip for this track, or the viewer dismissed it. */
+  readonly reel: Reel | null;
+  /** Look again. Cheap: a string compare unless something actually changed. */
+  poll(): void;
+  /** Hand the display back to whatever it shows normally, until the next track. */
+  dismiss(): void;
+  /** True once a clip has been found for this track, dismissed or not — so a display
+   *  can offer a way back to it rather than stranding the viewer. */
+  readonly found: boolean;
+  stop(): void;
+};
+
+export function watchReel(playback: {
+  current: { hash?: string; filename?: string; title?: string | null } | null;
+  notes: readonly { title: string | null; name: string | null }[];
+}): ReelWatch {
+  let track: string | null = null;
+  let noteCount = -1;
+  let reel: Reel | null = null;
+  let off = false;
+  let stopped = false;
+
+  return {
+    get reel() {
+      return off ? null : reel;
+    },
+    get found() {
+      return reel !== null;
+    },
+    poll() {
+      if (stopped) return;
+      const t = playback.current;
+      const key = t ? (t.hash ?? t.filename ?? "") : "";
+      // The notes are fetched after the track loads, and for a SID they are where the
+      // thing it covers is written down — so a match has to be looked for again when
+      // they land, not once when the tune starts.
+      const notes = playback.notes.length;
+      if (key === track && notes === noteCount) return;
+      const fresh = key !== track;
+      track = key;
+      noteCount = notes;
+      if (fresh) {
+        reel = null;
+        off = false;
+      } else if (reel) return; // already holding this track's clip
+      if (!t || !REEL_IDS.length) return;
+      const id = reelIdFor(REEL_IDS, ...trackNames(t, playback.notes));
+      if (!id) return;
+      void loadReel(id).then((r) => {
+        // A track change while the fetch was in flight wins: the display belongs to
+        // whatever is playing now, not to what was playing when this was asked for.
+        if (!stopped && track === key) reel = r;
+      });
+    },
+    dismiss() {
+      off = true;
+    },
+    stop() {
+      stopped = true;
+    },
+  };
+}

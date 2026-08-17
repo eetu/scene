@@ -18,7 +18,8 @@ import {
   reelKey,
   sampleReel,
   trackNames,
-} from "../flip-reel";
+  watchReel,
+} from "../reel";
 
 /** The build script's encoder, in miniature: header, then XOR deltas run-length
  *  encoded in bits, alternating unchanged/flipped and starting with unchanged. Kept
@@ -188,10 +189,57 @@ describe("finding the tune", () => {
     expect(reelKey("")).toBe("");
   });
 
-  test("no reel ships with the source", () => {
-    // The folder is gitignored on purpose: these are derived frames of somebody else's
-    // video. A clip appearing in a clean checkout is a licence problem, not a feature.
-    expect(REEL_IDS).toEqual([]);
+  test("whatever the folder holds is an id that can actually match", () => {
+    // NOT "the folder is empty". It was, and that was wrong: a built clip is the whole
+    // point of the feature, so the assertion failed on any machine where somebody had
+    // followed the README — it tested the developer's disk rather than the code.
+    //
+    // Keeping a clip out of the repository is .gitignore's job, and a test cannot see
+    // the difference anyway. What is worth checking is that a filename dropped in there
+    // becomes a usable id: `reelIdFor` skips anything under four characters, so a clip
+    // named too short would sit in the registry and silently never play.
+    for (const id of REEL_IDS) {
+      expect(reelKey(id).length, `${id} is too short an id to ever match a track`).toBeGreaterThan(
+        3,
+      );
+      expect(id).not.toContain("/");
+    }
+  });
+});
+
+describe("watching the transport", () => {
+  // Three displays play reels, so this behaviour lives in one place. With no clip built
+  // there is nothing to load, which is what makes these assertions the useful half:
+  // that it never gets in the way, and that dismissing and re-arming work.
+  const feed = (over: Partial<{ current: unknown; notes: unknown[] }> = {}) =>
+    ({ current: null, notes: [], ...over }) as never;
+
+  test("nothing playing is nothing shown, and polling is safe", () => {
+    const w = watchReel(feed());
+    w.poll();
+    w.poll();
+    expect(w.reel).toBe(null);
+    expect(w.found).toBe(false);
+  });
+
+  test("dismissing hides the clip, and a new track re-arms", () => {
+    // The dismissal must not outlive the track: a viewer who waved one away should
+    // still meet the next tune's reel, because coming across it is the whole point.
+    const state = { current: { hash: "a", filename: "a.mod" }, notes: [] as unknown[] };
+    const w = watchReel(state as never);
+    w.poll();
+    w.dismiss();
+    expect(w.reel).toBe(null);
+    state.current = { hash: "b", filename: "b.mod" };
+    w.poll();
+    expect(w.reel).toBe(null); // no clip built for either, but the dismissal is spent
+  });
+
+  test("stopping ends it: a late fetch cannot paint over a torn-down display", () => {
+    const w = watchReel(feed({ current: { hash: "a", filename: "badapple.mod" } }));
+    w.stop();
+    w.poll();
+    expect(w.reel).toBe(null);
   });
 });
 
