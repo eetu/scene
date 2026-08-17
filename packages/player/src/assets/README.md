@@ -97,9 +97,19 @@ Defaults are 48×36 at 12fps, which is a 4:3 field a little above what any pane'
 will be (it's fitted and centred at runtime, never stretched). Twelve is about the
 ceiling: the board updates ~14 times a second behind a 70ms sweep and a 38ms flip, so
 a faster reel asks for changes the discs can't finish. `--fps 8` reads as deliberate
-rather than as a board struggling. The file is XOR deltas, run-length encoded in bits,
-so a three-minute clip is tens of kilobytes — silhouette animation is a still field
-with a moving edge.
+rather than as a board struggling.
+
+The file is XOR deltas, run-length encoded in bits. Measured on a 3:39 clip at the
+defaults: 2,629 frames, 240 KB, about 43% of the same frames stored flat. Silhouette
+animation is a still field with a moving edge, but at 12fps that edge moves a long way
+between frames — the win is real and it is not an order of magnitude, so budget a
+couple of hundred kilobytes per clip rather than tens.
+
+That clip's cost to the hardware, measured the way `flip-modes.test.ts` measures a
+generated mode: mean churn 39 dots of 880 (4.5%), against the 40% budget the modes
+obey, with 4 frames of 2,628 over it. The board is not the bottleneck — the sampler's
+majority downsample is what keeps it there, since it turns a busy 48×36 field into a
+stable 29×22 one.
 
 > **Licence — don't commit a reel.** These are derived frames of somebody else's
 > video, and this repository is public. `reels/` is gitignored; build yours locally
