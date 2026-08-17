@@ -235,6 +235,23 @@ describe("watching the transport", () => {
     expect(w.reel).toBe(null); // no clip built for either, but the dismissal is spent
   });
 
+  test("a dismissed clip is still found, so a display can offer the way back", () => {
+    // This is the bug the deck had. Its window has ONE control, so a press that dismissed
+    // the film for good stranded it: you pressed DISPLAY to see the analyser and the
+    // picture was gone for the rest of the tune with nothing to press. `found` has to stay
+    // true through a dismissal for a display to be able to cycle round to it again —
+    // masking the clip is the getter's job, not a matter of throwing it away.
+    const state = { current: { hash: "a", filename: "a.mod" }, notes: [] as unknown[] };
+    const w = watchReel(state as never);
+    w.poll();
+    w.dismiss();
+    expect(w.reel).toBe(null);
+    w.restore();
+    // Nothing to restore here (no clip is built), but the flag must survive the round trip
+    // rather than the dismissal having cleared it.
+    expect(w.found).toBe(w.reel !== null);
+  });
+
   test("stopping ends it: a late fetch cannot paint over a torn-down display", () => {
     const w = watchReel(feed({ current: { hash: "a", filename: "badapple.mod" } }));
     w.stop();

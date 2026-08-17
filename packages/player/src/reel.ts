@@ -254,6 +254,8 @@ export type ReelWatch = {
   poll(): void;
   /** Hand the display back to whatever it shows normally, until the next track. */
   dismiss(): void;
+  /** Take it back — for a display whose control can cycle round to the film again. */
+  restore(): void;
   /** True once a clip has been found for this track, dismissed or not — so a display
    *  can offer a way back to it rather than stranding the viewer. */
   readonly found: boolean;
@@ -304,6 +306,9 @@ export function watchReel(playback: {
     },
     dismiss() {
       off = true;
+    },
+    restore() {
+      off = false;
     },
     stop() {
       stopped = true;

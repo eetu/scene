@@ -63,18 +63,32 @@ and playback is tempo-locked to the tune either way.
 - Materials don't matter. Every surface is drawn as one flat colour, so an untextured rig
   is ideal — and smaller.
 
-## `reels/*.bin` — the flip-dot board's one-bit films
+## `reels/*.bin` — one-bit films for the retro displays
 
-`FlipDots.svelte` normally shows faces generated from the music. A **reel** is the
+Three visualisers normally show faces generated from the music. A **reel** is the
 exception: a fixed clip of one-bit silhouettes, matched to a track by name and driven
-off the playhead, so it only ever runs against the tune it was cut for. Everything
-else on that board still reacts; this doesn't, which is why it isn't a mode you can
-pick — pressing any mode button dismisses it.
+off the playhead, so it only ever runs against the tune it was cut for. Everything else
+on those displays still reacts; this doesn't, which is why it isn't a face you can pick
+on any other track.
 
-The display is the point. A flip-dot board is one bit per dot with a mechanical
-settling time, which is what shadow animation was drawn for; the driver sweep across
-the board isn't an obstacle to work around, it's the reason to do this here rather
-than on a canvas.
+- **`FlipDots.svelte`** — one bit per dot with a mechanical settling time, which is what
+  shadow animation was drawn for. The driver sweep isn't an obstacle to work around
+  here; it's the reason to play a silhouette film on this display rather than a canvas.
+- **`LedBars.svelte`** — one plane of the voxel grid, at the clip's own resolution, with
+  the orbit stopped and the camera squared. Extruding the silhouette through the cube's
+  depth makes a shadow sculpture, which reads as a smear of the picture rather than the
+  picture.
+- **`HiFiDeck.svelte`** — the deck's VFD window, as a dot-matrix area. DISPLAY cycles
+  through it like any other face while a clip is loaded.
+
+All three share the matching and dismissal (`watchReel` in `reel.ts`) and differ only in
+how they draw a frame. Note the row order differs: a `dots` element counts row 0 at the
+top because what it takes is an image, and the voxel grid's rows run bottom-up.
+
+One-bit suits all three as long as the source is black and white, which shadow animation
+is. A greyscale format would only pay off on the VFD, whose anodes dim by duty cycle and
+so could show real levels without dithering; the flip board physically cannot, and the
+cube's LEDs read better hard-edged.
 
 ### Building one
 

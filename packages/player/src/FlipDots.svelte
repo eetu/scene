@@ -35,6 +35,15 @@
    * point is coming across it.
    */
   const reels = watchReel(playback);
+  /**
+   * The watcher's state, mirrored into runes for the mode row.
+   *
+   * `watchReel` is a plain object polled from the frame loop, so the template cannot read
+   * it reactively. These two are pushed from the loop instead — which runs at ~14Hz, and a
+   * chip appearing a frame late is not a thing anybody can see.
+   */
+  let reelFound = $state(false);
+  let reelShowing = $state(false);
 
   // Dots are square, so the grid follows the pane's aspect rather than a fixed panel.
   // ~40 columns keeps them chunky enough to read as discs at typical pane sizes; the
@@ -111,6 +120,8 @@
           // the playhead is. Seeking the tune seeks the picture, which is the only way
           // the two stay together over three minutes.
           const reel = reels.reel;
+          reelFound = reels.found;
+          reelShowing = reel !== null;
           if (reel) {
             if (reelGrid.length !== b.cols * b.rows) reelGrid = new Uint8Array(b.cols * b.rows);
             sampleReel(reel, reelFrameAt(reel, playback.position), b.cols, b.rows, reelGrid);
@@ -141,6 +152,15 @@
        already fifteen wide and grew a stepper on phones because of it. These are faces
        of one visualiser, not four visualisers. -->
   <div class="modes">
+    <!-- Only while this track carries one, and it is how you get back to it: pressing a mode
+         hands the board back, and without this the film was gone for the rest of the tune
+         with nothing to press. Not a fifth permanent mode — a face nothing can select on
+         every other tune is a dead button. -->
+    {#if reelFound}
+      <button class:on={reelShowing} onclick={() => reels.restore()} aria-pressed={reelShowing}
+        >film</button
+      >
+    {/if}
     {#each FLIP_MODES as m (m.id)}
       <button
         class:on={flip.mode === m.id}
