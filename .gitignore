@@ -58,3 +58,10 @@ packages/player/src/__tests__/drive-shakedown/
 # only this viz can read, i.e. incorporated into this project rather than
 # republished.
 packages/player/src/assets/*.fbx
+
+# Built visualiser reels (see the player's assets/README.md). These are derived frames
+# of somebody else's video, so they live on the data mount and are served by /api/reels
+# rather than bundled — the operator builds one from a file they have. This entry is a
+# tripwire for a clip dropped back into the package by hand, which would put it in the
+# image CI builds.
+packages/player/src/assets/reels/

@@ -33,6 +33,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/song-length/{hash}", post(api_song_length))
         .route("/api/stil/{id}", get(api_stil))
         .route("/api/roms/{which}", get(api_rom))
+        .route("/api/reels", get(api_reels))
+        .route("/api/reels/{id}", get(api_reel))
         .route("/api/rescan", post(api_rescan))
         .route("/api/rescan/{root}", post(api_rescan_root))
         .route(
@@ -519,6 +521,66 @@ async fn api_rom(
         ));
     }
     Err(AppError::NotFound)
+}
+
+/// The visualiser reels this machine has — their ids, for the player to match a track
+/// against.
+///
+/// On the mount and not in the image, for the same reason as the ROMs above: a reel is
+/// derived frames of somebody else's video (see the player's `assets/README.md`), so the
+/// operator builds one and the repository never carries it. That is also why this is a
+/// route at all rather than a bundled asset — a build-time glob would put the file in the
+/// image, which is exactly what must not happen.
+///
+/// A missing directory is an empty list, not an error: no reels is the normal state.
+async fn api_reels(_auth: Auth, State(state): State<AppState>) -> AppResult<impl IntoResponse> {
+    let mut ids: Vec<String> = Vec::new();
+    if let Some(dir) = state.cfg.reels_dir.as_ref() {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for e in entries.flatten() {
+                let name = e.file_name().to_string_lossy().to_string();
+                if let Some(id) = name.strip_suffix(".bin") {
+                    if !id.is_empty() {
+                        ids.push(id.to_string());
+                    }
+                }
+            }
+        }
+    }
+    ids.sort();
+    Ok(Json(json!({ "reels": ids })))
+}
+
+/// One reel's bytes.
+///
+/// The id comes from the client, so it is checked rather than joined: a single path
+/// segment of the characters an id may contain, which is what `api_reels` published. A
+/// bare `contains("..")` test would still admit a slash, and `Path` will hand over
+/// anything that is not one.
+async fn api_reel(
+    _auth: Auth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> AppResult<impl IntoResponse> {
+    if id.is_empty()
+        || id.len() > 64
+        || !id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err(AppError::NotFound);
+    }
+    let dir = state.cfg.reels_dir.as_ref().ok_or(AppError::NotFound)?;
+    let bytes = std::fs::read(dir.join(format!("{id}.bin"))).map_err(|_| AppError::NotFound)?;
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/octet-stream".to_string()),
+            // Immutable in practice — a rebuilt clip is a rebuilt file, and the player
+            // fetches each one once per session anyway.
+            (header::CACHE_CONTROL, "private, max-age=86400".to_string()),
+        ],
+        bytes,
+    ))
 }
 
 /// One track by content hash — the deep-link (`?t=<hash>`) restore path. The

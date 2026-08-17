@@ -17,6 +17,7 @@
   import type { FlipDotBoard } from "@glowbox/flip-dot";
   import { flip, setFlipMode } from "./flip-mode.svelte";
   import { createFlipRenderer, FLIP_MODES } from "./flip-modes";
+  import { reelFrameAt, sampleReel, watchReel } from "./reel";
   import { playback } from "./state.svelte";
   import { driveFrames } from "./raf";
 
@@ -24,6 +25,25 @@
 
   let host: HTMLDivElement;
   let canvas: HTMLCanvasElement | undefined = $state();
+
+  /**
+   * The clip for this track, if there is one — see `watchReel`.
+   *
+   * A reel takes the board over for the one tune it belongs to, and pressing any mode
+   * hands it straight back: an easter egg you cannot get out of is a fault. The
+   * dismissal is not persisted and not remembered past the track, because the whole
+   * point is coming across it.
+   */
+  const reels = watchReel(playback);
+  /**
+   * The watcher's state, mirrored into runes for the mode row.
+   *
+   * `watchReel` is a plain object polled from the frame loop, so the template cannot read
+   * it reactively. These two are pushed from the loop instead — which runs at ~14Hz, and a
+   * chip appearing a frame late is not a thing anybody can see.
+   */
+  let reelFound = $state(false);
+  let reelShowing = $state(false);
 
   // Dots are square, so the grid follows the pane's aspect rather than a fixed panel.
   // ~40 columns keeps them chunky enough to read as discs at typical pane sizes; the
@@ -79,10 +99,13 @@
       let lastBeat = -1;
       let sinceUpdate = 0;
 
+      let reelGrid = new Uint8Array(0);
+
       stopFrames = driveFrames(
         (dt) => {
           const b = board;
           if (!b) return;
+          reels.poll();
 
           // ~14Hz, plus an immediate frame on the beat so hits land on time. Still
           // outside the 38ms flip, so a disc finishes before it is asked to turn again.
@@ -93,6 +116,19 @@
           lastBeat = playback.beat;
           sinceUpdate = 0;
 
+          // A reel is not driven by dt: it is a film, and where it is up to is where
+          // the playhead is. Seeking the tune seeks the picture, which is the only way
+          // the two stay together over three minutes.
+          const reel = reels.reel;
+          reelFound = reels.found;
+          reelShowing = reel !== null;
+          if (reel) {
+            if (reelGrid.length !== b.cols * b.rows) reelGrid = new Uint8Array(b.cols * b.rows);
+            sampleReel(reel, reelFrameAt(reel, playback.position), b.cols, b.rows, reelGrid);
+            b.setFrame((x, y) => reelGrid[y * b.cols + x] === 1);
+            return;
+          }
+
           render.render(flip.mode, b.cols, b.rows, step, active, onBeat);
           b.setFrame((x, y) => render.dot(x, y));
         },
@@ -102,6 +138,7 @@
 
     return () => {
       stopped = true;
+      reels.stop();
       stopFrames?.();
       ro?.disconnect();
       board?.dispose();
@@ -115,10 +152,22 @@
        already fifteen wide and grew a stepper on phones because of it. These are faces
        of one visualiser, not four visualisers. -->
   <div class="modes">
+    <!-- Only while this track carries one, and it is how you get back to it: pressing a mode
+         hands the board back, and without this the film was gone for the rest of the tune
+         with nothing to press. Not a fifth permanent mode — a face nothing can select on
+         every other tune is a dead button. -->
+    {#if reelFound}
+      <button class:on={reelShowing} onclick={() => reels.restore()} aria-pressed={reelShowing}
+        >film</button
+      >
+    {/if}
     {#each FLIP_MODES as m (m.id)}
       <button
         class:on={flip.mode === m.id}
-        onclick={() => setFlipMode(m.id)}
+        onclick={() => {
+          reels.dismiss();
+          setFlipMode(m.id);
+        }}
         aria-pressed={flip.mode === m.id}>{m.label}</button
       >
     {/each}

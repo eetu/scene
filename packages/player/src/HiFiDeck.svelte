@@ -58,12 +58,15 @@
   import {
     createFaceDriver,
     type FaceInput,
+    type PanelFace,
     panelFrame,
     panelLayout,
     type PanelSize,
     panelZones,
+    reelDots,
     stereoLevels,
   } from "./vfd-face";
+  import { reelFrameAt, sampleReel, watchReel } from "./reel";
   import { setGrilles, setVfdFace, VFD_FACES, vfdView } from "./vfd-mode.svelte";
 
   let { active = true }: { active?: boolean } = $props();
@@ -138,6 +141,20 @@
       .join("   ·   ") || "NO MESSAGE",
   );
 
+  /**
+   * The film a track can bring with it (see reel.ts), on the one display here that can
+   * hold a picture: the window's dot field.
+   *
+   * It takes the window whichever face is selected, the same way it takes the flip board
+   * and the cube — a tune that carries one is the event, not a mode you go looking for.
+   * DISPLAY hands the window back, and that is also the way out.
+   */
+  const reels = watchReel(playback);
+  let reelOn = $state(false);
+  /** The window's job: the film while there is one, otherwise whatever DISPLAY chose. */
+  const panelFace = $derived<PanelFace>(reelOn ? "reel" : vfdView.face);
+  let film = new Uint8Array(0);
+
   // Re-declaring the plate is the expensive call on the panel handle (it re-compiles every
   // anode), so it happens on a face change and nowhere else. Assigned once the panel
   // exists; declared out here because an $effect has to be created during component init,
@@ -169,8 +186,11 @@
     void loaded;
     poke?.();
   });
+  // A film arriving or ending re-wires the window, so it goes through the same
+  // re-declaration a DISPLAY press does — the plate is a pure function of what the window
+  // is showing, and `reel` is one of the things it can show.
   $effect(() => {
-    void vfdView.face;
+    void panelFace;
     reface?.();
   });
   $effect(() => {
@@ -228,13 +248,13 @@
 
       panel = createVfdPanel(vfdCanvas, {
         frame: panelFrame(panelSize),
-        layout: panelLayout(vfdView.face, panelSize),
+        layout: panelLayout(panelFace, panelSize),
         // The cyan-green ZnO:Zn classic behind green filter plastic: the combination every
         // mini system in this period used, and the reason the memory of them is that
         // particular colour rather than the phosphor's own.
         phosphor: "zn-o",
         filter: "green",
-        zones: panelZones(vfdView.face, panelSize),
+        zones: panelZones(panelFace, panelSize),
         // Low on purpose. Persistence here is a stylized control and the package's own
         // warning applies squarely to this panel: past ~0.45 a character field ghosts into
         // its previous value, and the title readout MARCHES a character at a time because
@@ -264,8 +284,8 @@
         // across by element name, so the readout keeps showing what it was showing.
         if (chassis!.panelSize !== panelSize) {
           panelSize = chassis!.panelSize;
-          panel!.setLayout(panelLayout(vfdView.face, panelSize), panelFrame(panelSize));
-          panel!.setOptions({ zones: panelZones(vfdView.face, panelSize) });
+          panel!.setLayout(panelLayout(panelFace, panelSize), panelFrame(panelSize));
+          panel!.setOptions({ zones: panelZones(panelFace, panelSize) });
         }
         // Park the display canvas exactly on the cutout the chassis just drew for it.
         const g = chassis!.glass;
@@ -316,8 +336,8 @@
         // Drive state survives a re-declaration by element NAME, so the readouts and
         // annunciators the furniture owns keep showing what they were showing and only the
         // window changes job. The window plastic goes with it — see panelZones.
-        panel?.setLayout(panelLayout(vfdView.face, panelSize), panelFrame(panelSize));
-        panel?.setOptions({ zones: panelZones(vfdView.face, panelSize) });
+        panel?.setLayout(panelLayout(panelFace, panelSize), panelFrame(panelSize));
+        panel?.setOptions({ zones: panelZones(panelFace, panelSize) });
       };
       redim = () => panel?.setOptions({ brightness: DIM[dim] });
       repower = () => panel?.power(powered);
@@ -395,6 +415,18 @@
           chassis.draw(lastInput);
           dirty = false;
 
+          // The film, if this tune brought one. Sampled here rather than in the driver
+          // because the clip and the playhead are the component's; the plate only knows
+          // how many dots its window has.
+          reels.poll();
+          const reel = reels.reel;
+          reelOn = reel !== null;
+          if (reel) {
+            const { cols, rows } = reelDots(panelSize);
+            if (film.length !== cols * rows) film = new Uint8Array(cols * rows);
+            sampleReel(reel, reelFrameAt(reel, playback.position), cols, rows, film);
+          }
+
           const input: FaceInput = {
             title: tapeOf.title,
             message,
@@ -406,9 +438,10 @@
             mono: playback.mono,
             repeat: playback.repeat,
             shuffle: playback.shuffle,
+            film: reel ? film : null,
           };
-          driver.furniture(panel, vfdView.face, dt, input, panelSize);
-          driver.window(panel, vfdView.face, dt, input, panelSize);
+          driver.furniture(panel, panelFace, dt, input, panelSize);
+          driver.window(panel, panelFace, dt, input, panelSize);
         },
         // Also live while a control is held or the door is moving, so a press gives
         // feedback and an eject finishes even with the music stopped — the frame driver
@@ -422,6 +455,7 @@
 
     return () => {
       stopped = true;
+      reels.stop();
       stopFrames?.();
       ro?.disconnect();
       themeWatch?.disconnect();
@@ -434,8 +468,30 @@
     };
   });
 
+  /**
+   * DISPLAY: step the window's job on.
+   *
+   * While a track carries a film, the film is one more position in the cycle rather than
+   * something the first press throws away. It has to be: DISPLAY is the only control this
+   * window has, so a press that dismissed the film for good stranded it — you pressed the
+   * button to see the analyser, and the picture was gone for the rest of the tune with no
+   * way back to it. That is what "it was there a moment ago" looks like from the outside.
+   *
+   * The position exists only while there is a clip, so no other tune grows a face that
+   * shows nothing. Leaving the film dismisses it so the chosen face is what the plate is
+   * declared for; coming round to it takes it back.
+   */
   function cycleFace() {
+    if (reels.reel) {
+      reels.dismiss();
+      reelOn = false;
+      return;
+    }
     const i = VFD_FACES.findIndex((f) => f.id === vfdView.face);
+    if (i === VFD_FACES.length - 1 && reels.found) {
+      reels.restore();
+      return;
+    }
     setVfdFace(VFD_FACES[(i + 1) % VFD_FACES.length].id);
   }
 

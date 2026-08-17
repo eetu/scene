@@ -17,6 +17,8 @@
 
   import { vizFps } from "./perf.svelte";
   import { readSpectrum, sampleBands, SPECTRUM_SIZE } from "./player.svelte";
+  import { reelFrameAt, sampleReel, watchReel } from "./reel";
+  import { playback } from "./state.svelte";
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -78,8 +80,81 @@
     return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
   }
 
+  /**
+   * The clip for this track, if there is one — the same easter egg the flip board and
+   * the deck's VFD carry, on the display that can hold the most of it.
+   *
+   * A film is a flat thing, so it is ONE plane of voxels rather than a slab extruded
+   * through the depth: the cube is deep enough to make a shadow sculpture out of a
+   * silhouette, and the result reads as a smear of the picture rather than as the
+   * picture. One plane and a squared camera is a screen; that is what a film wants.
+   */
+  const reels = watchReel(playback);
+  let reel = $state.raw(reels.reel);
+  /** Grid size while a reel plays: the clip's own shape, one deep, capped so a big clip
+   *  cannot ask the renderer for more LEDs than the bars ever do. */
+  const REEL_MAX = 64;
+  const reelSize = $derived.by((): [number, number, number] | null => {
+    if (!reel) return null;
+    const scale = Math.min(1, REEL_MAX / Math.max(reel.cols, reel.rows));
+    return [
+      Math.max(1, Math.round(reel.cols * scale)),
+      Math.max(1, Math.round(reel.rows * scale)),
+      1,
+    ];
+  });
+  const size = $derived<[number, number, number]>(reelSize ?? [NX, NY, NZ]);
+  let reelGrid = new Uint8Array(0);
+
+  // The pane, for framing the film. Bound rather than observed: Svelte does the
+  // ResizeObserver, and the cube itself needs no size — only the reel does.
+  let paneW = $state(0);
+  let paneH = $state(0);
+
+  /**
+   * How far back to stand for a film.
+   *
+   * The renderer frames orthographically off the VERTICAL extent, so a distance that
+   * fills a wide pane crops the sides off a tall one — measured, not assumed: at 1.8 a
+   * 48×36 plane rendered 522 wide in a 900-wide pane and ran off the edge of a 420-wide
+   * one. So the pane's aspect has to be paid for whenever it is narrower than the
+   * clip's, and a phone gets a smaller picture rather than a cropped one.
+   */
+  const REEL_FILL = 1.8;
+  const reelDistance = $derived.by(() => {
+    if (!reelSize || !paneW || !paneH) return REEL_FILL;
+    const clip = reelSize[0] / reelSize[1];
+    const pane = paneW / paneH;
+    return REEL_FILL * Math.max(1, clip / pane);
+  });
+
+  function drawReel(d: LedDisplay) {
+    const r = reel;
+    if (!r) return;
+    const nx = d.nx;
+    const ny = d.ny;
+    if (reelGrid.length !== nx * ny) reelGrid = new Uint8Array(nx * ny);
+    // Where the film is up to is where the playhead is, never a clock of its own.
+    sampleReel(r, reelFrameAt(r, playback.position), nx, ny, reelGrid);
+    for (let y = 0; y < ny; y++) {
+      // The grid's rows run BOTTOM-up and the film's run top-down, so the picture has
+      // to be flipped or it plays upside down.
+      const row = (ny - 1 - y) * nx;
+      for (let x = 0; x < nx; x++) {
+        if (!reelGrid[row + x]) continue;
+        d.plot(x, y, 0, [1, 0.94, 0.82]);
+      }
+    }
+  }
+
   function draw(d: LedDisplay) {
     d.clear();
+    reels.poll();
+    reel = reels.reel;
+    if (reel) {
+      drawReel(d);
+      return;
+    }
 
     const have = active && readSpectrum(buf);
     const pump = 1 + (active ? sampleBands().bass : 0) * 0.25;
@@ -145,25 +220,49 @@
   }
 </script>
 
-{#if LedGrid}
-  <LedGrid
-    size={[NX, NY, NZ]}
-    {draw}
-    led={{ style: "comic", shape: "square", size: 0.9, outline: 0.28 }}
-    color={{ background: bg, gain: 1.0 }}
-    camera={{
-      autoOrbit: true,
-      orbitSpeed: 0.2,
-      pitch: 0.34,
-      // Closer than before (4.2), which left most of a wide pane as empty air. Not
-      // closer than this: the camera orbits the grid's centre and the bars grow from
-      // its floor, so zooming magnifies that downward offset and starts cutting the
-      // bars off the bottom — 3.5 clips, 3.9 doesn't. The mass sitting below centre
-      // is the dB range's headroom, not the camera, and is left alone.
-      distance: 3.9,
-      projection: "perspective",
-    }}
-    interaction={{ drag: true, zoom: true }}
-    quality={{ fps: vizFps(active) }}
-  />
-{/if}
+<!-- A wrapper only so the pane can be measured: the film's framing depends on the pane's
+     aspect (see `reelDistance`), and the grid owns its own canvas. -->
+<div class="cube" bind:clientWidth={paneW} bind:clientHeight={paneH}>
+  {#if LedGrid}
+    <LedGrid
+      {size}
+      {draw}
+      led={{ style: "comic", shape: "square", size: 0.9, outline: 0.28 }}
+      color={{ background: bg, gain: 1.0 }}
+      camera={{
+        // A film is watched square-on: one plane of voxels seen from an orbiting camera
+        // is edge-on, and therefore invisible, twice a revolution. Drag and zoom are
+        // still live, so the cube can be turned by hand — it just does not turn itself
+        // while there is something to read on it.
+        autoOrbit: !reel,
+        orbitSpeed: 0.2,
+        // The wrapper patches each option group on its own and re-sending `camera`
+        // snaps the view, which is exactly what is wanted at both ends of a reel:
+        // square-on when it starts, back to the bars' opening angle when it finishes.
+        yaw: reel ? 0 : 0.6,
+        pitch: reel ? 0 : 0.34,
+        // Closer than before (4.2), which left most of a wide pane as empty air. Not
+        // closer than this: the camera orbits the grid's centre and the bars grow from
+        // its floor, so zooming magnifies that downward offset and starts cutting the
+        // bars off the bottom — 3.5 clips, 3.9 doesn't. The mass sitting below centre
+        // is the dB range's headroom, not the camera, and is left alone.
+        distance: reel ? reelDistance : 3.9,
+        // Orthographic for a film. Perspective on a flat plane seen square-on tapers the
+        // outer columns and reads as a keystone, which is the one thing a screen is not.
+        projection: reel ? "orthographic" : "perspective",
+      }}
+      interaction={{ drag: true, zoom: true }}
+      quality={{ fps: vizFps(active) }}
+    />
+  {/if}
+</div>
+
+<style>
+  /* Fills the pane and nothing else: the grid's canvas does its own block/fill sizing,
+     so this exists purely to be measured. */
+  .cube {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+</style>

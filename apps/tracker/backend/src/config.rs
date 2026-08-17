@@ -103,6 +103,16 @@ pub struct Config {
     /// ROMs: libsidplayfp falls back to built-in images and most tunes still
     /// play, but a BASIC-driven RSID renders as near-silence.
     pub roms_dir: Option<PathBuf>,
+    /// Directory of built visualiser reels (`<id>.bin` — see the player's
+    /// `assets/README.md`), served by `/api/reels`. Defaults to
+    /// `<primary root>/.support/reels`, overridable with `TRACKER_REELS_DIR`.
+    ///
+    /// On the mount rather than in the image, and for the same reason as the ROMs:
+    /// a reel is derived frames of somebody else's video, so the operator builds
+    /// it from a file they have and neither this repository nor the image CI
+    /// produces ever carries one. An empty or missing directory simply means the
+    /// visualisers show their own faces.
+    pub reels_dir: Option<PathBuf>,
 }
 
 impl Config {
@@ -125,6 +135,18 @@ impl Config {
             .filter(|s| !s.is_empty())
             .map(PathBuf::from)
             .unwrap_or_else(|| roots[0].path.join("library.json"));
+        // Both read `roots` before it is moved into the struct below.
+        //
+        // Under `.support` on the primary root, which is where this collection already
+        // keeps operator-supplied binaries — the C64 ROMs and the Amiga Kickstart. The
+        // dot matters: the scanner does not descend into a hidden directory, so a reel
+        // costs the walk nothing on a mount where the scan is latency-bound. It also
+        // means prod needs no configuration, since the share is mounted at the root.
+        let reels_dir = env::var("TRACKER_REELS_DIR")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| roots[0].path.join(".support").join("reels"));
         Ok(Self {
             dev_auth,
             bind: env::var("TRACKER_BIND").unwrap_or_else(|_| "0.0.0.0:3010".into()),
@@ -140,6 +162,9 @@ impl Config {
                 .ok()
                 .filter(|s| !s.is_empty())
                 .map(PathBuf::from),
+            // Defaults to `reels/` on the primary root, so a built clip dropped on the
+            // mount is found with no configuration — the same habit as the manifest.
+            reels_dir: Some(reels_dir),
             sid_default_length: env::var("TRACKER_SID_DEFAULT_LENGTH")
                 .ok()
                 .and_then(|v| v.parse().ok())

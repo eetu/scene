@@ -61,6 +61,36 @@ export function isVfdFace(v: unknown): v is VfdFace {
   return VFD_FACES.some((f) => f.id === v);
 }
 
+/**
+ * What the window is wired to, including the one job the DISPLAY button cannot select.
+ *
+ * `reel` is the film a track can bring with it (see reel.ts): it takes the window for as
+ * long as that tune is playing, whichever face is chosen, and DISPLAY hands it back. It
+ * is deliberately NOT in `VFD_FACES` — a face is a job the hardware always offers, and
+ * this one exists only when a clip does. Putting it in the list would mean a fourth
+ * button that does nothing on every tune but one.
+ */
+export type PanelFace = VfdFace | "reel";
+
+/**
+ * The dot field a film gets, per plate.
+ *
+ * Chosen so a dot is SQUARE in its window — the full plate's film area is 108×48 design
+ * units, so 72×32 dots is a pitch of 1.5 either way. A rectangular dot on a face that is
+ * showing a picture reads as the picture being stretched, which is the one thing a
+ * letterboxed film must not look like.
+ *
+ * Exported because the component samples the clip into a grid of exactly this size, and
+ * two places disagreeing about it would be a silently cropped picture.
+ */
+export const reelDots = (size: PanelSize = "full"): { cols: number; rows: number } =>
+  // The mini plate's window is 76×28 units, so 76×28 dots is a pitch of 1 — finer than
+  // the full plate's, which is the opposite of what scaling a layout down would give and
+  // is the point: at 54×20 a 4:3 clip landed in 27×20 dots and stopped being a picture.
+  // A personal stereo's display really did have a finer pitch than a full component's;
+  // it had less room, not bigger dots.
+  size === "mini" ? { cols: 76, rows: 28 } : { cols: 72, rows: 32 };
+
 /** The window the DISPLAY button re-purposes — the one region that differs between faces. */
 const WIN = { x: 158, y: 4, w: 116, h: 56 };
 
@@ -78,7 +108,7 @@ const WIN = { x: 158, y: 4, w: 116, h: 56 };
  * a horizontal level meter at its RIGHT END) a band that suited one put a meaningless amber
  * corner on the other. That is what it looked like, and it read as a rendering fault.
  */
-export function panelZones(face: VfdFace, size: PanelSize = "full") {
+export function panelZones(face: PanelFace, size: PanelSize = "full") {
   if (size === "mini") {
     // No red REC window: the mini plate has no REC anode to make visible, and a red
     // rectangle over nothing is just a red rectangle.
@@ -101,7 +131,8 @@ export function panelZones(face: VfdFace, size: PanelSize = "full") {
       // The same idea turned through ninety degrees, because the meter is.
       return [{ x: 240, y: 10, w: 32, h: 36, filter: "amber" as const }, rec];
     default:
-      // Text has no "too hot" end, so there is nothing for a band to mean.
+      // Text and a film have no "too hot" end, so there is nothing for a band to mean —
+      // and amber plastic laid over a picture is a tint on the picture.
       return [rec];
   }
 }
@@ -213,9 +244,13 @@ function miniFurniture(): VfdElement[] {
   ];
 }
 
-function miniWindow(face: VfdFace): VfdElement[] {
+function miniWindow(face: PanelFace): VfdElement[] {
   const b = { x: MINI_WIN.x + 3, y: MINI_WIN.y + 3, w: MINI_WIN.w - 6, h: MINI_WIN.h - 6 };
   switch (face) {
+    case "reel": {
+      const { cols, rows } = reelDots("mini");
+      return [{ kind: "dots", name: "film", cols, rows, dot: "square", ...b }];
+    }
     case "spectrum":
       return [
         { kind: "bars", name: "spec", bands: 12, rows: 8, peakHold: true, peakFall: 5, ...b },
@@ -240,10 +275,29 @@ function miniWindow(face: VfdFace): VfdElement[] {
 
 /** The plate for one face: the printed furniture, plus whatever the big window is wired
  *  to this time. Pure — `compilePanel` can take it with no canvas at all. */
-export function panelLayout(face: VfdFace, size: PanelSize = "full"): VfdElement[] {
+export function panelLayout(face: PanelFace, size: PanelSize = "full"): VfdElement[] {
   if (size === "mini") return [...miniFurniture(), ...miniWindow(face)];
   const els = furniture();
   switch (face) {
+    case "reel": {
+      // The whole window, and nothing printed in it. The other faces label themselves —
+      // an analyser has its decade scale, the text face says MESSAGE — because a readout
+      // that does not say what it is showing is a mystery. A picture is not a readout, and
+      // a caption over one is in the way of it.
+      const { cols, rows } = reelDots("full");
+      els.push({
+        kind: "dots",
+        name: "film",
+        cols,
+        rows,
+        dot: "square",
+        x: WIN.x + 4,
+        y: WIN.y + 4,
+        w: WIN.w - 8,
+        h: WIN.h - 8,
+      });
+      break;
+    }
     case "spectrum":
       els.push({
         kind: "bars",
@@ -407,6 +461,15 @@ export type FaceInput = {
   mono: boolean;
   repeat: boolean;
   shuffle: boolean;
+  /**
+   * The film's current frame, already sampled to `reelDots(size)` — one byte per dot,
+   * row-major FROM THE TOP, which is the order a `dots` element wants.
+   *
+   * Sampled by the caller rather than here because the clip and the playhead belong to the
+   * component, and this module is the plate: it knows how many dots the window has and
+   * nothing about what a reel is.
+   */
+  film?: Uint8Array | null;
 };
 
 const F_MIN = 40;
@@ -501,7 +564,13 @@ export function createFaceDriver() {
     ticker,
 
     /** Everything that is on the plate whatever the window is doing. */
-    furniture(p: VfdPanel, face: VfdFace, dt: number, input: FaceInput, size: PanelSize = "full") {
+    furniture(
+      p: VfdPanel,
+      face: PanelFace,
+      dt: number,
+      input: FaceInput,
+      size: PanelSize = "full",
+    ) {
       const live = input.playing && !input.paused;
       // The mini plate carries less hardware, so the driver addresses less of it. Writing to
       // a name that isn't there is not fatal — the package warns once — but a console line
@@ -556,10 +625,23 @@ export function createFaceDriver() {
     },
 
     /** The window, whatever it is wired to this time. */
-    window(p: VfdPanel, face: VfdFace, dt: number, input: FaceInput, size: PanelSize = "full") {
+    window(p: VfdPanel, face: PanelFace, dt: number, input: FaceInput, size: PanelSize = "full") {
       const live = input.playing && !input.paused;
       const mini = size === "mini";
       switch (face) {
+        case "reel": {
+          const film = input.film;
+          const { cols } = reelDots(size);
+          // Straight through, no flip: a `dots` element counts row 0 at the TOP because
+          // what it takes is an image, and so does the sampled film. (The LED cube is the
+          // other way round — its rows run bottom-up — which is why that one flips.)
+          //
+          // Nothing dims it while the film is dark: this plate can hold a fractional
+          // brightness per dot, so a 1-bit clip only ever asks for 0 or 1 and the panel's
+          // own phosphor tail does the rest.
+          p.setDots("film", (x, y) => (film && film[y * cols + x] ? 1 : 0));
+          break;
+        }
         case "spectrum":
           p.setBars("spec", readBands(mini ? 12 : 14, live));
           break;
