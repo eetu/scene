@@ -14,11 +14,18 @@ showing its own modes.
 Needs ffmpeg on PATH and nothing else — the frames come out of it already scaled and
 grey, so the whole of the image processing here is a threshold.
 
-The output is what flip-reel.ts reads:
+The output is what reel.ts reads:
 
     "REEL" | version u8 | cols u8 | rows u8 | fps u8 | frames u32le
-    then per frame an XOR delta against the one before it, run-length encoded in BITS:
-    alternating runs of unchanged and flipped, starting with unchanged, each LEB128.
+    then gzip(packed frames), one bit per dot, row-major, MSB first.
+
+Frames are stored PLAIN and the run of them gzipped, which is the opposite of the
+obvious design and was measured because the obvious design lost. This began as XOR
+deltas run-length encoded in bits — silhouette animation being a still field with a
+moving edge — and on a 3:39 clip that was 240 KB against 110 KB for plain frames
+through gzip. A general compressor already finds the temporal redundancy, its window
+spanning many frames, and hand-rolled RLE destroys the byte-level repetition it would
+otherwise exploit: gzipped against gzipped, the clever format came out 17% bigger.
 
 Frame rate is the board's, not the video's. The board updates about fourteen times a
 second behind a 70ms driver sweep and a 38ms flip, so a reel baked at 24fps would ask
@@ -27,6 +34,7 @@ reads as deliberate rather than as a board struggling to keep up.
 """
 
 import argparse
+import gzip
 import subprocess
 import sys
 from pathlib import Path
@@ -73,34 +81,6 @@ def pack(buf: bytes, threshold: int) -> bytearray:
     return out
 
 
-def varint(n: int) -> bytes:
-    out = bytearray()
-    while True:
-        b = n & 0x7F
-        n >>= 7
-        out.append(b | (0x80 if n else 0))
-        if not n:
-            return bytes(out)
-
-
-def delta(prev: bytearray, cur: bytearray, total: int) -> bytes:
-    """Runs of unchanged then flipped bits, alternating, starting with unchanged."""
-    out = bytearray()
-    run = 0
-    flip = False
-    for i in range(total):
-        bit = 0x80 >> (i & 7)
-        changed = ((prev[i >> 3] ^ cur[i >> 3]) & bit) != 0
-        if changed == flip:
-            run += 1
-        else:
-            out += varint(run)
-            run = 1
-            flip = changed
-    out += varint(run)
-    return bytes(out)
-
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("video", type=Path)
@@ -122,7 +102,6 @@ def main() -> None:
 
     total = args.cols * args.rows
     stride = (total + 7) // 8
-    prev = bytearray(stride)
     body = bytearray()
     count = 0
 
@@ -131,24 +110,28 @@ def main() -> None:
         if args.invert:
             for i in range(stride):
                 cur[i] ^= 0xFF
-        body += delta(prev, cur, total)
-        prev = cur
+        body += cur
         count += 1
 
     if not count:
         sys.exit("no frames — is that a video?")
 
     head = bytearray(b"REEL")
-    head.append(1)
+    head.append(2)
     head += bytes([args.cols, args.rows, args.fps])
     head += count.to_bytes(4, "little")
 
+    # mtime=0 so rebuilding the same video twice gives the same bytes — a reel is derived
+    # data, and a timestamp in it would make it look changed when it is not.
+    payload = gzip.compress(bytes(body), compresslevel=9, mtime=0)
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_bytes(bytes(head) + bytes(body))
+    args.out.write_bytes(bytes(head) + payload)
     raw = count * stride
     print(
         f"{args.out}: {count} frames at {args.cols}x{args.rows}, {args.fps}fps — "
-        f"{len(head) + len(body):,} bytes ({raw:,} raw)"
+        f"{len(head) + len(payload):,} bytes ({raw:,} raw, "
+        f"{(len(head) + len(payload)) / raw * 100:.0f}%)"
     )
 
 

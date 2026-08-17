@@ -113,11 +113,28 @@ ceiling: the board updates ~14 times a second behind a 70ms sweep and a 38ms fli
 a faster reel asks for changes the discs can't finish. `--fps 8` reads as deliberate
 rather than as a board struggling.
 
-The file is XOR deltas, run-length encoded in bits. Measured on a 3:39 clip at the
-defaults: 2,629 frames, 240 KB, about 43% of the same frames stored flat. Silhouette
-animation is a still field with a moving edge, but at 12fps that edge moves a long way
-between frames — the win is real and it is not an order of magnitude, so budget a
-couple of hundred kilobytes per clip rather than tens.
+The file is a small header and then **gzipped packed frames** — no delta coding, which is
+the opposite of the obvious design and is where the measurement changed the answer. On a
+3:39 clip (2,629 frames at 48×36):
+
+| stored as                                | on disk |
+| ---------------------------------------- | ------: |
+| flat frames, no compression              |  555 KB |
+| XOR deltas, run-length encoded in bits   |  240 KB |
+| ...those deltas, then gzipped            |  129 KB |
+| **flat frames, gzipped** (what it does)  | **110 KB** |
+| flat frames, brotli                      |   84 KB |
+
+Hand-rolled delta+RLE looks like the right idea — silhouette animation is a still field
+with a moving edge — and it beats storing frames flat. But it *loses* to a general
+compressor on flat frames, and by a wide margin: gzip's window spans many frames, so a
+row repeating across dozens of them costs almost nothing, while RLE destroys exactly the
+byte-level repetition it would have exploited. Compressed against compressed, the clever
+format was 17% bigger.
+
+gzip and not brotli only because `DecompressionStream` doesn't offer brotli. A
+`CompressionLayer` on the backend would claw back that last 26 KB over the wire — and
+would do it for every other asset too, which is the better place to fix it.
 
 That clip's cost to the hardware, measured the way `flip-modes.test.ts` measures a
 generated mode: mean churn 39 dots of 880 (4.5%), against the 40% budget the modes

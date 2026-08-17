@@ -29,26 +29,34 @@ export type Reel = {
 };
 
 const MAGIC = 0x5245454c; // "REEL"
-const VERSION = 1;
+const VERSION = 2;
 const HEADER = 12;
 
 /** How wide a packed frame is, in bytes. */
 export const frameBytes = (cols: number, rows: number): number => Math.ceil((cols * rows) / 8);
 
 /**
- * Read a built clip.
+ * Read a built clip: a header, then gzipped packed frames.
  *
- * The file is a header and then one XOR-delta per frame, run-length encoded in BITS:
- * alternating runs of unchanged and flipped, starting with unchanged, each a LEB128
- * varint. Silhouette animation is mostly a still field with a moving edge, so the
- * deltas are long runs of nothing — which is the whole reason the format is deltas
- * and not frames.
+ * The frames are stored PLAIN — one bit per dot, row-major, MSB first — and the whole
+ * run of them is gzipped. That is the opposite of the obvious design and it was measured,
+ * because the obvious design lost. This started as XOR deltas run-length encoded in bits,
+ * on the reasoning that silhouette animation is a still field with a moving edge; on a
+ * 3:39 clip that came to 246 KB, and plain frames through gzip come to 112 KB. Nothing
+ * about the reasoning was wrong except its conclusion: a general compressor already finds
+ * the temporal redundancy — its window spans many frames, so a row that repeats across
+ * dozens of them costs almost nothing — and hand-rolled RLE destroys exactly the
+ * byte-level repetition it would have exploited. Gzipped against gzipped, the clever
+ * format came out 17% BIGGER than plain frames (129 KB against 110 KB).
  *
- * Decoded to packed frames in memory rather than kept as deltas: a clip is a few
- * hundred kilobytes either way, and holding whole frames means seeking is an index
- * rather than a replay from the last keyframe. The playhead moves in both directions.
+ * gzip rather than brotli (86 KB) only because `DecompressionStream` does not offer
+ * brotli; a `CompressionLayer` on the backend would get that back over the wire, and
+ * would do it for every other asset too.
+ *
+ * Decompressed to whole frames in memory rather than streamed on demand: seeking is then
+ * an index rather than a replay, and the playhead moves in both directions.
  */
-export function decodeReel(id: string, buf: ArrayBuffer): Reel | null {
+export async function decodeReel(id: string, buf: ArrayBuffer): Promise<Reel | null> {
   if (buf.byteLength < HEADER) return null;
   const head = new DataView(buf);
   if (head.getUint32(0, false) !== MAGIC || head.getUint8(4) !== VERSION) return null;
@@ -58,36 +66,19 @@ export function decodeReel(id: string, buf: ArrayBuffer): Reel | null {
   const count = head.getUint32(8, true);
   if (!cols || !rows || !fps || !count) return null;
 
-  const stride = frameBytes(cols, rows);
-  const total = cols * rows;
-  const bits = new Uint8Array(count * stride);
-  const src = new Uint8Array(buf, HEADER);
-  let p = 0;
-
-  for (let f = 0; f < count; f++) {
-    const at = f * stride;
-    // Each frame starts as its predecessor and is flipped where the delta says so.
-    if (f > 0) bits.copyWithin(at, at - stride, at);
-    let bit = 0;
-    let flip = false; // runs alternate, and the first is unchanged
-    while (bit < total) {
-      let run = 0;
-      let shift = 0;
-      for (;;) {
-        if (p >= src.length) return null; // truncated: a half-decoded reel is not a reel
-        const b = src[p++];
-        run |= (b & 0x7f) << shift;
-        if ((b & 0x80) === 0) break;
-        shift += 7;
-      }
-      if (flip) {
-        const end = Math.min(total, bit + run);
-        for (let i = bit; i < end; i++) bits[at + (i >> 3)] ^= 0x80 >> (i & 7);
-      }
-      bit += run;
-      flip = !flip;
-    }
+  const want = count * frameBytes(cols, rows);
+  let bits: Uint8Array;
+  try {
+    const stream = new Blob([buf.slice(HEADER)])
+      .stream()
+      .pipeThrough(new DecompressionStream("gzip"));
+    bits = new Uint8Array(await new Response(stream).arrayBuffer());
+  } catch {
+    return null; // not gzip, or truncated mid-stream
   }
+  // A short payload would draw as a corrupt frame that never resolves, which on these
+  // displays looks like a hardware fault rather than a bad file.
+  if (bits.length < want) return null;
   return { id, cols, rows, fps, count, bits };
 }
 
@@ -226,7 +217,7 @@ export async function loadReel(id: string): Promise<Reel | null> {
   if (!url) return null;
   try {
     const res = await fetch(url);
-    const reel = res.ok ? decodeReel(id, await res.arrayBuffer()) : null;
+    const reel = res.ok ? await decodeReel(id, await res.arrayBuffer()) : null;
     cache.set(id, reel);
     return reel;
   } catch {

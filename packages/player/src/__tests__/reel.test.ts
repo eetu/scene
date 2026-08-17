@@ -6,11 +6,12 @@
 // decoder and the format agree, that a reel is only ever put in front of the tune it
 // was cut for, and that fitting a clip to a board of another shape does not hand the
 // discs more work than the generated modes do.
-import { describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "vitest";
 
 import {
   decodeReel,
   frameBytes,
+  type Reel,
   REEL_IDS,
   reelDot,
   reelFrameAt,
@@ -21,51 +22,38 @@ import {
   watchReel,
 } from "../reel";
 
-/** The build script's encoder, in miniature: header, then XOR deltas run-length
- *  encoded in bits, alternating unchanged/flipped and starting with unchanged. Kept
+/** The build script's encoder, in miniature: header, then gzipped packed frames. Kept
  *  here rather than in the source because the player only ever reads a reel — this is
- *  the other half of the format, written out so the decoder is tested against the
- *  spec and not against itself. */
-function encodeReel(cols: number, rows: number, fps: number, frames: boolean[][]): ArrayBuffer {
+ *  the other half of the format, written out so the decoder is tested against the spec
+ *  and not against itself. */
+async function encodeReel(
+  cols: number,
+  rows: number,
+  fps: number,
+  frames: boolean[][],
+): Promise<ArrayBuffer> {
   const total = cols * rows;
   const stride = frameBytes(cols, rows);
-  const varint = (n: number, out: number[]) => {
-    for (;;) {
-      const b = n & 0x7f;
-      n >>>= 7;
-      out.push(n ? b | 0x80 : b);
-      if (!n) return;
-    }
-  };
-  const body: number[] = [];
-  let prev = new Uint8Array(stride);
-  for (const frame of frames) {
-    const cur = new Uint8Array(stride);
-    for (let i = 0; i < total; i++) if (frame[i]) cur[i >> 3] |= 0x80 >> (i & 7);
-    let run = 0;
-    let flip = false;
+  const body = new Uint8Array(frames.length * stride);
+  frames.forEach((frame, f) => {
     for (let i = 0; i < total; i++) {
-      const bit = 0x80 >> (i & 7);
-      const changed = ((prev[i >> 3] ^ cur[i >> 3]) & bit) !== 0;
-      if (changed === flip) run++;
-      else {
-        varint(run, body);
-        run = 1;
-        flip = changed;
-      }
+      if (frame[i]) body[f * stride + (i >> 3)] |= 0x80 >> (i & 7);
     }
-    varint(run, body);
-    prev = cur;
-  }
-  const out = new Uint8Array(12 + body.length);
+  });
+  const gz = new Uint8Array(
+    await new Response(
+      new Blob([body]).stream().pipeThrough(new CompressionStream("gzip")),
+    ).arrayBuffer(),
+  );
+  const out = new Uint8Array(12 + gz.length);
   const head = new DataView(out.buffer);
   head.setUint32(0, 0x5245454c, false); // "REEL"
-  out[4] = 1;
+  out[4] = 2;
   out[5] = cols;
   out[6] = rows;
   out[7] = fps;
   head.setUint32(8, frames.length, true);
-  out.set(body, 12);
+  out.set(gz, 12);
   return out.buffer;
 }
 
@@ -74,7 +62,7 @@ const frame = (cols: number, rows: number, f: (x: number, y: number) => boolean)
   Array.from({ length: cols * rows }, (_, i) => f(i % cols, Math.floor(i / cols)));
 
 describe("the format", () => {
-  test("a clip survives the round trip, frame for frame", () => {
+  test("a clip survives the round trip, frame for frame", async () => {
     const cols = 11; // not a multiple of 8: the last byte of a row is a partial one
     const rows = 7;
     const frames = [
@@ -83,7 +71,7 @@ describe("the format", () => {
       frame(cols, rows, (x) => x < 5),
       frame(cols, rows, () => true),
     ];
-    const reel = decodeReel("test", encodeReel(cols, rows, 12, frames));
+    const reel = await decodeReel("test", await encodeReel(cols, rows, 12, frames));
     expect(reel).not.toBe(null);
     expect(reel!.cols).toBe(cols);
     expect(reel!.rows).toBe(rows);
@@ -98,33 +86,41 @@ describe("the format", () => {
     }
   });
 
-  test("a frame that changes nothing costs one run", () => {
-    // The reason the format is deltas: shadow animation holds still for long stretches,
-    // and a held frame should be a couple of bytes rather than a picture.
+  test("a held frame costs almost nothing", async () => {
+    // The claim the format rests on, and the reason it is plain frames through gzip
+    // rather than hand-rolled deltas: shadow animation holds still for long stretches,
+    // and a compressor's window spans many frames, so a repeated one is nearly free.
     const still = frame(8, 8, (x) => x < 3);
-    const one = encodeReel(8, 8, 12, [still]).byteLength;
-    const ten = encodeReel(
-      8,
-      8,
-      12,
-      Array.from({ length: 10 }, () => still),
+    const one = (await encodeReel(8, 8, 12, [still])).byteLength;
+    const ten = (
+      await encodeReel(
+        8,
+        8,
+        12,
+        Array.from({ length: 10 }, () => still),
+      )
     ).byteLength;
     expect(ten - one).toBeLessThanOrEqual(9 * 2);
   });
 
-  test("a file that is not a reel, or is cut short, decodes to nothing", () => {
-    expect(decodeReel("x", new ArrayBuffer(4))).toBe(null);
-    const good = encodeReel(8, 8, 12, [frame(8, 8, (x) => x < 3)]);
+  test("a file that is not a reel, or is cut short, decodes to nothing", async () => {
+    expect(await decodeReel("x", new ArrayBuffer(4))).toBe(null);
+    const good = await encodeReel(8, 8, 12, [frame(8, 8, (x) => x < 3)]);
     const wrongMagic = good.slice(0);
     new Uint8Array(wrongMagic)[0] = 0x00;
-    expect(decodeReel("x", wrongMagic)).toBe(null);
+    expect(await decodeReel("x", wrongMagic)).toBe(null);
+    // A version this reader does not know is not guesswork: the payload's meaning
+    // changed with it, and reading v1's deltas as v2's gzip would be noise.
+    const wrongVersion = good.slice(0);
+    new Uint8Array(wrongVersion)[4] = 1;
+    expect(await decodeReel("x", wrongVersion)).toBe(null);
     // Truncated mid-stream: a half-decoded reel would draw as a corrupt frame that
-    // never resolves, which on this board looks like a hardware fault.
-    expect(decodeReel("x", good.slice(0, good.byteLength - 1))).toBe(null);
+    // never resolves, which on these displays looks like a hardware fault.
+    expect(await decodeReel("x", good.slice(0, good.byteLength - 1))).toBe(null);
   });
 
-  test("out of range is dark, not a throw or a wrap onto the next row", () => {
-    const reel = decodeReel("x", encodeReel(8, 4, 12, [frame(8, 4, () => true)]))!;
+  test("out of range is dark, not a throw or a wrap onto the next row", async () => {
+    const reel = (await decodeReel("x", await encodeReel(8, 4, 12, [frame(8, 4, () => true)])))!;
     expect(reelDot(reel, 0, -1, 0)).toBe(false);
     expect(reelDot(reel, 0, 8, 0)).toBe(false);
     expect(reelDot(reel, 0, 0, 4)).toBe(false);
@@ -261,15 +257,18 @@ describe("watching the transport", () => {
 });
 
 describe("playing it", () => {
-  const reel = decodeReel(
-    "x",
-    encodeReel(
-      8,
-      8,
-      10,
-      Array.from({ length: 30 }, (_, f) => frame(8, 8, (x) => x === f % 8)),
-    ),
-  )!;
+  let reel: Reel;
+  beforeAll(async () => {
+    reel = (await decodeReel(
+      "x",
+      await encodeReel(
+        8,
+        8,
+        10,
+        Array.from({ length: 30 }, (_, f) => frame(8, 8, (x) => x === f % 8)),
+      ),
+    ))!;
+  });
 
   test("the playhead picks the frame, and the ends hold", () => {
     expect(reelFrameAt(reel, 0)).toBe(0);
@@ -281,13 +280,13 @@ describe("playing it", () => {
     expect(reelFrameAt(reel, -5)).toBe(0);
   });
 
-  test("a clip is fitted and centred on the board, never stretched", () => {
+  test("a clip is fitted and centred on the board, never stretched", async () => {
     // A 1:1 clip on a wide board: the picture keeps its shape and the rest of the
     // board stays dark, which on flip dots is a letterbox of unlit discs.
     const cols = 40;
     const rows = 22;
     const out = new Uint8Array(cols * rows);
-    const solid = decodeReel("s", encodeReel(8, 8, 10, [frame(8, 8, () => true)]))!;
+    const solid = (await decodeReel("s", await encodeReel(8, 8, 10, [frame(8, 8, () => true)])))!;
     sampleReel(solid, 0, cols, rows, out);
     let minX = cols;
     let maxX = -1;
@@ -317,7 +316,7 @@ describe("playing it", () => {
     expect(out.length).toBe(36); // nothing written past the end
   });
 
-  test("a reel asks the discs for no more than the generated modes do", () => {
+  test("a reel asks the discs for no more than the generated modes do", async () => {
     // The board's own budget (flip-modes.test.ts): 40% of the dots may change per
     // update, because churn is how much of the board is mid-rotation rather than
     // showing a state. This guards the SAMPLER — the fitting and the majority
@@ -327,9 +326,9 @@ describe("playing it", () => {
     const cols = 40;
     const rows = 22;
     const BUDGET = Math.round(cols * rows * 0.4);
-    const clip = decodeReel(
+    const clip = (await decodeReel(
       "m",
-      encodeReel(
+      await encodeReel(
         48,
         36,
         12,
@@ -342,7 +341,7 @@ describe("playing it", () => {
           }),
         ),
       ),
-    )!;
+    ))!;
     const a = new Uint8Array(cols * rows);
     const b = new Uint8Array(cols * rows);
     let total = 0;
