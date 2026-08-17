@@ -117,13 +117,14 @@ The file is a small header and then **gzipped packed frames** — no delta codin
 the opposite of the obvious design and is where the measurement changed the answer. On a
 3:39 clip (2,629 frames at 48×36):
 
-| stored as                                | on disk |
-| ---------------------------------------- | ------: |
-| flat frames, no compression              |  555 KB |
-| XOR deltas, run-length encoded in bits   |  240 KB |
-| ...those deltas, then gzipped            |  129 KB |
-| **flat frames, gzipped** (what it does)  | **110 KB** |
-| flat frames, brotli                      |   84 KB |
+| stored as                               |    on disk |
+| --------------------------------------- | ---------: |
+| flat frames, no compression             |     555 KB |
+| XOR deltas, run-length encoded in bits  |     240 KB |
+| ...those deltas, then gzipped           |     129 KB |
+| **flat frames, gzipped** (what it does) | **110 KB** |
+| flat frames, zstd -19                   |      89 KB |
+| flat frames, brotli -11                 |      84 KB |
 
 Hand-rolled delta+RLE looks like the right idea — silhouette animation is a still field
 with a moving edge — and it beats storing frames flat. But it *loses* to a general
@@ -132,9 +133,26 @@ row repeating across dozens of them costs almost nothing, while RLE destroys exa
 byte-level repetition it would have exploited. Compressed against compressed, the clever
 format was 17% bigger.
 
-gzip and not brotli only because `DecompressionStream` doesn't offer brotli. A
-`CompressionLayer` on the backend would claw back that last 26 KB over the wire — and
-would do it for every other asset too, which is the better place to fix it.
+gzip and not zstd or brotli because **the browser cannot decompress those from script**.
+Probed rather than assumed, on the chromium the suite runs:
+
+```
+Chrome 151  DecompressionStream: gzip ✓  deflate ✓  deflate-raw ✓  br ✗  brotli ✗  zstd ✗
+```
+
+(Node 26 *does* accept `"brotli"` there, so a check written only against node would have
+passed and then failed in a browser.)
+
+That leaves two ways to the last 26 KB, and neither is worth it here:
+
+- **A decoder in the bundle.** `fzstd` unpacks to 65 KB to save 21 KB, and a wasm brotli
+  is far bigger than the 26 KB it saves. Paying bundle bytes for asset bytes, the wrong
+  way round.
+- **`Content-Encoding` from the backend** — the right answer, since `fetch` decodes those
+  transparently. It means storing frames flat and letting a `CompressionLayer` (tower-http
+  does br and zstd behind features) compress them, which would help every other asset too.
+  Until that exists, flat frames would ship at 555 KB from the 30-line SPA server, so the
+  file compresses itself.
 
 That clip's cost to the hardware, measured the way `flip-modes.test.ts` measures a
 generated mode: mean churn 39 dots of 880 (4.5%), against the 40% budget the modes
