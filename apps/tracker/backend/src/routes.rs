@@ -2483,6 +2483,55 @@ mod tests {
         assert_ne!(other.id, t.id, "each subtune is its own track");
     }
 
+    /// Two scans would serialise on the single SQLite connection anyway, but they would
+    /// also interleave their writes to the shared progress counters, so `/status` would
+    /// report a meaningless blend of the two runs.
+    ///
+    /// Tested by setting the flag rather than by racing a real scan. The integration suite
+    /// used to seed 800 files so that a second request would land while the first was
+    /// still walking — a bet on the machine being slower than a round trip, which is not
+    /// something a test should depend on. Here "a scan is running" is a fact.
+    #[tokio::test]
+    async fn a_second_rescan_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = crate::config::Config {
+            bind: "127.0.0.1:0".into(),
+            dev_auth: true,
+            roots: vec![crate::config::Root {
+                id: "mods".into(),
+                kind: crate::config::RootKind::Scan,
+                path: dir.path().to_path_buf(),
+            }],
+            db_path: ":memory:".into(),
+            static_dir: dir.path().to_path_buf(),
+            modland_base: String::new(),
+            manifest_path: dir.path().join("library.json"),
+            roms_dir: None,
+            reels_dir: None,
+            sid_default_length: 180,
+        };
+        let state = AppState::new(cfg, crate::db::Db::open_in_memory().unwrap());
+
+        // Nothing running: the claim succeeds and the scan is accepted.
+        let (code, _) = rescan_root(&state, "mods").await.unwrap();
+        assert_eq!(code, StatusCode::ACCEPTED);
+
+        // The handler spawned a real scan of an empty directory, which may or may not have
+        // finished by now — so assert the guard against a flag we set ourselves rather
+        // than against whatever that scan is doing. Same code path, no timing.
+        state.scan.scanning.store(true, Ordering::SeqCst);
+        let err = rescan_root(&state, "mods").await.unwrap_err();
+        assert!(
+            matches!(err, AppError::Conflict(_)),
+            "a concurrent scan must be refused, got {err:?}"
+        );
+
+        // …and once the flag clears, scanning is possible again.
+        state.scan.scanning.store(false, Ordering::SeqCst);
+        let (code, _) = rescan_root(&state, "mods").await.unwrap();
+        assert_eq!(code, StatusCode::ACCEPTED);
+    }
+
     fn missing(path: Option<&str>, url: Option<&str>, artist: Option<&str>) -> Missing {
         Missing {
             item_id: 1,

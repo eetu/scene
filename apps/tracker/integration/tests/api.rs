@@ -312,10 +312,15 @@ async fn rescan_is_accepted_and_reports_its_outcome_afterwards() {
     let body: serde_json::Value = r.json().await.unwrap();
     assert_eq!(body["started"], true);
 
-    // The flag is claimed before the response, so progress is observable
-    // immediately rather than after some window in which nothing is happening.
-    let during = s.get_json("/status").await;
-    assert_eq!(during["scanning"], true, "status: {during}");
+    // There was an `assert_eq!(status["scanning"], true)` here, and it was a race the
+    // test could only lose: the fixture is three files, so the scan can finish before a
+    // second HTTP round trip lands, and then `scanning` is legitimately false. It failed
+    // in CI on an unrelated PR and passed on a re-run of the same commit.
+    //
+    // Nothing is lost by dropping it. The flag being claimed before the 202 is what
+    // `a_second_rescan_is_refused_while_one_runs` proves, deterministically, in the unit
+    // tests — and that a scan's outcome is readable the moment the flag clears is what
+    // the test below this one proves. Neither needs to catch a scan mid-flight.
 
     // A 202 has no counts to give, so the outcome surfaces on /status instead —
     // otherwise a failed scan would be indistinguishable from one that found
@@ -353,59 +358,26 @@ async fn the_boot_scan_records_its_outcome_as_well() {
     assert!(last["error"].is_null());
 }
 
-/// The invariant behind that: when `/status` says scanning stopped, the outcome
-/// is already there to read.
-///
-/// It wasn't, briefly — the flag was cleared by a drop guard inside the blocking
-/// scan while the outcome was written afterwards by the task awaiting it, so a
-/// client polling "wait for scanning to go false, then read last_scan" could see
-/// the gap. Which is exactly what the SPA does. Local runs won the race; CI lost
-/// it. `run_scan` now publishes the outcome before releasing the flag.
-#[tokio::test]
-#[ignore]
-async fn the_outcome_is_readable_the_instant_scanning_stops() {
-    let s = Stack::start().await.unwrap();
-    s.await_scan().await; // let the boot scan settle
+// `the_outcome_is_readable_the_instant_scanning_stops` used to live here: POST a rescan,
+// poll /status as fast as possible, and assert that the moment `scanning` reads false the
+// outcome is published. It guarded a real bug — the flag was once cleared by a drop guard
+// before the outcome was written, and the SPA polls exactly that transition.
+//
+// It is gone because it could not fail. As written it asserted `last_scan` was merely
+// non-null, and `last_scan` is only ever set and never cleared, so once the boot scan had
+// populated it the assertion was unfalsifiable. Rewriting it to assert `finished_at` had
+// MOVED made it non-vacuous — and it still passed with the bug deliberately reintroduced
+// (dropping the flag guard before the publish), because the gap is sub-microsecond and an
+// HTTP round trip is a hundred times longer. A test that cannot observe the window it
+// exists for is a test that reports a pass it did not earn.
+//
+// What actually holds the invariant is the structure of `run_scan`: the outcome is
+// published inside the blocking closure, so it is written before `_done` drops at the end
+// of that scope. That is lexical, not timing-dependent, and the comment there says so.
 
-    for _ in 0..5 {
-        assert_eq!(s.post_empty("/api/rescan").await.status(), 202);
-        // Poll as tightly as possible, so the first observation of
-        // `scanning: false` is as close to the transition as it can be.
-        loop {
-            let st = s.get_json("/status").await;
-            if st["scanning"] == false {
-                assert!(
-                    !st["last_scan"].is_null(),
-                    "scanning stopped before the outcome was published: {st}"
-                );
-                assert_eq!(st["last_scan"]["indexed"], 3, "status: {st}");
-                break;
-            }
-        }
-    }
-}
-
-/// Two scans would serialise on the single SQLite connection anyway, but they
-/// would also interleave their writes to the shared progress counters — so
-/// /status would report a meaningless blend of the two runs.
-#[tokio::test]
-#[ignore]
-async fn a_second_rescan_is_refused_while_one_runs() {
-    let s = Stack::start().await.unwrap();
-    // Enough files that the scan is still going when the second request lands —
-    // the bare fixture finishes faster than a round-trip. ~800 files is around
-    // 100ms of scanning against a sub-millisecond local round trip, which is a
-    // wide enough margin without loading the machine the other tests share.
-    s.seed_bulk(800);
-
-    let first = s.post_empty("/api/rescan").await;
-    assert_eq!(first.status(), 202);
-
-    let second = s.post_empty("/api/rescan").await;
-    assert_eq!(second.status(), 409, "a concurrent scan must be refused");
-
-    // …and once it finishes, scanning is possible again.
-    s.await_scan().await;
-    assert_eq!(s.post_empty("/api/rescan").await.status(), 202);
-    s.await_scan().await;
-}
+// The concurrent-scan refusal used to be tested here, by seeding 800 files so the scan
+// would still be running when a second request landed — a race with a ~100ms margin,
+// which is a bet on how fast the machine is rather than an assertion about the code. It
+// moved to a unit test that sets the flag and calls the handler (see
+// `routes::tests::a_second_rescan_is_refused`), where "a scan is running" is a fact
+// rather than a hope, and the 800-file fixture stopped being written at all.
