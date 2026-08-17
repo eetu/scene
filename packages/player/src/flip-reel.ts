@@ -157,6 +157,26 @@ export function sampleReel(
 export const reelKey = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /**
+ * Every name a track goes by.
+ *
+ * The tune's own title and filename, and then what the curator notes call it. That
+ * second part is not decoration: a SID has no text of its own, and HVSC keeps the
+ * ORIGINAL A TUNE COVERS in STIL's title/artist fields rather than in the tune's name
+ * (see `TrackNote` in host.ts — the split-flap board reads the same fields to print
+ * "COVER OF …"). A C64 cover of something is very often filed under the arranger's own
+ * title, so the only place the thing it covers is written down is the notes.
+ *
+ * Comments are deliberately not included. They are prose, and matching a clip id
+ * inside a paragraph is how a reel ends up playing over a tune that merely mentions it.
+ */
+export function trackNames(
+  track: { title?: string | null; filename?: string | null } | null | undefined,
+  notes: readonly { title: string | null; name: string | null }[] = [],
+): (string | null | undefined)[] {
+  return [track?.title, track?.filename, ...notes.flatMap((n) => [n.title, n.name])];
+}
+
+/**
  * The clip a track should play, if any.
  *
  * Matched on the id being IN the track's name rather than equal to it: a module is

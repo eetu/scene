@@ -17,7 +17,15 @@
   import type { FlipDotBoard } from "@glowbox/flip-dot";
   import { flip, setFlipMode } from "./flip-mode.svelte";
   import { createFlipRenderer, FLIP_MODES } from "./flip-modes";
-  import { loadReel, REEL_IDS, type Reel, reelFrameAt, reelIdFor, sampleReel } from "./flip-reel";
+  import {
+    loadReel,
+    REEL_IDS,
+    type Reel,
+    reelFrameAt,
+    reelIdFor,
+    sampleReel,
+    trackNames,
+  } from "./flip-reel";
   import { playback } from "./state.svelte";
   import { driveFrames } from "./raf";
 
@@ -94,18 +102,27 @@
       // loaded track is that tune. Nothing here is fetched otherwise — with no reels
       // built, `REEL_IDS` is empty and this is a string compare per track change.
       let reelTrack: string | null = null;
+      let reelNotes = -1;
       let reel: Reel | null = null;
       let reelGrid = new Uint8Array(0);
 
       function pickReel() {
         const t = playback.current;
         const key = t ? (t.hash ?? t.filename ?? "") : "";
-        if (key === reelTrack) return;
+        // The notes are fetched after the track loads, and for a SID they are where the
+        // thing it covers is written down — so a match has to be looked for again when
+        // they land, not once when the tune starts.
+        const notes = playback.notes.length;
+        if (key === reelTrack && notes === reelNotes) return;
+        const fresh = key !== reelTrack;
         reelTrack = key;
-        reel = null;
-        reelOff = false;
+        reelNotes = notes;
+        if (fresh) {
+          reel = null;
+          reelOff = false;
+        } else if (reel) return; // already showing this track's reel
         if (!t || !REEL_IDS.length) return;
-        const id = reelIdFor(REEL_IDS, t.title, t.filename);
+        const id = reelIdFor(REEL_IDS, ...trackNames(t, playback.notes));
         if (!id) return;
         void loadReel(id).then((r) => {
           // A track change while the fetch was in flight wins: the board belongs to

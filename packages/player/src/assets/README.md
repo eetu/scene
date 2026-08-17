@@ -84,7 +84,14 @@ python build-reel.py bad-apple.mp4 reels/badapple.bin
 
 The id is the filename: `badapple.bin` plays for a module whose name contains
 `badapple` once letters and digits are folded to lower case — `Bad Apple!! (XM
-cover).xm` matches, everything else doesn't.
+cover).xm` matches, everything else doesn't. What counts as "name" is the track's
+title, its filename, and its curator notes' `title`/`name`; for a SID that last part is
+the important one, because HVSC files a cover under the arranger's own title and keeps
+the thing it covers in STIL.
+
+**Restart the dev server after adding a reel.** The registry is an
+`import.meta.glob`, which Vite resolves when it transforms the module — a file dropped
+into `reels/` while `vite` is running is not in that list yet.
 
 Defaults are 48×36 at 12fps, which is a 4:3 field a little above what any pane's board
 will be (it's fitted and centred at runtime, never stretched). Twelve is about the

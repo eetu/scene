@@ -17,6 +17,7 @@ import {
   reelIdFor,
   reelKey,
   sampleReel,
+  trackNames,
 } from "../flip-reel";
 
 /** The build script's encoder, in miniature: header, then XOR deltas run-length
@@ -153,6 +154,33 @@ describe("finding the tune", () => {
     // Ids come from filenames, so a stray `a.bin` would otherwise play against every
     // module with an `a` in it — which is all of them.
     expect(reelIdFor(["ab"], "Absolutely Anything", "ab.mod")).toBe(null);
+  });
+
+  test("a SID cover is found in its curator notes, not in its own name", () => {
+    // The case this was written for. A C64 arrangement is filed under the arranger's
+    // own title — the tune it covers is only written down in HVSC's STIL, which is why
+    // `trackNames` reaches for the notes at all. Matching the track's own strings alone
+    // finds nothing here, which is exactly what happened.
+    const track = { title: "Touhou Medley", filename: "Touhou_Medley.sid" };
+    const notes = [{ title: "Bad Apple!!", name: "Touhou Medley" }];
+    expect(reelIdFor(ids, ...trackNames(track))).toBe(null);
+    expect(reelIdFor(ids, ...trackNames(track, notes))).toBe("badapple");
+  });
+
+  test("a note that only mentions the tune in prose does not count", () => {
+    // Comments are paragraphs. Matching inside one is how a reel ends up over a tune
+    // that merely name-drops another, so `trackNames` never reads them — a comment is
+    // not in the list at all.
+    const track = { title: "Chip Jam", filename: "chipjam.sid" };
+    const names = trackNames(track, [{ title: null, name: "Chip Jam" }]);
+    expect(names).not.toContain("in the style of bad apple");
+    expect(reelIdFor(ids, ...names)).toBe(null);
+  });
+
+  test("names survive a track with nothing filled in", () => {
+    expect(reelIdFor(ids, ...trackNames(null))).toBe(null);
+    expect(reelIdFor(ids, ...trackNames(undefined, []))).toBe(null);
+    expect(reelIdFor(ids, ...trackNames({}, [{ title: null, name: null }]))).toBe(null);
   });
 
   test("the key is letters and digits, folded down", () => {
