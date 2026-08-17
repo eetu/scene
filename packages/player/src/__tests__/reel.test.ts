@@ -11,11 +11,12 @@ import { beforeAll, describe, expect, test } from "vitest";
 import {
   decodeReel,
   frameBytes,
+  loadReel,
   type Reel,
-  REEL_IDS,
   reelDot,
   reelFrameAt,
   reelIdFor,
+  reelIds,
   reelKey,
   sampleReel,
   trackNames,
@@ -185,21 +186,12 @@ describe("finding the tune", () => {
     expect(reelKey("")).toBe("");
   });
 
-  test("whatever the folder holds is an id that can actually match", () => {
-    // NOT "the folder is empty". It was, and that was wrong: a built clip is the whole
-    // point of the feature, so the assertion failed on any machine where somebody had
-    // followed the README — it tested the developer's disk rather than the code.
-    //
-    // Keeping a clip out of the repository is .gitignore's job, and a test cannot see
-    // the difference anyway. What is worth checking is that a filename dropped in there
-    // becomes a usable id: `reelIdFor` skips anything under four characters, so a clip
-    // named too short would sit in the registry and silently never play.
-    for (const id of REEL_IDS) {
-      expect(reelKey(id).length, `${id} is too short an id to ever match a track`).toBeGreaterThan(
-        3,
-      );
-      expect(id).not.toContain("/");
-    }
+  test("with no host there are no reels, and nothing throws asking", async () => {
+    // The list is a fetch off the host's `reelBase`, so the no-host case is the one every
+    // other consumer of this package hits — including these tests. It has to be quiet: a
+    // player with no reels configured is the normal state, not a failure.
+    await expect(reelIds()).resolves.toEqual([]);
+    await expect(loadReel("badapple")).resolves.toBe(null);
   });
 });
 

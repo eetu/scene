@@ -25,6 +25,7 @@ setPlayerHost({
   // The C64 ROMs are operator-supplied and copyrighted, so they're fetched from
   // the backend at runtime rather than shipped in the bundle.
   romBase: () => "/api/roms",
+  reelBase: () => "/api/reels",
   // STIL: HVSC's curator commentary, for the text visualisers. A SID has no
   // sample slots, so without this the split-flap board and the hi-fi's text face
   // would show a bare title card where a module shows the composer's writing.

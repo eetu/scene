@@ -10,9 +10,11 @@
 // A reel plays at the board's own rate; the driver sweep is not an obstacle to work
 // around, it is the reason to do this on this display rather than on a canvas.
 //
-// Clips are BUILT, not shipped: see assets/build-reel.py and assets/README.md. The
-// registry is a glob, so a folder with nothing in it is simply no clips — never a
-// build error, and never a video in the repository.
+// Clips are BUILT, not shipped, and they live on the operator's mount beside the music
+// and the C64 ROMs rather than in the bundle: see assets/build-reel.py and
+// assets/README.md. The app says where they are served from and this asks, so a
+// repository and an image can both be free of them and the easter egg still works.
+import { host } from "./host";
 
 /** A decoded clip: frames of packed bits, ready to sample. */
 export type Reel = {
@@ -189,22 +191,46 @@ export function reelIdFor(
 }
 
 /**
- * Built clips, by id.
+ * The clips this machine has, from the app.
  *
- * A glob rather than a list, so the folder is the registry: dropping a built clip in
- * is the whole installation step, and an empty folder resolves to no clips instead of
- * a build error. `?url` because these are binary and have to be emitted as assets
- * rather than parsed as modules.
+ * Fetched rather than globbed at build time, and that is the whole point: a reel is
+ * derived frames of somebody else's video, so it lives on the operator's mount beside the
+ * music and the C64 ROMs and is never committed or baked into an image. A build-time glob
+ * put the file in the bundle, which meant the easter egg worked on the machine that built
+ * the clip and nowhere else — the image CI produces has no clip in it at all.
+ *
+ * So the host says where they are served from (`reelBase`, exactly like `romBase`) and
+ * this asks. No host, no base, no reels — which is the normal state, and costs one fetch
+ * that 404s at most once per session.
  */
-const REELS = import.meta.glob<string>("./assets/reels/*.bin", {
-  eager: true,
-  query: "?url",
-  import: "default",
-});
+let ids: Promise<string[]> | null = null;
 
-export const REEL_IDS: string[] = Object.keys(REELS)
-  .map((path) => path.slice(path.lastIndexOf("/") + 1, -".bin".length))
-  .sort();
+/**
+ * Where reels are served from, or null.
+ *
+ * `host()` THROWS when no host has been registered, and this is called from frame loops:
+ * an app that never set one — or a consumer of this package that has no reels at all —
+ * would take an exception per frame out of a piece of optional decoration. No host is no
+ * reels, which is the same answer as no base.
+ */
+function reelBase(): string | null {
+  try {
+    return host().reelBase?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function reelIds(): Promise<string[]> {
+  if (ids) return ids;
+  const base = reelBase();
+  if (!base) return (ids = Promise.resolve([]));
+  ids = fetch(base)
+    .then((r) => (r.ok ? r.json() : { reels: [] }))
+    .then((j) => (Array.isArray(j?.reels) ? (j.reels as string[]) : []))
+    .catch(() => []);
+  return ids;
+}
 
 const cache = new Map<string, Reel | null>();
 
@@ -213,10 +239,10 @@ const cache = new Map<string, Reel | null>();
 export async function loadReel(id: string): Promise<Reel | null> {
   const hit = cache.get(id);
   if (hit !== undefined) return hit;
-  const url = REELS[`./assets/reels/${id}.bin`];
-  if (!url) return null;
+  const base = reelBase();
+  if (!base) return null;
   try {
-    const res = await fetch(url);
+    const res = await fetch(`${base}/${encodeURIComponent(id)}`);
     const reel = res.ok ? await decodeReel(id, await res.arrayBuffer()) : null;
     cache.set(id, reel);
     return reel;
@@ -286,14 +312,20 @@ export function watchReel(playback: {
         reel = null;
         off = false;
       } else if (reel) return; // already holding this track's clip
-      if (!t || !REEL_IDS.length) return;
-      const id = reelIdFor(REEL_IDS, ...trackNames(t, playback.notes));
-      if (!id) return;
-      void loadReel(id).then((r) => {
-        // A track change while the fetch was in flight wins: the display belongs to
-        // whatever is playing now, not to what was playing when this was asked for.
-        if (!stopped && track === key) reel = r;
-      });
+      if (!t) return;
+      // The id list is a fetch now, so matching is too. Both it and the clip resolve
+      // against the track they were asked for: a change while either was in flight wins,
+      // because the display belongs to whatever is playing now.
+      const names = trackNames(t, playback.notes);
+      void reelIds()
+        .then((all) => {
+          if (stopped || track !== key || !all.length) return null;
+          const id = reelIdFor(all, ...names);
+          return id ? loadReel(id) : null;
+        })
+        .then((r) => {
+          if (!stopped && track === key && r) reel = r;
+        });
     },
     dismiss() {
       off = true;

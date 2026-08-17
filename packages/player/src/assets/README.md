@@ -90,10 +90,26 @@ is. A greyscale format would only pay off on the VFD, whose anodes dim by duty c
 so could show real levels without dithering; the flip board physically cannot, and the
 cube's LEDs read better hard-edged.
 
+### Where they live
+
+**On the data mount, not in the repository and not in the image** — beside the C64 ROMs
+under `<primary root>/.support/reels/`, served by the backend at `/api/reels`. The dot
+directory is deliberate: the scanner does not descend into one, so a clip costs the walk
+nothing.
+
+That is why the player fetches the list instead of globbing the folder at build time. A
+glob puts the file in the bundle, so the easter egg would have worked only on the machine
+that built the clip — the image CI produces has no clip in it at all. The app tells the
+player where to look (`reelBase` on the host, exactly like `romBase`); no base means no
+reels, which is the normal state for anything else consuming this package.
+
+Prod needs no configuration: the default hangs off the primary root, which is the share.
+`TRACKER_REELS_DIR` overrides it.
+
 ### Building one
 
 ```
-python build-reel.py bad-apple.mp4 reels/badapple.bin
+python build-reel.py bad-apple.mp4 /Volumes/scene/mods/.support/reels/badapple.bin
 ```
 
 The id is the filename: `badapple.bin` plays for a module whose name contains
@@ -160,8 +176,9 @@ obey, with 4 frames of 2,628 over it. The board is not the bottleneck — the sa
 majority downsample is what keeps it there, since it turns a busy 48×36 field into a
 stable 29×22 one.
 
-> **Licence — don't commit a reel.** These are derived frames of somebody else's
-> video, and this repository is public. `reels/` is gitignored; build yours locally
-> from a file you have. A missing reel is not an error anywhere: with the folder empty
-> the glob resolves to no clips, nothing is fetched, and the board keeps showing its
-> own modes.
+> **Licence — don't commit a reel.** These are derived frames of somebody else's video,
+> and this repository is public. They belong on the mount with the ROMs and the Kickstart
+> (see `THIRD_PARTY_NOTICES.md` for the same reasoning about those), which is why the
+> loading path deliberately cannot see a bundled one. A missing reel is not an error
+> anywhere: `/api/reels` returns an empty list, nothing else is fetched, and every display
+> keeps showing its own faces.

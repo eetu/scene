@@ -76,6 +76,12 @@ export type PlayerHost = {
    *  libsidplayfp's built-in images (most tunes still play; a BASIC-driven RSID
    *  does not). */
   romBase?: () => string;
+  /** Where the app serves visualiser reels — one-bit films a track can bring with it
+   *  (see reel.ts and assets/README.md). `<base>` lists their ids, `<base>/<id>` is the
+   *  clip. Absent means no reels, which is the normal state: like the ROMs, a clip lives
+   *  on the operator's mount and is never bundled, so a build-time asset would be the
+   *  one thing it must not be. */
+  reelBase?: () => string;
   /** Curator notes about a tune, for the text visualisers.
    *
    *  A SID has no sample or instrument slots, so it has none of the text a
