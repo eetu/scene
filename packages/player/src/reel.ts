@@ -170,6 +170,19 @@ export function trackNames(
 }
 
 /**
+ * An id this client could actually fetch: one path segment of letters, digits, `-` and
+ * `_`, which is what the serving end accepts.
+ *
+ * Checked here as well because a match is worthless if the fetch cannot follow it, and
+ * the two used to disagree: a macOS `._badapple.bin` sidecar listed as `._badapple`,
+ * folded to the same key as the real clip, sorted ahead of it, WON the match, and then
+ * 404'd on a dot the server rejects — so the real clip was never tried. The list is
+ * filtered at the source now; this makes the client's own rule the same rule, rather
+ * than trusting whatever it is handed.
+ */
+const fetchable = (id: string): boolean => /^[A-Za-z0-9_-]+$/.test(id);
+
+/**
  * The clip a track should play, if any.
  *
  * Matched on the id being IN the track's name rather than equal to it: a module is
@@ -183,6 +196,7 @@ export function reelIdFor(
 ): string | null {
   const hay = names.filter(Boolean).map((n) => reelKey(n as string));
   for (const id of ids) {
+    if (!fetchable(id)) continue;
     const key = reelKey(id);
     if (key.length < 4) continue;
     if (hay.some((n) => n.includes(key))) return id;

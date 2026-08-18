@@ -148,6 +148,25 @@ describe("finding the tune", () => {
     expect(reelIdFor([], "Bad Apple", "badapple.xm")).toBe(null);
   });
 
+  test("a macOS sidecar cannot shadow the clip it sits beside", () => {
+    // The bug this exists for, end to end. Finder writes `._badapple.bin` next to
+    // `badapple.bin` on any share it touches; the listing turned that into the id
+    // `._badapple`, which sorts BEFORE `badapple` and folds to the same key once
+    // punctuation is stripped — so it won the match, then 404'd because an id may not
+    // contain a dot, and the client cached the failure. The real clip was never tried
+    // and the whole feature was silently dead.
+    const withJunk = ["._badapple", "badapple"];
+    expect(reelIdFor(withJunk, "Bad Apple", "Bad_Apple.sid")).toBe("badapple");
+    // Even alone, an unfetchable id is not a match: claiming one the client cannot
+    // request is worse than finding nothing, because nothing is what gets shown either
+    // way and the failure is cached.
+    expect(reelIdFor(["._badapple"], "Bad Apple", "Bad_Apple.sid")).toBe(null);
+    expect(reelIdFor([".DS_Store"], "DS Store rave", null)).toBe(null);
+    expect(reelIdFor(["bad/apple"], "bad apple", null)).toBe(null);
+    // ...and the ordinary ids keep working, including the ones with legal punctuation.
+    expect(reelIdFor(["bad_apple-2"], "bad apple 2 remix", null)).toBe("bad_apple-2");
+  });
+
   test("an id too short to mean anything never matches", () => {
     // Ids come from filenames, so a stray `a.bin` would otherwise play against every
     // module with an `a` in it — which is all of them.

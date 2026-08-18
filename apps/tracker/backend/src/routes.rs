@@ -539,6 +539,15 @@ async fn api_reels(_auth: Auth, State(state): State<AppState>) -> AppResult<impl
         if let Ok(entries) = std::fs::read_dir(dir) {
             for e in entries.flatten() {
                 let name = e.file_name().to_string_lossy().to_string();
+                // Finder's AppleDouble sidecars are `._<name>` and end in `.bin` too, so
+                // they listed as ids — and `._badapple` sorts BEFORE `badapple` and folds
+                // to the same key once punctuation is stripped, so the junk won the match,
+                // 404'd (an id may not contain a dot), and the client cached the failure.
+                // The reel was dead on any share macOS had touched, which is all of them.
+                // Same predicate the scanner uses to ignore this stuff.
+                if scene_backend::scan::is_macos_junk(&name) {
+                    continue;
+                }
                 if let Some(id) = name.strip_suffix(".bin") {
                     if !id.is_empty() {
                         ids.push(id.to_string());
@@ -2481,6 +2490,40 @@ mod tests {
         assert!(!other.favorite);
         assert_eq!(other.play_count, 0);
         assert_ne!(other.id, t.id, "each subtune is its own track");
+    }
+
+    /// Finder leaves `._<name>` beside every file it touches on a CIFS share, and those
+    /// end in `.bin` too — so they listed as reel ids. `._badapple` then sorted ahead of
+    /// `badapple`, folded to the same key once the client stripped punctuation, won the
+    /// match, and 404'd on a dot the id rule forbids: the real clip was never fetched and
+    /// the feature was silently dead on every share macOS had opened.
+    #[test]
+    fn the_reel_listing_ignores_macos_junk() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in [
+            "badapple.bin",
+            "._badapple.bin",
+            "._other.bin",
+            ".DS_Store",
+            "notes.txt",
+            ".bin",
+        ] {
+            std::fs::write(dir.path().join(name), b"x").unwrap();
+        }
+        let mut ids: Vec<String> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|n| !scene_backend::scan::is_macos_junk(n))
+            .filter_map(|n| n.strip_suffix(".bin").map(str::to_string))
+            .filter(|id| !id.is_empty())
+            .collect();
+        ids.sort();
+        assert_eq!(
+            ids,
+            vec!["badapple"],
+            "junk or non-reels leaked into the list"
+        );
     }
 
     /// Two scans would serialise on the single SQLite connection anyway, but they would
