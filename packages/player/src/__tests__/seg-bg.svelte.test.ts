@@ -10,7 +10,7 @@ import { SevenSegment } from "@glowbox/svelte";
 import { mount, unmount } from "svelte";
 import { expect, test } from "vitest";
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
 
 test("seven-segment background coverage", { timeout: 60000 }, async () => {
   const host = document.createElement("div");
@@ -20,15 +20,32 @@ test("seven-segment background coverage", { timeout: 60000 }, async () => {
     target: host,
     props: { value: "8", displayStyle: "vfd", background: "#06050b", glow: 0.7 } as never,
   });
-  await sleep(300);
 
-  const c = host.querySelector("canvas") as HTMLCanvasElement;
+  // Waited for by CONDITION, not by a clock. This used to sleep 300ms and then measure
+  // whatever was there, which had a silent failure mode: a canvas that had not drawn yet
+  // is entirely transparent, and "entirely transparent" satisfies both assertions below —
+  // so on a slow machine the test passed having measured nothing at all. Now a canvas that
+  // never draws fails here instead.
   const probe = document.createElement("canvas");
-  probe.width = c.width;
-  probe.height = c.height;
   const ctx = probe.getContext("2d")!;
-  ctx.drawImage(c, 0, 0);
-  const d = ctx.getImageData(0, 0, probe.width, probe.height).data;
+  let d = new Uint8ClampedArray();
+  let c: HTMLCanvasElement | null = null;
+  for (let i = 0; i < 600; i++) {
+    await frame();
+    c = host.querySelector("canvas");
+    if (!c || !c.width || !c.height) continue;
+    probe.width = c.width;
+    probe.height = c.height;
+    ctx.clearRect(0, 0, probe.width, probe.height);
+    ctx.drawImage(c, 0, 0);
+    d = ctx.getImageData(0, 0, probe.width, probe.height).data;
+    if (d.some((v, i) => i % 4 === 3 && v > 0)) break; // something is painted
+  }
+  expect(c, "the component never made a canvas").toBeTruthy();
+  expect(
+    d.some((v, i) => i % 4 === 3 && v > 0),
+    "the canvas never painted anything, so there was nothing to measure",
+  ).toBe(true);
   const at = (x: number, y: number) => {
     const i = (y * probe.width + x) * 4;
     return `rgba(${d[i]},${d[i + 1]},${d[i + 2]},${d[i + 3]})`;

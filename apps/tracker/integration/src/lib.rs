@@ -259,18 +259,6 @@ impl Stack {
         panic!("scan did not finish within 30s");
     }
 
-    /// Add `n` throwaway modules to the primary root, so a scan takes long
-    /// enough to be observed mid-flight. The three-file fixture finishes faster
-    /// than a request round-trip, which makes any "while it runs" assertion a
-    /// coin toss.
-    pub fn seed_bulk(&self, n: usize) {
-        let dir = self.root.join("Bulk");
-        std::fs::create_dir_all(&dir).expect("bulk dir");
-        for i in 0..n {
-            std::fs::write(dir.join(format!("t{i:05}.mod")), format!("bulk-{i}")).expect("bulk");
-        }
-    }
-
     pub async fn tracks(&self) -> Vec<serde_json::Value> {
         let r = self.get("/api/tracks").await;
         assert!(r.status().is_success());
