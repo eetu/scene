@@ -275,84 +275,84 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@glowbox/crt@npm:^1.10.0":
-  version: 1.10.0
-  resolution: "@glowbox/crt@npm:1.10.0"
-  checksum: 10/e01a11ea9a9da6ec1e5489549ca8dfc36b1eb7dcbda6cec96d2ef33757ec31afb94c6dbd75fee0c5b2d535f524934b3442067c8c361cae35ef559b69d83bb809
+"@glowbox/crt@npm:^1.12.0":
+  version: 1.12.0
+  resolution: "@glowbox/crt@npm:1.12.0"
+  checksum: 10/4d7281acd328a71eacc3c4e33e81c870116e2f551f8de500e63b501482e2b15791329894d98bd66fc63554c40c3a465a86121fde0306444bbc1b9a18663a0a2a
   languageName: node
   linkType: hard
 
-"@glowbox/flip-dot@npm:^1.10.0":
-  version: 1.10.0
-  resolution: "@glowbox/flip-dot@npm:1.10.0"
-  checksum: 10/fc124409d31b2e7ed51fc6855db90e927c6b1745831100bff360367881a6362a19c162a9f6fdeb3573a6a28a51d1dfeff8094d7af6a434af86cc1995eb7c8b05
+"@glowbox/flip-dot@npm:^1.12.0":
+  version: 1.12.0
+  resolution: "@glowbox/flip-dot@npm:1.12.0"
+  checksum: 10/52d980b67938747ab8c968c0dad642bc55a609f5658edcfcedebe0f2d14ff2d7f861f7e6904e1c6e24e6d0bfba52a75ababfd43ba3701d54ac5b992d683600dd
   languageName: node
   linkType: hard
 
-"@glowbox/lcd@npm:^1.10.0":
-  version: 1.10.0
-  resolution: "@glowbox/lcd@npm:1.10.0"
-  checksum: 10/f4423baa6ff8cd100e32e4ef26fff5c988b170b11789fe423fea09f8b42544cb307f62a9e4387fb129edadb782b981996a097fc0b4f3e1399a88f3c8257f7f31
+"@glowbox/lcd@npm:^1.12.0":
+  version: 1.12.0
+  resolution: "@glowbox/lcd@npm:1.12.0"
+  checksum: 10/bf2fc246119cb6c7ed9aa1ffa2c281adb0b1f5e946873d5514003c043d837daf4f9f1e0927cb7c8252ef80438a8edda9fbb81937e78cc2e9876f7a340f21eae9
   languageName: node
   linkType: hard
 
-"@glowbox/led-grid@npm:^1.10.0":
-  version: 1.10.0
-  resolution: "@glowbox/led-grid@npm:1.10.0"
-  checksum: 10/8c4c57c5592558e01cd5caa76190de4dd1278533f928670c8a2a2853b14a355fa354eb65a564caa8f2b812493b8177e14a0a514259745232efe5f6f951409ef6
+"@glowbox/led-grid@npm:^1.12.0":
+  version: 1.12.0
+  resolution: "@glowbox/led-grid@npm:1.12.0"
+  checksum: 10/79fc07e08f28652069ae6e728415133708ef8787de6c42ff906596e6103f551078688c76a2b840121d200bd2bc6d096ab75d21ff1efd6ec777c740c4c94bf254
   languageName: node
   linkType: hard
 
-"@glowbox/neon@npm:^1.10.0":
-  version: 1.10.0
-  resolution: "@glowbox/neon@npm:1.10.0"
-  checksum: 10/8c109dfdd7dc2e2c57fdbb34a9f191fc139714d00a645a8d09e1136172a98d642696dd4d4739e62c87782c0262d2b56c3c563e9022877671b709755873f2bc91
+"@glowbox/neon@npm:^1.12.0":
+  version: 1.12.0
+  resolution: "@glowbox/neon@npm:1.12.0"
+  checksum: 10/3fdaed78367ebadf333e1ba2b77d80f5317b62814ad8c033278d4a00ae8bffc740b01f7940698710b0064d000bedc68466232536d6b9465174a3e79649ac253e
   languageName: node
   linkType: hard
 
-"@glowbox/nixie@npm:^1.10.0":
-  version: 1.10.0
-  resolution: "@glowbox/nixie@npm:1.10.0"
-  checksum: 10/1d40c6a874d464db8850a0d223f45e76e123d7fa3fefed57b8b2c61b188bbbd58133faa5705f00d635e6519b1046c1f85da09c3ca4ccd4e39e1c1c967012d909
+"@glowbox/nixie@npm:^1.12.0":
+  version: 1.12.0
+  resolution: "@glowbox/nixie@npm:1.12.0"
+  checksum: 10/05b2afcb523c5c71cde357933093e540a14b3a464df020e2f6b01eac348771b9ad3442e14829deee210b6ad10da796653fd7a0b5512c2b6b73ac0ee90de22b40
   languageName: node
   linkType: hard
 
-"@glowbox/seven-segment@npm:^1.10.0":
-  version: 1.10.0
-  resolution: "@glowbox/seven-segment@npm:1.10.0"
-  checksum: 10/d270754933531a0f71e659d5ea805108f4dbf57e943a4b5d1a36939ae80416f6bc524bd2f990427bfea55358b2e2f1668af6768b6ec56a00685057c450af8101
+"@glowbox/seven-segment@npm:^1.12.0":
+  version: 1.12.0
+  resolution: "@glowbox/seven-segment@npm:1.12.0"
+  checksum: 10/30198481013003dd042d4dc89bb70a7082cff386fad92474f8e3eca2ca90ce29d387464153146e3ac602719e431f57b4ee31e39867346f9891cd23ec3e7e165f
   languageName: node
   linkType: hard
 
-"@glowbox/split-flap@npm:^1.10.0":
-  version: 1.10.0
-  resolution: "@glowbox/split-flap@npm:1.10.0"
-  checksum: 10/9ee7ccad587e0ccf866d21e069d3fa9e4d4df9a81a20c4bd3b99fcdbb4db7aa76a665f429a994dac3c60d1afd9d24bd2d6d47220a6aed6bf1a9296f937e190ea
+"@glowbox/split-flap@npm:^1.12.0":
+  version: 1.12.0
+  resolution: "@glowbox/split-flap@npm:1.12.0"
+  checksum: 10/9ff79cb1defb1ff5ca33c838237c5a9945d8642372fb5842d8416f7e26984b90f152a71634fbe14c6270208d43f45ae0fcc75db3a7a61faf97a43f51e9cf8cf5
   languageName: node
   linkType: hard
 
-"@glowbox/svelte@npm:^1.10.0":
-  version: 1.10.0
-  resolution: "@glowbox/svelte@npm:1.10.0"
+"@glowbox/svelte@npm:^1.12.0":
+  version: 1.12.0
+  resolution: "@glowbox/svelte@npm:1.12.0"
   dependencies:
-    "@glowbox/flip-dot": "npm:^1.10.0"
-    "@glowbox/lcd": "npm:^1.10.0"
-    "@glowbox/led-grid": "npm:^1.10.0"
-    "@glowbox/neon": "npm:^1.10.0"
-    "@glowbox/nixie": "npm:^1.10.0"
-    "@glowbox/seven-segment": "npm:^1.10.0"
-    "@glowbox/split-flap": "npm:^1.10.0"
-    "@glowbox/vfd": "npm:^1.10.0"
+    "@glowbox/flip-dot": "npm:^1.12.0"
+    "@glowbox/lcd": "npm:^1.12.0"
+    "@glowbox/led-grid": "npm:^1.12.0"
+    "@glowbox/neon": "npm:^1.12.0"
+    "@glowbox/nixie": "npm:^1.12.0"
+    "@glowbox/seven-segment": "npm:^1.12.0"
+    "@glowbox/split-flap": "npm:^1.12.0"
+    "@glowbox/vfd": "npm:^1.12.0"
   peerDependencies:
     svelte: ^5
-  checksum: 10/c2bec548b7dfe45552f42827c380403aa1d0ce55c5aa1e140f21d39870b94850037637585b4cab5942abaf754cb4900fff1cb29a1878ae151924f98d967a884a
+  checksum: 10/965e78bc3e8d2f90f3be249770bd7e801850c9b4d41f0e20cd6f1721cce9ee60065e612198ee29a319ffc412f6d021618f9eb351bbbf9b9842d2cf3a3f26026a
   languageName: node
   linkType: hard
 
-"@glowbox/vfd@npm:^1.10.0":
-  version: 1.10.0
-  resolution: "@glowbox/vfd@npm:1.10.0"
-  checksum: 10/92b550649e6f965b635d50974da16204a8edf3da1f146eaafc1b8a1166cefff8c12ae09d9c39407e45281b10a264f8d49b909d7673db71df566adffc21579b27
+"@glowbox/vfd@npm:^1.12.0":
+  version: 1.12.0
+  resolution: "@glowbox/vfd@npm:1.12.0"
+  checksum: 10/cd71af8b58acee6287a05f3dda9f38b72e65862975ebb1a822a430f4ef356a471e92f201d7d3eea2701cd8a4f77848fee19067e10a2c2e47834137bfc1f139d7
   languageName: node
   linkType: hard
 
@@ -450,12 +450,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lucide/svelte@npm:^1.32.0":
-  version: 1.32.0
-  resolution: "@lucide/svelte@npm:1.32.0"
+"@lucide/svelte@npm:^1.34.0":
+  version: 1.34.0
+  resolution: "@lucide/svelte@npm:1.34.0"
   peerDependencies:
     svelte: ^5
-  checksum: 10/4af6e244c97f98155ebac2a92d12394d5ee706ab2f558ce231bbd62de76f2f9c615d7ec0ec42109e9313c8f7b50203706b5bc30a412cccee1d1570344be40771
+  checksum: 10/dc3fbe1b76776993ad6f49d059a52be0a921f258eed566920831f5996510c5ef71e3173169d2591c4044ab25ced3e48423ed0049ccc21179c9ecdb769fe43ec5
   languageName: node
   linkType: hard
 
@@ -734,12 +734,12 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@scene/player@workspace:packages/player"
   dependencies:
-    "@glowbox/crt": "npm:^1.10.0"
-    "@glowbox/flip-dot": "npm:^1.10.0"
-    "@glowbox/nixie": "npm:^1.10.0"
-    "@glowbox/split-flap": "npm:^1.10.0"
-    "@glowbox/svelte": "npm:^1.10.0"
-    "@glowbox/vfd": "npm:^1.10.0"
+    "@glowbox/crt": "npm:^1.12.0"
+    "@glowbox/flip-dot": "npm:^1.12.0"
+    "@glowbox/nixie": "npm:^1.12.0"
+    "@glowbox/split-flap": "npm:^1.12.0"
+    "@glowbox/svelte": "npm:^1.12.0"
+    "@glowbox/vfd": "npm:^1.12.0"
     "@scene/design": "workspace:*"
     "@sveltejs/vite-plugin-svelte": "npm:^7.3.0"
     "@vitest/browser-playwright": "npm:^4.1.11"
@@ -750,7 +750,7 @@ __metadata:
     vite: "npm:^8.2.2"
     vitest: "npm:^4.1.11"
     vitest-browser-svelte: "npm:^3.0.0"
-    xstate: "npm:^5.32.5"
+    xstate: "npm:^5.32.6"
   peerDependencies:
     svelte: ^5
   languageName: unknown
@@ -918,11 +918,11 @@ __metadata:
   linkType: hard
 
 "@types/node@npm:^26":
-  version: 26.2.0
-  resolution: "@types/node@npm:26.2.0"
+  version: 26.3.0
+  resolution: "@types/node@npm:26.3.0"
   dependencies:
     undici-types: "npm:~8.3.0"
-  checksum: 10/3829dd8c82e7d4858f3cc946ec9e5133c9fa39a0a9173874a6392230665121b42dac1b134e5e10ee132a5487293708c77df253cf41a125e9fd838cc3af72d700
+  checksum: 10/77a9587a3c8ce2e4bf1547d70706f262ba6dca2a39012091df36f1729132c06485833fe6f74ffbd5271d12966d6b729f6343d5af95681b7a08d437115b125015
   languageName: node
   linkType: hard
 
@@ -1643,9 +1643,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eslint@npm:^10.8.1":
-  version: 10.8.1
-  resolution: "eslint@npm:10.8.1"
+"eslint@npm:^10.9.1":
+  version: 10.9.1
+  resolution: "eslint@npm:10.9.1"
   dependencies:
     "@eslint-community/eslint-utils": "npm:^4.8.0"
     "@eslint-community/regexpp": "npm:^4.12.2"
@@ -1684,7 +1684,7 @@ __metadata:
       optional: true
   bin:
     eslint: bin/eslint.js
-  checksum: 10/7174710e740f95bfa97d7501419d717c03cf7760c3eea4a91cd10fb804538bbd8cdc0849b26afa789a56a89ee838b727e4b9329e347376f96b8e524727b90ba3
+  checksum: 10/4cee237c7d2c445a05330e595b18521d7452fd3f419241bf1ccf81c769a6761c10ca5a06988197482d4842ed1a26b1dcb51b9526408990cee84559e6c08cb3ab
   languageName: node
   linkType: hard
 
@@ -2489,7 +2489,7 @@ __metadata:
     "@anarkisti/eslint-config": "npm:^1.0.0"
     "@anarkisti/igyb": "npm:^0.5.0"
     "@fontsource-variable/inter": "npm:^5.3.0"
-    "@lucide/svelte": "npm:^1.32.0"
+    "@lucide/svelte": "npm:^1.34.0"
     "@playwright/test": "npm:^1.62.1"
     "@scene/design": "workspace:*"
     "@scene/player": "workspace:*"
@@ -2499,7 +2499,7 @@ __metadata:
     "@types/node": "npm:^26"
     "@vitejs/plugin-basic-ssl": "npm:^2.3.0"
     "@vitest/browser-playwright": "npm:^4.1.11"
-    eslint: "npm:^10.8.1"
+    eslint: "npm:^10.9.1"
     playwright: "npm:^1.62.1"
     prettier: "npm:^3.9.6"
     prettier-plugin-svelte: "npm:^4.0.1"
@@ -3045,7 +3045,7 @@ __metadata:
   dependencies:
     "@anarkisti/eslint-config": "npm:^1.0.0"
     "@fontsource-variable/inter": "npm:^5.3.0"
-    "@lucide/svelte": "npm:^1.32.0"
+    "@lucide/svelte": "npm:^1.34.0"
     "@playwright/test": "npm:^1.62.1"
     "@scene/design": "workspace:*"
     "@scene/player": "workspace:*"
@@ -3056,7 +3056,7 @@ __metadata:
     "@types/node": "npm:^26"
     "@vitejs/plugin-basic-ssl": "npm:^2.3.0"
     "@vitest/browser-playwright": "npm:^4.1.11"
-    eslint: "npm:^10.8.1"
+    eslint: "npm:^10.9.1"
     fflate: "npm:^0.8.3"
     playwright: "npm:^1.62.1"
     prettier: "npm:^3.9.6"
@@ -3448,10 +3448,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"xstate@npm:^5.32.5":
-  version: 5.32.5
-  resolution: "xstate@npm:5.32.5"
-  checksum: 10/e390e0efcd0499b1a2020a108a8ac9ff75c025ea7c70c0106bdb4e48704dc8be07632a7ce4121c4472cd777f15926d6afb4efb263731145634d2791b2cdf47f9
+"xstate@npm:^5.32.6":
+  version: 5.32.6
+  resolution: "xstate@npm:5.32.6"
+  checksum: 10/bda13328ad7bfa1507e13dd7db0bec761b3ea96dd227399512467114a1aa244160d4c834fef9dc42032ffb639b3681711a23d38ccc555a44bf0c58259070cf4d
   languageName: node
   linkType: hard
 
