@@ -745,7 +745,7 @@ __metadata:
     "@vitest/browser-playwright": "npm:^4.1.11"
     libsidplayfp-wasm: "npm:^1.0.1"
     playwright: "npm:^1.62.1"
-    svelte: "npm:^5.56.10"
+    svelte: "npm:^5.57.0"
     typescript: "npm:^6.0.2"
     vite: "npm:^8.2.2"
     vitest: "npm:^4.1.11"
@@ -923,13 +923,6 @@ __metadata:
   dependencies:
     undici-types: "npm:~8.3.0"
   checksum: 10/77a9587a3c8ce2e4bf1547d70706f262ba6dca2a39012091df36f1729132c06485833fe6f74ffbd5271d12966d6b729f6343d5af95681b7a08d437115b125015
-  languageName: node
-  linkType: hard
-
-"@types/trusted-types@npm:^2.0.7":
-  version: 2.0.7
-  resolution: "@types/trusted-types@npm:2.0.7"
-  checksum: 10/8e4202766a65877efcf5d5a41b7dd458480b36195e580a3b1085ad21e948bc417d55d6f8af1fd2a7ad008015d4117d5fdfe432731157da3c68678487174e4ba3
   languageName: node
   linkType: hard
 
@@ -2503,7 +2496,7 @@ __metadata:
     playwright: "npm:^1.62.1"
     prettier: "npm:^3.9.6"
     prettier-plugin-svelte: "npm:^4.0.1"
-    svelte: "npm:^5.56.10"
+    svelte: "npm:^5.57.0"
     svelte-check: "npm:^4.7.6"
     typescript: "npm:^6.0.2"
     vite: "npm:^8.2.2"
@@ -2843,7 +2836,7 @@ __metadata:
   dependencies:
     prettier: "npm:^3.9.6"
     prettier-plugin-svelte: "npm:^4.0.1"
-    svelte: "npm:^5.56.10"
+    svelte: "npm:^5.57.0"
   languageName: unknown
   linkType: soft
 
@@ -2964,15 +2957,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"svelte@npm:^5.56.10":
-  version: 5.56.10
-  resolution: "svelte@npm:5.56.10"
+"svelte@npm:^5.57.0":
+  version: 5.57.0
+  resolution: "svelte@npm:5.57.0"
   dependencies:
     "@jridgewell/remapping": "npm:^2.3.4"
     "@jridgewell/sourcemap-codec": "npm:^1.5.0"
     "@sveltejs/acorn-typescript": "npm:^1.0.10"
     "@types/estree": "npm:^1.0.5"
-    "@types/trusted-types": "npm:^2.0.7"
     acorn: "npm:^8.12.1"
     aria-query: "npm:5.3.1"
     axobject-query: "npm:^4.1.0"
@@ -2984,7 +2976,7 @@ __metadata:
     locate-character: "npm:^3.0.0"
     magic-string: "npm:^0.30.11"
     zimmerframe: "npm:^1.1.2"
-  checksum: 10/59de21deb06f9276d9e5799a677779f3ff263e812ce928ed4f7ccdee6f5028c4d43d64d19ffc481f2be6917f32a0316e827c0f169fb9bbe90ecba61add0e1dbc
+  checksum: 10/d38e884a08d205b2acefb20bc34ff08b8e28fe38eae06a477229d69068b3cf23365d556b1db0c760c691dd35583c75d0321e6efc4503feafe56f5e06a9383771
   languageName: node
   linkType: hard
 
@@ -3061,7 +3053,7 @@ __metadata:
     playwright: "npm:^1.62.1"
     prettier: "npm:^3.9.6"
     prettier-plugin-svelte: "npm:^4.0.1"
-    svelte: "npm:^5.56.10"
+    svelte: "npm:^5.57.0"
     svelte-check: "npm:^4.7.6"
     typescript: "npm:^6.0.2"
     vite: "npm:^8.2.2"
