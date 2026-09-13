@@ -33,6 +33,10 @@ export type SpriteBody = {
   /** Named runs of frame indices. Repeats mean a hold; reversing is reading the
    *  list backwards, so there is no direction field and no duration — the clock
    *  belongs to whoever is playing it. */
+  animations?: Record<string, number[]>;
+  /** What `animations` was called when this format was first written. Still
+   *  read, so a sprite that has not been through the editor since keeps
+   *  playing; nothing writes it. */
   clips?: Record<string, number[]>;
   /** One entry per animation frame; each is `h` rows of `w` characters. */
   frames: string[][];
@@ -98,11 +102,11 @@ export function flipRows(rows: string[], flip?: Flip): string[] {
   return flip === "h" || flip === "hv" ? v.map((r) => [...r].reverse().join("")) : v;
 }
 
-/** The frames a clip plays, in order, or null for a name the node has not got.
- *  No silent fallback to the whole strip: that hides a typo. */
-export function clipFrames(node: SpriteBody, name: string): number[] | null {
-  const clip = node.clips?.[name];
-  return clip ? [...clip] : null;
+/** The frames an animation plays, in order, or null for a name the node has not
+ *  got. No silent fallback to the whole strip: that hides a typo. */
+export function animationFrames(node: SpriteBody, name: string): number[] | null {
+  const run = node.animations?.[name] ?? node.clips?.[name];
+  return run ? [...run] : null;
 }
 
 /** A part by name, or null. */
