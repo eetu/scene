@@ -7,7 +7,7 @@ import { describe, expect, test } from "vitest";
 
 import {
   cellColour,
-  clipFrames,
+  animationFrames,
   flipRows,
   isPartBody,
   isPartRef,
@@ -47,20 +47,23 @@ describe("colour", () => {
   });
 });
 
-describe("clips", () => {
-  test("a clip is its frames in order, and an unknown name is null", () => {
-    const s = sprite({ frames: [["AB"], ["BA"], ["AA"]], clips: { open: [0, 1, 2], up: [2] } });
-    expect(clipFrames(s, "open")).toEqual([0, 1, 2]);
-    expect(clipFrames(s, "up")).toEqual([2]);
+describe("animations", () => {
+  test("an animation is its frames in order, and an unknown name is null", () => {
+    const s = sprite({
+      frames: [["AB"], ["BA"], ["AA"]],
+      animations: { open: [0, 1, 2], up: [2] },
+    });
+    expect(animationFrames(s, "open")).toEqual([0, 1, 2]);
+    expect(animationFrames(s, "up")).toEqual([2]);
     // Null rather than the whole strip: a silent fallback hides a typo.
-    expect(clipFrames(s, "nope")).toBe(null);
-    expect(clipFrames(sprite(), "open")).toBe(null);
+    expect(animationFrames(s, "nope")).toBe(null);
+    expect(animationFrames(sprite(), "open")).toBe(null);
   });
 
   test("the list is copied, so a consumer cannot edit the sprite by playing it", () => {
-    const s = sprite({ clips: { open: [0] } });
-    clipFrames(s, "open")!.push(9);
-    expect(s.clips!.open).toEqual([0]);
+    const s = sprite({ animations: { open: [0] } });
+    animationFrames(s, "open")!.push(9);
+    expect(s.animations!.open).toEqual([0]);
   });
 });
 
@@ -74,7 +77,7 @@ describe("parts", () => {
     h: 1,
     palette: { b: "#c8253f" },
     frames: [["."], ["b"]],
-    clips: { open: [0, 1] },
+    animations: { open: [0, 1] },
   };
 
   test("a part either names a sprite or carries its own pixels", () => {
@@ -86,7 +89,7 @@ describe("parts", () => {
 
   test("a part with pixels IS a sprite, so the readers work on it unchanged", () => {
     expect(isPartBody(lamp) && cellColour(lamp, "b")).toBe("#c8253f");
-    expect(isPartBody(lamp) && clipFrames(lamp, "open")).toEqual([0, 1]);
+    expect(isPartBody(lamp) && animationFrames(lamp, "open")).toEqual([0, 1]);
   });
 
   test("parts are found by name", () => {

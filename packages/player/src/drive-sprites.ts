@@ -12,7 +12,7 @@
 // pixels or six hundred, and the pixels themselves are never recomputed.
 import {
   cellColour,
-  clipFrames,
+  animationFrames,
   type Flip,
   flipRows,
   isPartRef,
@@ -131,19 +131,19 @@ export const CAR_CONTACTS: number[] = (SPRITES.car.parts ?? [])
   .map((p) => p.x + (SPRITES.wheel.w >> 1));
 
 /**
- * The pop-up headlights, as the two clips the art declares over the lamp part's
+ * The pop-up headlights, as the two animations the art declares over the lamp part's
  * three frames.
  *
- * Both directions are read rather than one played backwards: a clip is the art
+ * Both directions are read rather than one played backwards: an animation is the art
  * saying what the move is, and a scene that assumes `close` is `open` reversed is
  * back to knowing things about the sprite that the sprite already says.
  */
-const lampClip = (name: string): number[] => {
+const lampRun = (name: string): number[] => {
   const lamp = partNamed(SPRITES.car, "lights");
-  return (lamp && !isPartRef(lamp) && clipFrames(lamp, name)) || [0];
+  return (lamp && !isPartRef(lamp) && animationFrames(lamp, name)) || [0];
 };
-export const LAMP_OPEN = lampClip("open");
-export const LAMP_CLOSE = lampClip("close");
+export const LAMP_OPEN = lampRun("open");
+export const LAMP_CLOSE = lampRun("close");
 
 /**
  * Bake every sprite, part, look and frame into one canvas.

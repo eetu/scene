@@ -429,18 +429,18 @@ describe("the sprite sheet", () => {
     // wheel counted twice.
     expect(Math.abs(CAR_CONTACTS[0] - CAR_CONTACTS[1])).toBeGreaterThan(SPRITES.car.w / 3);
 
-    // The pop-up lamps are the clips the art declares, and each has to end somewhere
+    // The pop-up lamps are the animations the art declares, and each has to end somewhere
     // other than where it starts or nothing moves.
     const lamp = SPRITES.car.parts?.find((p) => p.name === "lights");
     expect(lamp && isPartBody(lamp)).toBe(true);
     const frames = lamp && isPartBody(lamp) ? lamp.frames.length : 0;
-    for (const clip of [LAMP_OPEN, LAMP_CLOSE]) {
-      expect(clip.length).toBeGreaterThan(1);
-      expect(clip[clip.length - 1]).not.toBe(clip[0]);
-      for (const f of clip) expect(f).toBeLessThan(frames);
+    for (const run of [LAMP_OPEN, LAMP_CLOSE]) {
+      expect(run.length).toBeGreaterThan(1);
+      expect(run[run.length - 1]).not.toBe(run[0]);
+      for (const f of run) expect(f).toBeLessThan(frames);
     }
     // Each ends where the other begins: the lamps go up when the music starts and
-    // down when it stops, and a pair of clips that did not meet would jump a frame
+    // down when it stops, and a pair of runs that did not meet would jump a frame
     // every time the transport was touched.
     expect(LAMP_CLOSE[0]).toBe(LAMP_OPEN[LAMP_OPEN.length - 1]);
     expect(LAMP_OPEN[0]).toBe(LAMP_CLOSE[LAMP_CLOSE.length - 1]);
