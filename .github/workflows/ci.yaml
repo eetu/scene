@@ -13,6 +13,7 @@ jobs:
   # required status checks, so skipped jobs don't block a merge.
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       frontend: ${{ steps.f.outputs.frontend }}
       backend: ${{ steps.f.outputs.backend }}
@@ -60,6 +61,7 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
@@ -89,6 +91,7 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@stable
@@ -107,6 +110,7 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.tracker_stack == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@stable
@@ -124,6 +128,7 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.browser == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -157,6 +162,7 @@ jobs:
     needs: [changes, frontend, backend, integration, browser-e2e]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: All required jobs passed or were skipped
         run: |
