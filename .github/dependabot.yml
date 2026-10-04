@@ -23,6 +23,11 @@ updates:
         patterns:
           - "vite"
           - "@vitejs/*"
+      # vitest refuses to run with mismatched @vitest/* versions, so they move as one.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
       minor-and-patch:
         update-types:
           - "minor"
