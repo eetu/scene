@@ -470,12 +470,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lucide/svelte@npm:^1.47.0":
-  version: 1.47.0
-  resolution: "@lucide/svelte@npm:1.47.0"
+"@lucide/svelte@npm:^1.48.0":
+  version: 1.48.0
+  resolution: "@lucide/svelte@npm:1.48.0"
   peerDependencies:
     svelte: ^5
-  checksum: 10/f9d4b07b01254c5afa1e6ef849f10ff65411d35d4f96c9403a47613960daaee9aca19b34f4f29957346e46d5194a7c4fc5895867d33a03f832cb3cf72b02cdae
+  checksum: 10/5e96bb15aa5f661ef85676a0e955a8f96210e55e2e6176e4507c7223eabc926bace83a47c2c85b08421ba09abc8aaa553f7e2a6a624428d83a18b730d36162ea
   languageName: node
   linkType: hard
 
@@ -810,11 +810,11 @@ __metadata:
   linkType: hard
 
 "@types/node@npm:^26":
-  version: 26.6.2
-  resolution: "@types/node@npm:26.6.2"
+  version: 26.6.3
+  resolution: "@types/node@npm:26.6.3"
   dependencies:
     undici-types: "npm:~8.9.0"
-  checksum: 10/757d598381b690e4429b9fab3adcf48f88ac7ed17488b47724cf3df9d6d38bcac17ab61c10cabecc5dbda5717f3f819208549ba3cef4cd941300440282a2a1a8
+  checksum: 10/278d5241522520fbadd46b41065d7587bbb214adb3c6f8a2a9a28754d374c578d090f7387866d09c79be1e9bbf5adc7eeea453032a52f77e70b06077f85c5c14
   languageName: node
   linkType: hard
 
@@ -2279,7 +2279,7 @@ __metadata:
     "@anarkisti/eslint-config": "npm:^1.0.0"
     "@anarkisti/igyb": "npm:^0.5.0"
     "@fontsource-variable/inter": "npm:^5.3.0"
-    "@lucide/svelte": "npm:^1.47.0"
+    "@lucide/svelte": "npm:^1.48.0"
     "@playwright/test": "npm:^1.63.0"
     "@scene/design": "workspace:*"
     "@scene/player": "workspace:*"
@@ -2756,7 +2756,7 @@ __metadata:
   dependencies:
     "@anarkisti/eslint-config": "npm:^1.0.0"
     "@fontsource-variable/inter": "npm:^5.3.0"
-    "@lucide/svelte": "npm:^1.47.0"
+    "@lucide/svelte": "npm:^1.48.0"
     "@playwright/test": "npm:^1.63.0"
     "@scene/design": "workspace:*"
     "@scene/player": "workspace:*"
