@@ -15,14 +15,10 @@
     ".": {
       "types": "./src/index.ts",
       "svelte": "./src/index.ts"
-    },
-    "./sprite-file": {
-      "types": "./src/sprite-file.ts",
-      "svelte": "./src/sprite-file.ts",
-      "default": "./src/sprite-file.ts"
     }
   },
   "dependencies": {
+    "@anarkisti/dab": "^0.2.5",
     "@glowbox/crt": "^1.12.0",
     "@glowbox/flip-dot": "^1.12.0",
     "@glowbox/nixie": "^1.12.0",

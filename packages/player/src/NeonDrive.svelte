@@ -63,7 +63,10 @@
     CAR_W,
     CAR_CONTACTS,
     CROWN_NAMES,
+    DOOR_CLOSE,
+    DOOR_OPEN,
     drawSprite,
+    DRIVER_DOOR,
     LAMP_CLOSE,
     LAMP_OPEN,
     LANDMARK_NAMES,
@@ -276,6 +279,7 @@
     let clock = 0; // seconds of playback: weather, moon and every wobble
     let scroll = 0; // the near layer's travel, in buffer pixels
     let speed = 0; // eased, px/s
+    let brakeRate = 0; // px/s², set on the frame the music stops
     let wheel = 0; // wheel frame accumulator
     /**
      * How far up the pop-up headlights are, 0 flush to 1 raised.
@@ -290,6 +294,14 @@
      */
     let lampUp = 0;
     /**
+     * How far the driver's door is open, 0 shut to 1 open.
+     *
+     * It opens once the car has come to rest with its lamps down, and on play it
+     * shuts before the car pulls away: the car holds at the edge of frame until it
+     * has, because a door swinging shut on a moving car reads as one left open.
+     */
+    let doorOpen = 0;
+    /**
      * How far the car has dropped behind its mark, in buffer pixels.
      *
      * The camera is NOT welded to the car. When the music stops the shot coasts on
@@ -300,6 +312,9 @@
      * matter what happens, it is a sprite with scenery behind it.
      */
     let lag = 0;
+    /** The slide back's spring, and the time it takes: a quarter period, undamped. */
+    const SLIDE_K = 5;
+    const SLIDE_S = Math.PI / 2 / Math.sqrt(SLIDE_K);
     let lagVel = 0; // px/s — a spring, so both ends of the travel start from rest
     let coasting = false; // still sliding back, so the frame loop must stay awake
     /**
@@ -1513,7 +1528,13 @@
       const clip = active ? LAMP_OPEN : LAMP_CLOSE;
       const t = active ? lampUp : 1 - lampUp;
       const lamp = clip[Math.min(clip.length - 1, Math.round(t * (clip.length - 1)))];
-      const frameFor = (p: Placed) => (p.key === "wheel" ? spin : p.name === "lights" ? lamp : 0);
+      // The door the other way round: it opens while paused and shuts on play.
+      const doorClip = active ? DOOR_CLOSE : DOOR_OPEN;
+      const swung = active ? 1 - doorOpen : doorOpen;
+      const door =
+        doorClip[Math.min(doorClip.length - 1, Math.round(swung * (doorClip.length - 1)))];
+      const frameFor = (p: Placed) =>
+        p.key === "wheel" ? spin : p.name === "lights" ? lamp : p.name === DRIVER_DOOR ? door : 0;
       for (const p of CAR_PARTS) {
         if (p.behind) drawSprite(g, atlas, p.key, cx + p.x, y + p.y, frameFor(p));
       }
@@ -1965,11 +1986,15 @@
           }
         }
 
-        const targetSpeed = active ? 30 + level * 150 + pulse * 45 : 3;
-        // Quicker to shed the speed than to pick it up: pulling away is a car
-        // accelerating, but the stop is the shot fading out, and a fade that lingers
-        // is just a slow scene. (The coast below keeps the road going a while yet.)
-        speed += (targetSpeed - speed) * Math.min(1, dt * (active ? 2.2 : 3.4));
+        // Playing, but still parked while the driver's door swings shut.
+        const moving = active && doorOpen === 0;
+        // Pulling away eases up to the music's speed. The stop is a brake at one
+        // rate, chosen so the car is at rest as its slide reaches the edge of frame:
+        // an eased stop never gets to zero, and its tail reads as the car rolling on
+        // after the brakes have finished.
+        if (wasActive && !active) brakeRate = speed / SLIDE_S;
+        if (moving) speed += (30 + level * 150 + pulse * 45 - speed) * Math.min(1, dt * 2.2);
+        else speed = Math.max(0, speed - brakeRate * dt);
         const rolled = speed * dt * motion;
         scroll += rolled;
         wheel += speed * dt * 0.22;
@@ -2050,7 +2075,7 @@
         // and there is barely any room, which is correct: sliding out of shot is
         // not the effect. Damped for anyone who asked for less motion.
         const lagMax = Math.max(0, (Math.round(bw * 0.3) - sx - 22) * motion);
-        const lagTo = active ? 0 : lagMax;
+        const lagTo = moving ? 0 : lagMax;
         // A spring rather than an ease, because the acceleration is the whole read:
         // dropping back and pulling away are the same easing curve run backwards,
         // and only a spring starts each of them from rest.
@@ -2068,12 +2093,12 @@
         //
         // The return is the opposite case — a car accelerating rather than a shot
         // running out — so it stays nearly critical and lands on its mark by itself.
-        const k = active ? 7.5 : 5;
-        const damp = active ? 2 * Math.sqrt(k) * 0.86 : 0;
+        const k = moving ? 7.5 : SLIDE_K;
+        const damp = moving ? 2 * Math.sqrt(k) * 0.86 : 0;
         lagVel += ((lagTo - lag) * k - lagVel * damp) * dt;
         const lagWas = lag;
         const lagNext = lag + lagVel * dt;
-        lag = Math.max(active ? -7 : 0, Math.min(lagMax, lagNext));
+        lag = Math.max(moving ? -7 : 0, Math.min(lagMax, lagNext));
         // Hit a stop — the edge of frame, or the mark itself on the way back. Drop
         // the velocity there instead of letting the spring wind up against it, or a
         // car that has sat parked at the edge sets off further left when play lands.
@@ -2108,12 +2133,21 @@
         }
         if (skids.length) skids = skids.filter((s) => clock - s.born < SKID_LIFE);
 
+        // Half a second to open, a third to shut: pushed open, pulled to.
+        const parked = !active && lag >= lagMax - 0.5 && lampUp === 0;
+        doorOpen = clamp01(doorOpen + (parked ? dt * 2 : -dt * 3));
+
         // The driver freezes a paused viz after a short settle; a car stopped
         // halfway through its slide would read as a stall, and smoke stopped
         // mid-air worse, so hold the loop open until both have finished.
         // ...and until the lamps are down: a loop that froze mid-close would leave
-        // one headlight half swallowed by the bonnet.
-        coasting = !active && (lag < lagMax - 0.5 || puffs.length > 0 || lampUp > 0);
+        // one headlight half swallowed by the bonnet. Likewise the door, either way.
+        coasting =
+          !active &&
+          (lag < lagMax - 0.5 ||
+            puffs.length > 0 ||
+            lampUp > 0 ||
+            (parked ? doorOpen < 1 : doorOpen > 0));
 
         const phase = moonPhaseAt(clock, moonOffset);
 

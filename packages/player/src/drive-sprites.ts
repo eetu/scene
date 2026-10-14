@@ -1,8 +1,8 @@
 // The night drive's sprite sheet: loading the art, and baking it into an atlas.
 //
 // The art itself is NOT here. Each sprite is a file under ./sprites — rows of
-// characters plus the palette those characters mean (see sprite-file.ts) —
-// authored in dab (../dab) and imported below. Text rather than an image
+// characters plus the palette those characters mean — drawn in dab and read
+// through @anarkisti/dab/core, which owns the format. Text rather than an image
 // because that is what a sprite was on the machines this scene is dressed as,
 // and because it keeps the art in the diff: a tweak to the car's roofline shows
 // up in review as a changed line, not as "Bin 4kB -> 4kB".
@@ -11,16 +11,15 @@
 // against the atlas, so the cost of a lamp post is the same whether it is six
 // pixels or six hundred, and the pixels themselves are never recomputed.
 import {
-  cellColour,
   animationFrames,
   type Flip,
-  flipRows,
   isPartRef,
-  partNamed,
+  nodeAt,
+  pixels,
   type SpriteBody,
   type SpriteFile,
   variantNames,
-} from "./sprite-file";
+} from "@anarkisti/dab/core";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
@@ -131,19 +130,23 @@ export const CAR_CONTACTS: number[] = (SPRITES.car.parts ?? [])
   .map((p) => p.x + (SPRITES.wheel.w >> 1));
 
 /**
- * The pop-up headlights, as the two animations the art declares over the lamp part's
- * three frames.
+ * The car's moving parts, as the animations the art declares on each: the pop-up
+ * headlights, and the driver's door — the near one, `door_r`: the car shows the
+ * camera its right side, and cars in this world are right-hand drive.
  *
  * Both directions are read rather than one played backwards: an animation is the art
  * saying what the move is, and a scene that assumes `close` is `open` reversed is
  * back to knowing things about the sprite that the sprite already says.
  */
-const lampRun = (name: string): number[] => {
-  const lamp = partNamed(SPRITES.car, "lights");
-  return (lamp && !isPartRef(lamp) && animationFrames(lamp, name)) || [0];
+const partRun = (part: string, name: string): number[] => {
+  const node = nodeAt(SPRITES.car, [part]);
+  return (node && animationFrames(node, name)) || [0];
 };
-export const LAMP_OPEN = lampRun("open");
-export const LAMP_CLOSE = lampRun("close");
+export const LAMP_OPEN = partRun("lights", "open");
+export const LAMP_CLOSE = partRun("lights", "close");
+export const DRIVER_DOOR = "door_r";
+export const DOOR_OPEN = partRun(DRIVER_DOOR, "open");
+export const DOOR_CLOSE = partRun(DRIVER_DOOR, "close");
 
 /**
  * Bake every sprite, part, look and frame into one canvas.
@@ -226,16 +229,14 @@ export function bakeAtlas(defs: Record<string, SpriteFile> = SPRITES): Atlas {
   for (const { key, entry } of cells) {
     index.set(key, entry.rect);
     if (!ctx) continue;
-    const rows = flipRows(entry.body.frames[entry.frame], entry.flip);
-    for (let y = 0; y < rows.length; y++) {
-      const row = rows[y];
-      for (let x = 0; x < row.length; x++) {
-        const colour = cellColour(entry.body, row[x], entry.variant);
-        if (!colour) continue;
-        ctx.fillStyle = colour;
-        ctx.fillRect(entry.rect.x + x, entry.rect.y + y, 1, 1);
-      }
-    }
+    const { w, h, px } = pixels(entry.body, entry.frame, {
+      variant: entry.variant,
+      flip: entry.flip,
+    });
+    // dab packs each pixel as the ImageData word, so the grid goes down as it is.
+    const img = ctx.createImageData(w, h);
+    new Uint32Array(img.data.buffer).set(px);
+    ctx.putImageData(img, entry.rect.x, entry.rect.y);
   }
 
   return {

@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 
+import dab from "@anarkisti/dab/vite";
 import { sveltekit } from "@sveltejs/kit/vite";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 import { playwright } from "@vitest/browser-playwright";
@@ -16,8 +17,14 @@ const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 // so plain `yarn dev` and the vitest browser tests stay localhost/http.
 const exposeHost = !!process.env.DEV_HOST;
 
+// The night drive's sprites, editable in dab at /__dab/ and over MCP on :3061
+// while the dev server runs. Not under vitest: its server would hold the MCP port.
+const sprites = process.env.VITEST
+  ? []
+  : [dab({ sprites: `${REPO_ROOT}packages/player/src/sprites` })];
+
 export default defineConfig({
-  plugins: [sveltekit(), ...(exposeHost ? [basicSsl(), qrcode()] : [])],
+  plugins: [sveltekit(), ...sprites, ...(exposeHost ? [basicSsl(), qrcode()] : [])],
   server: {
     ...(exposeHost ? { host: true } : {}),
     // Let the dev server read packages/* — @scene/player lives outside this

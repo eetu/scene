@@ -29,6 +29,7 @@
     "fflate": "^0.8.3"
   },
   "devDependencies": {
+    "@anarkisti/dab": "^0.2.5",
     "@anarkisti/eslint-config": "^1.0.0",
     "@playwright/test": "^1.63.0",
     "@sveltejs/adapter-static": "^3.0.10",
