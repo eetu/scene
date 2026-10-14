@@ -130,19 +130,23 @@ export const CAR_CONTACTS: number[] = (SPRITES.car.parts ?? [])
   .map((p) => p.x + (SPRITES.wheel.w >> 1));
 
 /**
- * The pop-up headlights, as the two animations the art declares over the lamp part's
- * three frames.
+ * The car's moving parts, as the animations the art declares on each: the pop-up
+ * headlights, and the driver's door — the near one, `door_r`: the car shows the
+ * camera its right side, and cars in this world are right-hand drive.
  *
  * Both directions are read rather than one played backwards: an animation is the art
  * saying what the move is, and a scene that assumes `close` is `open` reversed is
  * back to knowing things about the sprite that the sprite already says.
  */
-const lampRun = (name: string): number[] => {
-  const lamp = nodeAt(SPRITES.car, ["lights"]);
-  return (lamp && animationFrames(lamp, name)) || [0];
+const partRun = (part: string, name: string): number[] => {
+  const node = nodeAt(SPRITES.car, [part]);
+  return (node && animationFrames(node, name)) || [0];
 };
-export const LAMP_OPEN = lampRun("open");
-export const LAMP_CLOSE = lampRun("close");
+export const LAMP_OPEN = partRun("lights", "open");
+export const LAMP_CLOSE = partRun("lights", "close");
+export const DRIVER_DOOR = "door_r";
+export const DOOR_OPEN = partRun(DRIVER_DOOR, "open");
+export const DOOR_CLOSE = partRun(DRIVER_DOOR, "close");
 
 /**
  * Bake every sprite, part, look and frame into one canvas.

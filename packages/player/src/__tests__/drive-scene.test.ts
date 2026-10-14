@@ -31,6 +31,8 @@ import {
 import {
   CAR_CONTACTS,
   CROWN_NAMES,
+  DOOR_CLOSE,
+  DOOR_OPEN,
   LAMP_CLOSE,
   LAMP_OPEN,
   LANDMARK_NAMES,
@@ -423,6 +425,13 @@ describe("the sprite sheet", () => {
     // every time the transport was touched.
     expect(LAMP_CLOSE[0]).toBe(LAMP_OPEN[LAMP_OPEN.length - 1]);
     expect(LAMP_OPEN[0]).toBe(LAMP_CLOSE[LAMP_CLOSE.length - 1]);
+  });
+
+  test("the driver's door shuts on frame 0, the frame the car drives with", () => {
+    expect(DOOR_OPEN.length).toBeGreaterThan(1);
+    expect(DOOR_CLOSE[0]).toBe(DOOR_OPEN[DOOR_OPEN.length - 1]);
+    expect(DOOR_OPEN[0]).toBe(0);
+    expect(DOOR_CLOSE[DOOR_CLOSE.length - 1]).toBe(0);
   });
 
   test("the two-colour sprites offer the scene's second colour as a variant", () => {
