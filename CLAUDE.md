@@ -44,6 +44,9 @@ justfile           task runner — `just dev party`, `just build`, `just lint`
   party backend stays a clean scratch binary; ffmpeg lives behind the wall). It's
   a Rust crate in the workspace but ships as its own image (alpine + ffmpeg, like
   `../scribe`'s `press`) / native binary on `../mini`. One image per service.
+- **Sprites are dab files: edit them in dab.** `packages/player/src/sprites/`
+  is read through `@anarkisti/dab/core`; `just dev tracker` serves the editor
+  at `/__dab/` and dab's MCP on `:3061`. No reader or editor of our own.
 - **The frontend↔backend seam** is per app: SPA builds to `dist/`, the backend
   serves it with an SPA fallback; dev uses Vite's proxy for `/api`+`/status`.
   Manual type sharing (Rust `Serialize` ↔ hand-written TS), no codegen.

@@ -5,6 +5,20 @@ __metadata:
   version: 10
   cacheKey: 10
 
+"@anarkisti/dab@npm:^0.2.5":
+  version: 0.2.5
+  resolution: "@anarkisti/dab@npm:0.2.5"
+  peerDependencies:
+    vite: ">=6"
+  peerDependenciesMeta:
+    vite:
+      optional: true
+  bin:
+    dab: dist/dab.js
+  checksum: 10/824d788eb503a8a401e3c2a948fb3002f5865528b056505264764e3a3901430f34965b5bc26b83bbfc7ec73787a9a56d98f01924e1ee50835cf6ab0a07fa20b7
+  languageName: node
+  linkType: hard
+
 "@anarkisti/eslint-config@npm:^1.0.0":
   version: 1.1.0
   resolution: "@anarkisti/eslint-config@npm:1.1.0"
@@ -626,6 +640,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@scene/player@workspace:packages/player"
   dependencies:
+    "@anarkisti/dab": "npm:^0.2.5"
     "@glowbox/crt": "npm:^1.12.0"
     "@glowbox/flip-dot": "npm:^1.12.0"
     "@glowbox/nixie": "npm:^1.12.0"
@@ -2754,6 +2769,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "tracker-frontend@workspace:apps/tracker/frontend"
   dependencies:
+    "@anarkisti/dab": "npm:^0.2.5"
     "@anarkisti/eslint-config": "npm:^1.0.0"
     "@fontsource-variable/inter": "npm:^5.3.0"
     "@lucide/svelte": "npm:^1.49.0"

@@ -1,6 +1,7 @@
 // The night drive's world, weather and moon — all pure arithmetic, so all of it
 // is checkable without a canvas. What's asserted here is what could otherwise
 // only be caught by watching the visualiser for two minutes and hoping.
+import { isPartBody, isPartRef, validateSprite, variantNames } from "@anarkisti/dab/core";
 import { describe, expect, test } from "vitest";
 
 import {
@@ -36,7 +37,6 @@ import {
   SIGN_NAMES,
   SPRITES,
 } from "../drive-sprites";
-import { isPartBody, isPartRef, type SpriteBody, variantNames } from "../sprite-file";
 
 const skyline = (seed: number) =>
   buildSkyline(rng(seed), {
@@ -326,32 +326,11 @@ describe("the moon", () => {
 });
 
 describe("the sprite sheet", () => {
-  // The files are art, drawn in ../dab, which validates the format itself and will
-  // not save a file that fails it. What is checked here is narrower and is the
-  // scene's own business: that every grid the scene will bake is rectangular and
-  // that every character in it has a colour. A hole in either draws as a hole.
-  test("every grid is rectangular and every character has a colour", () => {
-    const bodies = (node: SpriteBody, at: string): [SpriteBody, string][] => [
-      [node, at],
-      ...(node.parts ?? []).filter(isPartBody).flatMap((p) => bodies(p, `${at}/${p.name}`)),
-    ];
+  // dab will not save a file that fails its validator, but a file edited by hand
+  // or merged badly never went through it.
+  test("every sprite passes dab's validator", () => {
     for (const [key, sprite] of Object.entries(SPRITES)) {
-      for (const [body, at] of bodies(sprite, key)) {
-        const known = new Set([...Object.keys(body.palette), "."]);
-        for (const [f, frame] of body.frames.entries()) {
-          expect(frame.length, `${at} frame ${f} is ${frame.length} rows, not ${body.h}`).toBe(
-            body.h,
-          );
-          for (const row of frame) {
-            expect(row.length, `${at} frame ${f} has a row ${row.length} wide, not ${body.w}`).toBe(
-              body.w,
-            );
-            for (const ch of row) {
-              expect(known, `${at} frame ${f} uses ${ch}, which has no colour`).toContain(ch);
-            }
-          }
-        }
-      }
+      expect(validateSprite(sprite), key).toEqual([]);
     }
   });
 
