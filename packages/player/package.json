@@ -19,12 +19,12 @@
   },
   "dependencies": {
     "@anarkisti/dab": "^0.2.5",
-    "@glowbox/crt": "^1.12.0",
-    "@glowbox/flip-dot": "^1.12.0",
-    "@glowbox/nixie": "^1.12.0",
-    "@glowbox/split-flap": "^1.12.0",
-    "@glowbox/svelte": "^1.12.0",
-    "@glowbox/vfd": "^1.12.0",
+    "@glowbox/crt": "^1.13.0",
+    "@glowbox/flip-dot": "^1.13.0",
+    "@glowbox/nixie": "^1.13.0",
+    "@glowbox/split-flap": "^1.13.0",
+    "@glowbox/svelte": "^1.13.0",
+    "@glowbox/vfd": "^1.13.0",
     "@scene/design": "workspace:*",
     "libsidplayfp-wasm": "^1.0.1",
     "xstate": "^5.33.2"
