@@ -23,7 +23,7 @@
   "dependencies": {
     "@anarkisti/igyb": "^0.5.0",
     "@fontsource-variable/inter": "^5.3.0",
-    "@lucide/svelte": "^1.49.0",
+    "@lucide/svelte": "^1.52.0",
     "@scene/design": "workspace:*",
     "@scene/player": "workspace:*"
   },
@@ -36,7 +36,7 @@
     "@types/node": "^26",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitest/browser-playwright": "^5.0.3",
-    "eslint": "^10.11.0",
+    "eslint": "^10.12.0",
     "playwright": "^1.63.0",
     "prettier": "^3.9.9",
     "prettier-plugin-svelte": "^4.0.1",
