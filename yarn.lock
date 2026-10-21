@@ -283,84 +283,84 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@glowbox/crt@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/crt@npm:1.13.0"
-  checksum: 10/32cf71c85d6fbc7f80fffd3b417032ce300d4ee177f042da6aea7a8890db14a6aa744df3bf3957cd0221169c35b69b5e07966864bbff1ae30f84905c5e1ed0c6
+"@glowbox/crt@npm:^1.13.2":
+  version: 1.13.2
+  resolution: "@glowbox/crt@npm:1.13.2"
+  checksum: 10/5cc571a82e257a8f5e0215df5686e5c8505661d565a87b82554aff889c83c1528eaf48124ac01ac839f3b7fb01c7e9a0615fecb412db9098a5a2b4e319e9200f
   languageName: node
   linkType: hard
 
-"@glowbox/flip-dot@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/flip-dot@npm:1.13.0"
-  checksum: 10/a3abfd281e962d5e840b79bf23e177846ff8bd0ab34236e6919754a3b06d51a6c4b0ddcc6c8f9c34ae7858a3239137f8880bf1b05f8167330e94b6095c12bd70
+"@glowbox/flip-dot@npm:^1.13.2":
+  version: 1.13.2
+  resolution: "@glowbox/flip-dot@npm:1.13.2"
+  checksum: 10/9eb6bd63bf259361e5ffe9ee626ce8dd3c41e5856a06a91d9ad7382a59288d277318bf2566dbcf74231e963bf426db6d258499b70f8dbb9d7ff74e1d1e2d1790
   languageName: node
   linkType: hard
 
-"@glowbox/lcd@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/lcd@npm:1.13.0"
-  checksum: 10/319b9bff7a1202b1737aff66496a1c5a951764547684f87452f4be68d076354c4d9d45ca55dec5f8309c97b77f61bf03260af66997dacfd439c77c54a34d10fb
+"@glowbox/lcd@npm:^1.13.2":
+  version: 1.13.2
+  resolution: "@glowbox/lcd@npm:1.13.2"
+  checksum: 10/a64766e55505b2cb22f3da9dbb3f624b347cd174fb1240c9a523e9b6e25bebed9a073e3b9d30428e8399cb3b0cd28f4e879c4f2dfa06afed74a737dda597d151
   languageName: node
   linkType: hard
 
-"@glowbox/led-grid@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/led-grid@npm:1.13.0"
-  checksum: 10/1e799304eede92b4634eca949d0313a1480124fef12a8a4fd03dd13b66c4edf217cbac6cca52f7e3e11dc900ca799be876c5fefec34c3eb9037361bc5daaf1c3
+"@glowbox/led-grid@npm:^1.13.2":
+  version: 1.13.2
+  resolution: "@glowbox/led-grid@npm:1.13.2"
+  checksum: 10/d29615df0b68dd61f5324bfd86956305bccd5de449c1e88126aa80b789c316e95aacbefa033f88327a884da683afb575f8da4edf9cdccd426e5851a2bed57bb3
   languageName: node
   linkType: hard
 
-"@glowbox/neon@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/neon@npm:1.13.0"
-  checksum: 10/6348684e1bffcc65add83efb9169f06e135f7dcf55b8d0debf4e9a3ed13d183022f033974f743afcd4edcc7232073c561643c4e9c68831de78d25f134ff0bc98
+"@glowbox/neon@npm:^1.13.2":
+  version: 1.13.2
+  resolution: "@glowbox/neon@npm:1.13.2"
+  checksum: 10/854a6d7f6204e5cb326590ec56c6cd4354b815a224c899a1d2a8a90a148e9d1e1a56b3240eb7c313dde2acc08947994278d5e8bba9f58a386626106e9fbf85b5
   languageName: node
   linkType: hard
 
-"@glowbox/nixie@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/nixie@npm:1.13.0"
-  checksum: 10/7c8816ee486d7d15058369666898a590588b2f933e60330d53f4514caf984f4fee16b5b50c40e1f04ce8f4a0aff5485801eb6ffc1d8d75f2b95458dd52fe46ab
+"@glowbox/nixie@npm:^1.13.2":
+  version: 1.13.2
+  resolution: "@glowbox/nixie@npm:1.13.2"
+  checksum: 10/17013c2a7d2be119bb142583d0dea2782cee33b2da74072df71ce2daefecf73f66b197d4e9f3542fd36a232498f92066dfed55e53312cc92bbfa42b473b40281
   languageName: node
   linkType: hard
 
-"@glowbox/seven-segment@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/seven-segment@npm:1.13.0"
-  checksum: 10/1230e55256e6d8b76140be573b0ea9590f51cde4a85f45e4efd5dbeda038709f1f609bfbe14ff09195c77b09b4ec50f14df62b83a8bb4532c3937bb2260a3420
+"@glowbox/seven-segment@npm:^1.13.2":
+  version: 1.13.2
+  resolution: "@glowbox/seven-segment@npm:1.13.2"
+  checksum: 10/a02b972a3ad0030f67858f13dd2d8f13d9293cb59ef79900e1ac40125b0b7c36c22023fd9182f8ccc0c93b53954028bca178ffb4b01f81ba0f4dfb5ff945c6cc
   languageName: node
   linkType: hard
 
-"@glowbox/split-flap@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/split-flap@npm:1.13.0"
-  checksum: 10/9d99456c41b777a0c72af5941d1f6c020d96d6733c379432960712aca904141a85c0f5c63a9f0ab6b7566238494decdf67bf00ad37a1047b786387988468354b
+"@glowbox/split-flap@npm:^1.13.2":
+  version: 1.13.2
+  resolution: "@glowbox/split-flap@npm:1.13.2"
+  checksum: 10/cd3e74ed7cdc897a376edc5509241fe49bad1d7b247a5d91b1ef1217c2dbbeeec347391f580f249139746e1af1c466f75b8baff1b55d255e72d98b1411bba3ec
   languageName: node
   linkType: hard
 
-"@glowbox/svelte@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/svelte@npm:1.13.0"
+"@glowbox/svelte@npm:^1.13.2":
+  version: 1.13.2
+  resolution: "@glowbox/svelte@npm:1.13.2"
   dependencies:
-    "@glowbox/flip-dot": "npm:^1.13.0"
-    "@glowbox/lcd": "npm:^1.13.0"
-    "@glowbox/led-grid": "npm:^1.13.0"
-    "@glowbox/neon": "npm:^1.13.0"
-    "@glowbox/nixie": "npm:^1.13.0"
-    "@glowbox/seven-segment": "npm:^1.13.0"
-    "@glowbox/split-flap": "npm:^1.13.0"
-    "@glowbox/vfd": "npm:^1.13.0"
+    "@glowbox/flip-dot": "npm:^1.13.2"
+    "@glowbox/lcd": "npm:^1.13.2"
+    "@glowbox/led-grid": "npm:^1.13.2"
+    "@glowbox/neon": "npm:^1.13.2"
+    "@glowbox/nixie": "npm:^1.13.2"
+    "@glowbox/seven-segment": "npm:^1.13.2"
+    "@glowbox/split-flap": "npm:^1.13.2"
+    "@glowbox/vfd": "npm:^1.13.2"
   peerDependencies:
     svelte: ^5
-  checksum: 10/eae0682f37a76892cd8b6132da2ab8fa79ca8fd2bad09f69d9c3ff6b6b19291883cda70f00ea8238b4fe723a5783d0d8724ec5867502ed5d72e02d752cfc6cfc
+  checksum: 10/61638930dfce38eefb91d99383c2757264187270293735f4bbcf3704c5a39f9531e4312ed4628bd4f235dc241311fdc459b12f176122597a9c0111660a68ac2f
   languageName: node
   linkType: hard
 
-"@glowbox/vfd@npm:^1.13.0":
-  version: 1.13.0
-  resolution: "@glowbox/vfd@npm:1.13.0"
-  checksum: 10/14410b271ccfa322263c73ad8c00a79a5df4bb4c99aef1e4dcab50ed1cbd709fd92a681a26d79dfdea7ba06ed2effa784744a08a7038d18fb0d0769c8214131f
+"@glowbox/vfd@npm:^1.13.2":
+  version: 1.13.2
+  resolution: "@glowbox/vfd@npm:1.13.2"
+  checksum: 10/8eca849c1f8c9689c8854984c0d2ec16dfeea904ebc34f825594e695812576cc21d0563cf832181331544b9c1f5c7ccab00bd99dad3121e75508cc61238a6286
   languageName: node
   linkType: hard
 
@@ -484,12 +484,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lucide/svelte@npm:^1.52.0":
-  version: 1.52.0
-  resolution: "@lucide/svelte@npm:1.52.0"
+"@lucide/svelte@npm:^1.57.0":
+  version: 1.57.0
+  resolution: "@lucide/svelte@npm:1.57.0"
   peerDependencies:
     svelte: ^5
-  checksum: 10/23bac1156aff4d0990024942c9c2e75925f8a1bf4eeaeb3370904af536e01c6ff8da3cede8e067eacc3e830ac73f48316df5226a72f063c91452a502a866f3ae
+  checksum: 10/efc450e1391b5f1f9b3bff99404db45534f251251c4e6c07b61b495d05cd8e5b6ab92ce02a11fd1d379157b38c874c0b80977512179846fc1b218b731d8bcf54
   languageName: node
   linkType: hard
 
@@ -500,14 +500,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@playwright/test@npm:^1.63.0":
-  version: 1.63.0
-  resolution: "@playwright/test@npm:1.63.0"
+"@playwright/test@npm:^1.64.0":
+  version: 1.64.0
+  resolution: "@playwright/test@npm:1.64.0"
   dependencies:
-    playwright: "npm:1.63.0"
+    playwright: "npm:1.64.0"
   bin:
     playwright: cli.js
-  checksum: 10/b5e561b8f11488b8062b98c5cf975740f48ae7e9b455fb7152e0fb90d8e13f20c3c3ae6a15833655364246b99f5a46f6601daa5a9eef01de5004c8be7e2b3af3
+  checksum: 10/150071109a165e413f390bea574c2d6508788b713dbc0ae58ba3bfed7d5befa621f862b4a818fab502e409365f465bf90641dc1da7a64ccd4910a0124e8cd3bf
   languageName: node
   linkType: hard
 
@@ -641,17 +641,17 @@ __metadata:
   resolution: "@scene/player@workspace:packages/player"
   dependencies:
     "@anarkisti/dab": "npm:^0.2.5"
-    "@glowbox/crt": "npm:^1.13.0"
-    "@glowbox/flip-dot": "npm:^1.13.0"
-    "@glowbox/nixie": "npm:^1.13.0"
-    "@glowbox/split-flap": "npm:^1.13.0"
-    "@glowbox/svelte": "npm:^1.13.0"
-    "@glowbox/vfd": "npm:^1.13.0"
+    "@glowbox/crt": "npm:^1.13.2"
+    "@glowbox/flip-dot": "npm:^1.13.2"
+    "@glowbox/nixie": "npm:^1.13.2"
+    "@glowbox/split-flap": "npm:^1.13.2"
+    "@glowbox/svelte": "npm:^1.13.2"
+    "@glowbox/vfd": "npm:^1.13.2"
     "@scene/design": "workspace:*"
     "@sveltejs/vite-plugin-svelte": "npm:^7.3.1"
-    "@vitest/browser-playwright": "npm:^5.0.3"
-    libsidplayfp-wasm: "npm:^1.0.1"
-    playwright: "npm:^1.63.0"
+    "@vitest/browser-playwright": "npm:^5.0.5"
+    libsidplayfp-wasm: "npm:^1.1.0"
+    playwright: "npm:^1.64.0"
     svelte: "npm:^5.57.2"
     typescript: "npm:^6.0.2"
     vite: "npm:^8.3.4"
@@ -752,21 +752,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/svelte-virtual@npm:^3.13.40":
-  version: 3.13.40
-  resolution: "@tanstack/svelte-virtual@npm:3.13.40"
+"@tanstack/svelte-virtual@npm:^3.13.46":
+  version: 3.13.46
+  resolution: "@tanstack/svelte-virtual@npm:3.13.46"
   dependencies:
-    "@tanstack/virtual-core": "npm:3.18.0"
+    "@tanstack/virtual-core": "npm:3.19.5"
   peerDependencies:
     svelte: ^3.48.0 || ^4.0.0 || ^5.0.0
-  checksum: 10/39b936deac355680e5de1d43568b5f83a716a79cfc8119c82114095528435af5c105470c8dcb3e4b9ea8832c1b200b9255704fb1c538294dc3c9642e92351a98
+  checksum: 10/ac2f63c5698a4f1a6c39e7a5f2429dccc62d95150694e5b31c352e1e49d6f9ba2f3eed23cc0a407cbb54b6d3ebb101d7a32c97f64b802edf3ac371e151f3cce2
   languageName: node
   linkType: hard
 
-"@tanstack/virtual-core@npm:3.18.0":
-  version: 3.18.0
-  resolution: "@tanstack/virtual-core@npm:3.18.0"
-  checksum: 10/ab0667ff44b3c865d5d677b58964224aa6ec04c8aea2e297ce2b87f2313bfbfa439c9813e9e46f38f6b1678f4c8847394046168e2c5a845b624631583645e870
+"@tanstack/virtual-core@npm:3.19.5":
+  version: 3.19.5
+  resolution: "@tanstack/virtual-core@npm:3.19.5"
+  checksum: 10/be8b09a893ccb0a98de3fd28c7a21264685a8b104bc2cb97a78845b5e87c7580cd34426c26ae61a2d98fa47b22415106d861c432d76f82d057c7edd4d44dbd5a
   languageName: node
   linkType: hard
 
@@ -977,39 +977,39 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitest/browser-playwright@npm:^5.0.3":
-  version: 5.0.3
-  resolution: "@vitest/browser-playwright@npm:5.0.3"
+"@vitest/browser-playwright@npm:^5.0.5":
+  version: 5.0.5
+  resolution: "@vitest/browser-playwright@npm:5.0.5"
   dependencies:
-    "@vitest/browser": "npm:5.0.3"
-    "@vitest/mocker": "npm:5.0.3"
-    tinyrainbow: "npm:^3.1.1"
+    "@vitest/browser": "npm:5.0.5"
+    "@vitest/mocker": "npm:5.0.5"
+    tinyrainbow: "npm:^3.2.0"
   peerDependencies:
     playwright: "*"
-    vitest: 5.0.3
+    vitest: 5.0.5
   peerDependenciesMeta:
     playwright:
       optional: false
-  checksum: 10/8973fc4c7c0d7ffc8bc4141723acbb63630f4db0009ccbf3e658f6624ac980b476f147aec3bb88ca3d81ae4ee8321b4ea290ec74408483c98a014b6909870cbb
+  checksum: 10/917104d47f35fcb961c21ec9ee1ef89b97e8ebefdd8896b85048b10903364d593c91fe5bf1b1e6d2598fbb23c1620a7d39ab866b0a778c0a257a284383e30651
   languageName: node
   linkType: hard
 
-"@vitest/browser@npm:5.0.3":
-  version: 5.0.3
-  resolution: "@vitest/browser@npm:5.0.3"
+"@vitest/browser@npm:5.0.5":
+  version: 5.0.5
+  resolution: "@vitest/browser@npm:5.0.5"
   dependencies:
     "@blazediff/core": "npm:1.10.0"
-    "@vitest/mocker": "npm:5.0.3"
-    "@vitest/ui": "npm:5.0.3"
-    "@vitest/utils": "npm:5.0.3"
-    magic-string: "npm:^1.2.3"
+    "@vitest/mocker": "npm:5.0.5"
+    "@vitest/ui": "npm:5.0.5"
+    "@vitest/utils": "npm:5.0.5"
+    magic-string: "npm:^1.4.3"
     pngjs: "npm:^7.0.0"
     sirv: "npm:^3.0.2"
-    tinyrainbow: "npm:^3.1.1"
-    ws: "npm:^8.21.3"
+    tinyrainbow: "npm:^3.2.0"
+    ws: "npm:^8.22.0"
   peerDependencies:
-    vitest: 5.0.3
-  checksum: 10/d1addaa5f0ff7c857346e52c8b1d4484380f846263f431308b8b18dd03ba7eabaebf2dc9906c2cd2f6a2b3182f61c97aa2c1901beb6f6a04d637c6464bbbd573
+    vitest: 5.0.5
+  checksum: 10/e76db770c5aa97ec66f4f526da56f4456b0654b1dedd8fb1b5dd445571570ca490a8fd0031784a64b500627b2c8f2f4fe4e042323bf93afe5778617d6b32a95a
   languageName: node
   linkType: hard
 
@@ -1033,12 +1033,32 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitest/pretty-format@npm:5.0.3":
-  version: 5.0.3
-  resolution: "@vitest/pretty-format@npm:5.0.3"
+"@vitest/mocker@npm:5.0.5":
+  version: 5.0.5
+  resolution: "@vitest/mocker@npm:5.0.5"
   dependencies:
-    tinyrainbow: "npm:^3.1.1"
-  checksum: 10/61f8d6ca556f61e7a9616c08b8571a8c81dad05f726babd57f79f3bb21b9b8348bacf2995f3ddf640def0519726e6a8b3f7d53ab91b159be99bb38eea012fa24
+    "@jridgewell/trace-mapping": "npm:0.3.31"
+    "@vitest/spy": "npm:5.0.5"
+    estree-walker: "npm:^3.0.3"
+    magic-string: "npm:^1.4.3"
+  peerDependencies:
+    msw: ^2.4.9 || ^3.0.0
+    vite: ^6.0.0 || ^7.0.0 || ^8.0.0
+  peerDependenciesMeta:
+    msw:
+      optional: true
+    vite:
+      optional: true
+  checksum: 10/8e8918921f9acf09eda6de98821f95bdc32743afd5c675e44b1bf26c7798d0b35ababc12b0a243c99ff9f71fc1f199addd27f109ffa46d2559dbaaac79dc0cb2
+  languageName: node
+  linkType: hard
+
+"@vitest/pretty-format@npm:5.0.5":
+  version: 5.0.5
+  resolution: "@vitest/pretty-format@npm:5.0.5"
+  dependencies:
+    tinyrainbow: "npm:^3.2.0"
+  checksum: 10/78f4e9a12c443e1f60885bc84959e5d4070dfa86d918d005e8d79d6a2350ba903047cd8de02c99fe40b40f97cdc0c1d8fca8440490482f780261791a74ef5803
   languageName: node
   linkType: hard
 
@@ -1049,30 +1069,37 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitest/ui@npm:5.0.3":
-  version: 5.0.3
-  resolution: "@vitest/ui@npm:5.0.3"
+"@vitest/spy@npm:5.0.5":
+  version: 5.0.5
+  resolution: "@vitest/spy@npm:5.0.5"
+  checksum: 10/f9661bc0312ec3670b83a9221e6d7830eaecae65a985d51cec27dc12177c06b6726b211c0cd8d84e3deddeb8508a770969221b804f93c0df22c7935f584d06e0
+  languageName: node
+  linkType: hard
+
+"@vitest/ui@npm:5.0.5":
+  version: 5.0.5
+  resolution: "@vitest/ui@npm:5.0.5"
   dependencies:
-    "@vitest/utils": "npm:5.0.3"
+    "@vitest/utils": "npm:5.0.5"
     fflate: "npm:^0.8.3"
     flatted: "npm:^3.4.4"
     pathe: "npm:^2.0.3"
     sirv: "npm:^3.0.2"
-    tinyrainbow: "npm:^3.1.1"
+    tinyrainbow: "npm:^3.2.0"
   peerDependencies:
-    vitest: 5.0.3
-  checksum: 10/e97e38ce8451bc9ecf6f2f9063218991d87829a7ac00b21239220ce404802a5be6eda87b92b078317a2340cdd8bb0a2505798cb5b0754b8d218c13b0b6cb20f3
+    vitest: 5.0.5
+  checksum: 10/5b3160da02d414c0e26ca828304ced355fc03d6a038d7629585b6cbd17dc1c6c2a35300f7d1772cb17fe2b6702cef10aefe26d9c58b31ce07a587cb8dd446d6b
   languageName: node
   linkType: hard
 
-"@vitest/utils@npm:5.0.3":
-  version: 5.0.3
-  resolution: "@vitest/utils@npm:5.0.3"
+"@vitest/utils@npm:5.0.5":
+  version: 5.0.5
+  resolution: "@vitest/utils@npm:5.0.5"
   dependencies:
-    "@vitest/pretty-format": "npm:5.0.3"
+    "@vitest/pretty-format": "npm:5.0.5"
     convert-source-map: "npm:^2.0.0"
-    tinyrainbow: "npm:^3.1.1"
-  checksum: 10/897654af10a4511921f843968a5510224af865cda943183defeab9e1bee11e5ef532aa617bc559cfceebb08a1cfb9a3145efaace0686861e621b14d0238dd8e7
+    tinyrainbow: "npm:^3.2.0"
+  checksum: 10/af2c8414729bc1a3dfaddc01ef96e9f2b675e73b395a2370d5d3dcd85355230c9a328a7b8994cf12948d28b0d5b57d5dc9c576e759d2688a1a312ad0e21569fe
   languageName: node
   linkType: hard
 
@@ -1953,10 +1980,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"libsidplayfp-wasm@npm:^1.0.1":
-  version: 1.0.1
-  resolution: "libsidplayfp-wasm@npm:1.0.1"
-  checksum: 10/30e4dcb46a48ab8d4412539bb83f6fe5d8ab244adb4fd15d383beb2a685ec9ad18dbfdf6af99ed9e1358d89d31840ac08c59ff90f531dd63334bbaab86f8acdc
+"libsidplayfp-wasm@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "libsidplayfp-wasm@npm:1.1.0"
+  checksum: 10/ca88ea3efd78c660c5cb4bf96f851200dd368d5c9aee46dd1a1f224eaaee3d6dbec4baf4fd76b3dfcdd340433be019addea572c9e391111e51b140557aef5f8f
   languageName: node
   linkType: hard
 
@@ -2130,6 +2157,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"magic-string@npm:^1.4.3":
+  version: 1.4.3
+  resolution: "magic-string@npm:1.4.3"
+  dependencies:
+    "@jridgewell/sourcemap-codec": "npm:^1.6.0"
+  checksum: 10/8942d4afec7855661d697e48f6f48f0113770878f29e25cdc558ecfd2493ebe5620e18ebee5770e8e5b0afdf72f60330166d1bb59e70eecced712fcf29860ea4
+  languageName: node
+  linkType: hard
+
 "minimatch@npm:^10.2.2, minimatch@npm:^10.2.4":
   version: 10.2.5
   resolution: "minimatch@npm:10.2.5"
@@ -2294,8 +2330,8 @@ __metadata:
     "@anarkisti/eslint-config": "npm:^1.0.0"
     "@anarkisti/igyb": "npm:^0.5.0"
     "@fontsource-variable/inter": "npm:^5.3.0"
-    "@lucide/svelte": "npm:^1.52.0"
-    "@playwright/test": "npm:^1.63.0"
+    "@lucide/svelte": "npm:^1.57.0"
+    "@playwright/test": "npm:^1.64.0"
     "@scene/design": "workspace:*"
     "@scene/player": "workspace:*"
     "@sveltejs/adapter-static": "npm:^3.0.10"
@@ -2303,10 +2339,10 @@ __metadata:
     "@sveltejs/vite-plugin-svelte": "npm:^7.3.1"
     "@types/node": "npm:^26"
     "@vitejs/plugin-basic-ssl": "npm:^2.3.0"
-    "@vitest/browser-playwright": "npm:^5.0.3"
+    "@vitest/browser-playwright": "npm:^5.0.5"
     eslint: "npm:^10.12.0"
-    playwright: "npm:^1.63.0"
-    prettier: "npm:^3.9.9"
+    playwright: "npm:^1.64.0"
+    prettier: "npm:^3.9.10"
     prettier-plugin-svelte: "npm:^4.0.1"
     svelte: "npm:^5.57.2"
     svelte-check: "npm:^4.7.6"
@@ -2360,23 +2396,23 @@ __metadata:
   languageName: node
   linkType: hard
 
-"playwright-core@npm:1.63.0":
-  version: 1.63.0
-  resolution: "playwright-core@npm:1.63.0"
+"playwright-core@npm:1.64.0":
+  version: 1.64.0
+  resolution: "playwright-core@npm:1.64.0"
   bin:
     playwright-core: cli.js
-  checksum: 10/d0f7c70786f5e08aa7553a77ba28c07427086e323ae8c4126a647debd8181966dc11d6f8fe1462f2a776ad60c95451b08f01fbee17b11e69a5bd9a2070fe75a6
+  checksum: 10/38b1c9a4ebe96ab5ee282a9743cb57dd5abb4d1370ad5570b676b71d0864e6f9feb9feebe74e15af4af6828ebaca3670f77bdcdc1979a1fa02462465456edc12
   languageName: node
   linkType: hard
 
-"playwright@npm:1.63.0, playwright@npm:^1.63.0":
-  version: 1.63.0
-  resolution: "playwright@npm:1.63.0"
+"playwright@npm:1.64.0, playwright@npm:^1.64.0":
+  version: 1.64.0
+  resolution: "playwright@npm:1.64.0"
   dependencies:
-    playwright-core: "npm:1.63.0"
+    playwright-core: "npm:1.64.0"
   bin:
     playwright: cli.js
-  checksum: 10/ec87c22888148603a8955bc2a092f416455af931fe53925b9143ce333b83e42a6d8c159c00a4f2d232b27100cf3eadd93cec8a6e5c4e12c1c00663d2034dd515
+  checksum: 10/8e68bd0db79a9b5812b08c8ad5e9280359b37f38d53bf6eaf73891140014edb61566ab11df2f4401bf70a12a78518467c2d44c258cdf069a5a0469753dbe1c69
   languageName: node
   linkType: hard
 
@@ -2472,12 +2508,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier@npm:^3.9.9":
-  version: 3.9.9
-  resolution: "prettier@npm:3.9.9"
+"prettier@npm:^3.9.10":
+  version: 3.9.10
+  resolution: "prettier@npm:3.9.10"
   bin:
     prettier: bin/prettier.cjs
-  checksum: 10/3d11a8095a7db50f0fbc8086ad96be676401154b63a2e9023e1274893457dccab19a9c211f4fb2cae7244e800bea2d5185d9bb6fc510f48a53017815e47d4e6d
+  checksum: 10/5d0118add4b44eb9d50c114f5c525451cc92be9da300ad0552787472535a3f23884baed3223d9b577bb7d1152eb58aeccfcc2b4541c0cf2274c0b4d328e36834
   languageName: node
   linkType: hard
 
@@ -2582,7 +2618,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "scene@workspace:."
   dependencies:
-    prettier: "npm:^3.9.9"
+    prettier: "npm:^3.9.10"
     prettier-plugin-svelte: "npm:^4.0.1"
     svelte: "npm:^5.57.2"
   languageName: unknown
@@ -2758,7 +2794,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tinyrainbow@npm:^3.1.1":
+"tinyrainbow@npm:^3.2.0":
   version: 3.2.0
   resolution: "tinyrainbow@npm:3.2.0"
   checksum: 10/27089c12ad4b18439fbdd651bf9d076584aad9b2a36da36ba841d6bd31156f5489e15497b2377162478277cb89cf6ea6a323be401fd9d55794a6963b65fe55d4
@@ -2779,21 +2815,21 @@ __metadata:
     "@anarkisti/dab": "npm:^0.2.5"
     "@anarkisti/eslint-config": "npm:^1.0.0"
     "@fontsource-variable/inter": "npm:^5.3.0"
-    "@lucide/svelte": "npm:^1.52.0"
-    "@playwright/test": "npm:^1.63.0"
+    "@lucide/svelte": "npm:^1.57.0"
+    "@playwright/test": "npm:^1.64.0"
     "@scene/design": "workspace:*"
     "@scene/player": "workspace:*"
     "@sveltejs/adapter-static": "npm:^3.0.10"
     "@sveltejs/kit": "npm:^2.70.3"
     "@sveltejs/vite-plugin-svelte": "npm:^7.3.1"
-    "@tanstack/svelte-virtual": "npm:^3.13.40"
+    "@tanstack/svelte-virtual": "npm:^3.13.46"
     "@types/node": "npm:^26"
     "@vitejs/plugin-basic-ssl": "npm:^2.3.0"
-    "@vitest/browser-playwright": "npm:^5.0.3"
+    "@vitest/browser-playwright": "npm:^5.0.5"
     eslint: "npm:^10.12.0"
     fflate: "npm:^0.8.3"
-    playwright: "npm:^1.63.0"
-    prettier: "npm:^3.9.9"
+    playwright: "npm:^1.64.0"
+    prettier: "npm:^3.9.10"
     prettier-plugin-svelte: "npm:^4.0.1"
     svelte: "npm:^5.57.2"
     svelte-check: "npm:^4.7.6"
@@ -3093,7 +3129,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ws@npm:^8.21.3":
+"ws@npm:^8.22.0":
   version: 8.22.0
   resolution: "ws@npm:8.22.0"
   peerDependencies:

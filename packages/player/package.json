@@ -19,14 +19,14 @@
   },
   "dependencies": {
     "@anarkisti/dab": "^0.2.5",
-    "@glowbox/crt": "^1.13.0",
-    "@glowbox/flip-dot": "^1.13.0",
-    "@glowbox/nixie": "^1.13.0",
-    "@glowbox/split-flap": "^1.13.0",
-    "@glowbox/svelte": "^1.13.0",
-    "@glowbox/vfd": "^1.13.0",
+    "@glowbox/crt": "^1.13.2",
+    "@glowbox/flip-dot": "^1.13.2",
+    "@glowbox/nixie": "^1.13.2",
+    "@glowbox/split-flap": "^1.13.2",
+    "@glowbox/svelte": "^1.13.2",
+    "@glowbox/vfd": "^1.13.2",
     "@scene/design": "workspace:*",
-    "libsidplayfp-wasm": "^1.0.1",
+    "libsidplayfp-wasm": "^1.1.0",
     "xstate": "^5.33.2"
   },
   "peerDependencies": {
@@ -34,8 +34,8 @@
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
-    "@vitest/browser-playwright": "^5.0.3",
-    "playwright": "^1.63.0",
+    "@vitest/browser-playwright": "^5.0.5",
+    "playwright": "^1.64.0",
     "svelte": "^5.57.2",
     "typescript": "^6.0.2",
     "vite": "^8.3.4",
