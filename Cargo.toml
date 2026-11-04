@@ -18,7 +18,7 @@ version = "0.1.0"
 # Shared backend plumbing (error/auth/CSP/SPA/scan utilities) for the app crates.
 scene-backend = { path = "crates/scene-backend" }
 axum = { version = "0.8", features = ["macros", "tokio", "tracing"] }
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 walkdir = "2"
 # Parallel per-file I/O in the scanner (stat/hash/sniff) to hide NAS latency.
 rayon = "1"
