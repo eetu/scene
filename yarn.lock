@@ -703,7 +703,7 @@ __metadata:
     "@vitest/browser-playwright": "npm:^5.1.0"
     libsidplayfp-wasm: "npm:^1.1.1"
     playwright: "npm:^1.65.0"
-    svelte: "npm:^5.57.3"
+    svelte: "npm:^5.58.0"
     typescript: "npm:^6.0.2"
     vite: "npm:^8.3.8"
     vitest: "npm:^5.1.0"
@@ -1697,9 +1697,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"esrap@npm:^2.3.6":
-  version: 2.3.12
-  resolution: "esrap@npm:2.3.12"
+"esrap@npm:^2.4.2":
+  version: 2.4.2
+  resolution: "esrap@npm:2.4.2"
   dependencies:
     "@jridgewell/sourcemap-codec": "npm:^1.4.15"
   peerDependencies:
@@ -1707,7 +1707,7 @@ __metadata:
   peerDependenciesMeta:
     "@typescript-eslint/types":
       optional: true
-  checksum: 10/da3857a7d4c3454aecb803ff6ec9c3e248651d6b9188897cdd1c3200abad5f576444d215b0dba07be067c305513120394bbee808782d28355a65957dc006f9af
+  checksum: 10/4bd72889864c05c1244d056798a34ad947b07fec030d4e403ffb4d2affd7e627b2c56dd83c9632879aed56ac08c1b11df13ba3344eaf16a05ff9b0243cc8cefa
   languageName: node
   linkType: hard
 
@@ -2368,7 +2368,7 @@ __metadata:
     playwright: "npm:^1.65.0"
     prettier: "npm:^3.9.10"
     prettier-plugin-svelte: "npm:^4.0.1"
-    svelte: "npm:^5.57.3"
+    svelte: "npm:^5.58.0"
     svelte-check: "npm:^4.7.8"
     typescript: "npm:^6.0.2"
     vite: "npm:^8.3.8"
@@ -2647,7 +2647,7 @@ __metadata:
   dependencies:
     prettier: "npm:^3.9.10"
     prettier-plugin-svelte: "npm:^4.0.1"
-    svelte: "npm:^5.57.3"
+    svelte: "npm:^5.58.0"
   languageName: unknown
   linkType: soft
 
@@ -2761,9 +2761,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"svelte@npm:^5.57.3":
-  version: 5.57.3
-  resolution: "svelte@npm:5.57.3"
+"svelte@npm:^5.58.0":
+  version: 5.58.0
+  resolution: "svelte@npm:5.58.0"
   dependencies:
     "@jridgewell/remapping": "npm:^2.3.5"
     "@jridgewell/sourcemap-codec": "npm:^1.6.0"
@@ -2775,12 +2775,12 @@ __metadata:
     clsx: "npm:^2.1.1"
     devalue: "npm:^5.9.2"
     esm-env: "npm:^1.2.1"
-    esrap: "npm:^2.3.6"
+    esrap: "npm:^2.4.2"
     is-reference: "npm:^3.0.3"
     locate-character: "npm:^3.0.0"
     magic-string: "npm:^0.30.11"
     zimmerframe: "npm:^1.1.2"
-  checksum: 10/bbd728a7f2d12c1d2af6122fd007c17c4bf92c64e865dda5c6f4bdd59c91783d731e1916b344795874bd26473658e7ad4040ccf61afd249fb08e85aab2478a23
+  checksum: 10/3f53ada42a4e94197b4b039b5c412378e4d08c3fc2875d027ce4d091a3f980531f6bfd3e812d81a0a30d43c5eadfcd13a6eca21351d2d4f75add56a142bf4016
   languageName: node
   linkType: hard
 
@@ -2858,7 +2858,7 @@ __metadata:
     playwright: "npm:^1.65.0"
     prettier: "npm:^3.9.10"
     prettier-plugin-svelte: "npm:^4.0.1"
-    svelte: "npm:^5.57.3"
+    svelte: "npm:^5.58.0"
     svelte-check: "npm:^4.7.8"
     typescript: "npm:^6.0.2"
     vite: "npm:^8.3.8"
