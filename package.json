@@ -15,8 +15,8 @@
     "test": "yarn workspaces foreach -Apt run test"
   },
   "devDependencies": {
-    "prettier": "^3.9.10",
-    "prettier-plugin-svelte": "^4.0.1",
+    "prettier": "^3.10.1",
+    "prettier-plugin-svelte": "^4.2.0",
     "svelte": "^5.57.3"
   }
 }
